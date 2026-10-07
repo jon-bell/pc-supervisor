@@ -378,12 +378,19 @@ function syncPeople(
     }
   }
   // Tagged non-PC reviewers (rare) still get their tier.
+  const insOther = db.prepare("insert or ignore into person (email, is_pc, first_seen_at) values (?, 0, ?)");
   const updTier = db.prepare("update person set tags = ?, tier = ? where email = ? and (tags != ? or tier != ?)");
   for (const [email, tags] of holders) {
     if (seen.has(email)) continue;
+    counts.add("people_new", insOther.run(email, now).changes);
     const t = json(tags.slice().sort());
     const tier = tierFor(tags, tierTags);
-    updTier.run(t, tier, email, t, tier);
+    counts.add("people_changed", updTier.run(t, tier, email, t, tier).changes);
+  }
+  // Non-PC people who no longer hold any queried tag.
+  const tagged = db.prepare("select email from person where is_pc = 0 and tags != '[]'").all() as { email: string }[];
+  for (const { email } of tagged) {
+    if (!holders.has(email)) counts.add("people_changed", updTier.run("[]", "senior", email, "[]", "senior").changes);
   }
   return byName;
 }
