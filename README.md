@@ -27,7 +27,14 @@ scripts/harness-smoke.sh    # seeds one paper and checks the API paths the app u
 docker compose -p pcs -f hotcrp/compose.yaml down -v    # throw it away
 ```
 
-`hotcrp-up.sh` creates a chair account (`admin@example.org`), mints an API token, and writes `PCS_HOTCRP_URL` and `PCS_HOTCRP_TOKEN` to `.env.test`. Once the app exists, see AGENTS.md for the npm commands.
+`hotcrp-up.sh` creates a chair account (`admin@example.org`), mints an API token, and writes `PCS_HOTCRP_URL` and `PCS_HOTCRP_TOKEN` to `.env.test`. AGENTS.md lists the npm commands.
+
+The repo is an npm workspace (`server/`, `web/`, `seed/`, `e2e/`; `e2e/argos-canary/` stays standalone):
+
+- `server/src/config.ts`: every `PCS_*` variable, validated with Zod. `npm run pcs -- config-check` prints a redacted summary or every problem at once.
+- `server/src/clock.ts`: the only source of "now" (ESLint enforces it).
+- `server/src/hotcrp/`: the HotCRP client and its response schemas.
+- Tests: `server/test/unit/` (no network), `server/test/contract/` (live harness; refuses non-localhost URLs), `e2e/specs/` (Playwright + Argos).
 
 ## Using it on a real conference
 
