@@ -1,0 +1,22 @@
+{
+  "name": "@pcs/server",
+  "private": true,
+  "type": "module",
+  "description": "Sync engine, store, rules, JSON API, and the pcs CLI.",
+  "bin": {
+    "pcs": "./bin/pcs.js"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "pcs": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  }
+}
