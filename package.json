@@ -21,7 +21,7 @@
     "test:scale": "node -e \"console.log('test:scale: not implemented yet (PLAN M7); nothing to run.')\"",
     "seed": "npm run --silent seed -w @pcs/seed --",
     "pcs": "npm run --silent pcs -w @pcs/server --",
-    "dev": "npm run dev -w @pcs/web",
+    "dev": "node scripts/dev.mjs",
     "build": "npm run build --workspaces --if-present"
   },
   "devDependencies": {

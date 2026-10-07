@@ -272,6 +272,15 @@ export const MIGRATIONS: readonly string[] = [
     primary key (run_id, email)
   ) strict, without rowid;
   `,
+
+  // 3 (M5): when the sync first saw a paper's current decision. HotCRP
+  // exposes no decision timestamp; the burndown and triage list need one.
+  // Decisions already present at the first sync are approximate.
+  `
+  alter table paper add column decision_seen_at integer;
+  alter table paper add column decision_seen_approx integer not null default 0;
+  update paper set decision_seen_at = first_seen_at, decision_seen_approx = 1 where decision is not null;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

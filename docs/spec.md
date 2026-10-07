@@ -94,7 +94,7 @@ fts(text)                                              -- FTS5 over review_text 
 - **Tiers** come from user tags (`PCS_TIER_TAGS`). Junior and reciprocal reviewers get their own outlier lists, because reciprocal reviewers are the group most likely to drop out.
 - **Mentions:** parse `@Name` / `@email` out of comment text, resolve them against the roster, and store the emails.
 - **Deletions and unassignments** are detected by absence in a full sync. Record them; don't silently drop rows.
-- The implemented schema adds to the sketch above: lead/shepherd/manager, review ratings, review-form fields, `*_approx` flags, and `deleted_seen_at`/`removed_seen_at` on reviews, assignments, papers, and people. See [server/src/store/README.md](../server/src/store/README.md).
+- The implemented schema adds to the sketch above: lead/shepherd/manager, review ratings, review-form fields, `*_approx` flags, `deleted_seen_at`/`removed_seen_at` on reviews, assignments, papers, and people, and `paper.decision_seen_at` (when the sync first saw the current decision; HotCRP has no decision timestamp, so a decision already present at the first sync gets that sync's time, flagged approximate). See [server/src/store/README.md](../server/src/store/README.md).
 
 ---
 
@@ -109,7 +109,10 @@ HotCRP ◄── bearer token ── server (Node/TS: sync + JSON API, SQLite) �
 - **`/reviewhistory` is a one-time background backfill** at `PCS_HISTORY_RPS` (default 1). After that, snapshots capture changes at sync resolution.
 - **Clock injection:** all phase logic reads `now` from one function. `PCS_NOW` (ISO timestamp) pins it, for tests and for replaying a past state.
 - **Metrics** are SQL views plus a TS rules module evaluated at read time, so changing a threshold env var and restarting re-ranks everything. Indexes go on `pid` and `email`.
-- **UI:** React + Vite + TanStack Table/Query, with virtualized tables (2,400 rows must stay smooth). Every row deep-links into HotCRP: `/paper/{pid}`, `/review/{pid}{ordinal}`, `/search?q=…`.
+- **UI:** React + Vite + TanStack Table/Query, with virtualized tables (2,400 rows must stay smooth). Every row deep-links into HotCRP: `/paper/{pid}`, `/review/{pid}{ordinal}` (unsubmitted reviews have no ordinal: `/review?p={pid}&r={rid}`), `/search?q=…`.
+- **Server (M5, `server/src/server/`):** `pcs serve [--watch]` runs Fastify on `127.0.0.1:PCS_PORT` and serves `web/dist` with an SPA fallback. Routes: `GET /api/meta` (phase, now, pinned, HotCRP base URL, rule weights, tiers), `GET /api/triage?ac=&rule=&tier=` (every paper in triage order with reasons, AC, merits, tier mix, last activity, plus facet counts), `GET /api/papers/:pid` (the drawer: reviews with versions and text, comments with author, word count, mentions and text, one merged timeline), `GET /api/sync/status`, `POST /api/sync` (202, or 409 while a sync runs; one at a time per process). Requests whose `Host` isn't a loopback name get 421 (DNS rebinding); every response carries a CSP that allows only `'self'`; sync errors are redacted; a unit test checks no body or header contains the token. M6 adds `/api/acs`, `/api/reviewers`, `/api/people/:email`, `/api/overview` to the same route list.
+- **Store → rules adapter (`server/src/views/snapshot.ts`):** builds the rules engine's snapshot view in six statements (papers, people, ACs, reviews, review versions, comments), each one indexed scan regardless of size, with scores extracted by `json_extract` and no text read. Version times are `coalesce(modified_at, seen_at)`; a comment's time is the earliest of `first_seen_at` and the first `modified_at` the sync saw, so an edit never moves it. The server caches the evaluated analysis per (latest sync run, clock minute).
+- **Movement before the first sync needs the backfill.** The first sync sees one version per review, so score changes that happened before it are only visible after `pcs backfill`. The golden integration test and the E2E setup run sync then backfill; without the backfill golden pids 3 and 12 also fire `UNRESOLVED_SPLIT`.
 
 ### 4.1 Configuration (environment only)
 
@@ -260,7 +263,7 @@ See [PLAN.md](../PLAN.md).
 | API contract | Zod schemas for every HotCRP response we consume, checked against the seeded harness. This catches drift when `HOTCRP_REF` is bumped. | Every push; nightly against HotCRP `master` |
 | Integration | Seed scenario → sync → assert DB state. Multi-stage scenarios: seed stage 1, sync, mutate, advance `PCS_NOW`, sync, assert diffs. | Every push |
 | E2E (Playwright) | Seed → sync → server + built UI. Assert the triage ranking, reason chips, AC table, person page, drawer timeline, and (v1) the tagging dry run. | Every push |
-| Visual (Argos) | `argosScreenshot` at fixed states of the golden scenario: triage list, paper drawer, AC table, person page, overview. `PCS_NOW` is pinned, and relative-time text and sync timestamps are masked. Uploads come from CI only, through the Argos GitHub App (tokenless), and they show **synthetic harness data only**. | Every push (Argos diffs PRs against `main`) |
+| Visual (Argos) | `argosScreenshot` at fixed states of the golden scenario: triage list, paper drawer, AC table, person page, overview. `PCS_NOW` is pinned, and relative-time text and sync timestamps are masked (class `volatile`, `data-visual-test="transparent"`). Playwright runs with `bypassCSP`, because Argos injects an inline script that the app's CSP blocks; the CSP is asserted on response headers instead. Uploads come from CI only, through the Argos GitHub App (tokenless), and they show **synthetic harness data only**. | Every push (Argos diffs PRs against `main`) |
 | Scale | The `scale` scenario (2,400 papers, 40 ACs, ~10k reviews). Assert sync time and UI interaction budgets. | Nightly / manual |
 
 ### 9.2 The harness (`hotcrp/`)

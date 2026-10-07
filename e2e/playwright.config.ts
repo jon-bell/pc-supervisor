@@ -1,15 +1,18 @@
 import { createArgosReporterOptions } from "@argos-ci/playwright/reporter";
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_PORT } from "./support/env.js";
 
-// The app under test is the built web UI served on 127.0.0.1. PLAN M5 changes
-// the webServer to the Fastify server (seed golden -> sync -> serve).
-const PORT = 4173;
-
+// The app under test is `pcs serve` (Fastify + the built web app) on
+// 127.0.0.1, over the golden scenario synced with PCS_NOW pinned. The
+// webServer command does the seeding and syncing first (support/golden-server.ts).
 export default defineConfig({
   testDir: "./specs",
   globalSetup: "./support/global-setup.ts",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // One harness and one server: run specs in order, one at a time.
+  workers: 1,
+  fullyParallel: false,
   outputDir: "../test-results",
   // Upload to Argos only from CI: tokenless via the Argos GitHub App, or
   // ARGOS_TOKEN if one is set. Local runs just take screenshots. Screenshots
@@ -21,16 +24,26 @@ export default defineConfig({
   ],
   use: {
     ...devices["Desktop Chrome"],
-    baseURL: `http://127.0.0.1:${PORT}`,
+    viewport: { width: 1280, height: 720 },
+    baseURL: `http://127.0.0.1:${E2E_PORT}`,
+    timezoneId: "UTC",
+    locale: "en-US",
     trace: "retain-on-failure",
+    // Argos injects its stabilization script inline, which the app's strict
+    // CSP (script-src 'self') blocks. The CSP itself is asserted by the
+    // server's unit tests and by specs/security.spec.ts on response headers.
+    bypassCSP: true,
     // Argos-recommended flags for stable font rendering across runners.
     launchOptions: { args: ["--disable-lcd-text", "--font-render-hinting=none"] },
   },
   webServer: {
-    command: "npm run preview -w @pcs/web",
+    command: "npx tsx e2e/support/golden-server.ts",
     cwd: "..",
-    url: `http://127.0.0.1:${PORT}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+    url: `http://127.0.0.1:${E2E_PORT}/api/meta`,
+    // Always a fresh seed + sync; never reuse a server holding other data.
+    reuseExistingServer: false,
+    timeout: 180_000,
+    stdout: "pipe",
+    stderr: "pipe",
   },
 });
