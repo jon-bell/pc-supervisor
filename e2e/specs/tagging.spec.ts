@@ -77,6 +77,8 @@ test("tag the split papers: dry run changes nothing, confirmation sets the tags,
   await expect(commit).toBeDisabled();
   await dialog.getByTestId("tag-confirm-input").fill(TAG);
   await expect(commit).toBeEnabled();
+  // No focused input in the screenshot: a blinking caret makes it flaky.
+  await dialog.getByTestId("tag-confirm-input").blur();
   await argosScreenshot(page, "tag-dry-run");
   expect(await pidsWithTag(hotcrp, TAG)).toEqual([]);
 
