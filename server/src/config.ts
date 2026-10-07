@@ -463,6 +463,7 @@ export const FIELDS = {
   PCS_SYNC_CONCURRENCY: withDefault(2, intIn(1, 16)),
   PCS_HISTORY_RPS: withDefault(1, numberIn(0, 50, { exclusiveMin: true })),
   PCS_PORT: withDefault(5317, intIn(1, 65_535)),
+  PCS_DEV: withDefault(false, bool),
   // v1 actions (spec §6, PLAN M8): the paper tag the confirmed tagging flow adds or removes.
   PCS_ATTENTION_TAG: withDefault("chair-attention", paperTag),
 } satisfies Record<string, z.ZodType<unknown, Raw>>;
@@ -789,6 +790,8 @@ export interface Config {
   db: { path: string; key: string | undefined };
   sync: { intervalMin: number; chunk: number; concurrency: number; historyRps: number };
   port: number;
+  /** PCS_DEV: `npm run dev` is running; the Vite dev origin may change tags. Optional like `assignment`. */
+  dev?: boolean;
   /** PCS_ATTENTION_TAG: the tag the v1 tagging action writes (no leading #). */
   attentionTag: string;
 }
@@ -1041,6 +1044,7 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
       historyRps: f.PCS_HISTORY_RPS,
     },
     port: f.PCS_PORT,
+    dev: f.PCS_DEV,
     attentionTag: f.PCS_ATTENTION_TAG,
   };
 }

@@ -9,7 +9,8 @@ const procs = [
   ["api", ["run", "pcs", "--", "serve"]],
   ["web", ["run", "dev", "-w", "@pcs/web"]],
 ].map(([name, args]) => {
-  const p = spawn("npm", args, { stdio: "inherit", env: process.env });
+  // PCS_DEV: the API accepts tag changes from the Vite origin (routes/actions.ts).
+  const p = spawn("npm", args, { stdio: "inherit", env: { ...process.env, PCS_DEV: "true" } });
   p.on("exit", (code) => {
     process.stderr.write(`dev: ${name} exited (${code ?? "signal"}); stopping\n`);
     stop(code ?? 1);
