@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fixedClock } from "../../src/clock.js";
 import { loadConfig, RULE_NAMES, type Config } from "../../src/config.js";
 import type { MetaResponse, PaperDetail, SyncStatus, TriageResponse } from "../../src/server/api-types.js";
-import { buildApp, CSP, type App } from "../../src/server/app.js";
+import { buildApp, CSP, listRoutes, type App } from "../../src/server/app.js";
 import { SyncRunner } from "../../src/server/sync-runner.js";
 import { memoryStore, type Store } from "../../src/store/store.js";
 import { runSync, type SyncResult } from "../../src/sync/sync.js";
@@ -246,5 +246,16 @@ describe("SyncRunner", () => {
     await runner.current?.catch(() => undefined);
     await new Promise((r) => setImmediate(r));
     expect(runner.lastError).toBe("fetch failed for [REDACTED]");
+  });
+});
+
+describe("listRoutes", () => {
+  it("lists every API route ROUTES registers, without serving", async () => {
+    const routes = await listRoutes({ cfg, store, clock: fixedClock(cfg.now!) });
+    const keys = routes.map((r) => `${r.method} ${r.url}`);
+    for (const k of ["GET /api/meta", "GET /api/papers/:pid", "GET /api/people/:email", "GET /api/reserve", "GET /api/report/export/:file", "POST /api/tags/commit", "POST /api/sync"]) {
+      expect(keys).toContain(k);
+    }
+    expect(routes.every((r) => r.url.startsWith("/api/"))).toBe(true);
   });
 });
