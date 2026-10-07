@@ -25,12 +25,13 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 
 | Need | Endpoint | Notes |
 |---|---|---|
-| Paper list, status, decision, tags | `GET /search?q=all&f=…&format=csv` · `GET /papers` | `f` takes display fields: `title status decision tags lead shepherd manager reviewers revstat`. The default scope `t=s` covers submitted papers only, so pass `t=all` when you need drafts and withdrawn papers. |
-| Who's assigned what, by role | `GET /searchaction?action=get/pcassignments&q=all` | CSV `paper,action,email,title`. Actions are `metareview`, `primaryreview`, `secondaryreview`, `pcreview`, `lead`, `shepherd`, plus a leading `clearreview` row per paper. **Verified.** |
+| Paper list, status, decision, tags | `GET /search?q=all&f=…&format=csv` · `GET /papers` | `f` takes display fields: `title status decision tags lead shepherd manager reviewers revstat`. The response is JSON even with `format=csv` (that only makes values plain text); empty fields are omitted, and `manager` comes back as `administrator`. The default scope `t=s` covers submitted papers only, so pass `t=all` when you need drafts and withdrawn papers. An unknown `t` silently becomes `none`. |
+| Who's assigned what, by role | `GET /searchaction?action=get/pcassignments&q=all` | CSV `paper,action,email[,round][,review_token],title`. Actions are `metareview`, `primaryreview`, `secondaryreview`, `pcreview`, `externalreview`, plus a leading `clearreview` row per paper (email `#pc`, with the title). **Review assignments only**: at `60f693f` it emits no `lead`/`shepherd` rows (`ListAction::pcassignments_csv_data`), so take those from `/search` fields. **Verified.** |
 | Reviews: scores, text, status, type, reviewer | `GET /reviews?q=all` | Fields: `rid pid rtype status ordinal reviewer_email version`, plus one field per review-form UID. In the default form those are `OveMer RevExp PapSum ComAut ComPC`; read the real UIDs from the instance. `rtype` 1 ext · 2 PC · 3 secondary · 4 primary · 5 metareview. `status` is empty/acknowledged/draft/delivered/approved/complete. **Verified.** |
 | Review edit history | `GET /{p}/reviewhistory?r=…` | Admin-only, one review per call. **Used for backfill only** (§4). In steady state we diff our own snapshots. |
 | Discussion comments | `GET /comments?q=all` | `cid pid author_email text topic visibility response draft modified_at tags by_author by_shepherd`. **Verified**, including `actas`-authored comments and `@mention` detection. |
-| PC roster + user tags | `GET /pc` | Roles and visible user tags. Tiers (junior / reciprocal) come from user tags. |
+| PC roster | `GET /pc` | Name, email, affiliation, `roles: "chair"` for chairs. **No per-user tags**: only `color_classes` (tags that have colors) and a top-level list of tag names. Tiers (junior / reciprocal) come from user tags, so M0/M3 must find another source for them (e.g. the users page's CSV, which is not an API endpoint). |
+| Review-form fields | `GET /searchaction?action=get/jsonrqc&q=NONE` | `reviewform` keyed by field UID (the keys in `/reviews`), with type and score labels; `q=NONE` keeps paper content out. A download: no `ok` key, always pretty-printed. `GET /settings?filter=rf` has the same fields by internal id (`s01`, `t01`) with per-value symbols, but no UIDs. |
 | Activity feed | `GET /events` | Pre-rendered HTML, 10 per page. **Don't use it.** |
 | Ratings of reviews | `GET /{p}/reviewrating` | Optional quality signal (`short`, `vague`, `disrespectful` …). |
 
@@ -39,6 +40,10 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 - **Review `version` is an opaque version tag, not a counter.** Seen values: 269888, 455859, 157921. Detect change by inequality only, never by ordering.
 - **Review `modified_at` is admin-visible, but HotCRP suppresses it when `reviewModified <= timeRequested`, which includes a review requested and submitted in the same second.** That matters for seeding (§9.3). In production, treat a missing `modified_at` as "unknown" and fall back to `first_seen_at`.
 - **Comment `word_count` is null for ordinary comments.** We compute word counts ourselves.
+- **A bad search query is not an error.** An unknown keyword returns `ok: true`, empty results, and a `message_list` warning (status 1). The client treats warnings on read endpoints as errors, so a typo can't look like "every review was deleted".
+- **Rate limits:** by default 250 requests/minute and 5000/hour per user (`src/contactcounter.php`), reported in `x-ratelimit-*` headers; a 429 carries `Retry-After` in seconds. A `/reviewhistory` backfill of 10k reviews therefore takes over two hours.
+- **`reviewer` (reviews) and `author` (comments) are HTML.** Use `reviewer_email` / `author_email`.
+- **`/reviewhistory` deltas (`object: "review_delta"`) have no `modified_at`**, and text fields may appear as `<UID>:p` patches.
 - **`POST /reviews` ignores `override=1` for JSON bodies**; only text-form uploads honor it. The seeder works around this by opening review deadlines in settings. This may be worth an upstream issue.
 
 **Gaps that shape the design:**
