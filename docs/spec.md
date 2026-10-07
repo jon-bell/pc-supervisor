@@ -30,7 +30,8 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | Reviews: scores, text, status, type, reviewer | `GET /reviews?q=all` | Fields: `rid pid rtype status ordinal reviewer_email version`, plus one field per review-form UID. In the default form those are `OveMer RevExp PapSum ComAut ComPC`; read the real UIDs from the instance. `rtype` 1 ext · 2 PC · 3 secondary · 4 primary · 5 metareview. `status` is empty/acknowledged/draft/delivered/approved/complete. **Verified.** |
 | Review edit history | `GET /{p}/reviewhistory?r=…` | Admin-only, one review per call. **Used for backfill only** (§4). In steady state we diff our own snapshots. |
 | Discussion comments | `GET /comments?q=all` | `cid pid author_email text topic visibility response draft modified_at tags by_author by_shepherd`. **Verified**, including `actas`-authored comments and `@mention` detection. |
-| PC roster | `GET /pc` | Name, email, affiliation, `roles: "chair"` for chairs. **No per-user tags**: only `color_classes` (tags that have colors) and a top-level list of tag names. Tiers (junior / reciprocal) come from user tags, so M0/M3 must find another source for them (e.g. the users page's CSV, which is not an API endpoint). |
+| PC roster | `GET /pc` | Name, email, affiliation, `roles: "chair"` for chairs. **No per-user tags**: only `color_classes` (tags that have colors) and a top-level list of tag names. The users page's CSV (`/users?fn=get&getfn=pcinfo`) has tags but is a page, and pages ignore bearer tokens. |
+| Reviewer user tags (tiers) | `GET /reviews?q=<pids>&rq=re:%23<tag>` | `rq` is a review-level search filter (`Review_API::run_get_multi`); `re:#<tag>` keeps only reviews whose reviewer has user tag `<tag>`. Their `reviewer_email`s are the tagged reviewers. One call per tier tag (`PCS_TIER_TAGS`); untagged = senior. Covers everyone holding a review on the searched papers, which is everyone tiers matter for. **Verified** (seed integration test). |
 | Review-form fields | `GET /searchaction?action=get/jsonrqc&q=NONE` | `reviewform` keyed by field UID (the keys in `/reviews`), with type and score labels; `q=NONE` keeps paper content out. A download: no `ok` key, always pretty-printed. `GET /settings?filter=rf` has the same fields by internal id (`s01`, `t01`) with per-value symbols, but no UIDs. |
 | Activity feed | `GET /events` | Pre-rendered HTML, 10 per page. **Don't use it.** |
 | Ratings of reviews | `GET /{p}/reviewrating` | Optional quality signal (`short`, `vague`, `disrespectful` …). |
@@ -283,11 +284,23 @@ Scenarios are declarative files: PC members (with tags), papers, assignments, an
    - For a review: `timeRequested ≤ reviewModified`, `reviewSubmitted`, and `timeDisplayed`. Otherwise `modified_at` disappears from the API.
    - For a comment: `timeModified`, `timeDisplayed`, `timeNotified`.
 
-Open item: the user-JSON keys for **name and tags** in `saveusers.php` didn't take in the smoke test (`tags` and `given_name` were ignored). Check `batch/saveusers.php` / `UserStatus` for the right keys.
+**Resolved (M2): `saveusers.php` JSON keys.** JSON input goes through `CsvParser::make_json` without the CSV header synonyms, so only canonical keys work: `firstName`, `lastName`, `affiliation`, `roles`, and `tags` as **one space-separated string** (`"tags": "junior"`). `given_name`/`family_name` are silently ignored in JSON (they work only as CSV headers), and a `tags` array crashes `trim()`.
+
+What the seeder (`seed/`, see its README) learned:
+
+- **Seeder token.** Seeding uses its own `seeder@example.org` sysadmin token (not on the PC) with raised per-user limits (`ContactCounter.apiRefreshAmount*`; limits are per token owner, checked before `actas`). The chair token's budget stays clean for the sync. Responses also cost budget: 0.01 units per KB (`apiKbytePrice`), so a 15 MB `/reviews` read costs ~150 requests' worth.
+- **Bulk writes.** `POST /reviews` and `POST /comments` take JSON arrays. Comments can span papers, one call per `actas` author. An author response is `{pid, response: "1", text}` as `actas=<author contact>`, which works for placeholder author accounts once a response round is open. Edits pass `cid`; deletes pass `cid` and `delete: true`, and the row disappears.
+- **Decisions** go through `batch/assign.php` (`paper,action,decision` / `1,decision,Accepted`), or `POST /{p}/decision`. There's no API-visible decision timestamp.
+- **Unassignment** is `batch/assign.php` `paper,action,user` with `clearreview`, and the review row is deleted.
+- **Review history.** A score change writes a `PaperReviewHistory` row that copies the old version's `reviewModified`, so backdating the first version *before* the change gives `/reviewhistory` the earlier version at its earlier time. `version` is `reviewTime`, an opaque vtag that the warp never touches. Deltas still carry no `modified_at`.
+- **Comment edits** keep `timeDisplayed`/`timeNotified` and update `timeModified`, which is what `modified_at` reports.
+- **Reset.** `npm run seed -- reset` truncates content tables and deletes non-sysadmin accounts, so tests can re-seed in about a second without rebuilding the harness.
+- **Timing.** `scale` (2,400 papers, 9,600 review rows, 6,594 comments, 1,068 responses) seeds in 2 min 0 s on a 9-core dev machine: papers 35 s, reviews and comments 60 s, everything else under 20 s. `seed verify scale` takes 67 s. `golden` seeds in about 9 s.
 
 Scenarios to ship:
 
-- **`golden`**: ~12 papers, each built to trigger exactly one rule (plus a clean control). The expected reasons live beside the scenario. This is the E2E oracle.
+- **`golden`**: 12 papers, each built to fire an exact rule set (plus a clean control). The expected reasons live beside the scenario (`seed/scenarios/golden/expected.ts`). This is the E2E oracle.
+- **`multistage`**: 3 papers in two stages (score change, new/edited/deleted comment, unassigned review in stage 2), for the M3 snapshot-diff test. `seed/README.md` lists both stages exactly.
 - **`shadow`**: ~150 papers with realistic spread. Used for demos and manual UI work.
 - **`scale`**: generated from a fixed RNG seed.
 
