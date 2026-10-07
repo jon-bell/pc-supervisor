@@ -1,0 +1,13 @@
+{
+  "name": "@pcs/seed",
+  "private": true,
+  "type": "module",
+  "description": "Scenario format and seeding driver for the HotCRP harness (PLAN M2).",
+  "scripts": {
+    "seed": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pcs/server": "*"
+  }
+}
