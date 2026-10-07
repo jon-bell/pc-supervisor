@@ -54,6 +54,7 @@ The CI steps for these are in `.github/workflows/ci.yml`: `ci` runs lint through
   - counts (papers, PC, reviews by `rtype`/`status`, comments);
   - review-form field UIDs, with each score field's value range;
   - user tags present;
+  - the rating settings (`review_rating`, `review_rating_visibility`) and how many reviews carry ratings;
   - whether `modified_at` is present on reviews and comments.
 - It **prints no content**: no titles, names, emails, or text.
 - **Depends on:** the HotCRP client from M1.
@@ -107,9 +108,10 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 | 7 | `AC_ABSENT` | The AC never comments; the reviewers do. |
 | 8 | `CHAMPION_MISSING` | Merit 5/4/4 (not 5/3/3: a range of 2 is `SPLIT`). The 5 reviewer never comments. |
 | 9 | `LOW_EXPERTISE` | All expertise ≤ 2. |
-| 10 | `THIN_REVIEWS` | One review is 35 words. |
+| 10 | `THIN_REVIEWS` | One review is 35 words and is rated `short` by both co-reviewers. |
 | 11 | `RESPONSE_UNADDRESSED` | Merit 2/2/2 (so no top merit on the accept side can fire `CHAMPION_MISSING`). An author response is posted on 02-09. Reviewers never comment, and the AC comments on days +1 and +12. |
 | 12 | `SPLIT` | Merit 2/4/4, with movement 1→2 on day +5. At the second instant (below), it also fires `DEADLINE_NO_CONSENSUS`. |
+| 13 | `REVIEW_FLAGGED` | One review is rated `disrespectful` by the AC and `short` by a co-reviewer. Otherwise healthy (that review is ≥ 200 words, so `THIN_REVIEWS` doesn't fire, because `THIN_REVIEWS` counts only `short`/`vague` ratings from **≥ 2 raters** or word count). |
 
 **Second assertion instant:** `PCS_NOW = 2030-03-01T12:00` (~2.5 days to decisions, inside the 3-day window). Assert only that pid 12 includes `DEADLINE_NO_CONSENSUS` and pid 1 fires nothing. Other rows drift with time and aren't asserted here.
 
@@ -119,13 +121,15 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 - `RESPONSE_UNADDRESSED` counts only reviewer comments.
 - A paper with a decision fires nothing (pid 1).
 - `GONE_QUIET` measures quiet time from `max(last activity, DISCUSSION_OPEN)`.
+- `THIN_REVIEWS` fires on word count < floor, **or** a `short`/`vague` flag from ≥ `PCS_THRESH_RATING_RATERS` (2) raters.
+- Ratings are seeded with `POST /{p}/reviewrating?actas=<rater>`. The rater must be a co-reviewer who has already submitted, or the metareviewer.
 
 **People:**
 - **R-silent** is the low scorer on 3, 4, and 12 and never comments. They top "silent on split papers" with 3. Because they're the low scorer, no `CHAMPION_MISSING` fires.
 - **R-pinged** is pinged on pid 4 on day +3 and never comments there. That's an unanswered ping of 11+ days.
 - **AC-busy** holds pids 1, 3, 4, 8, 9, and 10: 6 papers, 5 flagged, commenting on all of them.
 - **AC-idle** holds pids 5 and 7: 2 papers, 0 comments, both flagged.
-- **AC-normal** holds pids 2, 6, 11, and 12.
+- **AC-normal** holds pids 2, 6, 11, 12, and 13.
 - The pid 2 laggard is tagged `reciprocal`. R-silent is tagged `junior`. Everyone else is senior.
 
 Changing this table means changing the M3 and M4 tests in the same PR.
@@ -207,7 +211,9 @@ The discussion MVP ships first, on the shadow PC. These milestones implement spe
 | M | Scope | Done when |
 |---|---|---|
 | **M9** | Extended phase model + imports (`pcs import invites|tpms-assignments|tpms-registrations|refcheck|do-not-invite`), versioned | Each import kind round-trips from fixture CSVs; a malformed CSV produces a row-level error report, not a partial import |
-| **M10** | Assignment validator (spec §10.4 C) | A seeded `assignment` scenario containing an all-junior panel, an overloaded senior, an unapproved reserve candidate, a do-not-invite hit, and a **deliberate reciprocal 2-cycle and 3-cycle** is fully flagged. The generated fix-up CSV passes HotCRP's `POST /assign?dry_run=1` on the harness |
+| **M10** | Assignment validator + TPMS export/import (spec §10.3, §10.4 C) | A seeded `assignment` scenario containing an all-junior panel, an overloaded senior, an unapproved reserve candidate, a do-not-invite hit, and a **deliberate reciprocal 2-cycle and 3-cycle** is fully flagged. The generated fix-up CSV passes HotCRP's `POST /assign?dry_run=1` on the harness |
+| **M10a** | Solver core: a TS port of HotCRP `lib/mincostmaxflow.php` (lower bounds, cost scaling), keeping the copyright notice | **Differential test:** on ≥ 200 random instances (including ones with lower bounds), the TS min cost equals HotCRP's PHP `MinCostMaxFlow` run in the harness container (`php -r` driver in `seed/`), and flows are feasible. A 2,400×600 pruned instance solves in under 30 s in CI |
+| **M10b** | Assignment network (spec §10.5): tier gadget (soft by default, hard optional), convex load costs, pinned edges, affinity normalization, cycle and second-partition repair, bulk-assign CSV + solve report | On the seeded `assignment` scenario: every paper meets composition or is reported with a reason; no band is exceeded; no conflicted, do-not-invite, or unapproved-reserve edge appears; the deliberate reciprocal cycles are broken; the CSV passes `POST /assign?dry_run=1` on the harness |
 | **M11** | Reserve compliance (A) + quick-reject tracker (B) | A seeded `registration` scenario (missing designee, inconsistent designee, invalid exemption, over-covered person) is fully flagged; the DBLP lookup is mocked in tests and off by default |
 | **M12** | Reviewing-by-tier (D) + early reject (E) | A multi-stage scenario: candidates are computed at window open; some reviewers bump within the window, others don't; at window close the lists match expectations |
 | **M13** | Process report (G) + pseudonymous export | The report renders from the `shadow` and `scale` scenarios; exported rows contain no email, only HMAC pseudonyms, stable for a given key |
@@ -216,7 +222,6 @@ The discussion MVP ships first, on the shadow PC. These milestones implement spe
 
 - Shadow PC phase dates. These are only needed for real use; CI uses synthetic dates.
 - Whether to add a post-hoc shadow-vs-real comparison (spec §5d). Not scheduled.
-- Upstream HotCRP PRs (spec §10.5): action-log and mail-log endpoints; JSON `override` fix.
-- Two-cycle support for phase 2? Undecided.
-- Will TPMS provide a registration-status export?
+- Upstream HotCRP PRs (spec §10.6): action-log and mail-log endpoints; JSON `override` fix.
+- **Questions for the TPMS operator** (drafted in the vault): can we get the score matrix, and the registration status as a CSV? What is the assignment CSV's column layout? Current price and turnaround?
 - Make sure the `ripley-cloud-gha` App installation covers this repo (docs/ci.md, one-time setup).

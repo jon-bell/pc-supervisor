@@ -39,7 +39,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | Assignment dry run (M10) | `POST /assign?dry_run=1&forceShow=0&format=json` | Body: a JSON array of row objects with the CSV columns (`paper action user`). Returns `valid`, `assignment_count`, and the `assignments` HotCRP *would* make; nothing changes. An invalid set is **HTTP 403** with `ok: false`, `valid: false`, and the error messages. `forceShow=0` keeps conflicts enforced (`1` overrides them). **Verified (M10).** |
 | Tag changes (v1, the only write) | `POST /assign?dry_run=1&format=json` with a JSON body `[{pid, action: "tag"\|"cleartag", tag}]`, then the same without `dry_run` | **Not `POST /assigntags`**: at `60f693f` `Tags_API::assigntags` (`src/api/api_tags.php`) only adds tags and executes at once, with no `dry_run`. `Assign_API::assign` (`src/api/api_assign.php`) runs the same `AssignmentSet` and honors `dry_run=1`; with `format=json` it lists exactly the rows that would change state (a `tag` on a paper that already has the tag, or a `cleartag` on one that doesn't, is omitted), so that list is the preview diff. An unknown pid (*Submission #N does not exist*) or an empty list (*Empty file*) is HTTP 403 with `ok: false`; the tag client treats that as an error. **Verified (M8).** |
 | Activity feed | `GET /events` | Pre-rendered HTML, 10 per page. **Don't use it.** |
-| Ratings of reviews | `GET /{p}/reviewrating` | Optional quality signal (`short`, `vague`, `disrespectful` …). No per-review calls are needed: `/reviews` already carries `ratings` (one name or a list) on every rated review. **Verified (M3).** |
+| Ratings of reviews | **included in `GET /reviews`** (`ratings` field) | Flags: `good needswork short vague narrow disrespectful wrong`. Encoding: a sorted **multiset** of flags (`["short","short","vague"]` means 2 raters said short and 1 said vague); a bare string for a single flag; absent when unrated. **No rater identity and no timestamp, even for chairs.** Raters must be able to see the review (co-reviewers after submitting, or the metareviewer), and nobody can rate their own review. Per-review `GET /{p}/reviewrating` exists but isn't needed. `rate:<flag>` works in searches. **Verified.** |
 
 **API facts that differ from what the docs suggest (from the harness):**
 
@@ -50,6 +50,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 - **Rate limits:** by default 250 requests/minute and 5000/hour per user (`src/contactcounter.php`), reported in `x-ratelimit-*` headers; a 429 carries `Retry-After` in seconds. A `/reviewhistory` backfill of 10k reviews therefore takes over two hours.
 - **`reviewer` (reviews) and `author` (comments) are HTML.** Use `reviewer_email` / `author_email`.
 - **`/reviewhistory` deltas (`object: "review_delta"`) have no `modified_at`**, and text fields may appear as `<UID>:p` patches.
+- **Ratings depend on instance settings.** `review_rating` (`pc` | `all` | `no`) controls who may rate, and `review_rating_visibility` controls who sees them. `pcs probe` reports both; if ratings are off, the rating-based signals are hidden, not shown as zero.
 - **`POST /reviews` ignores `override=1` for JSON bodies**; only text-form uploads honor it. The seeder works around this by opening review deadlines in settings. This may be worth an upstream issue.
 - **HotCRP can't see the request `Content-Type` under Apache mod_php** (`Qrequest::header()` reads `HTTP_CONTENT_TYPE`, which mod_php doesn't set). Endpoints that branch on it fall back to sniffing: a body starting with `[`/`{` is JSON; anything else is unknown. `POST /assign` with a CSV or form body therefore prints PHP warnings ahead of its JSON on the harness, so the client sends assignments as a JSON body (M10's dry runs and M8's tag writes). (Found in M10, again in M8.)
 - **After truncating `PaperStorage`, re-insert row 1** (the "empty document", `src/schema.sql`). Otherwise the first PDF stored gets id 1, and that paper silently stays a draft. `seed reset` does this since M10.
@@ -86,8 +87,9 @@ paper(pid PK, title, status, decision, tags[], synced_at)
 assignment(pid, email, role)                           -- get/pcassignments
 review(rid PK, pid, email, rtype, status, round, ordinal, vtag,
        modified_at NULL, first_seen_at, first_complete_seen_at,
-       scores JSON, word_count)
-review_version(rid, vtag, seen_at, source, scores JSON, status) -- source: snapshot|history
+       scores JSON, word_count, ratings JSON)                 -- ratings as {flag: count}
+review_version(rid, vtag, seen_at, source, scores JSON, status)  -- source: snapshot|history
+rating_change(rid, seen_at, before JSON, after JSON)    -- ratings carry no vtag change or timestamp; diff per sync
 review_text(rid, vtag, field_uid, text)
 comment(cid PK, pid, email, topic, visibility, is_response, draft,
         word_count, mentions[], modified_at, first_seen_at, deleted_seen_at NULL)
@@ -168,7 +170,7 @@ Windows are relative to the phase-date env vars. Every threshold has an env over
 | Signal | Definition |
 |---|---|
 | Outstanding / late | Assigned reviews not complete (or delivered) after `REVIEW_DUE`. |
-| Review depth | Word count vs. the PC median. Flag the bottom decile and reviews rated `short`/`vague`. |
+| Review depth & quality | Word count vs. the PC median (flag the bottom decile), plus **rating flags received**: counts of `short`/`vague`/`needswork`/`narrow`/`wrong` vs. `good`, across all their reviews. A reviewer whose reviews repeatedly draw negative flags from different papers is a coaching case. |
 | Discussion participation | Share of their in-discussion papers where they've commented since `DISCUSSION_OPEN`. |
 | Responsiveness | After an `@mention`, or an AC comment on their paper: the median time to their next comment there. Unanswered pings older than `PCS_THRESH_PING_DAYS` are listed. |
 | Movement | Score/expertise changes after `DISCUSSION_OPEN` (from `review_version`). |
@@ -199,7 +201,7 @@ The AC table (`/acs`, M6) lists ACs alphabetically. The load column reads "6 pap
 
 ### 5c. Paper risk
 
-Each rule fires with a reason string. Severity is the sum of weights. Sort by severity, then by time to `DECISIONS_DUE`.
+Each rule fires with a reason string. Rating-based reasons quote the counts, e.g. "review B: 2× short, 1× vague". Severity is the sum of weights. Sort by severity, then by time to `DECISIONS_DUE`.
 
 | Rule (`NAME`) | Fires when | Default weight |
 |---|---|---|
@@ -211,8 +213,9 @@ Each rule fires with a reason string. Severity is the sum of weights. Sort by se
 | `AC_ABSENT` | no AC comment since `DISCUSSION_OPEN` | 2 |
 | `CHAMPION_MISSING` | the top merit is ≥ `MERIT_ACCEPT_MIN`, and no reviewer holding it has commented since `DISCUSSION_OPEN` | 1 |
 | `LOW_EXPERTISE` | no review with expertise ≥ `EXPERTISE_OK_MIN` | 2 |
-| `THIN_REVIEWS` | a review under `PCS_THRESH_MIN_WORDS`, or rated short/vague | 1 |
+| `THIN_REVIEWS` | a review under `PCS_THRESH_MIN_WORDS`, or flagged short/vague by ≥ `PCS_THRESH_RATING_RATERS` (2) raters | 1 |
 | `RESPONSE_UNADDRESSED` | an author response exists, with no reviewer comment after it | 2 |
+| `REVIEW_FLAGGED` | any review on the paper carries a `disrespectful` or `wrong` rating. **Phase-independent**, because a disrespectful review needs chair action before authors see it | 4 |
 | `DEADLINE_NO_CONSENSUS` | < `PCS_THRESH_DEADLINE_DAYS` (3) to `DECISIONS_DUE`, no decision, and split or silent | +3 |
 
 Clarifications (the precise semantics, with every threshold comparison, are in the header of `server/src/rules/rules.ts`):
@@ -366,7 +369,7 @@ Each phase date is an env var:
 
 `PCS_PHASE_REGISTRATION_DUE`, `PCS_PHASE_SUBMISSION_DUE`, `PCS_PHASE_QUICKREJECT_DUE`, `PCS_PHASE_ASSIGNMENT_DONE`, `PCS_PHASE_REVIEW_DUE`, `PCS_PHASE_EARLYREJECT_OPEN`, `PCS_PHASE_EARLYREJECT_CLOSE`, `PCS_PHASE_RESPONSE_OPEN/_CLOSE`, `PCS_PHASE_DISCUSSION_OPEN/_CLOSE`, `PCS_PHASE_DECISIONS_DUE`.
 
-The modules activate by phase. Single-cycle only for now; a two-cycle conference would duplicate this set per cycle and still needs design.
+The modules activate by phase. **Single cycle (decided).** There is no resubmission linking and no per-cycle phase sets.
 
 **Implemented (M9).** The six new dates are optional, so the MVP runs without them. Startup checks that the configured ones are in this order and reports every violation at once: `REGISTRATION_DUE ≤ SUBMISSION_DUE ≤ QUICKREJECT_DUE ≤ ASSIGNMENT_DONE ≤ REVIEW_DUE ≤ EARLYREJECT_OPEN ≤ EARLYREJECT_CLOSE ≤ RESPONSE_OPEN` (if set) `≤ DISCUSSION_OPEN`. Unset dates are skipped. Only pairs that involve a new date are checked, so MVP validation doesn't change. `EARLYREJECT_CLOSE` needs `EARLYREJECT_OPEN`. Since M12, `EARLYREJECT_OPEN` alone is allowed: the window then closes `PCS_EARLYREJECT_WINDOW_H` hours (default 48) after it opens, and that derived close is order-checked like a configured one.
 
@@ -405,8 +408,9 @@ There are four tiers: `senior`, `junior`, `reserve-pool` (designated but not act
 | Kind | Content | Keyed by |
 |---|---|---|
 | `invites` | The reserve-reviewer invitation sheet (CSV export). Columns: `pid, candidate_email, tpms_score, seniority_note, ac_email, ac_decision (approve/reject/pending), invited_at, response (accept/decline/none), activated_at`. **This sheet is the source of truth for AC approval and invitations; the tool never edits it.** | pid + email |
-| `tpms-assignments` | TPMS's assignment output CSV | pid + email |
-| `tpms-registrations` | TPMS reviewer registration status (registered with HotCRP email; number of papers uploaded), if TPMS provides it | email |
+| `tpms-assignments` | TPMS's assignment CSV, the only output a HotCRP venue is documented to receive. **The column layout is unpublished**, so the importer takes a column mapping (`--map paper=…,email=…[,round=…]`) | pid + email |
+| `tpms-scores` | The affinity matrix `paper,email,score`, with scores as floats in 0–1 (the same shape as CMT's TPMS download and openreview-matcher's `--scores`). It must be requested from the TPMS operator; whether HotCRP venues get it is **unconfirmed** | pid + email |
+| `tpms-registrations` | Reviewer registration status. TPMS has an operator-run status page with no confirmed export, so the importer accepts `email, registered[, n_papers, last_updated]` and degrades to a plain registered list. Repeated imports are diffed | email |
 | `refcheck` | Output of an external reference checker (hallucinated references, no in-field references) | pid |
 | `do-not-invite` | The chair-to-chair do-not-invite list, stored encrypted alongside the DB | email |
 
@@ -435,6 +439,14 @@ There's no public spec for the TPMS formats. The TPMS kinds therefore use a mini
 *Confidentiality.* The do-not-invite list, like every import, lives only in its table inside the SQLCipher-encrypted store (`PCS_DB_KEY`). That is what "stored encrypted alongside the DB" means here. `pcs wipe` removes it with everything else. Don't keep the source CSV around.
 
 *CLI.* `pcs import <kind> <file>` prints the run id, the row count, the +added/−removed/~changed counts against the previous version, and a hash prefix. On errors it prints the report (the first 50 problems), exits 1, and writes nothing. `pcs import --list [kind]` prints the history: run id, kind, time, row count, diff counts, and hash prefix. It shows counts only, never content. `pcs import --help` lists the columns. Synthetic fixtures for every kind, including malformed variants, are in `seed/fixtures/imports/`.
+
+**Exports to TPMS** (`pcs export tpms <dir>`). TPMS has no API, no HotCRP integration, and no chair self-service; data is exchanged as files with the operator. The tool prepares:
+- the PC list with emails;
+- the HotCRP conflicts CSV;
+- one load-group file per tier and load band;
+- the reviews-per-paper target.
+
+The PDF ZIP comes from HotCRP's own download.
 
 ### 10.4 Modules
 
@@ -537,6 +549,8 @@ The tool stays **read-only**. AC decisions, chair actions, and appeals are what 
 - **Conflict sanity:** same affiliation, DBLP co-authorship (optional), and **reciprocal cycles**. Because reserve reviewers are authors, detect 2-cycles (and short k-cycles, `PCS_CYCLE_MAX_K`) in the graph whose edges run from an author of paper P to a reviewer of paper P. These are surfaced for human review, never auto-acted on.
 - **TPMS round-trip:** validate an imported TPMS assignment CSV *before* it reaches HotCRP; emit a corrected HotCRP assignment CSV (seniors first, then the third slot).
 - Reserve candidates must be AC-approved in the `invites` import and absent from `do-not-invite` before they appear in any generated assignment.
+- **TPMS cannot enforce tier composition.** It maximizes affinity under per-reviewer load balancing only, and specific requirements "don't work well with TPMS assignments" (OOPSLA 2023 notes). TPMS also readily assigns undeclared conflicts, so the conflict cross-check above is mandatory. **We build our own solver** (§10.5), and TPMS output becomes one input to it: scores if available, otherwise its assignment as a warm start that gets validated.
+- **Cold-start reviewers** (no TPMS profile, which is common for junior PC members) can get local affinity scores from **openreview-expertise** (SPECTER2/MFR). It runs entirely on our machine using titles and abstracts. Its hosted API is **not** allowed, because it would send submissions to a third party.
 
 **Implemented (M10): `server/src/modules/assignment/`, `pcs validate-assignments [--tpms] [--out fixup.csv]`.**
 
@@ -653,7 +667,7 @@ The UI and API say that this is evidence for a human decision about consequences
 **F. Discussion and decisions:** §5, plus tier-aware participation (do junior reviewers comment?).
 
 **G. Process report** (after the conference)
-- Junior vs. senior depth, timeliness, rating distributions, and score agreement.
+- Junior vs. senior depth, timeliness, **rating-flag distributions** (flags received per review, by tier), and score agreement.
 - Reserve activation and dropout rates; early-reject yield; quick/desk-reject counts and appeals.
 - A carry-forward export of the do-not-invite list.
 - **Pseudonymous IDs** (a keyed HMAC of the email, with a chair-held key, `PCS_PSEUDONYM_KEY`) on every exported row, so the data could join a future cross-conference baseline without exposing identities.
@@ -685,6 +699,43 @@ The UI and API say that this is evidence for a human decision about consequences
 
 *Tests.* Unit tests: `server/test/unit/modules/report.test.ts` covers every metric and the small-cell rule at its boundary. `server/test/unit/report-export.test.ts` covers the pseudonyms (stable per key, different across keys), the key check, the structural cell validator, the `other` tier, the zip, the do-not-invite round trip, the routes (409 without a key; no token, key, or names), and the CLI renderer. The `report` integration test in `seed/test/integration/` seeds `shadow` on the harness, syncs, and renders the report (provisional and after decisions) and the export. `npm run test:scale` (`e2e/scale/run.ts`) does the same over `scale` (2,400 papers) with time budgets. The e2e spec `e2e/specs/report.spec.ts` checks the page on golden: every section, small tiers withheld, the zip download.
 
-### 10.5 Upstream HotCRP contributions (proposed as PRs, not a fork)
+### 10.5 Assignment solver (port of HotCRP's autoassigner)
+
+**Why a port:** HotCRP's min-cost max-flow (`lib/mincostmaxflow.php`: push-relabel max flow, then cost-scaling push-relabel, with **edge lower bounds**) and its network construction (`src/autoassigner.php`) are well documented, compact (~2.6k lines of PHP), and MIT-style licensed. Keep the copyright notice in ported files. Running it ourselves lets us add the constraints HotCRP and TPMS lack, and keep scores local.
+
+**Network** (one solve, exact and integral, because tiers partition reviewers):
+
+```
+source ──(cap = load band max, convex cost for balance)──► reviewer r (tier t)
+reviewer r ──(cap 1, cost = −affinity(r,p); omitted if conflicted / do-not-invite / unapproved reserve)──► p.t   (p's node for r's tier)
+p.senior ──(cap = PCS_POLICY_MAX_SENIOR, lower bound PCS_POLICY_MIN_SENIOR)──► p
+p.third  ──(cap 1, lower bound 1 if PCS_POLICY_THIRD_SLOT=exactly1)──► p      (junior + reserve-active feed p.third)
+p ──(cap = reviews per paper)──► sink
+```
+
+- **Soft first, hard optionally.** Hard lower bounds make the whole solve infeasible if a single paper can't be staffed (e.g. too few unconflicted seniors in its area). The default models each required slot as an edge with a large negative cost (`PCS_SOLVER_SLOT_BONUS`), so the solve always succeeds, and every unmet requirement is reported per paper. This is the same technique as HotCRP's expertise gadget. `PCS_SOLVER_HARD=1` switches to true lower bounds.
+- **Load balance:** convex per-reviewer costs on the source edges, as in HotCRP (`paper_assignment_cost × i`), so loads spread within each band.
+- **Fixed assignments** (already-made reviews, quick-reject reviews, AC-chosen reserves) are pinned with lower bound 1.
+- **Affinity sources, in priority order:**
+  1. the `tpms-scores` import;
+  2. local openreview-expertise scores (SPECTER2/MFR);
+  3. HotCRP preferences, expertise, and topic scores (`get/allrevpref`).
+  Sources are normalized to one integer scale, with weights in env.
+- **Scale:** ~600 reviewers + ~7.2k paper/tier nodes. Edges are pruned to the top `PCS_SOLVER_TOPK` (default 60) candidates per paper, plus all pinned edges, giving ~150k edges. Use typed-array adjacency (`Int32Array`); the target is under 30 s for a full 2,400-paper solve.
+
+**What flow can't express, handled by repair passes** (each reports what it changed):
+- **Reciprocal cycles.** These are pairwise, not flow constraints. Detect 2- and short k-cycles in the assignment's author→reviewer graph; forbid the lowest-affinity edge of each cycle; re-solve warm. Repeat until clean, or until the cap is hit, then report the rest.
+- **Second partitions** (e.g. at most one reviewer per institution per paper, crossing tiers): the same forbid-and-re-solve loop. FairIR (openreview-matcher, run locally) remains the fallback if those constraints become central.
+
+**Outputs:**
+- a HotCRP bulk-assign CSV (`paper,action,email,round`), always applied by a chair through HotCRP with a dry run first;
+- a solve report: objective value, per-paper unmet requirements, load histogram by tier, repairs made, and the affinity coverage (papers whose best candidates are weak).
+
+**Correctness:** the port is **differentially tested against HotCRP's PHP implementation**. For random instances with no tier gadget, our min-cost-flow cost must equal `MinCostMaxFlow` run inside the harness container. Tier and repair behavior gets its own property tests:
+- every paper meets its composition, or it's reported;
+- no reviewer exceeds their band;
+- no conflicted edge is ever used.
+
+### 10.6 Upstream HotCRP contributions (proposed as PRs, not a fork)
 - An admin endpoint for the **action log**, and one for the **mail log**. Together they would make email reminders and assignment changes visible, closing the "nudges are invisible" gap in §1.
 - `POST /reviews`: honor `override` for JSON bodies, not just text uploads.

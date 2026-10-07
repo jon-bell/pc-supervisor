@@ -52,4 +52,14 @@ api "$U/comments?q=all&pretty=0" | python3 -c '
 import json,sys
 cs=json.load(sys.stdin)["comments"]
 assert len(cs)==1 and cs[0]["author_email"]=="ac1@example.org" and "modified_at" in cs[0], cs'
+# Review ratings: raters must be able to see the review (co-reviewers who
+# have submitted, or the metareviewer); the chair reads the aggregate in bulk.
+api -X POST "$U/1/reviewrating?r=A&actas=ac1@example.org&pretty=0" --data-urlencode "user_rating=short vague" >/dev/null
+api -X POST "$U/1/reviewrating?r=A&actas=r2@example.org&pretty=0" --data-urlencode "user_rating=short" >/dev/null
+api "$U/reviews?q=all&pretty=0" | python3 -c '
+import json,sys
+rs={r.get("ordinal"):r for r in json.load(sys.stdin)["reviews"]}
+assert rs["A"].get("ratings")==["short","short","vague"], rs["A"]
+assert "ratings" not in rs["B"], rs["B"]'
+api -G "$U/search" --data-urlencode "q=rate:short" -d pretty=0 | grep -q '"ids":\[1\]'
 echo "harness-smoke: ok"
