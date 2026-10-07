@@ -276,3 +276,84 @@ Scenarios to ship:
 ### 9.4 CI
 
 See [docs/ci.md](ci.md).
+
+---
+
+## 10. Large-conference modules (post-MVP, PLAN M9+)
+
+These modules target a large conference with tiered reviewing:
+- **2 senior PC reviews + 1 junior-PC or reserve review** per paper (a 4th is possible);
+- **TPMS-only assignment** (no bidding);
+- **reserve ("reciprocal") reviewers**: each submission designates a senior author, who is activated only on shortfall and approved by the paper's AC;
+- a **quick-reject** phase;
+- an **early-reject** phase.
+
+The tool stays read-only and chair-only. HotCRP remains the system of record. Where action is needed, the tool **generates HotCRP-native artifacts** (assignment CSVs, tag sets, mail-tool searches) for a chair to apply through HotCRP, dry-run first.
+
+### 10.1 Extended phase model
+
+Each phase date is an env var:
+
+`PCS_PHASE_REGISTRATION_DUE`, `PCS_PHASE_SUBMISSION_DUE`, `PCS_PHASE_QUICKREJECT_DUE`, `PCS_PHASE_ASSIGNMENT_DONE`, `PCS_PHASE_REVIEW_DUE`, `PCS_PHASE_EARLYREJECT_OPEN`, `PCS_PHASE_EARLYREJECT_CLOSE`, `PCS_PHASE_RESPONSE_OPEN/_CLOSE`, `PCS_PHASE_DISCUSSION_OPEN/_CLOSE`, `PCS_PHASE_DECISIONS_DUE`.
+
+The modules activate by phase. Single-cycle only for now; a two-cycle conference would duplicate this set per cycle and still needs design.
+
+### 10.2 Tiers
+
+There are four tiers: `senior`, `junior`, `reserve-pool` (designated but not activated), and `reserve-active`. They come from PC user tags (`PCS_TIER_TAGS`). Activated reserve reviewers are **added to the PC**, not requested as external reviewers, because HotCRP can't change an external reviewer's round without a new request.
+
+### 10.3 Imported data (local files, `pcs import <kind> <file>`)
+
+| Kind | Content | Keyed by |
+|---|---|---|
+| `invites` | The reserve-reviewer invitation sheet (CSV export). Columns: `pid, candidate_email, tpms_score, seniority_note, ac_email, ac_decision (approve/reject/pending), invited_at, response (accept/decline/none), activated_at`. **This sheet is the source of truth for AC approval and invitations; the tool never edits it.** | pid + email |
+| `tpms-assignments` | TPMS's assignment output CSV | pid + email |
+| `tpms-registrations` | TPMS reviewer registration status (registered with HotCRP email; number of papers uploaded), if TPMS provides it | email |
+| `refcheck` | Output of an external reference checker (hallucinated references, no in-field references) | pid |
+| `do-not-invite` | The chair-to-chair do-not-invite list, stored encrypted alongside the DB | email |
+
+Imports are versioned like snapshots, so "what did the sheet say on day X" is answerable.
+
+### 10.4 Modules
+
+**A. Reserve-reviewer compliance** (around the registration and submission deadlines)
+- Per paper: is a designee present, or is there a valid exemption claim? Exemption reasons are an enumerated, configurable set.
+- Per person: is the designee identical across every paper that names them? How many papers do they cover? Coverage does not scale their obligation; it's flagged against `PCS_RESERVE_MAX_COVER`.
+- Seniority and exemption evidence: self-declared fields, plus an **optional DBLP lookup** that counts papers at a configurable venue list. The lookup sends only public author names, never submission content. It's a hint for a human, never a verdict.
+- TPMS registration status, if it's imported.
+- Output: a non-compliance list with evidence, plus drafted mail-tool searches for warnings.
+
+**B. Quick-reject / desk-reject tracker**
+- A queue of `paper → signals (refcheck, AC flag, quick-reject review verdict) → AC decision → chair action → appeal status`.
+- Quick-reject reviews are a dedicated review round, tracked against `QUICKREJECT_DUE`.
+- Evidence is stored with each item. An appeal state is required.
+
+**C. Assignment validator** (the highest-value module)
+- **Composition** per paper, from the policy env vars: `PCS_POLICY_MIN_SENIOR` (2) and `PCS_POLICY_THIRD_SLOT` (`exactly1`|`atleast1`). Flag papers with all-junior panels, a missing senior, or a missing third slot.
+- **Load bands per tier:** `PCS_LOAD_<TIER>_MIN/_MAX`.
+- **Conflict sanity:** same affiliation, DBLP co-authorship (optional), and **reciprocal cycles**. Because reserve reviewers are authors, detect 2-cycles (and short k-cycles, `PCS_CYCLE_MAX_K`) in the graph whose edges run from an author of paper P to a reviewer of paper P. These are surfaced for human review, never auto-acted on.
+- **TPMS round-trip:** validate an imported TPMS assignment CSV *before* it reaches HotCRP; emit a corrected HotCRP assignment CSV (seniors first, then the third slot).
+- Reserve candidates must be AC-approved in the `invites` import and absent from `do-not-invite` before they appear in any generated assignment.
+
+**D. Reviewing progress, by tier**
+- Outstanding and late reviews by tier, with a dedicated **reserve dropout** view and its escalation state.
+- **Reserve accountability:** each reserve reviewer's own submissions, shown next to their review performance (late, thin, rated). This is evidence for a human decision about consequences, not an automated decision.
+- **Coaching queue:** junior reviews below the depth floor or rated short/vague, linked into HotCRP, where the coaching itself happens (as comments). The tool only reads this.
+- *(If the policy is adopted)* `PCS_POLICY_WITHHOLD_REVIEWS`: list the authors whose own papers' reviews would be withheld because their reserve reviews are outstanding, and draft the HotCRP-side change.
+
+**E. Early reject**
+- Candidates under `PCS_POLICY_EARLYREJECT` (`reject_only`|`include_weak_reject`), each shown with its discussion signals.
+- A drafted mail-tool search for "re-read and bump within N hours" (`PCS_EARLYREJECT_WINDOW_H`, default 48).
+- Window tracking from snapshots: at close, list the candidates that were bumped, those that weren't, and the reviewers who never responded.
+
+**F. Discussion and decisions:** §5, plus tier-aware participation (do junior reviewers comment?).
+
+**G. Process report** (after the conference)
+- Junior vs. senior depth, timeliness, rating distributions, and score agreement.
+- Reserve activation and dropout rates; early-reject yield; quick/desk-reject counts and appeals.
+- A carry-forward export of the do-not-invite list.
+- **Pseudonymous IDs** (a keyed HMAC of the email, with a chair-held key, `PCS_PSEUDONYM_KEY`) on every exported row, so the data could join a future cross-conference baseline without exposing identities.
+
+### 10.5 Upstream HotCRP contributions (proposed as PRs, not a fork)
+- An admin endpoint for the **action log**, and one for the **mail log**. Together they would make email reminders and assignment changes visible, closing the "nudges are invisible" gap in §1.
+- `POST /reviews`: honor `override` for JSON bodies, not just text uploads.
