@@ -123,6 +123,20 @@ function secret(v: string, ctx: z.RefinementCtx): string {
   return v;
 }
 
+/** PCS_PSEUDONYM_KEY (M13): a secret of at least 16 characters (value never shown). */
+function pseudonymKey(v: string, ctx: z.RefinementCtx): string {
+  const s = secret(v, ctx);
+  if (typeof s === "string" && s.length < 16) return fail(ctx, `must be at least 16 characters, got ${s.length} (value not shown); e.g. openssl rand -hex 32`);
+  return s;
+}
+
+/** Comma-separated decision-name prefixes (M13), lowercased; at least one. */
+function prefixList(v: string, ctx: z.RefinementCtx): string[] {
+  const xs = v.split(",").map((x) => x.trim().toLowerCase()).filter((x) => x.length > 0);
+  if (xs.length === 0) return fail(ctx, `expected a comma-separated list of decision-name prefixes, got ${show(v)}`);
+  return xs;
+}
+
 function hotcrpUrl(v: string, ctx: z.RefinementCtx): string {
   let u: URL;
   try {
@@ -456,6 +470,10 @@ export const FIELDS = {
   PCS_MERIT_WEAK_REJECT_MAX: optional(intIn(-1000, 1000)),
   PCS_EARLYREJECT_MIN_REVIEWS: optional(intIn(1, 100)),
   PCS_EARLYREJECT_WINDOW_H: withDefault(48, numberIn(0, 24 * 365, { exclusiveMin: true })),
+  // Process report + pseudonymous export (spec §10.4 G, PLAN M13).
+  PCS_REPORT_MIN_CELL: withDefault(5, intIn(1, 1000)),
+  PCS_REPORT_ACCEPT_DECISIONS: withDefault<string[]>(["accept"], prefixList),
+  PCS_PSEUDONYM_KEY: optional(pseudonymKey),
   PCS_DB_PATH: optional(path),
   PCS_DB_KEY: optional(secret),
   PCS_SYNC_INTERVAL_MIN: withDefault(15, intIn(1, 24 * 60)),
@@ -757,6 +775,18 @@ export const DEFAULT_EARLY_REJECT: EarlyRejectSettings = {
   windowHours: 48,
 };
 
+/** Process report + pseudonymous export (spec §10.4 G, PLAN M13). */
+export interface ReportSettings {
+  /** PCS_REPORT_MIN_CELL: aggregate groups with fewer people are suppressed. */
+  minCell: number;
+  /** PCS_REPORT_ACCEPT_DECISIONS: lowercase prefixes of decision names on the accept side. */
+  acceptDecisions: readonly string[];
+  /** PCS_PSEUDONYM_KEY: the chair-held HMAC key; only `pcs export` needs it. Never logged or sent. */
+  pseudonymKey: string | undefined;
+}
+
+export const DEFAULT_REPORT_SETTINGS: ReportSettings = { minCell: 5, acceptDecisions: ["accept"], pseudonymKey: undefined };
+
 export interface Config {
   hotcrp: HotcrpConfig;
   tz: string;
@@ -786,6 +816,8 @@ export interface Config {
   tierProgress?: TierProgressPolicy;
   /** Early reject (spec §10.4 E); optional like `assignment`, loadConfig always sets it. */
   earlyReject?: EarlyRejectSettings;
+  /** Process report (spec §10.4 G); optional like `assignment`, loadConfig always sets it. */
+  report?: ReportSettings;
   db: { path: string; key: string | undefined };
   sync: { intervalMin: number; chunk: number; concurrency: number; historyRps: number };
   port: number;
@@ -1033,6 +1065,11 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
       windowHours: f.PCS_EARLYREJECT_WINDOW_H,
       closeDerived: phases.earlyRejectOpen !== undefined && cleaned(env, "PCS_PHASE_EARLYREJECT_CLOSE") === undefined,
     },
+    report: {
+      minCell: f.PCS_REPORT_MIN_CELL,
+      acceptDecisions: f.PCS_REPORT_ACCEPT_DECISIONS,
+      pseudonymKey: f.PCS_PSEUDONYM_KEY,
+    },
     db: { path: f.PCS_DB_PATH ?? defaultDbPath(f.PCS_HOTCRP_URL, opts.home), key: f.PCS_DB_KEY },
     sync: {
       intervalMin: f.PCS_SYNC_INTERVAL_MIN,
@@ -1117,6 +1154,11 @@ export function describeConfig(c: Config): string[] {
     ...(c.earlyReject
       ? [
           `Early-reject band ${c.earlyReject.policy}: merits <= ${c.earlyReject.policy === "reject_only" ? c.earlyReject.rejectMax : c.earlyReject.weakRejectMax}, >= ${c.earlyReject.minReviews} submitted; re-read window ${c.earlyReject.windowHours} h`,
+        ]
+      : []),
+    ...(c.report
+      ? [
+          `Report            groups under ${c.report.minCell} people suppressed; accept decisions ${c.report.acceptDecisions.map((d) => `${d}*`).join(",")}; pseudonym key ${c.report.pseudonymKey ? "(set; not shown)" : "(unset; pcs export refuses to run)"}`,
         ]
       : []),
     `Rule weights      ${RULE_NAMES.map((n) => `${n}=${c.rules.weights[n]}`).join(" ")}`,
