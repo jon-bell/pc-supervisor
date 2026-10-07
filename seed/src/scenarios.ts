@@ -2,7 +2,7 @@
 
 import type { Scenario } from "./format.js";
 
-export const SCENARIO_NAMES = ["golden", "multistage", "shadow", "scale", "assignment"] as const;
+export const SCENARIO_NAMES = ["golden", "multistage", "shadow", "scale", "assignment", "earlyreject"] as const;
 export type ScenarioName = (typeof SCENARIO_NAMES)[number];
 
 export function isScenarioName(s: string): s is ScenarioName {
@@ -21,5 +21,7 @@ export async function loadScenario(name: ScenarioName): Promise<Scenario> {
       return (await import("../scenarios/scale/scenario.js")).scenario;
     case "assignment":
       return (await import("../scenarios/assignment/scenario.js")).scenario;
+    case "earlyreject":
+      return (await import("../scenarios/earlyreject/scenario.js")).scenario;
   }
 }

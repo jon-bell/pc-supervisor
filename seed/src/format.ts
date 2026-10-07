@@ -160,7 +160,21 @@ export interface UnassignEvent {
   email: string;
 }
 
+/**
+ * Add a review assignment during a stage (batch/assign.php), e.g. a
+ * replacement reviewer after the deadline (PLAN M12). `timeRequested` is
+ * warped to `at`. The reviewer must be on the PC and not an author.
+ */
+export interface AssignEvent {
+  type: "assign";
+  at: When;
+  pid: number;
+  email: string;
+  role: Exclude<AssignRole, "metareview">;
+}
+
 export type ScenarioEvent =
+  | AssignEvent
   | ReviewEvent
   | ScoreChangeEvent
   | CommentEvent
@@ -245,6 +259,7 @@ export const REVIEW_TEXT_FIELDS = ["PapSum", "ComAut"] as const;
 /** The object an event acts on; events on one object must be strictly ordered in time. */
 export function objectKey(e: ScenarioEvent): string {
   switch (e.type) {
+    case "assign":
     case "review":
     case "scoreChange":
     case "unassign":

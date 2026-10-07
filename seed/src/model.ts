@@ -183,6 +183,16 @@ export function replay(scenario: Scenario, ctx: PhaseContext, upToStage = scenar
 
   function applyEvent(e: ScenarioEvent, t: Date, where: string): void {
     switch (e.type) {
+      case "assign": {
+        const p = people.get(e.email.toLowerCase());
+        if (!papers.has(e.pid)) fail(`${where}: unknown paper ${e.pid}`);
+        if (!p || !p.roles.includes("pc")) fail(`${where}: ${e.email} is not on the PC`);
+        if (authorsOf.get(e.pid)?.has(e.email.toLowerCase())) fail(`${where}: ${e.email} is an author of paper ${e.pid} and can't review it`);
+        const k = reviewKey(e.pid, e.email);
+        if (state.reviews.has(k)) fail(`${where}: ${e.email} is already assigned to paper ${e.pid}`);
+        state.reviews.set(k, { pid: e.pid, email: e.email.toLowerCase(), role: e.role, requestedAt: t, status: "empty", versions: [], removed: false });
+        return;
+      }
       case "review": {
         const r = state.reviews.get(reviewKey(e.pid, e.email)) ?? fail(`${where}: ${e.email} is not assigned to ${e.pid}`);
         if (r.removed) fail(`${where}: review was unassigned`);
