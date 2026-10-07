@@ -9,9 +9,9 @@
 // - /api/* answers JSON; anything else is the web app (SPA fallback to
 //   index.html, so client-side routes deep-link).
 //
-// Routes register from ROUTES below. M6 adds /api/acs, /api/reviewers,
-// /api/people/:email and /api/overview as more register* functions reading
-// deps.analysis (which already computes AC/reviewer metrics and the burndown).
+// Routes register from ROUTES below; each reads deps.analysis (the cached
+// rules evaluation, AC/reviewer metrics and burndown). M6 added /api/acs,
+// /api/reviewers, /api/people/:email and /api/overview.
 
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -25,8 +25,12 @@ import type { PersonView } from "../rules/model.js";
 import type { Store } from "../store/store.js";
 import type { Person } from "./api-types.js";
 import { AnalysisSource } from "./analysis.js";
+import { registerAcs } from "./routes/acs.js";
 import { registerMeta, registerSync } from "./routes/meta.js";
+import { registerOverview } from "./routes/overview.js";
 import { registerPapers } from "./routes/papers.js";
+import { registerPeople } from "./routes/people.js";
+import { registerReviewers } from "./routes/reviewers.js";
 import { registerTriage } from "./routes/triage.js";
 import type { SyncRunner } from "./sync-runner.js";
 
@@ -42,8 +46,17 @@ export interface RouteDeps {
 
 export type RegisterRoutes = (app: FastifyInstance, deps: RouteDeps) => void;
 
-/** Every API route group. M6: append registerAcs, registerReviewers, registerPeople, registerOverview. */
-export const ROUTES: readonly RegisterRoutes[] = [registerMeta, registerSync, registerTriage, registerPapers];
+/** Every API route group. */
+export const ROUTES: readonly RegisterRoutes[] = [
+  registerMeta,
+  registerSync,
+  registerTriage,
+  registerPapers,
+  registerAcs,
+  registerReviewers,
+  registerPeople,
+  registerOverview,
+];
 
 export const CSP = [
   "default-src 'self'",

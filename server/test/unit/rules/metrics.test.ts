@@ -107,19 +107,23 @@ describe("reviewer metrics", () => {
     const ev = evaluateAll(snap({ comments: cs }), MID);
     const ms = computeReviewerMetrics(ev, MID);
     const a = ms.find((m) => m.email === A)!;
-    expect(a.responsiveness).toEqual({ medianDays: 1.5, answered: 2, unanswered: [] });
+    expect(a.responsiveness).toEqual({ medianDays: 1.5, answered: 2, unanswered: [], open: [] });
     const b = ms.find((m) => m.email === B)!;
     // B: one episode from day +1 (both AC comments merge), never answered.
     expect(b.responsiveness.unanswered).toEqual([
       { pid: 1, since: day(1), ageDays: 13, pings: 2, mentionedAt: null },
     ]);
+    expect(b.responsiveness.open).toEqual(b.responsiveness.unanswered);
   });
 
   it("boundary: a ping exactly PING_DAYS old is not yet unanswered", () => {
     const t = day(5);
     const s = snap({ comments: [comment({ cid: 1, pid: 1, email: AC, time: t, mentions: [A] })] });
     const at3 = contextAt(t + 3 * DAY_MS);
-    expect(computeReviewerMetrics(evaluateAll(s, at3), at3).find((m) => m.email === A)!.responsiveness.unanswered).toEqual([]);
+    const r3 = computeReviewerMetrics(evaluateAll(s, at3), at3).find((m) => m.email === A)!.responsiveness;
+    expect(r3.unanswered).toEqual([]);
+    // Still an open ping (the person page lists it), just not over the bar.
+    expect(r3.open).toEqual([{ pid: 1, since: t, ageDays: 3, pings: 1, mentionedAt: t }]);
     const after = contextAt(t + 3 * DAY_MS + 1);
     expect(computeReviewerMetrics(evaluateAll(s, after), after).find((m) => m.email === A)!.responsiveness.unanswered).toHaveLength(1);
   });

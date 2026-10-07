@@ -2,7 +2,16 @@
 // the browser). TanStack Query hooks, one per route.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { MetaResponse, PaperDetail, SyncStatus, TriageResponse } from "@pcs/server/server/api-types";
+import type {
+  AcsResponse,
+  MetaResponse,
+  OverviewResponse,
+  PaperDetail,
+  PersonResponse,
+  ReviewersResponse,
+  SyncStatus,
+  TriageResponse,
+} from "@pcs/server/server/api-types";
 
 export type * from "@pcs/server/server/api-types";
 
@@ -40,6 +49,10 @@ export const keys = {
   triage: (f: TriageFilters) => ["triage", f.ac ?? "", f.rule ?? "", f.tier ?? ""] as const,
   paper: (pid: number) => ["paper", pid] as const,
   sync: ["sync"] as const,
+  acs: ["acs"] as const,
+  reviewers: ["reviewers"] as const,
+  person: (email: string) => ["person", email] as const,
+  overview: ["overview"] as const,
 };
 
 export function useMeta() {
@@ -61,6 +74,28 @@ export function usePaper(pid: number | null) {
     enabled: pid !== null,
   });
 }
+
+export function useAcs() {
+  return useQuery({ queryKey: keys.acs, queryFn: () => getJson<AcsResponse>("/api/acs") });
+}
+
+export function useReviewers() {
+  return useQuery({ queryKey: keys.reviewers, queryFn: () => getJson<ReviewersResponse>("/api/reviewers") });
+}
+
+export function usePerson(email: string) {
+  return useQuery({
+    queryKey: keys.person(email),
+    queryFn: () => getJson<PersonResponse>(`/api/people/${encodeURIComponent(email)}`),
+  });
+}
+
+export function useOverview() {
+  return useQuery({ queryKey: keys.overview, queryFn: () => getJson<OverviewResponse>("/api/overview") });
+}
+
+/** In-app path of a person page. */
+export const personPath = (email: string) => `/people/${encodeURIComponent(email)}`;
 
 export function useSyncStatus() {
   return useQuery({
