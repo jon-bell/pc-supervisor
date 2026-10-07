@@ -736,6 +736,21 @@ p ──(cap = reviews per paper)──► sink
 - no reviewer exceeds their band;
 - no conflicted edge is ever used.
 
+**Implemented (M10a): the solver core, `server/src/modules/solver/mcmf.ts`** (ported from hotcrp@60f693f8, with HotCRP's notice).
+- **API:** `const g = new MinCostMaxFlow()`; node 0 is `g.source`, node 1 is `g.sink`; `g.addNode()` / `g.addNodes(k)` return indices; `g.addEdge(src, dst, cap, cost = 0, minCap = 0)` returns an edge index (parallel edges allowed, which is how convex load costs are built). `g.solve()` returns `{ feasible, maxFlow, cost, flows: Int32Array /* per edge */, precisionLimited, unmet, stats }`. Infeasible lower bounds come back as `feasible: false` plus `unmet: [{ node, need: "inflow" | "outflow", amount }]`; they never throw. Malformed input (self-loops, edges into the source or out of the sink, non-integers, minCap > cap) throws `RangeError`.
+- **Re-solve (repair loop):** `g.forbid(e)` (capacity and lower bound 0) or `g.setCapacity(e, cap, minCap)`, then `g.solve()` again. Every solve is a full solve from scratch, with no warm start. That is fast enough: about 1 s per solve at full scale. Same network, same flows (deterministic, no shuffling).
+- **Numbers:** capacities and flows are Int32, and costs are integers with |cost| ≤ 2³¹−1, stored as Float64. `solve()` rejects Σ cap·|cost| > 2⁵³ so the total is exact. Prices are floats, as in PHP. `precisionLimited` (an epsilon-optimal stop) cannot occur for |cost| ≤ 10⁶ at this scale.
+- **Algorithm:** HotCRP's relabel-to-front push-relabel, then cost-scaling push-relabel (α = 12, lookahead, bucket repricing, arc fixing), in PHP's vertex and edge order. Worst case O(V³) for the max flow plus O(V²E log(VC)) for the cost scaling.
+- **Differences from PHP.** The differential test found two defects in HotCRP's code; neither affects HotCRP's own autoassigner networks.
+  1. Its global-relabel BFS relabels the source, so on general graphs the "max" flow can fall short. We keep the source at |V| and add the standard second BFS from the source.
+  2. When the starting flow leaves a lower-bound deficit at a vertex (e.g. hard `p.senior → p` minimums), PHP returns a non-conserving flow or never terminates. We first run a feasibility phase (the textbook circulation reduction, using the same push-relabel code) and start from its flow.
+  `{ hotcrpCompat: true }` restores PHP's max-flow phase, for the differential test only.
+- **Tested equivalence:** `server/test/integration/mcmf-differential.test.ts` runs 400 seeded instances through HotCRP's PHP class in the harness (`seed/php/mcmf-driver.php`, batched on stdin). The mix is two-layer, general, and tier-gadget networks; 184 of them have lower bounds. Results:
+  - 301 agree exactly on max flow, min cost, and feasibility (244 feasible, 57 infeasible).
+  - 12 hit PHP's short max flow, and 87 hit PHP's deficit defect. In each of these, our result matches the reference solver.
+  - In compat mode, PHP's flows are reproduced edge for edge (242/242).
+  A unit property test checks 600 instances against an Edmonds-Karp + cycle-canceling reference. The perf test (`test/unit/solver/mcmf-perf.test.ts`) runs the spec network at 2,400 × 600, top-60: 7.8k vertices, 160k edges. It takes 1.9 s soft and 1.0 s hard on a 4-core machine, against a 30 s budget.
+
 ### 10.6 Upstream HotCRP contributions (proposed as PRs, not a fork)
 - An admin endpoint for the **action log**, and one for the **mail log**. Together they would make email reminders and assignment changes visible, closing the "nudges are invisible" gap in §1.
 - `POST /reviews`: honor `override` for JSON bodies, not just text uploads.
