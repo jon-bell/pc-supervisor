@@ -327,9 +327,7 @@ export const MIGRATIONS: readonly string[] = [
   create index paper_option_name on paper_option(name, pid);
   `,
 
-  // 6 (TPMS file exchange, spec §10.3). Number 6 is this branch's by plan:
-  // migration 5 belongs to the review-ratings branch, built in parallel. Until
-  // that merges, this is the fifth entry; at merge it goes after 5.
+  // 5 (TPMS file exchange, spec §10.3).
   // Adds the review round of a TPMS assignment
   // row, the profile date of a registration row, and the affinity matrix.
   // import_score holds both tpms-scores and affinity-local rows (import_run.kind

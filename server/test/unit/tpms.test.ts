@@ -1,6 +1,6 @@
 // TPMS file exchange (spec §10.3): column-mapped tpms-assignments, the
 // tpms-scores / affinity-local matrices and scoresAsOf, flexible
-// tpms-registrations, SQL diff counts, the streaming CSV parser, migration 6,
+// tpms-registrations, SQL diff counts, the streaming CSV parser, migration 5,
 // and the export bundle. Fixtures: seed/fixtures/imports/ (synthetic).
 import { readFileSync } from "node:fs";
 import Database from "better-sqlite3-multiple-ciphers";
@@ -286,7 +286,7 @@ describe("streaming CSV parser", () => {
   });
 });
 
-describe("migration 6", () => {
+describe("migration 5 (TPMS)", () => {
   it("rebuilds import_run (new kinds allowed) keeping runs, rows, and foreign keys", () => {
     const raw = new Database(":memory:");
     raw.pragma("foreign_keys = ON");
