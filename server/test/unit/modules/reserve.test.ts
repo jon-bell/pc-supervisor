@@ -151,9 +151,9 @@ describe("per-person checks", () => {
     const tpms = {
       runId: 7,
       rows: [
-        { email: e("b"), registered: false, papers_uploaded: null },
-        { email: e("c"), registered: true, papers_uploaded: 0 },
-        { email: e("ok"), registered: true, papers_uploaded: null },
+        { email: e("b"), registered: false, papers_uploaded: null, last_updated: null },
+        { email: e("c"), registered: true, papers_uploaded: 0, last_updated: null },
+        { email: e("ok"), registered: true, papers_uploaded: null, last_updated: null },
       ],
     };
     expect(checkTpms(ds, tpms, P).map((x) => [x.code, x.emails[0], x.reason])).toEqual([

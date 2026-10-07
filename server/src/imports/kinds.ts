@@ -14,7 +14,15 @@
 import { z } from "zod";
 import { parseIsoLocal, zonedTimeToInstant } from "../tz.js";
 
-export const IMPORT_KINDS = ["invites", "tpms-assignments", "tpms-registrations", "refcheck", "do-not-invite"] as const;
+export const IMPORT_KINDS = [
+  "invites",
+  "tpms-assignments",
+  "tpms-scores",
+  "affinity-local",
+  "tpms-registrations",
+  "refcheck",
+  "do-not-invite",
+] as const;
 export type ImportKind = (typeof IMPORT_KINDS)[number];
 
 export function isImportKind(s: string): s is ImportKind {
@@ -38,6 +46,12 @@ export interface ColumnSpec {
   doc: string;
   sql: SqlType;
   cell: (ctx: ParseContext) => z.ZodType<unknown, string | undefined>;
+  /**
+   * When the file has no such column at all, every row gets this value and
+   * the cell parser is skipped (e.g. a plain list of registered emails).
+   * Undefined = the cell parser sees undefined, as for an empty cell.
+   */
+  absentDefault?: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +98,17 @@ function numberCell() {
     const s = v.trim();
     const n = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(s) ? Number(s) : NaN;
     return Number.isFinite(n) ? n : issue(ctx, "not a number");
+  });
+}
+
+/** A required score in [0, 1] (TPMS / openreview-expertise affinity). */
+function unitScoreCell() {
+  return cellIn.transform((v, ctx): number => {
+    if (blank(v)) return issue(ctx, "required (a number from 0 to 1)");
+    const s = v.trim();
+    const n = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(s) ? Number(s) : NaN;
+    if (!Number.isFinite(n)) return issue(ctx, "not a number");
+    return n < 0 || n > 1 ? issue(ctx, "must be between 0 and 1") : n;
   });
 }
 
@@ -135,12 +160,41 @@ function col(
   sql: SqlType,
   cell: ColumnSpec["cell"],
   doc: string,
-  opts: { required?: boolean; aliases?: readonly string[] } = {},
+  opts: { required?: boolean; aliases?: readonly string[]; absentDefault?: unknown } = {},
 ): ColumnSpec {
-  return { name, sql, cell, doc, required: opts.required ?? false, aliases: opts.aliases ?? [] };
+  return {
+    name,
+    sql,
+    cell,
+    doc,
+    required: opts.required ?? false,
+    aliases: opts.aliases ?? [],
+    ...(opts.absentDefault !== undefined ? { absentDefault: opts.absentDefault } : {}),
+  };
 }
 
 const PID_ALIASES = ["paper", "paper_id", "paperid", "submission", "submission_id"];
+const REVIEWER_ALIASES = ["reviewer", "reviewer_email", "reviewer_id", "user", "user_email"];
+
+/**
+ * A header-less score file (openreview-expertise writes none): the first row
+ * is already `pid,email,score` data. A header row never has an integer first cell.
+ */
+function looksLikeScoreRow(first: readonly string[]): boolean {
+  return first.length >= 3 && /^\s*\d+\s*$/.test(first[0]!) && EMAIL_RE.test(first[1]!.trim().toLowerCase());
+}
+
+/** paper,email,score: TPMS's matrix and openreview-expertise output share it (and one table). */
+function scoreColumns(source: string): ColumnSpec[] {
+  return [
+    col("pid", "integer", () => intCell({ required: true, min: 1 }), "HotCRP paper id", { required: true, aliases: PID_ALIASES }),
+    col("email", "text", () => emailCell(true), "reviewer's HotCRP email", { required: true, aliases: REVIEWER_ALIASES }),
+    col("score", "real", () => unitScoreCell(), `${source} affinity, a number from 0 to 1`, {
+      required: true,
+      aliases: ["affinity", "tpms_score", "similarity"],
+    }),
+  ];
+}
 
 export interface KindSpec {
   kind: ImportKind;
@@ -149,7 +203,13 @@ export interface KindSpec {
   summary: string;
   /** Columns that identify a row (unique within one file; the diff key). */
   key: readonly string[];
+  /** In order: a header-less file's columns are read in this order. */
   columns: readonly ColumnSpec[];
+  /**
+   * Read the file as header-less when its first row passes this test and
+   * none of its cells is a known header (a plain list of emails).
+   */
+  sniffHeaderless?: (firstRow: readonly string[]) => boolean;
 }
 
 export const KINDS: Readonly<Record<ImportKind, KindSpec>> = {
@@ -191,7 +251,26 @@ export const KINDS: Readonly<Record<ImportKind, KindSpec>> = {
         aliases: ["reviewer", "reviewer_email"],
       }),
       col("score", "real", () => numberCell(), "TPMS affinity score (number)", { aliases: ["tpms_score", "affinity"] }),
+      col("round", "text", () => textCell(), "review round the pair is proposed for (empty = default round)", {
+        aliases: ["review_round"],
+      }),
     ],
+  },
+  "tpms-scores": {
+    kind: "tpms-scores",
+    table: "import_score",
+    summary: "TPMS affinity matrix (paper, email, score in 0-1), one row per scored pair",
+    key: ["pid", "email"],
+    columns: scoreColumns("TPMS"),
+    sniffHeaderless: looksLikeScoreRow,
+  },
+  "affinity-local": {
+    kind: "affinity-local",
+    table: "import_score",
+    summary: "Local affinity scores from openreview-expertise run on this machine (cold start); same columns as tpms-scores",
+    key: ["pid", "email"],
+    columns: scoreColumns("openreview-expertise"),
+    sniffHeaderless: looksLikeScoreRow,
   },
   "tpms-registrations": {
     kind: "tpms-registrations",
@@ -203,11 +282,18 @@ export const KINDS: Readonly<Record<ImportKind, KindSpec>> = {
         required: true,
         aliases: ["reviewer", "reviewer_email"],
       }),
-      col("registered", "bool", () => boolCell(true), "yes | no (also true/false, 1/0)", { required: true }),
+      col("registered", "bool", () => boolCell(true), "yes | no (also true/false, 1/0); no such column = every listed email is registered", {
+        aliases: ["is_registered"],
+        absentDefault: true,
+      }),
       col("papers_uploaded", "integer", () => intCell({ required: false, min: 0 }), "number of papers uploaded to TPMS", {
-        aliases: ["papers", "num_papers"],
+        aliases: ["papers", "num_papers", "n_papers"],
+      }),
+      col("last_updated", "integer", (c) => dateCell(c), "when the TPMS profile last changed, date or date-time, PCS_TZ", {
+        aliases: ["updated", "updated_at", "last_update", "last_modified"],
       }),
     ],
+    sniffHeaderless: (first) => first.length > 0 && EMAIL_RE.test(first[0]!.trim().toLowerCase()),
   },
   refcheck: {
     kind: "refcheck",
@@ -262,11 +348,20 @@ export interface TpmsAssignmentRow {
   pid: number;
   email: string;
   score: number | null;
+  round: string | null;
+}
+/** tpms-scores and affinity-local. */
+export interface ScoreRow {
+  pid: number;
+  email: string;
+  score: number;
 }
 export interface TpmsRegistrationRow {
   email: string;
   registered: boolean;
   papers_uploaded: number | null;
+  /** Epoch seconds. */
+  last_updated: number | null;
 }
 export interface RefcheckRow {
   pid: number;
@@ -284,18 +379,29 @@ export interface DoNotInviteRow {
 export interface ImportRowMap {
   invites: InviteRow;
   "tpms-assignments": TpmsAssignmentRow;
+  "tpms-scores": ScoreRow;
+  "affinity-local": ScoreRow;
   "tpms-registrations": TpmsRegistrationRow;
   refcheck: RefcheckRow;
   "do-not-invite": DoNotInviteRow;
 }
 export type ImportRow = ImportRowMap[ImportKind];
 
-/** The Zod schema for one record of `kind` (record keys = canonical column names). */
+/**
+ * The Zod schema for one record of `kind` (record keys = canonical column
+ * names). Columns in `absent` (not in the file) take their absentDefault.
+ */
 export function rowSchema<K extends ImportKind>(
   kind: K,
   ctx: ParseContext,
+  absent: ReadonlySet<string> = new Set(),
 ): z.ZodType<ImportRowMap[K], Record<string, string | undefined>> {
-  const shape = Object.fromEntries(KINDS[kind].columns.map((c) => [c.name, c.cell(ctx)]));
+  const shape = Object.fromEntries(
+    KINDS[kind].columns.map((c) => [
+      c.name,
+      absent.has(c.name) && c.absentDefault !== undefined ? cellIn.transform(() => c.absentDefault) : c.cell(ctx),
+    ]),
+  );
   return z.object(shape) as unknown as z.ZodType<ImportRowMap[K], Record<string, string | undefined>>;
 }
 

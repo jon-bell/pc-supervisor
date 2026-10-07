@@ -144,6 +144,46 @@ export function paperRoleRowsSchema(kind: "lead" | "shepherd") {
   return kind === "lead" ? LeadRowsSchema : ShepherdRowsSchema;
 }
 
+// --- /searchaction?action=get/pcconf (CSV) ----------------------------------
+// The "PC conflicts" download (src/listactions/la_get_sub.php,
+// GetPcconflicts_ListAction; managers only). Header:
+// paper,title,given_name,family_name,email,conflicttype. One row per
+// conflicted (paper, PC member) pair, ordered by paper, then PC order; papers
+// without conflicts have no row. conflicttype is the text label: "Author",
+// "Contact", "Conflict", "Pinned conflict", or a configured description
+// (e.g. "Advisor/student"). PC members only: non-PC authors don't appear.
+
+export interface PcConflictRow {
+  pid: number;
+  title: string;
+  givenName: string;
+  familyName: string;
+  email: string;
+  conflictType: string;
+}
+
+export const PcConflictsSchema = z.array(
+  z
+    .looseObject({
+      paper: csvPid,
+      title: z.string().optional(),
+      given_name: z.string().optional(),
+      family_name: z.string().optional(),
+      email: z.string().min(1),
+      conflicttype: z.string().min(1),
+    })
+    .transform(
+      (r): PcConflictRow => ({
+        pid: r.paper,
+        title: r.title ?? "",
+        givenName: r.given_name ?? "",
+        familyName: r.family_name ?? "",
+        email: r.email.toLowerCase(),
+        conflictType: r.conflicttype,
+      }),
+    ),
+);
+
 // --- /reviews, /{p}/reviewhistory -------------------------------------------
 
 /** rtype: 1 external, 2 PC, 3 secondary, 4 primary, 5 metareview. */
