@@ -65,7 +65,7 @@ async function sync(at: Date, label: string): Promise<SyncResult> {
 }
 
 beforeAll(async () => {
-  seed = new MiniSeed();
+  seed = await MiniSeed.create();
   dir = mkdtempSync(join(tmpdir(), "pcs-m3-int-"));
   dbPath = join(dir, "pcs.db");
   store = openStore({ db: { path: dbPath, key: KEY } });

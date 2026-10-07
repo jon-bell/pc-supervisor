@@ -1,7 +1,8 @@
 // Playwright's webServer command (PLAN M5): prepare the golden state, then
 // run `pcs serve` on the built web app.
 //
-//   1. refuse unless PCS_HOTCRP_URL is the local harness (AGENTS.md rule 2);
+//   1. refuse unless PCS_HOTCRP_URL is the local, disposable harness
+//      (AGENTS.md rule 2; harness-verify.ts);
 //   2. `seed reset` + `seed golden`;
 //   3. sync + /reviewhistory backfill into a fresh temp DB, with the clock
 //      pinned at the golden primary instant (PCS_NOW);
@@ -22,7 +23,7 @@ import { SERVE_COMMAND } from "@pcs/server/cli/serve";
 import { fixedClock } from "@pcs/server/clock";
 import { loadConfig, loadPhaseConfig } from "@pcs/server/config";
 import { clientFromConfig } from "@pcs/server/hotcrp/client";
-import { assertHarnessUrl } from "@pcs/server/hotcrp/harness-guard";
+import { verifyHarness } from "@pcs/server/hotcrp/harness-verify";
 import { openStore } from "@pcs/server/store/store";
 import { runBackfill } from "@pcs/server/sync/backfill";
 import { clientSource } from "@pcs/server/sync/source";
@@ -33,7 +34,7 @@ import { E2E_ENV } from "./env.js";
 const log = (s: string) => process.stderr.write(`e2e golden-server: ${s}\n`);
 
 async function main(): Promise<number> {
-  assertHarnessUrl();
+  await verifyHarness();
   const phases = loadPhaseConfig();
   const now = resolveWhen(NOW_PRIMARY, phases);
   const dir = mkdtempSync(join(tmpdir(), "pcs-e2e-"));

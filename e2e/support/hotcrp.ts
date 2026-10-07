@@ -1,13 +1,15 @@
 // Direct HotCRP API access for specs that check what HotCRP itself holds
 // (PLAN M8: the dry run changes nothing, the confirmed run sets the tags).
-// Harness only: assertHarnessUrl() runs before a client exists.
+// Harness only: assertHarnessUrl() runs before a client exists, and the
+// client verifies the disposable harness before its first request.
 import { loadHotcrpConfig } from "@pcs/server/config";
 import { clientFromConfig, type HotcrpClient } from "@pcs/server/hotcrp/client";
 import { assertHarnessUrl } from "@pcs/server/hotcrp/harness-guard";
+import { verifiedFetch } from "@pcs/server/hotcrp/harness-verify";
 
 export function harnessClient(): HotcrpClient {
   assertHarnessUrl();
-  return clientFromConfig(loadHotcrpConfig(process.env));
+  return clientFromConfig(loadHotcrpConfig(process.env), { fetch: verifiedFetch() });
 }
 
 /** Pids holding `tag` in HotCRP, from /search's tags field. */

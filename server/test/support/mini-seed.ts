@@ -9,7 +9,8 @@
 
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { assertHarnessUrl } from "../../src/hotcrp/harness-guard.js";
+import { assertHarnessUrl, harnessProject } from "../../src/hotcrp/harness-guard.js";
+import { verifyHarnessOnce } from "../../src/hotcrp/harness-verify.js";
 
 const COMPOSE_FILE = fileURLToPath(new URL("../../../hotcrp/compose.yaml", import.meta.url));
 
@@ -26,12 +27,18 @@ export class MiniSeed {
   readonly #token: string;
   readonly project: string;
 
-  constructor(run: string = Date.now().toString(36)) {
+  /** Verifies the disposable harness (harness-verify.ts) before any write. */
+  static async create(run?: string): Promise<MiniSeed> {
+    await verifyHarnessOnce();
+    return new MiniSeed(run);
+  }
+
+  private constructor(run: string = Date.now().toString(36)) {
     this.url = assertHarnessUrl();
     const token = process.env.PCS_HOTCRP_TOKEN;
     if (!token) throw new Error("PCS_HOTCRP_TOKEN is not set; load .env.test");
     this.#token = token;
-    this.project = process.env.HOTCRP_COMPOSE_PROJECT ?? "pcs";
+    this.project = harnessProject();
     this.run = run;
   }
 
