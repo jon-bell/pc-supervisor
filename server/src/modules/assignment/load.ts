@@ -4,7 +4,7 @@
 // PCS_AC_ROLE, and the latest invites / do-not-invite / tpms-assignments
 // imports as of `at` (the app clock).
 
-import type { Config } from "../../config.js";
+import { excludedRounds, type Config, type QuickRejectPolicy } from "../../config.js";
 import { rowsAsOf } from "../../imports/store.js";
 import type { Store } from "../../store/store.js";
 import { paperAuthors } from "../../store/submissions.js";
@@ -25,7 +25,11 @@ export interface LoadOptions {
   coauthors?: CoauthorshipSource;
 }
 
-export function loadValidatorInput(store: Store, cfg: Pick<Config, "acRole">, opts: LoadOptions): ValidatorInput {
+export function loadValidatorInput(
+  store: Store,
+  cfg: Pick<Config, "acRole"> & { quickReject?: QuickRejectPolicy | undefined },
+  opts: LoadOptions,
+): ValidatorInput {
   const db = store.db;
   const papers = new Map<number, PaperInfo>();
   for (const { pid } of db.prepare("select pid from paper where deleted_seen_at is null order by pid").all() as { pid: number }[]) {
@@ -48,6 +52,12 @@ export function loadValidatorInput(store: Store, cfg: Pick<Config, "acRole">, op
     });
   }
 
+  // Quick-reject-round reviews don't fill review slots (PCS_QR_EXCLUDE_FROM_SLOTS, PLAN M11).
+  const xr = excludedRounds(cfg);
+  const slotRounds =
+    xr.length > 0
+      ? { sql: " and (a.round is null or lower(a.round) not in (select lower(value) from json_each(?)))", args: [JSON.stringify(xr)] }
+      : { sql: "", args: [] as string[] };
   const current = (
     db
       .prepare(
@@ -55,10 +65,10 @@ export function loadValidatorInput(store: Store, cfg: Pick<Config, "acRole">, op
            (select r.status from review r where r.pid = a.pid and r.email = a.email and r.deleted_seen_at is null
               and (r.rtype is null or r.rtype != 5) order by r.rid limit 1) as status
          from assignment a
-         where a.removed_seen_at is null and a.role in ('primary', 'secondary', 'pc')
+         where a.removed_seen_at is null and a.role in ('primary', 'secondary', 'pc')${slotRounds.sql}
          order by a.pid, a.email`,
       )
-      .all() as CurrentAssignment[]
+      .all(...slotRounds.args) as CurrentAssignment[]
   ).filter((c, i, xs) => i === 0 || xs[i - 1]!.pid !== c.pid || xs[i - 1]!.email !== c.email);
 
   const inv = rowsAsOf(db, "invites", opts.at);

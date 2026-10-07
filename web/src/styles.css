@@ -746,3 +746,40 @@ pre.draft {
   border-color: var(--accent);
   color: #fff;
 }
+
+/* Reserve and quick-reject views (PLAN M11). */
+.module-window {
+  margin: 4px 0 0;
+  padding: 4px 8px;
+  border-left: 3px solid var(--line);
+}
+.module-active {
+  border-left-color: var(--accent);
+}
+.notes {
+  margin: 4px 0 12px;
+  padding-left: 18px;
+}
+.findings {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+.findings li {
+  padding: 3px 0;
+}
+.mail-drafts {
+  list-style: none;
+  padding: 0;
+}
+.mail-drafts li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 3px 0;
+}
+.mail-drafts code {
+  background: #f3f3f3;
+  padding: 1px 6px;
+}

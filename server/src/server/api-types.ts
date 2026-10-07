@@ -327,3 +327,144 @@ export interface OverviewResponse {
   /** Daily from REVIEW_DUE to now (rules/burndown.ts). */
   burndown: { t: number; undecided: number; noConsensus: number }[];
 }
+
+// ---------------------------------------------------------------------------
+// Phase-2 modules (spec §10.4, PLAN M11). Structural copies of the module
+// reports (server/src/modules/*/types.ts), kept import-free like the rest;
+// the routes type-check the reports against them.
+
+/** A module's activation (server/src/modules/status.ts). */
+export interface ModuleStatusInfo {
+  id: string;
+  letter: string;
+  title: string;
+  /** The current extended phase (spec §10.1). */
+  phase: string;
+  active: boolean;
+  activeIn: readonly string[];
+  /** Span of the module's phases under the configured dates; null if none is configured. */
+  window: { from: number | null; to: number | null } | null;
+}
+
+export interface ModuleResponseBase {
+  now: number;
+  tz: string;
+  module: ModuleStatusInfo;
+}
+
+export interface AuthorHintInfo {
+  name: string;
+  source: string;
+  venues: Record<string, number>;
+  atVenues: number;
+  matchedPapers: number;
+  possiblySenior: boolean;
+  /** Always says it's a hint, not a verdict. */
+  text: string;
+}
+
+export interface ReserveFindingInfo {
+  code: string;
+  severity: "noncompliant" | "warning";
+  pids: number[];
+  emails: string[];
+  reason: string;
+}
+
+export interface MailDraftInfo {
+  label: string;
+  /** HotCRP search (paper numbers) for the Mail tool. */
+  search: string;
+  recipients: string;
+  papers: number;
+}
+
+export interface ReserveResponse extends ModuleResponseBase {
+  policy: {
+    designeeField: string;
+    exemptionField: string;
+    seniorityField: string;
+    exemptions: readonly string[];
+    exemptionAllPc: string;
+    maxCover: number;
+    tpmsMinPapers: number;
+    dblp: { enabled: boolean; url: string; venues: readonly string[]; seniorMin: number; rps: number };
+  };
+  imports: { tpmsRegistrationsRunId: number | null };
+  counts: { papers: number; designee: number; exempt: number; noncompliant: number; designees: number; warnings: number };
+  papers: {
+    pid: number;
+    title: string;
+    state: "designee" | "exempt" | "noncompliant" | "unchecked";
+    designee: string | null;
+    identifiedBy: "email" | "name" | null;
+    exemption: string | null;
+    seniorityNote: string | null;
+    codes: string[];
+    hints: AuthorHintInfo[];
+  }[];
+  designees: {
+    email: string;
+    name: string | null;
+    pids: number[];
+    cover: number;
+    aliases: string[];
+    tpms: { registered: boolean; papersUploaded: number | null } | null;
+    codes: string[];
+    hint: AuthorHintInfo | null;
+  }[];
+  findings: ReserveFindingInfo[];
+  mailDrafts: (MailDraftInfo & { code: string })[];
+  dblp: { enabled: boolean; source: string | null; looked: number; pending: number; failed: number };
+  notes: string[];
+}
+
+export type QrStageName = "ac-decision" | "chair-action" | "appeal" | "done";
+export type QrAppealState = "none" | "requested" | "upheld" | "overturned";
+
+export interface QuickRejectItemInfo {
+  pid: number;
+  title: string;
+  acs: string[];
+  signals: {
+    kind: "refcheck" | "ac-flag" | "qr-verdict";
+    reason: string;
+    evidence: Record<string, string | number | boolean | number[] | string[]>;
+  }[];
+  reviews: { rid: number; email: string; status: string; submitted: boolean; value: number | null; verdict: "reject" | "keep" | null; overdue: boolean }[];
+  acDecision: "none" | "reject" | "keep";
+  chairAction: "none" | "desk-reject" | "keep";
+  decision: string | null;
+  appealState: QrAppealState;
+  stage: QrStageName;
+  stateTags: string[];
+  warnings: { code: string; reason: string }[];
+}
+
+export interface QuickRejectResponse extends ModuleResponseBase {
+  policy: {
+    round: string;
+    field: string;
+    rejectMax: number;
+    acFlagTag: string;
+    tags: Readonly<Record<string, string>>;
+    rejectDecisions: readonly string[];
+    excludeFromSlots: boolean;
+    refcheck: { hallucinatedMin: number; inFieldMin: number };
+  };
+  due: number | null;
+  imports: { refcheckRunId: number | null };
+  counts: {
+    items: number;
+    byStage: Record<QrStageName, number>;
+    byAppeal: Record<QrAppealState, number>;
+    qrReviews: number;
+    qrReviewsSubmitted: number;
+    overdueReviews: number;
+    warnings: number;
+  };
+  items: QuickRejectItemInfo[];
+  overdueReviews: { pid: number; rid: number; email: string; status: string; daysOverdue: number; reason: string }[];
+  mailDrafts: MailDraftInfo[];
+  notes: string[];
+}

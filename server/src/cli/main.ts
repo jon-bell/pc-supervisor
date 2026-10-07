@@ -5,6 +5,7 @@ import { describeConfig, loadConfig, orExit } from "../config.js";
 import { PROBE_USAGE, runProbe } from "../probe/command.js";
 import { ASSIGNMENT_COMMANDS } from "./assignment-command.js";
 import { IMPORT_COMMANDS } from "./import-command.js";
+import { MODULE_COMMANDS } from "./modules-command.js";
 import { PROGRESS_COMMANDS } from "./progress-command.js";
 import { REPORT_COMMANDS } from "./report-command.js";
 import { SERVE_COMMAND } from "./serve.js";
@@ -20,6 +21,7 @@ export const COMMANDS: Record<string, Command> = {
   ...STORE_COMMANDS,
   ...IMPORT_COMMANDS,
   ...ASSIGNMENT_COMMANDS,
+  ...MODULE_COMMANDS,
   ...PROGRESS_COMMANDS,
   ...REPORT_COMMANDS,
   serve: SERVE_COMMAND,
