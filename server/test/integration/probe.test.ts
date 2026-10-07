@@ -1,7 +1,8 @@
 // `pcs probe` against the local harness (PLAN M0 "done when": green in CI).
-// Assumes only what scripts/harness-smoke.sh seeds: >= 1 submitted paper
-// ("Smoke Paper") with a metareviewer, >= 2 complete reviews, >= 1 comment,
-// all by @example.org users.
+// Needs what scripts/harness-smoke.sh seeds: >= 1 submitted paper with a
+// metareviewer, >= 2 complete reviews, >= 1 comment, all by @example.org
+// users. beforeAll seeds that itself (MiniSeed.seedSmokeShape), so the file
+// passes in any order with the suites that reset the harness.
 //
 // Run: set -a; . ./.env.test; set +a; npm run test:integration
 
@@ -11,6 +12,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { assertHarnessUrl } from "../../src/hotcrp/harness-guard.js";
 import { runProbe } from "../../src/probe/command.js";
 import type { ProbeReport } from "../../src/probe/report.js";
+import { MiniSeed } from "../support/mini-seed.js";
 
 const CLI = fileURLToPath(new URL("../../src/cli.ts", import.meta.url));
 
@@ -30,6 +32,7 @@ async function probe(args: string[]) {
 function expectNoContent(out: string) {
   expect(out).not.toContain("@example.org");
   expect(out).not.toContain("Smoke Paper");
+  expect(out).not.toContain("Smoke-shape paper");
   expect(out).not.toContain("Test Admin");
   expect(out).not.toContain(process.env.PCS_HOTCRP_TOKEN!);
 }
@@ -37,12 +40,13 @@ function expectNoContent(out: string) {
 let rep: ProbeReport;
 
 beforeAll(async () => {
+  await (await MiniSeed.create()).seedSmokeShape();
   const r = await probe(["--json"]);
   expect(r.stderr).toBe("");
   expect(r.code).toBe(0);
   expectNoContent(r.stdout);
   rep = JSON.parse(r.stdout) as ProbeReport;
-});
+}, 120_000);
 
 describe("pcs probe against the harness", () => {
   it("reaches every endpoint and every schema passes", () => {
@@ -53,7 +57,7 @@ describe("pcs probe against the harness", () => {
     expect(rep.account.chair).toBe(true);
   });
 
-  it("counts what the smoke seed created", () => {
+  it("counts what the smoke-shape seed created", () => {
     expect(rep.papers?.all).toBeGreaterThanOrEqual(1);
     expect(rep.pc?.size).toBeGreaterThanOrEqual(1);
     expect(rep.reviews?.total).toBeGreaterThanOrEqual(2);

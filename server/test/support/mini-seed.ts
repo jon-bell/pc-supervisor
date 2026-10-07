@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { assertHarnessUrl, harnessProject } from "../../src/hotcrp/harness-guard.js";
-import { verifyHarnessOnce } from "../../src/hotcrp/harness-verify.js";
+import { fetchRetrying429, verifyHarnessOnce } from "../../src/hotcrp/harness-verify.js";
 
 const COMPOSE_FILE = fileURLToPath(new URL("../../../hotcrp/compose.yaml", import.meta.url));
 
@@ -72,7 +72,7 @@ export class MiniSeed {
   async api(method: "GET" | "POST", path: string, params: Record<string, string | number> = {}, body?: unknown): Promise<Record<string, unknown>> {
     const u = new URL(`${this.url}/api/${path}`);
     for (const [k, v] of Object.entries({ pretty: 0, ...params })) u.searchParams.set(k, String(v));
-    const res = await fetch(u, {
+    const res = await fetchRetrying429(u, {
       method,
       headers: { Authorization: `Bearer ${this.#token}`, ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -161,7 +161,7 @@ export class MiniSeed {
   async rate(pid: number, rid: number, raterKey: string, rating: string): Promise<void> {
     const u = new URL(`${this.url}/api/${pid}/reviewrating`);
     u.search = new URLSearchParams({ r: String(rid), actas: this.email(raterKey), pretty: "0" }).toString();
-    const res = await fetch(u, {
+    const res = await fetchRetrying429(u, {
       method: "POST",
       headers: { Authorization: `Bearer ${this.#token}`, "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ user_rating: rating }),
@@ -177,6 +177,33 @@ export class MiniSeed {
 
   async editComment(pid: number, cid: number, authorKey: string, text: string): Promise<void> {
     await this.api("POST", `${pid}/comment`, { c: cid, actas: this.email(authorKey), notify: 0 }, { text, visibility: "rev" });
+  }
+
+  /**
+   * What scripts/harness-smoke.sh seeds, on a fresh pid: a submitted paper
+   * with a metareviewer, two complete (backdated) primary reviews, and an AC
+   * comment with an @mention. Suites that assume "the smoke data" call this in
+   * beforeAll, so they pass in any file order, after any other suite's reset.
+   */
+  async seedSmokeShape(): Promise<number> {
+    this.openReviewing();
+    this.saveUsers([
+      { key: "ac1", first: "Ada", last: `Chair${this.run}` },
+      { key: "r1", first: "Rex", last: `One${this.run}` },
+      { key: "r2", first: "Rae", last: `Two${this.run}` },
+    ]);
+    const pid = await this.nextPid();
+    this.savePapers([{ pid, title: `Smoke-shape paper ${this.run}` }]);
+    this.assign([
+      [pid, "metareview", "ac1"],
+      [pid, "primary", "r1"],
+      [pid, "primary", "r2"],
+    ]);
+    this.backdateRequests([pid]);
+    await this.submitReview(pid, "r1", { OveMer: 1, RevExp: 3, PapSum: "a", ComAut: "b" });
+    await this.submitReview(pid, "r2", { OveMer: 4, RevExp: 2, PapSum: "a", ComAut: "b" });
+    await this.comment(pid, "ac1", `@${this.email("r2")} what convinced you?`);
+    return pid;
   }
 
   async deleteComment(pid: number, cid: number): Promise<void> {

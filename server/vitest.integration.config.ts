@@ -11,5 +11,9 @@ export default defineConfig({
     testTimeout: 30_000,
     // One harness; keep requests polite.
     fileParallelism: false,
+    // File order is not fixed, and no file may depend on another's data: each
+    // seeds what it needs in beforeAll (MiniSeed, or seedScenario after a
+    // reset). Check with --sequence.shuffle.files. Tests within a file do run
+    // in order (sync.test.ts's steps share one DB), so don't shuffle tests.
   },
 });

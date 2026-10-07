@@ -23,9 +23,24 @@ export interface HarnessProbe {
   publishedAddress(project: string): Promise<string>;
 }
 
+/**
+ * fetch, retrying a 429 (HotCRP's 250/min limit; the request was refused, so a
+ * retry is safe even for a write) after Retry-After, up to `tries` times. For
+ * harness tooling, which seeds in bursts; the app's client has its own retries.
+ */
+export async function fetchRetrying429(input: string | URL, init: RequestInit, tries = 8): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(input, init);
+    if (res.status !== 429 || attempt >= tries) return res;
+    await res.body?.cancel();
+    const ra = Number(res.headers.get("retry-after") ?? "");
+    await new Promise((r) => setTimeout(r, Number.isFinite(ra) && ra > 0 ? ra * 1000 : 1000 * 2 ** attempt));
+  }
+}
+
 export const defaultProbe: HarnessProbe = {
   async whoamiEmail(url, token) {
-    const res = await fetch(`${url.replace(/\/+$/, "")}/api/whoami?pretty=0`, {
+    const res = await fetchRetrying429(`${url.replace(/\/+$/, "")}/api/whoami?pretty=0`, {
       headers: { Authorization: `Bearer ${token}` },
       redirect: "error",
     });
