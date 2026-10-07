@@ -38,8 +38,12 @@ export type RuleName = keyof typeof RULE_WEIGHT_DEFAULTS;
 export const RULE_NAMES = Object.keys(RULE_WEIGHT_DEFAULTS) as RuleName[];
 
 export const THRESHOLD_DEFAULTS = {
-  /** Merit range (max - min) at or above which a paper is split. */
-  SPLIT_RANGE: 2,
+  /**
+   * Merit range (max - min) at or above which a paper is split. 3, not 2: on
+   * the default 1-5 form a range of 2 on the accept side (5/3/3) is not a
+   * split (golden pid 8); crossing MERIT_ACCEPT_MIN is split regardless.
+   */
+  SPLIT_RANGE: 3,
   /** Days without activity before a paper counts as stale / gone quiet. */
   STALE_DAYS: 4,
   /** Days of discussion with no movement before a split is unresolved. */
@@ -50,6 +54,8 @@ export const THRESHOLD_DEFAULTS = {
   MIN_WORDS: 150,
   /** Days before DECISIONS_DUE when DEADLINE_NO_CONSENSUS can fire. */
   DEADLINE_DAYS: 3,
+  /** CHAMPION_MISSING: the top merit must be at least this far above the lowest. */
+  CHAMPION_GAP: 2,
 } as const;
 export type ThresholdName = keyof typeof THRESHOLD_DEFAULTS;
 export const THRESHOLD_NAMES = Object.keys(THRESHOLD_DEFAULTS) as ThresholdName[];

@@ -117,6 +117,10 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 - `CHAMPION_MISSING` fires only if **no** reviewer holding the top merit has commented.
 - `SILENT_DISCUSSION` and `GONE_QUIET` count AC comments as activity.
 - `RESPONSE_UNADDRESSED` counts only reviewer comments.
+- `SPLIT` uses `PCS_THRESH_SPLIT_RANGE=3`, so 5/3/3 (pid 8: range 2, all on the accept side) is not split, while 2/4/4 is (it straddles `MERIT_ACCEPT_MIN`).
+- `CHAMPION_MISSING` also needs the top merit to be at least `PCS_THRESH_CHAMPION_GAP` (2) above the lowest. That keeps 3/3/4 (pid 11, where reviewers never comment) from firing it, while 5/3/3 (pid 8) does.
+- A paper with a decision fires nothing (pid 1).
+- `GONE_QUIET` measures quiet time from `max(last activity, DISCUSSION_OPEN)`.
 
 **People:**
 - **R-silent** is the low scorer on 3, 4, and 12 and never comments. They top "silent on split papers" with 3. Because they're the low scorer, no `CHAMPION_MISSING` fires.
