@@ -72,6 +72,8 @@ store for unit tests.
 
 **Tiers:** a chair token can't read user tags from `/pc`. The sync asks
 `/reviews?rq=re:%23<tag>` for each tier tag, which returns the reviews written by holders
-of that tag. As a result, a tagged PC member with **no review rows** on any paper isn't
+of that tag. It asks only on a covering set of papers (`coverPids`: every PC reviewer from
+`get/pcassignments` and every reviewer seen before has a review on one of them; ~240 of
+2,400 papers at scale), and then on one paper each for any reviewer the cover missed. As a result, a tagged PC member with **no review rows** on any paper isn't
 detected and counts as `senior`. The tag must also appear in `/pc`'s `tags` list (HotCRP
 warns on unknown tags), or nobody gets that tier.

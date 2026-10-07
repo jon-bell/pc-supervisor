@@ -5,12 +5,15 @@
 // Order of work:
 //   1. Small reads, held in memory: /pc, /search (t=all, fields), get/lead,
 //      get/shepherd, get/pcassignments, the review form. Then the user-tag
-//      queries (tiers, tag-based ACs): /reviews?rq=re:#<tag> per pid chunk,
-//      keeping only reviewer emails.
+//      queries (tiers, tag-based ACs): /reviews?rq=re:#<tag>, keeping only
+//      reviewer emails, over a *covering* set of papers (coverPids: every
+//      known reviewer has a review on one of them), not every paper.
 //   2. BEGIN. Upsert fields, people, papers, assignments.
 //   3. /reviews then /comments in pid-range chunks (PCS_SYNC_CHUNK), fetched
 //      ahead with PCS_SYNC_CONCURRENCY in flight and applied one chunk at a
 //      time, so at most that many chunks of text are in memory.
+//      Reviewers the cover missed (new since the last sync, and not on the PC)
+//      get the tag queries on one of their own papers afterwards.
 //   4. Mark absent reviews/comments deleted. Write sync_run counts. COMMIT.
 // On any error: ROLLBACK, and the sync_run row records the error.
 //
@@ -20,7 +23,7 @@
 
 import { systemClock, type Clock } from "../clock.js";
 import type { AcRole, TierTags } from "../config.js";
-import { pidChunks, type PidChunk } from "../hotcrp/chunk.js";
+import { pidChunks, pidListChunks, type PidChunk } from "../hotcrp/chunk.js";
 import { reviewField, type Comment, type Review, type RqcField } from "../hotcrp/schemas.js";
 import { redact } from "../redact.js";
 import type { Db } from "../store/db.js";
@@ -96,6 +99,45 @@ export function tierFor(tags: readonly string[], tierTags: TierTags): string {
     if (tags.some((t) => t.toLowerCase() === tag.toLowerCase())) return tier;
   }
   return "senior";
+}
+
+/**
+ * A small set of papers on which every reviewer in `pairs` has at least one
+ * review (greedy set cover, deterministic). User tags belong to people, so
+ * `re:#tag` over these papers finds the same holders as over every paper, for
+ * a fraction of the download (PLAN M7: ~10x fewer bytes at 2,400 papers).
+ */
+export function coverPids(pairs: Iterable<{ pid: number; email: string }>): number[] {
+  const byPid = new Map<number, Set<string>>();
+  for (const { pid, email } of pairs) {
+    if (!email) continue;
+    let set = byPid.get(pid);
+    if (!set) byPid.set(pid, (set = new Set()));
+    set.add(email);
+  }
+  // Lazy greedy: take the paper adding the most uncovered reviewers; ties by pid.
+  const covered = new Set<string>();
+  const gain = (emails: Set<string>) => {
+    let n = 0;
+    for (const e of emails) if (!covered.has(e)) n++;
+    return n;
+  };
+  let queue = [...byPid].map(([pid, emails]) => ({ pid, emails, n: emails.size }));
+  const out: number[] = [];
+  while (queue.length > 0) {
+    queue.sort((a, b) => b.n - a.n || a.pid - b.pid);
+    const top = queue[0]!;
+    const n = gain(top.emails);
+    if (n === 0) break; // the best stale bound is 0: nothing left to cover
+    if (n < top.n) {
+      top.n = n; // stale bound: re-rank
+      continue;
+    }
+    out.push(top.pid);
+    for (const e of top.emails) covered.add(e);
+    queue = queue.slice(1).filter((x) => (x.n = gain(x.emails)) > 0);
+  }
+  return out.sort((a, b) => a - b);
 }
 
 /** Fetch chunks ahead (at most `depth` in flight), yield results in order. */
@@ -186,22 +228,45 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
     log(`fetched roster (${pc.pc.length}), papers (${pids.length}), assignments (${assignRows.length})`);
 
     // User tags: who holds each tier / AC tag. HotCRP warns (and the client
-    // throws) for a tag nobody holds, so only ask about tags /pc lists.
+    // throws) for a tag nobody holds, so only ask about tags /pc lists. Ask on
+    // a covering set of papers: every PC reviewer (get/pcassignments) and
+    // every reviewer seen by earlier syncs has a review on one of them.
     const knownTags = new Set((pc.tags ?? []).map((t) => t.toLowerCase()));
+    const tags = queriedTags(opts.tierTags, opts.acRole).filter((t) => knownTags.has(t.toLowerCase()));
     const holders = new Map<string, string[]>(); // email -> tags
-    for (const tag of queriedTags(opts.tierTags, opts.acRole)) {
-      if (!knownTags.has(tag.toLowerCase()) || chunks.length === 0) continue;
-      for await (const rs of ahead(chunks, (c) => source.reviews(c.q, `re:#${tag}`), opts.concurrency)) {
-        for (const r of rs) {
-          const e = (r.reviewer_email ?? "").toLowerCase();
-          if (!e) continue;
-          const list = holders.get(e) ?? [];
-          if (!list.includes(tag)) list.push(tag);
-          holders.set(e, list);
-        }
-      }
-      counts.add("tag_queries");
+    const pidSet = new Set(pids);
+    const reviewers: { pid: number; email: string }[] = [];
+    for (const r of assignRows) {
+      if (ASSIGNMENT_ROLE[r.action] && r.email && pidSet.has(r.paper)) reviewers.push({ pid: r.paper, email: r.email.toLowerCase() });
     }
+    for (const r of db.prepare("select pid, email from review where deleted_seen_at is null and email != ''").iterate() as Iterable<{
+      pid: number;
+      email: string;
+    }>) {
+      if (pidSet.has(r.pid)) reviewers.push(r);
+    }
+    const cover = tags.length > 0 ? coverPids(reviewers) : [];
+    const askTags = async (onPids: readonly number[], keep: (email: string) => boolean) => {
+      const found = new Map<string, string[]>();
+      for (const tag of tags) {
+        for await (const rs of ahead(pidListChunks(onPids, opts.chunkSize), (c) => source.reviews(c.q, `re:#${tag}`), opts.concurrency)) {
+          for (const r of rs) {
+            const e = (r.reviewer_email ?? "").toLowerCase();
+            if (!e || !keep(e)) continue;
+            const list = found.get(e) ?? [];
+            if (!list.includes(tag)) list.push(tag);
+            found.set(e, list);
+          }
+        }
+        counts.add("tag_queries");
+      }
+      return found;
+    };
+    if (cover.length > 0) {
+      for (const [e, t] of await askTags(cover, () => true)) holders.set(e, t);
+      log(`tag holders: ${holders.size} (${tags.length} tag(s) asked on ${cover.length} covering papers)`);
+    }
+    const coverSet = new Set(cover);
 
     // ---- 2. structure -----------------------------------------------------
     db.exec("begin immediate");
@@ -225,11 +290,35 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
     db.exec("delete from temp.seen_rid; delete from temp.seen_cid");
 
     const rv = reviewStatements(db);
+    const onCover = new Set<string>(); // reviewers with a review on a covering paper
+    const elsewhere = new Map<string, number>(); // the others: email -> one of their pids
     for await (const rs of ahead(chunks, (c) => source.reviews(c.q), opts.concurrency)) {
       applyReviews(db, rv, rs, { now, firstSync, runId, textUids, scoreUids }, counts);
       counts.add("reviews_fetched", rs.length);
+      if (tags.length === 0) continue;
+      for (const r of rs) {
+        const e = (r.reviewer_email ?? "").toLowerCase();
+        if (!e) continue;
+        if (coverSet.has(r.pid)) onCover.add(e);
+        else if (!elsewhere.has(e)) elsewhere.set(e, r.pid);
+      }
     }
     log(`reviews: ${counts.c.reviews_fetched ?? 0} fetched`);
+
+    // Reviewers the cover missed (new non-PC reviewers, or a review moved):
+    // ask about them on one of their own papers, and fix their tags and tier.
+    const missed = [...elsewhere].filter(([e]) => !onCover.has(e));
+    if (missed.length > 0) {
+      const who = new Set(missed.map(([e]) => e));
+      const found = await askTags([...new Set(missed.map(([, pid]) => pid))], (e) => who.has(e));
+      const updTier = db.prepare("update person set tags = ?, tier = ? where email = ? and (tags != ? or tier != ?)");
+      for (const e of who) {
+        const t = json((found.get(e) ?? []).slice().sort());
+        const tier = tierFor(found.get(e) ?? [], opts.tierTags);
+        counts.add("people_changed", updTier.run(t, tier, e, t, tier).changes);
+      }
+      log(`tag holders: ${found.size} more among ${who.size} reviewer(s) off the covering papers`);
+    }
 
     const roster = mentionRoster(
       db.prepare("select email, name from person").all() as { email: string; name: string | null }[],
