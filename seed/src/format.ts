@@ -65,6 +65,8 @@ export interface Paper {
   authors: readonly Author[];
   /** Submission-option values by SubmissionField name (phase 2), e.g. { "Reserve designee": "x@example.org" }. */
   options?: Readonly<Record<string, string>>;
+  /** Paper tags (no leading #), set in stage 1 through batch/assign.php (PLAN M11), e.g. ["qr-flag"]. */
+  tags?: readonly string[];
 }
 
 /** HotCRP assignment actions (batch/assign.php). metareview = area chair. */

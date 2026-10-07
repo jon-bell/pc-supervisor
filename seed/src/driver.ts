@@ -321,6 +321,14 @@ class StageRunner {
     await h.batch("assign.php", ["/tmp/pcs-seed/assign.csv"]);
     lap(`${scenario.assignments.length} assignments made`);
 
+    // Paper tags (PLAN M11): batch/assign.php `tag` lines, as the chair would set them.
+    const tagLines = scenario.papers.flatMap((p) => (p.tags ?? []).map((t) => `${p.pid},tag,${csvCell(t)}`));
+    if (tagLines.length > 0) {
+      await h.writeFile("/tmp/pcs-seed/tags.csv", `paper,action,tag\n${tagLines.join("\n")}\n`);
+      await h.batch("assign.php", ["/tmp/pcs-seed/tags.csv"]);
+      lap(`${tagLines.length} paper tags set`);
+    }
+
     await this.loadRids();
     // Backdate requests and submissions. timeRequested must stay earliest:
     // HotCRP omits a review's modified_at unless reviewModified > timeRequested.

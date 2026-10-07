@@ -26,6 +26,9 @@
 //   existed (an edit overwrites HotCRP's modified_at; comment_text keeps the
 //   first one we saw). approximate = first_seen_approx. Mentions come from the
 //   comment's mentions JSON (the same set as comment_mention).
+// - excludeRounds (PLAN M11): reviewer reviews (not metareviews) in these
+//   review rounds are left out, so quick-reject reviews don't fill the review
+//   slots (PCS_QR_EXCLUDE_FROM_SLOTS). Round names compare case-insensitively.
 
 import type { AcRole } from "../config.js";
 import type {
@@ -47,6 +50,8 @@ export interface SnapshotOptions {
   acRole: AcRole;
   /** Only these papers (the drawer); default all. */
   pids?: readonly number[];
+  /** Review rounds whose non-meta reviews are left out (config.ts excludedRounds()). Default none. */
+  excludeRounds?: readonly string[];
 }
 
 type Raw = Record<string, unknown>;
@@ -77,6 +82,15 @@ const path = (uid: string) => `$.${uid}`;
 function pidClause(pids: readonly number[] | undefined, col: string): { sql: string; args: unknown[] } {
   if (!pids) return { sql: "", args: [] };
   return { sql: ` and ${col} in (select value from json_each(?))`, args: [JSON.stringify(pids)] };
+}
+
+/** SQL excluding non-meta reviews in the given rounds (empty: no clause). */
+export function roundClause(rounds: readonly string[] | undefined, alias: string): { sql: string; args: unknown[] } {
+  if (!rounds || rounds.length === 0) return { sql: "", args: [] };
+  return {
+    sql: ` and (${alias}.rtype = 5 or ${alias}.round is null or lower(${alias}.round) not in (select lower(value) from json_each(?)))`,
+    args: [JSON.stringify(rounds)],
+  };
 }
 
 /** Build the rules engine's view of the store. */
@@ -129,12 +143,13 @@ export function buildSnapshot(store: Store, o: SnapshotOptions): SnapshotView {
     });
   }
 
+  const xr = roundClause(o.excludeRounds, "r");
   const reviews: ReviewView[] = all(
     `select r.rid, r.pid, r.email, r.rtype, r.status, r.ordinal, r.modified_at, r.first_seen_at,
             r.first_complete_seen_at, r.word_count, r.ratings,
             json_extract(r.scores, ?) as merit, json_extract(r.scores, ?) as expertise
-       from review r where r.deleted_seen_at is null${rp.sql} order by r.pid, r.rid`,
-    [path(o.fields.merit), path(o.fields.expertise), ...rp.args],
+       from review r where r.deleted_seen_at is null${rp.sql}${xr.sql} order by r.pid, r.rid`,
+    [path(o.fields.merit), path(o.fields.expertise), ...rp.args, ...xr.args],
   ).map((r) => {
     const ratings = jsonList(r.ratings).map((x) => x.toLowerCase());
     return {

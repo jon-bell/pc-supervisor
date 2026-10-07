@@ -4,6 +4,8 @@
 import { Link } from "../router";
 
 export const MODULE_NAV: { to: string; label: string }[] = [
+  { to: "/modules/reserve", label: "Reserve" },
+  { to: "/modules/quickreject", label: "Quick reject" },
   { to: "/modules/tier-progress", label: "Reviewing by tier" },
   { to: "/modules/early-reject", label: "Early reject" },
 ];

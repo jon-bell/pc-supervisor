@@ -14,6 +14,8 @@ import { Acs } from "./views/Acs";
 import { EarlyReject } from "./views/EarlyReject";
 import { Overview } from "./views/Overview";
 import { Person } from "./views/Person";
+import { QuickReject } from "./views/QuickReject";
+import { Reserve } from "./views/Reserve";
 import { Reviewers } from "./views/Reviewers";
 import { TierProgress } from "./views/TierProgress";
 import { Triage } from "./views/Triage";
@@ -30,6 +32,9 @@ const ROUTES: Route[] = [
   { path: "/reviewers", render: () => <Reviewers /> },
   { path: "/people/:email", render: (meta, p) => <Person key={p.email} meta={meta} email={p.email ?? ""} /> },
   { path: "/overview", render: (meta) => <Overview meta={meta} /> },
+  // Phase-2 modules (spec §10.4).
+  { path: "/modules/reserve", render: (meta) => <Reserve meta={meta} /> },
+  { path: "/modules/quickreject", render: (meta) => <QuickReject meta={meta} /> },
   { path: "/modules/tier-progress", render: (meta) => <TierProgress meta={meta} /> },
   { path: "/modules/early-reject", render: (meta) => <EarlyReject meta={meta} /> },
 ];

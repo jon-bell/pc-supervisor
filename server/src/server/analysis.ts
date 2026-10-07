@@ -9,7 +9,7 @@
 // and the burndown.
 
 import type { Clock } from "../clock.js";
-import type { Config } from "../config.js";
+import { excludedRounds, type Config } from "../config.js";
 import { analyze, ruleContextFromConfig, type Analysis, type PersonView, type RuleContext, type SnapshotView } from "../rules/index.js";
 import type { Store } from "../store/store.js";
 import { buildSnapshot } from "../views/snapshot.js";
@@ -48,7 +48,7 @@ export class AnalysisSource {
     const key = `${run.id}:${Math.floor(ctx.now / 60_000)}`;
     if (this.#view && this.#key === key) return this.#view;
     const t0 = performance.now();
-    const snapshot = buildSnapshot(this.store, { fields: this.cfg.fields, acRole: this.cfg.acRole });
+    const snapshot = buildSnapshot(this.store, { fields: this.cfg.fields, acRole: this.cfg.acRole, excludeRounds: excludedRounds(this.cfg) });
     const t1 = performance.now();
     const analysis = analyze(snapshot, ctx);
     this.stats.builds++;
