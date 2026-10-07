@@ -36,6 +36,11 @@ import {
   SearchSchema,
   SettingsRfSchema,
   WhoamiSchema,
+  AssignResultSchema,
+  PapersSchema,
+  SettingsSfSchema,
+  type AssignResult,
+  type Paper,
   type Comment,
   type HotcrpMessage,
   type PaperRoleRow,
@@ -106,6 +111,15 @@ interface CallSpec<S extends z.ZodType> {
   schema: S;
   /** Throw if HotCRP returns warnings (e.g. an unknown search keyword). Default true. */
   rejectWarnings?: boolean;
+  /**
+   * Send this as an application/json POST body (params stay in the query).
+   * HotCRP sniffs JSON bodies; it can't see the Content-Type header under
+   * Apache mod_php (Qrequest reads HTTP_CONTENT_TYPE), so CSV/form bodies to
+   * endpoints that branch on content type misbehave there.
+   */
+  jsonBody?: unknown;
+  /** Return `ok: false` responses (e.g. an invalid dry run) instead of throwing. Default false. */
+  allowNotOk?: boolean;
 }
 
 const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
@@ -288,6 +302,67 @@ export class HotcrpClient {
     return this.call({ path: "settings", params: { filter: "rf" }, schema: SettingsRfSchema });
   }
 
+  /**
+   * POST-as-GET /papers: full paper objects (authors with email and
+   * affiliation, submission-option values keyed by option name). Use
+   * papersForPids for bulk. The objects also hold abstracts; callers must not
+   * store what they don't need.
+   */
+  async papers(opts: { q: string; t?: SearchScope }): Promise<Paper[]> {
+    const res = await this.call({
+      path: "papers",
+      params: { q: opts.q, t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      postAsGet: true,
+      schema: PapersSchema,
+    });
+    return res.papers;
+  }
+
+  /** All paper objects for `pids`, in pid-range chunks with bounded concurrency. */
+  papersForPids(pids: Iterable<number>, opts: { t?: SearchScope } = {}): Promise<Paper[]> {
+    return this.chunked(pids, (q) => this.papers({ q, ...opts }));
+  }
+
+  /** GET /settings?filter=sf: submission fields; configured options have numeric ids. */
+  submissionFields() {
+    return this.call({ path: "settings", params: { filter: "sf" }, schema: SettingsSfSchema });
+  }
+
+  /**
+   * POST /assign?dry_run=1: ask HotCRP whether an assignment CSV
+   * (`paper,action,user[,...]`, header row first) would apply, without
+   * applying it. Conflicts are enforced (forceShow=0). The CSV is parsed
+   * locally and sent as a JSON array of row objects (same columns), the form
+   * HotCRP accepts regardless of server setup (see CallSpec.jsonBody).
+   * An invalid assignment is a result (`valid: false` + messages), not an
+   * error. Only dry runs exist until PLAN M8: `dryRun: false` always rejects.
+   */
+  async assign(csv: string, opts: { dryRun: boolean }): Promise<AssignResult> {
+    if (opts.dryRun !== true) {
+      throw new HotcrpError("writes_disabled", "POST /assign", "only dry runs are allowed until PLAN M8 (dry-run-first assignment)");
+    }
+    let rows: Record<string, string>[];
+    try {
+      rows = parseCsvRecords(csv);
+    } catch (e) {
+      if (e instanceof CsvError) throw new HotcrpError("protocol", "POST /assign", `bad assignment CSV: ${e.message}`);
+      throw e;
+    }
+    const res = await this.call({
+      path: "assign",
+      method: "POST",
+      params: { dry_run: 1, forceShow: 0, format: "json" },
+      jsonBody: rows,
+      schema: AssignResultSchema,
+      rejectWarnings: false,
+      allowNotOk: true,
+    });
+    if (res.dry_run !== true) {
+      throw new HotcrpError("protocol", "POST /assign", "HotCRP did not confirm dry_run; treat the result as unknown");
+    }
+    return res;
+  }
+
   // ------------------------------------------------------------------------
   // Writes (PLAN M8). Disabled: the app is read-only until then.
 
@@ -325,11 +400,15 @@ export class HotcrpClient {
 
     const url = new URL(`${this.baseUrl}/api/${spec.path}`);
     if (url.origin !== new URL(this.baseUrl).origin) throw new Error("HotcrpClient: refusing cross-origin path");
-    let body: URLSearchParams | undefined;
+    let body: URLSearchParams | string | undefined;
     let httpMethod: string = method;
     const asGet = new URL(url);
     asGet.search = params.toString();
-    if (method === "POST" || spec.postAsGet || asGet.href.length > this.#o.maxGetUrlLength) {
+    if (spec.jsonBody !== undefined) {
+      httpMethod = "POST";
+      url.search = params.toString();
+      body = JSON.stringify(spec.jsonBody);
+    } else if (method === "POST" || spec.postAsGet || asGet.href.length > this.#o.maxGetUrlLength) {
       httpMethod = "POST";
       if (method === "GET") url.searchParams.set(":method:", "GET");
       body = params;
@@ -340,14 +419,14 @@ export class HotcrpClient {
     const text = await this.#limiter.run(() =>
       this.send(endpoint, url, httpMethod, body, format, method === "GET"),
     );
-    return this.parse(endpoint, text, format, spec.schema, spec.rejectWarnings ?? true);
+    return this.parse(endpoint, text, format, spec.schema, spec.rejectWarnings ?? true, spec.allowNotOk ?? false);
   }
 
   private async send(
     endpoint: string,
     url: URL,
     method: string,
-    body: URLSearchParams | undefined,
+    body: URLSearchParams | string | undefined,
     format: "json" | "csv",
     retryable: boolean,
   ): Promise<string> {
@@ -362,6 +441,7 @@ export class HotcrpClient {
           headers: {
             Authorization: `Bearer ${this.#token}`,
             Accept: format === "json" ? "application/json" : "text/csv, application/json",
+            ...(typeof body === "string" ? { "Content-Type": "application/json" } : {}),
           },
           body,
           redirect: "manual",
@@ -441,6 +521,7 @@ export class HotcrpClient {
     format: "json" | "csv",
     schema: S,
     rejectWarnings: boolean,
+    allowNotOk = false,
   ): z.output<S> {
     let data: unknown;
     if (format === "json" || text.trimStart().startsWith("{")) {
@@ -452,7 +533,7 @@ export class HotcrpClient {
       const env = EnvelopeSchema.safeParse(data);
       if (env.success) {
         const messages = this.cleanMessages(env.data.message_list ?? []);
-        if (!env.data.ok) {
+        if (!env.data.ok && !allowNotOk) {
           throw new HotcrpError("api", endpoint, `ok=false: ${this.clean(describeMessages(messages)) || "(no message)"}`, {
             messages,
           });
