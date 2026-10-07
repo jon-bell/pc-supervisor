@@ -1,6 +1,7 @@
 // Spec §7 wording: no user-visible string may judge people. This scans every
-// UI string source (web/src, and the server's rules and API, which produce the
-// reason strings, outlier details and error messages) for "disengaged",
+// UI string source (web/src, and the server's rules, API, modules, actions and
+// CLI, which produce the reason strings, outlier details, nudge drafts, CLI
+// reports and error messages) for "disengaged",
 // "absent" and "lazy" (any case, any inflection).
 //
 // What counts as a string: string and template literals and JSX text, found
@@ -15,7 +16,7 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const SOURCES = ["web/src", "server/src/rules", "server/src/server", "server/src/modules"];
+const SOURCES = ["web/src", "server/src/rules", "server/src/server", "server/src/modules", "server/src/actions", "server/src/cli"];
 const BANNED = /disengag|absent|lazy|lazi/i;
 const RULE_NAME = /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/;
 
@@ -75,12 +76,14 @@ describe("wording (spec §7)", () => {
     ]);
   });
 
-  it("no UI string in web/src or the server's reason strings says disengaged, absent or lazy", () => {
+  it("no UI string in web/src or the server's reason strings, nudges or CLI output says disengaged, absent or lazy", () => {
     const all = SOURCES.flatMap((d) => files(join(ROOT, d)));
     // Guard against scanning nothing (a moved directory would pass vacuously).
     expect(all.some((f) => f.endsWith("format.ts"))).toBe(true);
     expect(all.some((f) => f.endsWith("rules.ts"))).toBe(true);
     expect(all.some((f) => f.endsWith("reviewer-metrics.ts"))).toBe(true);
+    expect(all.some((f) => f.endsWith("nudge.ts"))).toBe(true);
+    expect(all.some((f) => f.endsWith("main.ts"))).toBe(true);
     const bad = all.flatMap((f) => violations(relative(ROOT, f), readFileSync(f, "utf8")));
     expect(bad).toEqual([]);
   });
