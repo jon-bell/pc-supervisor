@@ -1,0 +1,11 @@
+/* System fonts only: no CDN fonts (AGENTS.md rule 4). */
+:root {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #1a1a1a;
+  background: #fff;
+}
+main {
+  max-width: 60rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@pcs/e2e",
+  "private": true,
+  "type": "module",
+  "description": "Playwright E2E + Argos visual tests. e2e/argos-canary/ is a separate standalone package.",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pcs/server": "*"
+  },
+  "devDependencies": {
+    "@argos-ci/playwright": "7.7.1",
+    "@playwright/test": "1.63.0"
+  }
+}
