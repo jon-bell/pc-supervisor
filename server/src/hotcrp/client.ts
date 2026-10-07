@@ -27,6 +27,7 @@ import {
   CommentsSchema,
   EnvelopeSchema,
   PcAssignmentsSchema,
+  PcConflictsSchema,
   PcSchema,
   paperRoleRowsSchema,
   ReviewHistorySchema,
@@ -45,6 +46,7 @@ import {
   type HotcrpMessage,
   type PaperRoleRow,
   type PcAssignmentRow,
+  type PcConflictRow,
   type Review,
 } from "./schemas.js";
 import { AssignTagsResultSchema, tagAssignmentBody, tagDiffOf, type TagChange, type TagDiff } from "./tag-assign.js";
@@ -230,6 +232,20 @@ export class HotcrpClient {
       params: { action: `get/${kind}`, q: opts.q ?? "all", t: opts.t, forceShow: this.forceShow ? 1 : 0 },
       format: "csv",
       schema: paperRoleRowsSchema(kind),
+    });
+  }
+
+  /**
+   * GET /searchaction?action=get/pcconf: every conflicted (paper, PC member)
+   * pair, as HotCRP's "PC conflicts" CSV download (chair/manager token).
+   * Includes author conflicts of PC members.
+   */
+  pcConflicts(opts: { q?: string; t?: SearchScope } = {}): Promise<PcConflictRow[]> {
+    return this.call({
+      path: "searchaction",
+      params: { action: "get/pcconf", q: opts.q ?? "all", t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      format: "csv",
+      schema: PcConflictsSchema,
     });
   }
 

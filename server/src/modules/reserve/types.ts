@@ -58,7 +58,19 @@ export interface ReserveInput {
   /** Names the store knows, by email (for designees not in an author list). */
   names: ReadonlyMap<string, string>;
   /** Latest tpms-registrations import as of now; undefined = none. */
-  tpms: { runId: number; rows: readonly TpmsRegistrationRow[] } | undefined;
+  tpms: { runId: number; rows: readonly TpmsRegistrationRow[]; change?: TpmsRegistrationChange | undefined } | undefined;
+}
+
+/** The latest tpms-registrations import against the one before it (repeated imports are diffed). */
+export interface TpmsRegistrationChange {
+  previousRunId: number;
+  added: number;
+  removed: number;
+  changed: number;
+  /** Emails registered now that weren't (or weren't listed) before. */
+  nowRegistered: number;
+  /** Emails registered before that aren't now (or aren't listed any more). */
+  noLongerRegistered: number;
 }
 
 /** "unchecked": neither option exists in HotCRP, so nothing could be checked. */

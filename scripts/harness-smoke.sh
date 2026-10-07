@@ -42,6 +42,8 @@ dc exec -T db mariadb -uroot -proot "${HOTCRP_DB_NAME:-hotcrp}" \
   -e "update PaperReview set timeRequested = timeRequested - 7*86400"
 
 api "$U/searchaction?action=get/pcassignments&q=all" | grep -q '^1,metareview,ac1@example.org'
+# PC conflicts list (pcs export tpms): HotCRP's CSV header must stay as parsed by PcConflictsSchema.
+api "$U/searchaction?action=get/pcconf&q=all&t=s" | head -1 | grep -qx 'paper,title,given_name,family_name,email,conflicttype'
 api "$U/reviews?q=all&pretty=0" | python3 -c '
 import json,sys
 rs=json.load(sys.stdin)["reviews"]

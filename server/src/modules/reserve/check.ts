@@ -266,6 +266,12 @@ export function checkReserve(input: ReserveInput, policy: ReservePolicy, hints?:
   const active = designeeDefined || exemptionDefined;
   if (!active) notes.push("Neither option exists, so no paper was checked");
   if (!input.tpms) notes.push("No tpms-registrations import yet, so TPMS registration was not checked (pcs import tpms-registrations <file>)");
+  const ch = input.tpms?.change;
+  if (input.tpms && ch) {
+    notes.push(
+      `tpms-registrations import #${input.tpms.runId} vs #${ch.previousRunId}: ${ch.nowRegistered} newly registered, ${ch.noLongerRegistered} no longer registered (+${ch.added} -${ch.removed} ~${ch.changed} rows)`,
+    );
+  }
 
   const findings: ReserveFinding[] = [];
   const rows: PaperCompliance[] = [];
