@@ -123,7 +123,21 @@ export async function buildApp(o: AppOptions): Promise<App> {
       return reply.code(421).send({ error: "this server only answers on 127.0.0.1" });
     }
   });
+  // Server-Timing on /api/*: total handler time, plus the snapshot + rules
+  // rebuild when this request paid for one (PLAN M7; durations only).
+  const started = new WeakMap<object, { at: number; builds: number }>();
+  app.addHook("onRequest", async (req) => {
+    started.set(req, { at: performance.now(), builds: analysis.stats.builds });
+  });
   app.addHook("onSend", async (req, reply, payload) => {
+    if (req.url.startsWith("/api/")) {
+      const s = started.get(req);
+      const t = [`app;dur=${s ? (performance.now() - s.at).toFixed(1) : "0"}`];
+      if (s && analysis.stats.builds !== s.builds) {
+        t.push(`snapshot;dur=${analysis.stats.snapshotMs.toFixed(1)}`, `rules;dur=${analysis.stats.rulesMs.toFixed(1)}`);
+      }
+      reply.header("server-timing", t.join(", "));
+    }
     reply.header("content-security-policy", CSP);
     reply.header("x-content-type-options", "nosniff");
     reply.header("referrer-policy", "no-referrer");

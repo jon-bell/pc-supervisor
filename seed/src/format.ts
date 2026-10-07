@@ -40,7 +40,11 @@ export interface Person {
   first: string;
   last: string;
   affiliation?: string;
-  /** PC roles. Omit (or []) for a person who is only an author. */
+  /**
+   * PC roles. [] for a person who is not on the PC; such a person is saved as
+   * a HotCRP user only if they have tags (e.g. a reserve-pool designee).
+   * PC members may also be paper authors (reciprocal reviewers, PLAN M10).
+   */
   roles: readonly Role[];
   /** HotCRP user tags, e.g. ["junior"]. */
   tags?: readonly string[];
@@ -59,6 +63,8 @@ export interface Paper {
   /** Default: generated filler. */
   abstract?: string;
   authors: readonly Author[];
+  /** Submission-option values by SubmissionField name (phase 2), e.g. { "Reserve designee": "x@example.org" }. */
+  options?: Readonly<Record<string, string>>;
 }
 
 /** HotCRP assignment actions (batch/assign.php). metareview = area chair. */
@@ -70,6 +76,8 @@ export interface Assignment {
   role: AssignRole;
   /** When the review was requested. Default: DEFAULT_REQUESTED_AT. */
   requestedAt?: When;
+  /** Review round name (one of Scenario.reviewRounds), e.g. QUICKREJECT_ROUND. Default: the unnamed round. */
+  round?: string;
 }
 
 /** Score fields by review-form UID, e.g. { OveMer: 3, RevExp: 4 }. */
@@ -180,7 +188,51 @@ export interface Scenario {
   stages: readonly Stage[];
   /** Score fields every review must carry (default ["OveMer", "RevExp"]). */
   scoreFields?: readonly string[];
+  /** Submission options to define in HotCRP settings (`sf`), phase 2. */
+  submissionFields?: readonly SubmissionField[];
+  /** Named review rounds to define besides the unnamed one, e.g. [QUICKREJECT_ROUND]. */
+  reviewRounds?: readonly string[];
 }
+
+// ---------------------------------------------------------------------------
+// Phase-2 foundations (PLAN Phase 2 intro; M10-M12 scenarios).
+
+/**
+ * A custom submission option, defined through batch/settings.php (`sf`,
+ * matched by name, so re-seeding is idempotent). Values are set per paper in
+ * savepapers JSON under the option's name, and GET /papers returns them under
+ * the same name.
+ */
+export interface SubmissionField {
+  name: string;
+  /** text = free text (an email for the designee); dropdown = one of `values`. */
+  type: "text" | "dropdown";
+  values?: readonly string[];
+  /** Who sees it in HotCRP. Default "admin" (chairs only). */
+  visibility?: "all" | "review" | "admin";
+}
+
+/** Each submission names a senior author as its reserve ("reciprocal") reviewer (spec §10). */
+export const RESERVE_DESIGNEE_FIELD: SubmissionField = { name: "Reserve designee", type: "text" };
+
+/** A claimed exemption from naming a designee. The value set is synthetic; M11 makes it configurable. */
+export const RESERVE_EXEMPTION_FIELD: SubmissionField = {
+  name: "Reserve exemption",
+  type: "dropdown",
+  values: ["no-eligible-author", "all-authors-on-pc", "other"],
+};
+
+/** The quick-reject review round (spec §10.4 B). */
+export const QUICKREJECT_ROUND = "quickreject";
+
+/**
+ * The four tiers of spec §10.2 as HotCRP user tags. Untagged PC members are
+ * senior. Map them with PCS_TIER_TAGS=TIER_TAGS_ENV.
+ */
+export const TIER_TAGS = { junior: "junior", "reserve-active": "reserveactive", "reserve-pool": "reservepool" } as const;
+export const TIER_TAGS_ENV = Object.entries(TIER_TAGS)
+  .map(([tier, tag]) => `${tier}=${tag}`)
+  .join(",");
 
 /** Review requests default to four weeks before the review deadline. */
 export const DEFAULT_REQUESTED_AT: When = at("reviewDue", -28, "09:00");

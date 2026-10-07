@@ -281,6 +281,51 @@ export const MIGRATIONS: readonly string[] = [
   alter table paper add column decision_seen_approx integer not null default 0;
   update paper set decision_seen_at = first_seen_at, decision_seen_approx = 1 where decision is not null;
   `,
+
+  // 4: submissions (PLAN M10, phase-2 seeder foundations). From GET /papers
+  // and GET /settings?filter=sf. Current state with first/removed times, like
+  // assignments: nothing is deleted. No abstracts or documents are stored.
+  `
+  -- Configured submission options (settings sf entries with a numeric id).
+  -- name = the key HotCRP uses for the option in /papers.
+  create table submission_field (
+    name text primary key,
+    sf_id integer not null,
+    type text,
+    values_json text,
+    first_seen_at integer not null,
+    removed_seen_at integer
+  ) strict;
+
+  -- Paper authors in order. author_key = lowercased email, or
+  -- 'name:<given> <family>' for an author without one.
+  create table paper_author (
+    pid integer not null,
+    author_key text not null,
+    ord integer not null,
+    email text,
+    name text,
+    affiliation text,
+    first_seen_at integer not null,
+    removed_seen_at integer,
+    primary key (pid, author_key)
+  ) strict, without rowid;
+  create index paper_author_email on paper_author(email);
+
+  -- Submission-option values (JSON: string, number, boolean, or list), e.g.
+  -- the reserve designee and exemption claim. changed_seen_at = when the
+  -- current value was first seen.
+  create table paper_option (
+    pid integer not null,
+    name text not null,
+    value text not null,
+    first_seen_at integer not null,
+    changed_seen_at integer not null,
+    removed_seen_at integer,
+    primary key (pid, name)
+  ) strict, without rowid;
+  create index paper_option_name on paper_option(name, pid);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
