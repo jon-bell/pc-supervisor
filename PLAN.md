@@ -5,7 +5,7 @@ This is the work breakdown for building PC Supervisor. Read [docs/spec.md](docs/
 **Already done (2026-10-07):**
 - the disposable HotCRP harness (`hotcrp/`, `scripts/hotcrp-up.sh`);
 - a smoke test that exercises every API path the app depends on (`scripts/harness-smoke.sh`);
-- the CI workflow skeleton, which runs the harness on `ripley-cloud`;
+- the CI workflow (`.github/workflows/ci.yml`), which runs the harness on `ripley-cloud`;
 - the spec, `.env.example`, and AGENTS.md.
 
 ## Parallel tracks
@@ -43,7 +43,7 @@ CI calls exactly these root scripts, so keep the names stable:
 | `test:e2e` | seed `golden` → sync → start server + built web → Playwright |
 | `test:scale` | seed `scale` → timed sync → Playwright perf checks |
 
-The CI steps for these are already in `.github/workflows/ci.yml`. They're gated on `package.json` existing, so they switch on automatically.
+The CI steps for these are in `.github/workflows/ci.yml`: `ci` runs lint through `test:e2e`, and the nightly `scale` job runs `test:scale`.
 
 ---
 
