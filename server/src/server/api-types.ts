@@ -57,6 +57,8 @@ export interface TriageRow {
   reasons: Reason[];
   lastActivity: number | null;
   decisionsDue: number;
+  /** HotCRP paper tags as synced, e.g. ["chair-attention", "x#2"]. */
+  tags: string[];
 }
 
 export interface TriageResponse {

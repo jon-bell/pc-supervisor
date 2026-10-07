@@ -1,12 +1,14 @@
 // The triage list (spec §5c): every paper in severity order, then time to
 // decisions due, then pid (the server's order), with reason chips. Filters
 // live in the URL (?ac=&rule=&tier=) so a filtered list deep-links; clicking a
-// row opens the paper drawer at /papers/:pid.
+// row opens the paper drawer at /papers/:pid. The actions bar (PLAN M8) copies
+// a HotCRP search for the filtered set and tags it PCS_ATTENTION_TAG.
 
 import { createColumnHelper } from "@tanstack/react-table";
-import { useMemo } from "react";
-import { useTriage, type MetaResponse, type TriageFilters, type TriageRow } from "../api";
-import { ReasonChips } from "../components/Chip";
+import { useMemo, useState } from "react";
+import { useActions, useTriage, type MetaResponse, type TriageFilters, type TriageRow } from "../api";
+import { SearchActions, TagDialog } from "../components/Actions";
+import { Chip, ReasonChips } from "../components/Chip";
 import { DataTable } from "../components/DataTable";
 import { RelTime } from "../components/Time";
 import { hotcrp, plural, ruleLabel } from "../format";
@@ -32,6 +34,9 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
   const triage = useTriage(filters);
   const data = triage.data;
   const base = meta.hotcrpUrl;
+  const actions = useActions().data;
+  const tag = actions?.attentionTag;
+  const [tagging, setTagging] = useState<{ add: number[]; remove: number[] } | null>(null);
 
   const columns = useMemo(
     () => [
@@ -45,8 +50,15 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
         size: 220,
         meta: { grow: true },
         cell: (c) => (
-          <span className="title" title={c.getValue()} data-testid="title">
-            {c.getValue()}
+          <span className="title-cell">
+            <span className="title" title={c.getValue()} data-testid="title">
+              {c.getValue()}
+            </span>
+            {tag && c.row.original.tags.some((t) => t.replace(/#.*$/, "").toLowerCase() === tag.toLowerCase()) ? (
+              <Chip tone="info" testId="attention-tag">
+                #{tag}
+              </Chip>
+            ) : null}
           </span>
         ),
       }),
@@ -102,7 +114,7 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
         ),
       }),
     ],
-    [base, data?.now, meta.now, meta.tz],
+    [base, data?.now, meta.now, meta.tz, tag],
   );
 
   const setFilter = (k: keyof TriageFilters, v: string) => navigate(withQuery(loc.path, { ...filters, [k]: v || undefined }), { replace: true });
@@ -148,6 +160,20 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
             {data ? `${data.papers.length} of ${plural(data.total, "paper")}` : "Loading…"}
           </span>
         </div>
+        {data ? (
+          <SearchActions pids={data.papers.map((p) => p.pid)} base={base}>
+            {tag && actions?.taggingAvailable && data.papers.length > 0 ? (
+              <>
+                <button type="button" className="btn" data-testid="tag-add-all" onClick={() => setTagging({ add: data.papers.map((p) => p.pid), remove: [] })}>
+                  Tag these #{tag}…
+                </button>
+                <button type="button" className="btn" data-testid="tag-remove-all" onClick={() => setTagging({ add: [], remove: data.papers.map((p) => p.pid) })}>
+                  Remove #{tag}…
+                </button>
+              </>
+            ) : null}
+          </SearchActions>
+        ) : null}
         {triage.error ? (
           <p className="error">Could not load the triage list: {triage.error.message}</p>
         ) : (
@@ -164,6 +190,7 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
         )}
       </section>
       {pid !== null ? <PaperDrawer pid={pid} meta={meta} onClose={() => navigate(withQuery("/", filters))} /> : null}
+      {tagging && tag ? <TagDialog tag={tag} add={tagging.add} remove={tagging.remove} onClose={() => setTagging(null)} /> : null}
     </div>
   );
 }

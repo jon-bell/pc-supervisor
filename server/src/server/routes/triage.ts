@@ -40,6 +40,7 @@ export function triageRows(view: AnalysisView): TriageRow[] {
       reasons: r.fired.map((x) => ({ rule: x.rule, weight: x.weight, reason: x.reason })),
       lastActivity: r.lastActivity,
       decisionsDue: r.decisionsDue,
+      tags: [...f.bundle.paper.tags],
     };
   });
 }

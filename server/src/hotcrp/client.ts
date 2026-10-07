@@ -47,6 +47,7 @@ import {
   type PcAssignmentRow,
   type Review,
 } from "./schemas.js";
+import { AssignTagsResultSchema, tagAssignmentBody, tagDiffOf, type TagChange, type TagDiff } from "./tag-assign.js";
 
 /**
  * Paper-set scopes (`t=`). HotCRP silently treats an unknown scope as "none",
@@ -338,11 +339,12 @@ export class HotcrpClient {
    * locally and sent as a JSON array of row objects (same columns), the form
    * HotCRP accepts regardless of server setup (see CallSpec.jsonBody).
    * An invalid assignment is a result (`valid: false` + messages), not an
-   * error. Only dry runs exist until PLAN M8: `dryRun: false` always rejects.
+   * error. Dry runs only: `dryRun: false` always rejects (the one write path is
+   * assignTags below, PLAN M8).
    */
   async assign(csv: string, opts: { dryRun: boolean }): Promise<AssignResult> {
     if (opts.dryRun !== true) {
-      throw new HotcrpError("writes_disabled", "POST /assign", "only dry runs are allowed until PLAN M8 (dry-run-first assignment)");
+      throw new HotcrpError("writes_disabled", "POST /assign", "assignment CSVs are dry-run only; the app's one write path is assignTags");
     }
     let rows: Record<string, string>[];
     try {
@@ -367,16 +369,36 @@ export class HotcrpClient {
   }
 
   // ------------------------------------------------------------------------
-  // Writes (PLAN M8). Disabled: the app is read-only until then.
+  // Writes (PLAN M8). The only write path: tag changes, dry-run first.
 
   /**
-   * POST /assigntags. M8 implements this, dry-run first with explicit
-   * confirmation (spec §6). Until then it always throws.
+   * Add or remove one tag on papers via POST /assign (see tag-assign.ts for
+   * why not /assigntags). `dryRun: true` changes nothing in HotCRP and
+   * returns the diff it would make. A real run additionally requires
+   * `allowWrites: true`, which only the confirmed tagging flow
+   * (server/src/actions/tagging.ts) passes; anything else gets a
+   * `writes_disabled` error before a request is made. Writes never retry.
    */
-  assignTags(_assignments: readonly { pid: number; tags: readonly string[] }[], _opts: { dryRun: boolean }): Promise<never> {
-    return Promise.reject(
-      new HotcrpError("writes_disabled", "POST /assigntags", "writes are disabled until PLAN M8 (dry-run-first tagging)"),
-    );
+  async assignTags(
+    changes: readonly TagChange[],
+    tag: string,
+    opts: { dryRun: true } | { dryRun: false; allowWrites: true },
+  ): Promise<TagDiff> {
+    const endpoint = "POST /assign";
+    if (!opts.dryRun && (opts as { allowWrites?: unknown }).allowWrites !== true) {
+      throw new HotcrpError("writes_disabled", endpoint, "writes need allowWrites (only the confirmed tagging flow passes it)");
+    }
+    const body = tagAssignmentBody(changes, tag);
+    const res = await this.call({
+      path: "assign",
+      method: "POST",
+      params: { dry_run: opts.dryRun ? 1 : undefined, format: "json", forceShow: this.forceShow ? 1 : 0 },
+      jsonBody: body,
+      schema: AssignTagsResultSchema,
+    });
+    if (!res.valid) throw new HotcrpError("api", endpoint, "HotCRP reported the assignment as invalid");
+    if (opts.dryRun && res.dry_run !== true) throw new HotcrpError("protocol", endpoint, "asked for a dry run but HotCRP did not report one");
+    return tagDiffOf(res, tag);
   }
 
   // ------------------------------------------------------------------------

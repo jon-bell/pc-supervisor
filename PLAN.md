@@ -190,7 +190,7 @@ Changing this table means changing the M3 and M4 tests in the same PR.
 - **Scope:**
   - A copyable HotCRP search for any filtered set.
   - Nudge-comment drafts (the app copies the text; it doesn't post).
-  - `#chair-attention` tagging via `POST /assigntags`, which always runs `dry_run=1` first, shows the diff, needs explicit confirmation, and then commits.
+  - `#chair-attention` tagging, which always runs `dry_run=1` first, shows the diff, needs explicit confirmation, and then commits. It uses `POST /assign` rather than `POST /assigntags`, because `/assigntags` has no dry run (spec §1, §6).
 - **Done when:** E2E against the harness shows the dry run changes nothing, the confirmed run sets the tags, and a re-sync shows them. No test ever targets a non-harness URL; the test helper refuses to start unless `PCS_HOTCRP_URL` is `127.0.0.1`/`localhost`.
 
 ---

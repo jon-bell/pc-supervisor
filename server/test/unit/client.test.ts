@@ -149,10 +149,85 @@ describe("requests", () => {
     expect(peak).toBe(2);
   });
 
-  it("refuses writes until M8", async () => {
+  it("refuses a tag write without allowWrites, before any request (PLAN M8)", async () => {
     const { client, seen } = fake([]);
-    const err = await caught(client.assignTags([{ pid: 1, tags: ["chair-attention"] }], { dryRun: true }));
+    const opts = { dryRun: false } as unknown as { dryRun: false; allowWrites: true };
+    const err = await caught(client.assignTags([{ pid: 1, op: "add" }], "chair-attention", opts));
     expect(err.kind).toBe("writes_disabled");
+    const err2 = await caught(
+      client.assignTags([{ pid: 1, op: "add" }], "chair-attention", { dryRun: false, allowWrites: "yes" } as unknown as { dryRun: false; allowWrites: true }),
+    );
+    expect(err2.kind).toBe("writes_disabled");
+    expect(seen).toHaveLength(0);
+  });
+
+  it("tag dry run: POST /assign?dry_run=1 with a JSON body; returns the diff HotCRP reports", async () => {
+    const { client, seen } = fake([
+      json({
+        ok: true,
+        dry_run: true,
+        valid: true,
+        assignment_count: 2,
+        assignment_header: ["pid", "action", "tag"],
+        assignments: [
+          { pid: 5, action: "tag", tag: "chair-attention" },
+          { pid: 3, action: "cleartag", tag: "Chair-Attention" },
+        ],
+      }),
+    ]);
+    const diff = await client.assignTags(
+      [
+        { pid: 5, op: "add" },
+        { pid: 4, op: "add" },
+        { pid: 3, op: "remove" },
+      ],
+      "chair-attention",
+      { dryRun: true },
+    );
+    expect(diff).toEqual({ gain: [5], lose: [3] });
+    const req = seen[0]!;
+    expect(req.method).toBe("POST");
+    expect(req.url.pathname).toBe("/api/assign");
+    expect(req.url.searchParams.get("dry_run")).toBe("1");
+    expect(req.url.searchParams.get("format")).toBe("json");
+    expect(req.url.searchParams.get(":method:")).toBeNull();
+    expect(req.headers.get("content-type")).toBe("application/json");
+    expect(JSON.parse(req.body)).toEqual([
+      { pid: 5, action: "tag", tag: "chair-attention" },
+      { pid: 4, action: "tag", tag: "chair-attention" },
+      { pid: 3, action: "cleartag", tag: "chair-attention" },
+    ]);
+  });
+
+  it("a confirmed tag write omits dry_run, never retries, and rejects a non-dry-run answer to a dry run", async () => {
+    const { client, seen } = fake([new Response("", { status: 503 })]);
+    const err = await caught(client.assignTags([{ pid: 1, op: "add" }], "chair-attention", { dryRun: false, allowWrites: true }));
+    expect(err.kind).toBe("http");
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.url.searchParams.has("dry_run")).toBe(false);
+
+    const { client: c2 } = fake([json({ ok: true, valid: true, assignments: [] })]);
+    expect((await caught(c2.assignTags([{ pid: 1, op: "add" }], "chair-attention", { dryRun: true }))).kind).toBe("protocol");
+    const { client: c3 } = fake([json({ ok: false, message_list: [{ status: 2, message: "<0>Submission #99 does not exist" }] })]);
+    expect((await caught(c3.assignTags([{ pid: 99, op: "add" }], "chair-attention", { dryRun: true }))).message).toMatch(/#99 does not exist/);
+  });
+
+  it("validates tag changes locally", async () => {
+    const { client, seen } = fake([]);
+    await expect(client.assignTags([{ pid: 1, op: "add" }], "bad tag", { dryRun: true })).rejects.toThrow(/invalid tag/);
+    await expect(client.assignTags([{ pid: 1, op: "add" }], "~private", { dryRun: true })).rejects.toThrow(/invalid tag/);
+    await expect(client.assignTags([], "chair-attention", { dryRun: true })).rejects.toThrow(/no tag changes/);
+    await expect(client.assignTags([{ pid: 0, op: "add" }], "chair-attention", { dryRun: true })).rejects.toThrow(/invalid pid/);
+    await expect(
+      client.assignTags(
+        [
+          { pid: 2, op: "add" },
+          { pid: 2, op: "remove" },
+        ],
+        "chair-attention",
+        { dryRun: true },
+      ),
+    ).rejects.toThrow(/twice/);
     expect(seen).toHaveLength(0);
   });
 });

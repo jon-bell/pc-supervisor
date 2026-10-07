@@ -37,6 +37,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | Authors, submission options (M10) | `GET /papers?q=…&t=all&forceShow=1` | One `paper` object per paper: `authors` (`email given_name family_name affiliation`) and every submission option under its **name** (e.g. `"Reserve designee": "x@…"`; dropdown = choice name). Also carries the abstract and document metadata, which the sync drops unread. For a blind submission even a chair gets **no `authors` without `forceShow=1`**. **Verified (M10).** |
 | Submission-option definitions | `GET /settings?filter=sf` | `sf` list; configured options have numeric `id`s (intrinsic fields have string ids like `title`), `type`, and dropdown `values`. **Verified (M10).** |
 | Assignment dry run (M10) | `POST /assign?dry_run=1&forceShow=0&format=json` | Body: a JSON array of row objects with the CSV columns (`paper action user`). Returns `valid`, `assignment_count`, and the `assignments` HotCRP *would* make; nothing changes. An invalid set is **HTTP 403** with `ok: false`, `valid: false`, and the error messages. `forceShow=0` keeps conflicts enforced (`1` overrides them). **Verified (M10).** |
+| Tag changes (v1, the only write) | `POST /assign?dry_run=1&format=json` with a JSON body `[{pid, action: "tag"\|"cleartag", tag}]`, then the same without `dry_run` | **Not `POST /assigntags`**: at `60f693f` `Tags_API::assigntags` (`src/api/api_tags.php`) only adds tags and executes at once, with no `dry_run`. `Assign_API::assign` (`src/api/api_assign.php`) runs the same `AssignmentSet` and honors `dry_run=1`; with `format=json` it lists exactly the rows that would change state (a `tag` on a paper that already has the tag, or a `cleartag` on one that doesn't, is omitted), so that list is the preview diff. An unknown pid (*Submission #N does not exist*) or an empty list (*Empty file*) is HTTP 403 with `ok: false`; the tag client treats that as an error. **Verified (M8).** |
 | Activity feed | `GET /events` | Pre-rendered HTML, 10 per page. **Don't use it.** |
 | Ratings of reviews | `GET /{p}/reviewrating` | Optional quality signal (`short`, `vague`, `disrespectful` …). No per-review calls are needed: `/reviews` already carries `ratings` (one name or a list) on every rated review. **Verified (M3).** |
 
@@ -50,7 +51,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 - **`reviewer` (reviews) and `author` (comments) are HTML.** Use `reviewer_email` / `author_email`.
 - **`/reviewhistory` deltas (`object: "review_delta"`) have no `modified_at`**, and text fields may appear as `<UID>:p` patches.
 - **`POST /reviews` ignores `override=1` for JSON bodies**; only text-form uploads honor it. The seeder works around this by opening review deadlines in settings. This may be worth an upstream issue.
-- **HotCRP can't see the request `Content-Type` under Apache mod_php** (`Qrequest::header()` reads `HTTP_CONTENT_TYPE`, which mod_php doesn't set). Endpoints that branch on it fall back to sniffing: a body starting with `[`/`{` is JSON; anything else is unknown. `POST /assign` with a CSV or form body therefore prints PHP warnings ahead of its JSON on the harness, so the client sends assignments as a JSON body. (Found in M10.)
+- **HotCRP can't see the request `Content-Type` under Apache mod_php** (`Qrequest::header()` reads `HTTP_CONTENT_TYPE`, which mod_php doesn't set). Endpoints that branch on it fall back to sniffing: a body starting with `[`/`{` is JSON; anything else is unknown. `POST /assign` with a CSV or form body therefore prints PHP warnings ahead of its JSON on the harness, so the client sends assignments as a JSON body (M10's dry runs and M8's tag writes). (Found in M10, again in M8.)
 - **After truncating `PaperStorage`, re-insert row 1** (the "empty document", `src/schema.sql`). Otherwise the first PDF stored gets id 1, and that paper silently stays a draft. `seed reset` does this since M10.
 
 **Gaps that shape the design:**
@@ -68,7 +69,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 |---|---|
 | Data freshness | Periodic full sync (`PCS_SYNC_INTERVAL_MIN`, default 15) plus a manual "sync now". Live calls can't give us history. |
 | Store | SQLite (SQLCipher), one file per instance. |
-| Read vs. write | **Read-only through v0.** v1 adds copyable searches, drafted nudges, and dry-run-previewed tagging (§6). |
+| Read vs. write | **Read-only through v0.** v1 adds copyable searches, drafted nudges, and dry-run-previewed tagging (§6); tagging is the only write. |
 | Users | One user. The server binds to `127.0.0.1` and has no auth layer. |
 | Metric style | Rules that fire with a human-readable reason, rolled into a ranked attention list. No single opaque score. |
 | People views | An outlier list plus per-person drill-down. **No leaderboards.** |
@@ -115,7 +116,7 @@ HotCRP ◄── bearer token ── server (Node/TS: sync + JSON API, SQLite) �
 - **Clock injection:** all phase logic reads `now` from one function. `PCS_NOW` (ISO timestamp) pins it, for tests and for replaying a past state.
 - **Metrics** are SQL views plus a TS rules module evaluated at read time, so changing a threshold env var and restarting re-ranks everything. Indexes go on `pid` and `email`.
 - **UI:** React + Vite + TanStack Table/Query, with virtualized tables (2,400 rows must stay smooth). Every row deep-links into HotCRP: `/paper/{pid}`, `/review/{pid}{ordinal}` (unsubmitted reviews have no ordinal: `/review?p={pid}&r={rid}`), `/search?q=…`.
-- **Server (M5, `server/src/server/`):** `pcs serve [--watch]` runs Fastify on `127.0.0.1:PCS_PORT` and serves `web/dist` with an SPA fallback. Routes: `GET /api/meta` (phase, now, pinned, HotCRP base URL, rule weights, tiers), `GET /api/triage?ac=&rule=&tier=` (every paper in triage order with reasons, AC, merits, tier mix, last activity, plus facet counts), `GET /api/papers/:pid` (the drawer: reviews with versions and text, comments with author, word count, mentions and text, one merged timeline), `GET /api/sync/status`, `POST /api/sync` (202, or 409 while a sync runs; one at a time per process). Requests whose `Host` isn't a loopback name get 421 (DNS rebinding); every response carries a CSP that allows only `'self'`; sync errors are redacted; a unit test checks no body or header contains the token. M6 adds `/api/acs`, `/api/reviewers`, `/api/people/:email`, `/api/overview` to the same route list.
+- **Server (M5, `server/src/server/`):** `pcs serve [--watch]` runs Fastify on `127.0.0.1:PCS_PORT` and serves `web/dist` with an SPA fallback. Routes: `GET /api/meta` (phase, now, pinned, HotCRP base URL, rule weights, tiers), `GET /api/triage?ac=&rule=&tier=` (every paper in triage order with reasons, AC, merits, tier mix, last activity, plus facet counts), `GET /api/papers/:pid` (the drawer: reviews with versions and text, comments with author, word count, mentions and text, one merged timeline), `GET /api/sync/status`, `POST /api/sync` (202, or 409 while a sync runs; one at a time per process). Requests whose `Host` isn't a loopback name get 421 (DNS rebinding); every response carries a CSP that allows only `'self'`; sync errors are redacted; a unit test checks no body or header contains the token. M6 adds `/api/acs`, `/api/reviewers`, `/api/people/:email`, `/api/overview` to the same route list; M8 adds `/api/actions`, `/api/papers/:pid/nudge`, `POST /api/tags/preview`, and `POST /api/tags/commit` (§6).
 - **Store → rules adapter (`server/src/views/snapshot.ts`):** builds the rules engine's snapshot view in six statements (papers, people, ACs, reviews, review versions, comments), each one indexed scan regardless of size, with scores extracted by `json_extract` and no text read. Version times are `coalesce(modified_at, seen_at)`; a comment's time is the earliest of `first_seen_at` and the first `modified_at` the sync saw, so an edit never moves it. The server caches the evaluated analysis per (latest sync run, clock minute).
 - **Movement before the first sync needs the backfill.** The first sync sees one version per review, so score changes that happened before it are only visible after `pcs backfill`. The golden integration test and the E2E setup run sync then backfill; without the backfill golden pids 3 and 12 also fire `UNRESOLVED_SPLIT`.
 
@@ -147,6 +148,7 @@ There's no config file. `.env.example` is the full, documented list. Startup val
 | `PCS_SYNC_INTERVAL_MIN`, `PCS_SYNC_CHUNK`, `PCS_SYNC_CONCURRENCY`, `PCS_HISTORY_RPS` | Sync tuning | 15 / 200 / 2 / 1 |
 | `PCS_FORCE_SHOW` | `false` = respect the chair's own conflicts | `true` |
 | `PCS_PORT` | Local server port | `5317` |
+| `PCS_ATTENTION_TAG` | Paper tag the v1 tagging action adds/removes (no `#`) | `chair-attention` |
 
 ---
 
@@ -237,11 +239,22 @@ Views:
 
 ## 6. Actions (v1)
 
-These are human-in-the-loop only; the app never sends email.
+These are human-in-the-loop only; the app never sends email and never posts comments.
 
-- **Copy a HotCRP search** for any flag set, to paste into the Mail tool.
-- **Draft a nudge comment** with the reason text filled in.
-- **Tag** flagged papers `#chair-attention` via `POST /assigntags`, behind a `dry_run=1` preview and a confirm step. This is the first write path, and it's E2E-tested against the harness, never against a live instance.
+- **Copy a HotCRP search** for any filtered set: the triage list under any AC, rule, or tier filter, and a person page's papers. The search is the pid list with consecutive pids collapsed into ranges (`1 3 4 8-10`); HotCRP reads bare numbers and ranges as exactly that set (checked on the harness, and the E2E test runs every copied search through `/api/search`). The bar shows the search, a **Copy search** button (clipboard), and a link to `${PCS_HOTCRP_URL}/search?q=…&t=all`. The builder is `server/src/actions/search.ts`, shared with the web app.
+- **Draft a nudge comment** from the paper drawer (`GET /api/papers/:pid/nudge`, `server/src/actions/nudge.ts`). The draft @mentions people by roster name, the form HotCRP's comment editor uses:
+  - `MISSING_REVIEWS`: the reviewers whose reviews aren't submitted;
+  - any discussion rule, or none: the submitted reviewers with no comment since `DISCUSSION_OPEN` (all of them if everyone has commented), plus the ACs if `AC_ABSENT` fired;
+  - only `AC_ABSENT` / `LOW_EXPERTISE` / `THIN_REVIEWS`: the ACs.
+
+  It lists the fired rules' reason strings verbatim ("Where things stand: …") and asks politely, in spec §7 wording. The app only copies it to the clipboard; the chair edits and posts it in HotCRP.
+- **Tag papers `#PCS_ATTENTION_TAG`** (default `chair-attention`) from the triage list (the filtered set, add or remove) or the drawer (one paper). This is the only write path (AGENTS.md rule 3). It goes through `POST /assign` (§1), not `/assigntags`, because only `/assign` has a dry run.
+  1. **Preview** (`POST /api/tags/preview {add, remove}`): the server runs HotCRP's dry run and returns the exact diff (papers that gain and lose the tag, plus those already as requested) and, if the diff isn't empty, a **token**: 32 random bytes, created server-side, bound to that diff, single-use, valid 5 minutes on a monotonic clock (so a pinned `PCS_NOW` can't keep it alive), at most 16 pending.
+  2. **Confirm** in a modal that shows the diff; the commit button stays disabled until the tag name is typed exactly.
+  3. **Commit** (`POST /api/tags/commit {token, gain, lose, confirm}`): the server consumes the token first, then rejects it if it is unknown or used (409), expired (410), or the sets differ from the preview (409), or `confirm` isn't the tag name (400). It then re-runs the dry run and refuses (409) if HotCRP changed since the preview. Only then does it write the **previewed** diff (never the request's), with the client's `allowWrites`, which nothing else in the app passes; without it `assignTags` throws `writes_disabled` before any request. Writes never retry.
+  4. The server starts a re-sync so the tags show in the list (a chip on the row) and the drawer.
+
+  Both tag routes refuse a cross-origin `Origin` header (403) on top of the loopback-`Host` check, and HotCRP errors come back redacted. The app targets the real instance at runtime because the chair uses it there; **tests never do**: the flow is E2E-tested only against the harness (`e2e/specs/tagging.spec.ts`), and the client contract test (`server/test/contract/tags.test.ts`) uses its own tag.
 
 ---
 
@@ -274,7 +287,7 @@ See [PLAN.md](../PLAN.md).
 | Unit | Rules, metrics, the mention parser, env validation, snapshot diffing. Uses in-memory SQLite and fixed `PCS_NOW`. | Every push |
 | API contract | Zod schemas for every HotCRP response we consume, checked against the seeded harness. This catches drift when `HOTCRP_REF` is bumped. | Every push; nightly against HotCRP `master` |
 | Integration | Seed scenario → sync → assert DB state. Multi-stage scenarios: seed stage 1, sync, mutate, advance `PCS_NOW`, sync, assert diffs. | Every push |
-| E2E (Playwright) | Seed → sync → server + built UI. Assert the triage ranking, reason chips, AC table, person page, drawer timeline, and (v1) the tagging dry run. | Every push |
+| E2E (Playwright) | Seed → sync → server + built UI. Assert the triage ranking, reason chips, AC table, person page, drawer timeline, and (v1) copy search and nudge drafts through the clipboard, and tagging: the dry run leaves HotCRP's tags unchanged, the confirmed run sets them, the re-sync shows them in the UI and the store. The tagging spec is the only one that writes, so it runs in its own Playwright project after all the others and removes the tag at the end. | Every push |
 | Visual (Argos) | `argosScreenshot` at fixed states of the golden scenario: triage list, paper drawer, AC table, person page, overview. `PCS_NOW` is pinned, and relative-time text and sync timestamps are masked (class `volatile`, `data-visual-test="transparent"`). Playwright runs with `bypassCSP`, because Argos injects an inline script that the app's CSP blocks; the CSP is asserted on response headers instead. Uploads come from CI only, through the Argos GitHub App (tokenless), and they show **synthetic harness data only**. | Every push (Argos diffs PRs against `main`) |
 | Scale | The `scale` scenario (2,400 papers, 40 ACs, ~10k reviews). Assert sync time and UI interaction budgets. | Nightly / manual |
 

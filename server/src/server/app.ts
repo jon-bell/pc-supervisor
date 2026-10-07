@@ -11,7 +11,8 @@
 //
 // Routes register from ROUTES below; each reads deps.analysis (the cached
 // rules evaluation, AC/reviewer metrics and burndown). M6 added /api/acs,
-// /api/reviewers, /api/people/:email and /api/overview.
+// /api/reviewers, /api/people/:email and /api/overview. M8 added the v1
+// actions (routes/actions.ts): /api/actions, nudge drafts, tag preview/commit.
 
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -25,6 +26,8 @@ import type { PersonView } from "../rules/model.js";
 import type { Store } from "../store/store.js";
 import type { Person } from "./api-types.js";
 import { AnalysisSource } from "./analysis.js";
+import type { TagFlow } from "../actions/tagging.js";
+import { registerActions } from "./routes/actions.js";
 import { registerAcs } from "./routes/acs.js";
 import { registerMeta, registerSync } from "./routes/meta.js";
 import { registerOverview } from "./routes/overview.js";
@@ -42,6 +45,8 @@ export interface RouteDeps {
   /** Absent: POST /api/sync answers 503 (tests, read-only use). */
   sync: SyncRunner | undefined;
   ruleNames: readonly RuleName[];
+  /** The confirmed tagging flow (PLAN M8). Absent: the tag routes answer 503. */
+  tagFlow?: TagFlow | undefined;
 }
 
 export type RegisterRoutes = (app: FastifyInstance, deps: RouteDeps) => void;
@@ -56,6 +61,7 @@ export const ROUTES: readonly RegisterRoutes[] = [
   registerReviewers,
   registerPeople,
   registerOverview,
+  registerActions,
 ];
 
 export const CSP = [
@@ -94,6 +100,8 @@ export interface AppOptions {
   store: Store;
   clock: Clock;
   sync?: SyncRunner;
+  /** The confirmed tagging flow (PLAN M8); absent = tagging unavailable. */
+  tagFlow?: TagFlow;
   /** Built web app; null = API only. Default: defaultWebDir(). */
   webDir?: string | null;
   /** Fastify request logging (off by default: logs could carry paths, never bodies). */
@@ -146,7 +154,7 @@ export async function buildApp(o: AppOptions): Promise<App> {
     return reply.code(code).send({ error: message });
   });
 
-  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis, sync: o.sync, ruleNames: RULE_NAMES };
+  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis, sync: o.sync, ruleNames: RULE_NAMES, tagFlow: o.tagFlow };
   for (const register of ROUTES) register(app, deps);
 
   const webDir = o.webDir === undefined ? defaultWebDir() : o.webDir;
