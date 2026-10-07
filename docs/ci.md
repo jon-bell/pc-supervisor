@@ -29,7 +29,24 @@ GitHub ──► ARC listener (arc-runners-jon-bell) ──► ephemeral runner 
 
 ## One-time setup (Jon)
 
-1. The repo is `jon-bell/pc-supervisor` (private). The `ripley-cloud-gha` GitHub App installation for the `jon-bell` account (installation `125409090`) must include it. If the installation is "selected repositories", add it at <https://github.com/settings/installations/125409090>. Until then, jobs queue forever, and the listener logs `403 Resource not accessible by integration` (see `k8s/apps/arc/README.md`).
+1. **Register scale sets for this repo.** On a personal account, ARC scale sets are per repository: `githubConfigUrl` is a repo URL, as in `arc-runners-jon-bell-slopcoder`, `…-teleport-contest`, etc. So no existing `ripley-cloud` set will pick up `jon-bell/pc-supervisor` jobs; they queue forever. To add this repo's sets, clone slopcoder's:
+
+   ```bash
+   export KUBECONFIG=~/work/k8s/talos/kube/kubeconfig
+   NS=arc-runners-jon-bell-pc-supervisor SRC=arc-runners-jon-bell-slopcoder
+   CHART=oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
+   kubectl create ns $NS && kubectl label ns $NS pod-security.kubernetes.io/enforce=privileged
+   kubectl get secret -n $SRC github-app-credentials -o json \
+     | python3 -c "import json,sys; s=json.load(sys.stdin); s['metadata']={'name':'github-app-credentials','namespace':'$NS'}; print(json.dumps(s))" \
+     | kubectl apply -f -
+   for name in ripley-cloud ripley-cloud-large; do
+     helm get values -n $SRC $name -o yaml \
+       | sed 's|^githubConfigUrl: .*|githubConfigUrl: https://github.com/jon-bell/pc-supervisor|' \
+       | helm upgrade --install $name -n $NS $CHART --version 0.14.2 -f - --wait
+   done
+   ```
+
+   Then make sure the `ripley-cloud-gha` App installation for `jon-bell` (`125409090`) includes the repo: <https://github.com/settings/installations/125409090>. If it doesn't, the listener logs `403 Resource not accessible by integration` until access is granted, and then fixes itself.
 2. **No secrets are needed for CI.** The harness mints its own token. The real instance's token never goes into GitHub, and no CI job talks to a real HotCRP.
 
 ## Later: caching the HotCRP image
