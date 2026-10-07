@@ -1,7 +1,8 @@
 // Reviewer outlier lists (spec §5a), split by tier. A person appears only when
 // they cross a list's absolute bar (shown under its heading), so these are
-// filtered lists, not a ranking: no rank numbers, and the sort is by count or
-// by name (?sort=name). Clicking a row opens the person page.
+// filtered lists, not a ranking: no rank numbers, and the sort is by name, so
+// the list never reads as a leaderboard (spec §2, §7); ?sort=count sorts by
+// count instead. Clicking a row opens the person page.
 
 import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
@@ -98,10 +99,10 @@ function TierGroup({ list, tier, entries, sort }: { list: OutlierList; tier: str
 
 export function Reviewers() {
   const loc = useLocation();
-  const sort: SortKey = loc.query.get("sort") === "name" ? "name" : "count";
+  const sort: SortKey = loc.query.get("sort") === "count" ? "count" : "name";
   const q = useReviewers();
   const data = q.data;
-  const setSort = (s: SortKey) => navigate(s === "count" ? loc.path : `${loc.path}?sort=name`, { replace: true });
+  const setSort = (s: SortKey) => navigate(s === "name" ? loc.path : `${loc.path}?sort=count`, { replace: true });
 
   return (
     <div className="page page-scroll">
@@ -113,11 +114,11 @@ export function Reviewers() {
         </p>
         <div className="sort" role="group" aria-label="Sort">
           Sort by{" "}
-          <button type="button" className={`btn${sort === "count" ? " btn-on" : ""}`} data-testid="sort-count" onClick={() => setSort("count")}>
-            count
-          </button>{" "}
           <button type="button" className={`btn${sort === "name" ? " btn-on" : ""}`} data-testid="sort-name" onClick={() => setSort("name")}>
             name
+          </button>{" "}
+          <button type="button" className={`btn${sort === "count" ? " btn-on" : ""}`} data-testid="sort-count" onClick={() => setSort("count")}>
+            count
           </button>
         </div>
       </div>

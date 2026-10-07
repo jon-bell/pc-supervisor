@@ -68,12 +68,11 @@ test.describe("reviewer outliers", () => {
     await expect(page.getByTestId("outlier-list")).toHaveCount(4);
   });
 
-  test("R-silent tops silent-on-split with 3, under junior", async ({ page }) => {
+  test("R-silent is on silent-on-split with 3, under junior", async ({ page }) => {
     const junior = group(page, "silentOnSplit", "junior");
-    const first = junior.getByTestId("outlier-row").first();
-    await expect(first).toHaveAttribute("data-email", P.silent);
-    await expect(first.getByTestId("outlier-count")).toHaveText("3");
-    await expect(first.getByTestId("outlier-pids")).toHaveText("#3 #4 #12");
+    const silent = outlier(junior, P.silent);
+    await expect(silent.getByTestId("outlier-count")).toHaveText("3");
+    await expect(silent.getByTestId("outlier-pids")).toHaveText("#3 #4 #12");
     // Nobody in any tier is further over the bar.
     const counts = await page
       .locator('[data-testid="tier-group"][data-list="silentOnSplit"] [data-testid="outlier-count"]')
@@ -82,12 +81,20 @@ test.describe("reviewer outliers", () => {
     expect(counts.filter((c) => c === 3)).toHaveLength(1);
     // R-pinged (senior) is there too, with pid 4.
     await expect(outlier(group(page, "silentOnSplit", "senior"), P.pinged).getByTestId("outlier-pids")).toHaveText("#4");
-    // Outlier lists, not a leaderboard: no rank numbers, and a name sort.
+    // Outlier lists, not a leaderboard: no rank numbers, and sorted by name by default.
     await expect(page.locator("body")).not.toContainText(/#1 reviewer|leaderboard|worst/i);
-    await page.getByTestId("sort-name").click();
-    await expect(page).toHaveURL(/\?sort=name$/);
-    const names = await group(page, "silentOnSplit", "senior").getByTestId("outlier-name").allInnerTexts();
+    await expect(page.getByTestId("sort-name")).toHaveClass(/btn-on/);
+    const byName = async () => group(page, "silentOnSplit", "senior").getByTestId("outlier-name").allInnerTexts();
+    const names = await byName();
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    // Count order is opt-in (?sort=count), and back.
+    await page.getByTestId("sort-count").click();
+    await expect(page).toHaveURL(/\?sort=count$/);
+    const juniorCounts = await junior.getByTestId("outlier-count").evaluateAll((els) => els.map((e) => Number(e.textContent)));
+    expect(juniorCounts).toEqual([...juniorCounts].sort((a, b) => b - a));
+    await page.getByTestId("sort-name").click();
+    await expect(page).not.toHaveURL(/sort=/);
+    expect(await byName()).toEqual(names);
   });
 
   test("R-pinged has an unanswered ping of 11+ days on pid 4", async ({ page }) => {
