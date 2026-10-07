@@ -7,4 +7,6 @@ export const E2E_ENV: Readonly<Record<string, string>> = {
   PCS_PORT: String(E2E_PORT),
   PCS_TIER_TAGS: "junior=junior,reciprocal=reciprocal",
   PCS_HISTORY_RPS: "50",
+  // The Report page's Export button (PLAN M13); a test-only key.
+  PCS_PSEUDONYM_KEY: "e2e-only-pseudonym-key-not-secret",
 };

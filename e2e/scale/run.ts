@@ -11,6 +11,10 @@
 //   5. `pcs serve` on that DB: cold and warm timings of every analyze()-backed
 //      endpoint (the server's Server-Timing header says how long the
 //      snapshot + rules took);
+//   5b. the process report and the pseudonymous export over the scale store
+//      (PLAN M13: "renders from shadow and scale"): every section present,
+//      sane numbers, no "@" or scenario name/email/title in any export cell,
+//      and GET /api/report within its budget;
 //   6. Playwright perf checks (e2e/scale/perf.spec.ts): render, filter, and a
 //      scripted scroll of the virtualized triage list (--skip-browser skips).
 //
@@ -26,6 +30,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { seedContextFromEnv, seededState, seedScenario } from "@pcs/seed/driver";
 import { scenario as scale } from "@pcs/seed/scenarios/scale/scenario";
+import { findSensitive, sensitiveStrings } from "@pcs/seed/sensitive";
+import { EXPORT_FILE_NAMES, exportFiles, processReport } from "@pcs/server/modules/report/index";
 import { resolveWhen } from "@pcs/seed/time";
 import { fixedClock } from "@pcs/server/clock";
 import { loadConfig, loadPhaseConfig } from "@pcs/server/config";
@@ -181,6 +187,7 @@ async function main(): Promise<number> {
     PCS_NOW: formatInZone(now, phases.tz).slice(0, 16),
     PCS_PORT: String(SCALE_PORT),
     PCS_TIER_TAGS: process.env.PCS_TIER_TAGS ?? "junior=junior,reciprocal=reciprocal",
+    PCS_PSEUDONYM_KEY: "scale-only-pseudonym-key-not-secret",
   });
 
   // ---- seed ---------------------------------------------------------------
@@ -233,6 +240,52 @@ async function main(): Promise<number> {
     ok: changed.length === 0,
   });
 
+  // ---- process report + pseudonymous export (PLAN M13) ---------------------
+  {
+    const t0 = performance.now();
+    const r = processReport(store, cfg, clock);
+    const reportMs = performance.now() - t0;
+    const problems: string[] = [];
+    const check = (ok: boolean, what: string) => {
+      if (!ok) problems.push(what);
+    };
+    check(r.totals.papers === scale.papers.length, `report: ${r.totals.papers} papers, expected ${scale.papers.length}`);
+    check(r.totals.reviewerReviews > 5000, `report: only ${r.totals.reviewerReviews} reviewer reviews`);
+    for (const [name, rows] of [
+      ["depth", r.depth.rows],
+      ["timeliness", r.timeliness.rows],
+      ["merits", r.merits.rows],
+      ["ratings", r.ratings.rows],
+      ["agreement", r.agreement.rows],
+    ] as const) {
+      check(rows.length === r.tiers.length && rows.length >= 3, `report: ${name} has ${rows.length} tier rows`);
+      check(rows.every((x) => !x.suppressed), `report: ${name} has a suppressed tier at scale`);
+    }
+    check(r.depth.rows.reduce((a, d) => a + (d.reviews ?? 0), 0) === r.totals.submitted, "report: depth reviews != submitted");
+    check(r.merits.rows.every((m) => m.bins!.reduce((a, b) => a + b.count, 0) === m.reviews), "report: merit bins don't sum");
+    check(!r.reserve.suppressed && (r.reserve.assigned ?? 0) > 0, "report: reserve section empty");
+    check(r.quickReject.available, "report: quick reject unavailable");
+    check(!JSON.stringify(r).includes("@"), "report: JSON contains '@'");
+    record("Process report (processReport, in-process)", `${msf(reportMs)}; ${r.tiers.join("/")}; ${r.totals.submitted} submitted reviews`, under(reportMs, BUDGET.reportMs));
+
+    const t1 = performance.now();
+    const files = exportFiles(store, cfg, clock);
+    const exportMs = performance.now() - t1;
+    const sens = sensitiveStrings(scale);
+    let cellsScanned = 0;
+    for (const name of EXPORT_FILE_NAMES) {
+      const text = files[name];
+      check(!text.includes("@"), `export: ${name} contains '@'`);
+      const hit = findSensitive(text, sens);
+      check(hit === null, `export: ${name} contains a scenario name/email/title`);
+      if (name.endsWith(".csv")) cellsScanned += text.split("\n").reduce((a, l) => a + (l ? l.split(",").length : 0), 0);
+    }
+    const reviewRows = files["reviews.csv"].trimEnd().split("\n").length - 1;
+    check(reviewRows === r.totals.reviewerReviews, `export: ${reviewRows} review rows, expected ${r.totals.reviewerReviews}`);
+    record("Pseudonymous export", `${msf(exportMs)}; ${reviewRows} review rows, ${cellsScanned} cells scanned: no '@', no scenario name/email/title`, under(exportMs, BUDGET.reportMs));
+    record("Report + export checks", problems.length === 0 ? "all sections present, numbers sane" : problems.join("; "), { budget: "no problems", ok: problems.length === 0 });
+  }
+
   store.db.pragma("wal_checkpoint(TRUNCATE)");
   store.close();
   const size = dbBytes(dbPath);
@@ -284,6 +337,16 @@ async function main(): Promise<number> {
   }
   record("API warm: median of 5, per endpoint", measured.join(", "));
   record("API warm: slowest endpoint", msf(worst.ms), under(worst.ms, BUDGET.apiWarmMs));
+  {
+    const samples: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const r = await timedGet(`${base}/api/report`);
+      if (r.status !== 200) throw new Error(`/api/report answered ${r.status}`);
+      samples.push(r.ms);
+    }
+    const med = samples.sort((a, b) => a - b)[1]!;
+    record("API: /api/report (median of 3; recomputed per request)", msf(med), under(med, BUDGET.reportMs));
+  }
 
   // ---- browser ------------------------------------------------------------
   if (args.has("--skip-browser")) {

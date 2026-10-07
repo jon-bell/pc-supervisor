@@ -13,6 +13,7 @@
 // rules evaluation, AC/reviewer metrics and burndown). M6 added /api/acs,
 // /api/reviewers, /api/people/:email and /api/overview. M8 added the v1
 // actions (routes/actions.ts): /api/actions, nudge drafts, tag preview/commit.
+// M13 added the process report and its downloads (routes/report.ts).
 
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -37,6 +38,8 @@ import { registerPeople } from "./routes/people.js";
 import { registerReviewers } from "./routes/reviewers.js";
 import { registerTriage } from "./routes/triage.js";
 import { registerEarlyReject, registerTierProgress } from "./routes/progress.js";
+import { registerReport } from "./routes/report.js";
+import type { QuickRejectProvider } from "../modules/report/quick-reject.js";
 import type { SyncRunner } from "./sync-runner.js";
 
 export interface RouteDeps {
@@ -49,6 +52,8 @@ export interface RouteDeps {
   ruleNames: readonly RuleName[];
   /** The confirmed tagging flow (PLAN M8). Absent: the tag routes answer 503. */
   tagFlow?: TagFlow | undefined;
+  /** Quick-reject counts for the process report (M11); absent = unavailable. */
+  quickReject?: QuickRejectProvider | undefined;
 }
 
 export type RegisterRoutes = (app: FastifyInstance, deps: RouteDeps) => void;
@@ -68,6 +73,7 @@ export const ROUTES: readonly RegisterRoutes[] = [
   registerActions,
   registerTierProgress,
   registerEarlyReject,
+  registerReport,
 ];
 
 export const CSP = [
@@ -108,6 +114,8 @@ export interface AppOptions {
   sync?: SyncRunner;
   /** The confirmed tagging flow (PLAN M8); absent = tagging unavailable. */
   tagFlow?: TagFlow;
+  /** Quick-reject counts for the process report (M11); absent = unavailable. */
+  quickReject?: QuickRejectProvider;
   /** Built web app; null = API only. Default: defaultWebDir(). */
   webDir?: string | null;
   /** Fastify request logging (off by default: logs could carry paths, never bodies). */
@@ -160,7 +168,7 @@ export async function buildApp(o: AppOptions): Promise<App> {
     return reply.code(code).send({ error: message });
   });
 
-  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis, sync: o.sync, ruleNames: RULE_NAMES, tagFlow: o.tagFlow };
+  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis, sync: o.sync, ruleNames: RULE_NAMES, tagFlow: o.tagFlow, quickReject: o.quickReject };
   for (const register of ROUTES) register(app, deps);
 
   const webDir = o.webDir === undefined ? defaultWebDir() : o.webDir;

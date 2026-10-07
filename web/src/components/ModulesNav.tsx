@@ -8,6 +8,7 @@ export const MODULE_NAV: { to: string; label: string }[] = [
   { to: "/modules/quickreject", label: "Quick reject" },
   { to: "/modules/tier-progress", label: "Reviewing by tier" },
   { to: "/modules/early-reject", label: "Early reject" },
+  { to: "/modules/report", label: "Report" },
 ];
 
 export function ModulesNav({ path }: { path: string }) {
