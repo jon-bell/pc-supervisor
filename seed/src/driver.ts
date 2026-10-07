@@ -405,9 +405,23 @@ class StageRunner {
       byActor.set(actor, list);
     };
 
+    // Assignments added during a stage go first, so their rids exist; their
+    // request time is warped to the event's time (M12).
+    const assigns = wave.flatMap(({ event: e }) => (e.type === "assign" ? [e] : []));
+    if (assigns.length > 0) {
+      await this.h.writeFile("/tmp/pcs-seed/assign-stage.csv", `paper,action,user\n${assigns.map((a) => `${a.pid},${a.role},${a.email}`).join("\n")}\n`);
+      await this.h.batch("assign.php", ["/tmp/pcs-seed/assign-stage.csv"]);
+      await this.loadRids();
+    }
+
     for (const { event: e } of wave) {
       const t = this.t(e);
       switch (e.type) {
+        case "assign": {
+          const rid = this.rid(e.pid, e.email);
+          warp.push(`update PaperReview set timeRequested=${t}, timeRequestNotified=if(timeRequestNotified>0,${t},0) where reviewId=${rid};`);
+          break;
+        }
         case "review": {
           const rid = this.rid(e.pid, e.email);
           reviews.push({ pid: e.pid, rid, ...e.scores, ...reviewText(reviewKey(e.pid, e.email), e.words), submitted: true });

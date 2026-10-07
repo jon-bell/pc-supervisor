@@ -35,6 +35,7 @@ import { registerPapers } from "./routes/papers.js";
 import { registerPeople } from "./routes/people.js";
 import { registerReviewers } from "./routes/reviewers.js";
 import { registerTriage } from "./routes/triage.js";
+import { registerEarlyReject, registerTierProgress } from "./routes/progress.js";
 import type { SyncRunner } from "./sync-runner.js";
 
 export interface RouteDeps {
@@ -62,6 +63,8 @@ export const ROUTES: readonly RegisterRoutes[] = [
   registerPeople,
   registerOverview,
   registerActions,
+  registerTierProgress,
+  registerEarlyReject,
 ];
 
 export const CSP = [

@@ -595,6 +595,68 @@ a {
   background: var(--chart-ref);
 }
 
+/* Modules (phase 2, spec §10.4): nav group, module pages */
+.nav-group {
+  display: flex;
+  gap: 10px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+.nav-group-label {
+  color: var(--muted);
+}
+.mod-section {
+  padding: 0 16px;
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+}
+.mod-section .bar {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.mod-section .none {
+  font-size: 12px;
+}
+.page-scroll .mod-table {
+  margin: 0 0 8px;
+}
+table.mini {
+  border-collapse: collapse;
+  margin: 4px 0 8px;
+}
+table.mini th,
+table.mini td {
+  border-bottom: 1px solid var(--line);
+  padding: 4px 10px;
+  text-align: left;
+}
+table.mini th {
+  font-weight: 600;
+  font-size: 12px;
+  color: #333;
+}
+ul.defs {
+  margin: 4px 0 8px;
+  padding-left: 18px;
+  font-size: 12px;
+}
+ul.defs li {
+  margin: 3px 0;
+}
+pre.draft {
+  background: #f7f7f7;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-width: 900px;
+}
+.mod-note {
+  padding: 0 16px;
+  font-size: 12px;
+}
+
 /* v1 actions (PLAN M8) */
 .actions-bar {
   display: flex;

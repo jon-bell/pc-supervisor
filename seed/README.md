@@ -104,6 +104,7 @@ Events:
 | `response` | `POST /comments?actas=<author>` with `response: "1"` (response round 1) |
 | `decision` | `batch/assign.php` CSV `paper,action,decision` |
 | `unassign` | `batch/assign.php` CSV `paper,clearreview,user` (unsubmitted reviews only) |
+| `assign` | `batch/assign.php` CSV `paper,action,user` mid-scenario (M12), e.g. a replacement reviewer; `timeRequested` is warped to the event time. Checked like a stage-1 assignment (PC member, not an author, not already assigned) |
 
 Review and comment text is invented filler (`src/text.ts`) with exact word
 counts as HotCRP counts them; it is deterministic, so `verify` recomputes it.
@@ -240,6 +241,44 @@ import, validate, and the `POST /assign?dry_run=1` dry run. #1–#4 and #6–#8
 name their first author as reserve designee; #5 claims the exemption
 `no-eligible-author`. #1's metareview is in the `quickreject` round.
 `amara.diallo` (non-PC author of #3) is tagged `reservepool`.
+
+### `earlyreject` (`scenarios/earlyreject/`), for M12's tier progress and early reject
+
+Two stages around the early-reject window. `earlyRejectEnv(ctx)` gives the
+module env on top of the ci.yml dates: `PCS_TIER_TAGS=TIER_TAGS_ENV`, the
+window review due +2 d 09:00 .. +4 d 09:00 (`2030-02-03T09:00` ..
+`2030-02-05T09:00`), `PCS_POLICY_EARLYREJECT=include_weak_reject`, and
+`PCS_POLICY_WITHHOLD_REVIEWS=true`. Eight papers, ACs `wren.halloway` (#1-#4)
+and `tobias.ferrante` (#5-#8), six seniors, two juniors (`kit.ramsden`,
+`noor.elzein`), and three reserve-active reviewers who also author papers:
+`hedda.vang` (#3), `bruno.salcedo` (#1), and `yuki.tamsin` (#2, #8). Reviews
+are 250 words unless noted.
+
+**Stage 1** (observe at window open, `PCS_NOW=2030-02-03T09:00`):
+
+| pid | reviews (merit) | notes |
+|---|---|---|
+| 1 | okafor 1, brandvold 1, ramsden 2 (120 words) | candidate (weak); brandvold comments at due +1 d |
+| 2 | castellanos 1, iverholt 1, vang 1 | candidate (both policies); AC comment at due +1 d |
+| 3 | quillfeather 2, ambroise 2, elzein 2 | candidate (weak) |
+| 4 | okafor 1, castellanos 4, salcedo 2 (80 words) | not a candidate |
+| 5 | brandvold 2, iverholt 2; tamsin **late** | 2 reviews only; the AC @mentions tamsin at due +1 d |
+| 6 | ambroise 3, brandvold 4; salcedo **late** | |
+| 7 | iverholt 3, okafor 3; vang **late** | |
+| 8 | castellanos 4, quillfeather 3, elzein 3 (60 words); ramsden (4th) **late** | |
+
+**Stage 2** (during the window; observe at close, `PCS_NOW=2030-02-05T09:00`):
+okafor raises #1 1→3; castellanos comments on #2; quillfeather is **assigned**
+to #6 (replacing salcedo); ramsden comments on #1; quillfeather lowers #3 2→1;
+elzein comments on #3; vang submits #7 (merit 3); castellanos comments on #4.
+
+`expected.ts` holds the outputs at both instants: candidates per policy;
+bumped `[1]`, not bumped `[2, 3]`, no response `brandvold@1 iverholt@2
+vang@2 ambroise@3`; late by tier; dropout states (open: tamsin@5 pinged,
+salcedo@6 and vang@7 late; close: tamsin@5 replacement-needed, salcedo@6
+replaced); accountability, coaching queue, withheld papers, and participation.
+`seed/test/integration/earlyreject.test.ts` checks them through seed, sync,
+and the modules.
 
 ## Import fixtures (`fixtures/imports/`, PLAN M9)
 

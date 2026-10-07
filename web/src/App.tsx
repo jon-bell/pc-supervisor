@@ -5,14 +5,17 @@
 
 import type { ReactNode } from "react";
 import { useMeta, type MetaResponse } from "./api";
+import { ModulesNav } from "./components/ModulesNav";
 import { SyncIndicator } from "./components/SyncIndicator";
 import { Volatile } from "./components/Time";
 import { formatTime, PHASE_LABELS } from "./format";
 import { Link, match, useLocation } from "./router";
 import { Acs } from "./views/Acs";
+import { EarlyReject } from "./views/EarlyReject";
 import { Overview } from "./views/Overview";
 import { Person } from "./views/Person";
 import { Reviewers } from "./views/Reviewers";
+import { TierProgress } from "./views/TierProgress";
 import { Triage } from "./views/Triage";
 
 interface Route {
@@ -27,6 +30,8 @@ const ROUTES: Route[] = [
   { path: "/reviewers", render: () => <Reviewers /> },
   { path: "/people/:email", render: (meta, p) => <Person key={p.email} meta={meta} email={p.email ?? ""} /> },
   { path: "/overview", render: (meta) => <Overview meta={meta} /> },
+  { path: "/modules/tier-progress", render: (meta) => <TierProgress meta={meta} /> },
+  { path: "/modules/early-reject", render: (meta) => <EarlyReject meta={meta} /> },
 ];
 
 /** Top-level nav. Not a ranking of people anywhere (spec §2). */
@@ -69,6 +74,7 @@ export function App() {
             </Link>
           ))}
         </nav>
+        <ModulesNav path={loc.path} />
         {m ? (
           <div className="phase" data-testid="phase">
             {PHASE_LABELS[m.phase] ?? m.phase} ·{" "}

@@ -15,7 +15,7 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const SOURCES = ["web/src", "server/src/rules", "server/src/server"];
+const SOURCES = ["web/src", "server/src/rules", "server/src/server", "server/src/modules/tier-progress", "server/src/modules/early-reject"];
 const BANNED = /disengag|absent|lazy|lazi/i;
 const RULE_NAME = /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/;
 

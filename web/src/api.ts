@@ -34,7 +34,7 @@ export class ApiError extends Error {
   }
 }
 
-async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
+export async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { headers: { accept: "application/json" }, ...init });
   const body = (await r.json().catch(() => ({}))) as { error?: string };
   if (!r.ok) throw new ApiError(r.status, body.error ?? `${r.status} ${r.statusText}`);
