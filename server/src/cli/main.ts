@@ -1,7 +1,8 @@
 // `pcs` CLI. Subcommands register in COMMANDS below; each returns an exit code.
-// Planned: probe (M0), sync / sync --watch / backfill / wipe (M3), serve (M5).
+// probe (M0) lives in ../probe/. Planned: sync / sync --watch / backfill / wipe (M3), serve (M5).
 
 import { describeConfig, loadConfig, orExit } from "../config.js";
+import { PROBE_USAGE, runProbe } from "../probe/command.js";
 
 export interface Command {
   summary: string;
@@ -17,6 +18,11 @@ export const COMMANDS: Record<string, Command> = {
       process.stdout.write(`Configuration OK\n${describeConfig(cfg).map((l) => `  ${l}`).join("\n")}\n`);
       return 0;
     },
+  },
+  probe: {
+    summary: "Read-only shape report of the HotCRP instance (no content; safe on the real one)",
+    usage: PROBE_USAGE,
+    run: (args) => runProbe(args),
   },
   help: {
     summary: "Show this help",
