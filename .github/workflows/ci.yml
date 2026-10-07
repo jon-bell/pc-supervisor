@@ -45,6 +45,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The ARC runner image has the docker CLI but not the compose v2 plugin.
+      - name: Install docker compose plugin
+        run: |
+          if ! docker compose version >/dev/null 2>&1; then
+            mkdir -p ~/.docker/cli-plugins
+            curl -fsSL -o ~/.docker/cli-plugins/docker-compose \
+              https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-x86_64
+            chmod +x ~/.docker/cli-plugins/docker-compose
+          fi
+          docker compose version
+
       - name: Start HotCRP harness
         run: scripts/hotcrp-up.sh
 
