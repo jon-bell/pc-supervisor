@@ -13,6 +13,8 @@ export const BUDGET = {
   apiColdMs: 1_000,
   /** Any analyze()-backed API response once the analysis is cached. */
   apiWarmMs: 150,
+  /** Process report or pseudonymous export over the whole store (PLAN M13; computed on demand, not cached). */
+  reportMs: 3_000,
   /** Triage list: navigation start to the first rows painted (warm server). */
   renderMs: 300,
   /** Triage list: filter change to the filtered rows painted. */

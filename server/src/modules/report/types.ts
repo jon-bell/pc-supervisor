@@ -127,15 +127,23 @@ export interface EarlyRejectYield {
 }
 
 /**
- * Quick/desk-reject counts and appeals (spec §10.4 B), from the M11 tracker.
- * `available: false` until that module is present; no numbers are made up.
+ * Quick/desk-reject counts and appeals (spec §10.4 B), from the M11 tracker
+ * (server/src/modules/quickreject). Paper counts, not people: not suppressed.
+ * `available: false` only when no tracker is wired (numbers are never made up).
  */
 export interface QuickRejectSummary {
   available: boolean;
-  /** Papers in the quick-reject queue (any signal). */
+  /** Papers in the tracker (any signal or quick-reject state tag). */
   queued: number | null;
-  quickRejected: number | null;
+  /** AC decided reject (the quick-reject verdict). */
+  acReject: number | null;
+  /** The chair desk-rejected. */
   deskRejected: number | null;
+  /** The chair (or, with no chair action, the AC) kept the paper. */
+  kept: number | null;
+  /** Quick-reject round reviews: assigned, submitted, overdue after PCS_PHASE_QUICKREJECT_DUE. */
+  reviews: { assigned: number; submitted: number; overdue: number } | null;
+  /** filed = requested + upheld + overturned; pending = requested. */
   appeals: { filed: number; upheld: number; overturned: number; pending: number } | null;
   reason: string;
 }

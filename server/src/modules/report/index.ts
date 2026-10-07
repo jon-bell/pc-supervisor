@@ -34,7 +34,7 @@ import {
 } from "./compute.js";
 import { buildExport, EXPORT_FILE_NAMES, type ExportFiles } from "./export.js";
 import { keyId, pseudonymizer } from "./pseudonym.js";
-import { unavailableQuickReject, type QuickRejectProvider } from "./quick-reject.js";
+import { m11QuickReject, type QuickRejectProvider } from "./quick-reject.js";
 import type { ProcessReport } from "./types.js";
 import { zip } from "./zip.js";
 
@@ -42,7 +42,7 @@ export type * from "./types.js";
 export * from "./compute.js";
 export { buildExport, EXPORT_FILE_NAMES, ExportCellError, toCsv, type ExportFiles } from "./export.js";
 export { normalizeEmail, pseudonym, pseudonymizer, PseudonymKeyMissingError } from "./pseudonym.js";
-export { QUICK_REJECT_UNAVAILABLE, type QuickRejectProvider } from "./quick-reject.js";
+export { m11QuickReject, QUICK_REJECT_UNAVAILABLE, summarizeQuickReject, type QuickRejectProvider } from "./quick-reject.js";
 export { unzip, zip } from "./zip.js";
 
 /** The tier of designated, not-activated reserve reviewers (spec §10.2). */
@@ -56,7 +56,7 @@ export const REPORT_PATHS = {
 } as const;
 
 export interface ReportOptions {
-  /** Quick-reject counts (M11). Default: unavailable. */
+  /** Quick-reject counts. Default: M11's tracker (m11QuickReject). */
   quickReject?: QuickRejectProvider;
 }
 
@@ -168,7 +168,7 @@ export function processReportFrom(view: View, store: Store, cfg: Config, clock: 
       invites: invites.run ? invites.rows : null,
     }),
     earlyReject: earlyRejectYield(er, index, s.acceptDecisions),
-    quickReject: (opts.quickReject ?? unavailableQuickReject)(store, cfg, clock),
+    quickReject: (opts.quickReject ?? m11QuickReject)(store, cfg, clock),
     doNotInvite: {
       run: dni ? { id: dni.id, importedAt: dni.importedAt * 1000, rows: dni.rowCount } : null,
       downloadPath: REPORT_PATHS.doNotInvite,

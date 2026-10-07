@@ -235,7 +235,7 @@ export function timelinessByTier(facts: readonly ReviewFact[], tiers: readonly s
       medianDaysVsDue: md === null ? null : round(md, 1),
       reason:
         `${onTime} of ${due} reviews due by the deadline submitted on time (${pct(onTimeShare)}), ${late} late, ${fs.length - sub.length} not submitted` +
-        `${after ? `; ${after} assigned after the deadline` : ""}; median ${md === null ? "n/a" : `${round(Math.abs(md), 1)} days ${md <= 0 ? "before" : "after"}`} the deadline`,
+        `${after ? `; ${after} assigned after the deadline` : ""}; median ${md === null ? "n/a" : `${Math.abs(md).toFixed(1)} days ${md <= 0 ? "before" : "after"}`} the deadline`,
     };
   });
 }

@@ -17,6 +17,7 @@ import { Person } from "./views/Person";
 import { QuickReject } from "./views/QuickReject";
 import { Reserve } from "./views/Reserve";
 import { Reviewers } from "./views/Reviewers";
+import { Report } from "./views/Report";
 import { TierProgress } from "./views/TierProgress";
 import { Triage } from "./views/Triage";
 
@@ -37,6 +38,7 @@ const ROUTES: Route[] = [
   { path: "/modules/quickreject", render: (meta) => <QuickReject meta={meta} /> },
   { path: "/modules/tier-progress", render: (meta) => <TierProgress meta={meta} /> },
   { path: "/modules/early-reject", render: (meta) => <EarlyReject meta={meta} /> },
+  { path: "/modules/report", render: (meta) => <Report meta={meta} /> },
 ];
 
 /** Top-level nav. Not a ranking of people anywhere (spec §2). */
