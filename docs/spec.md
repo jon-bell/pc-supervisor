@@ -305,12 +305,21 @@ There are four tiers: `senior`, `junior`, `reserve-pool` (designated but not act
 | Kind | Content | Keyed by |
 |---|---|---|
 | `invites` | The reserve-reviewer invitation sheet (CSV export). Columns: `pid, candidate_email, tpms_score, seniority_note, ac_email, ac_decision (approve/reject/pending), invited_at, response (accept/decline/none), activated_at`. **This sheet is the source of truth for AC approval and invitations; the tool never edits it.** | pid + email |
-| `tpms-assignments` | TPMS's assignment output CSV | pid + email |
-| `tpms-registrations` | TPMS reviewer registration status (registered with HotCRP email; number of papers uploaded), if TPMS provides it | email |
+| `tpms-assignments` | TPMS's assignment CSV, the only output a HotCRP venue is documented to receive. **The column layout is unpublished**, so the importer takes a column mapping (`--map paper=…,email=…[,round=…]`) | pid + email |
+| `tpms-scores` | The affinity matrix `paper,email,score`, with scores as floats in 0–1 (the same shape as CMT's TPMS download and openreview-matcher's `--scores`). It must be requested from the TPMS operator; whether HotCRP venues get it is **unconfirmed** | pid + email |
+| `tpms-registrations` | Reviewer registration status. TPMS has an operator-run status page with no confirmed export, so the importer accepts `email, registered[, n_papers, last_updated]` and degrades to a plain registered list. Repeated imports are diffed | email |
 | `refcheck` | Output of an external reference checker (hallucinated references, no in-field references) | pid |
 | `do-not-invite` | The chair-to-chair do-not-invite list, stored encrypted alongside the DB | email |
 
 Imports are versioned like snapshots, so "what did the sheet say on day X" is answerable.
+
+**Exports to TPMS** (`pcs export tpms <dir>`). TPMS has no API, no HotCRP integration, and no chair self-service; data is exchanged as files with the operator. The tool prepares:
+- the PC list with emails;
+- the HotCRP conflicts CSV;
+- one load-group file per tier and load band;
+- the reviews-per-paper target.
+
+The PDF ZIP comes from HotCRP's own download.
 
 ### 10.4 Modules
 
@@ -332,6 +341,11 @@ Imports are versioned like snapshots, so "what did the sheet say on day X" is an
 - **Conflict sanity:** same affiliation, DBLP co-authorship (optional), and **reciprocal cycles**. Because reserve reviewers are authors, detect 2-cycles (and short k-cycles, `PCS_CYCLE_MAX_K`) in the graph whose edges run from an author of paper P to a reviewer of paper P. These are surfaced for human review, never auto-acted on.
 - **TPMS round-trip:** validate an imported TPMS assignment CSV *before* it reaches HotCRP; emit a corrected HotCRP assignment CSV (seniors first, then the third slot).
 - Reserve candidates must be AC-approved in the `invites` import and absent from `do-not-invite` before they appear in any generated assignment.
+- **TPMS cannot enforce tier composition.** It maximizes affinity under per-reviewer load balancing only, and specific requirements "don't work well with TPMS assignments" (OOPSLA 2023 notes). TPMS also readily assigns undeclared conflicts, so the conflict cross-check above is mandatory, not optional. The composition guarantee therefore comes from us. In order of preference:
+  1. **With `tpms-scores`:** solve a tier-constrained assignment locally with openreview-matcher's **FairIR** solver. It takes per-paper attribute constraints (e.g. `senior ≥ 2`, `third-slot = 1`), per-reviewer `max_papers` from the load bands, and conflicts as hard constraints. The output is a HotCRP bulk-assign CSV.
+  2. **With scores but no solver:** load the scores into HotCRP as review preferences (`paper,email,preference`; scale to integers with `round(score × 100)`, clamped above −100, because −100 means *conflict* in HotCRP). Then run **two passes of HotCRP autoassign**: 2 reviews per paper restricted to `#senior`, then 1 restricted to the third-slot tiers.
+  3. **Assignment CSV only:** validate it, then emit a fix-up CSV that swaps reviewers to satisfy composition, using expertise signals we have (topics, DBLP) as tie-breakers.
+- **Cold-start reviewers** (no TPMS profile, which is common for junior PC members) can get local affinity scores from **openreview-expertise** (SPECTER2/MFR). It runs entirely on our machine using titles and abstracts. Its hosted API is **not** allowed, because it would send submissions to a third party.
 
 **D. Reviewing progress, by tier**
 - Outstanding and late reviews by tier, with a dedicated **reserve dropout** view and its escalation state.
