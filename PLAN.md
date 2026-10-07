@@ -209,7 +209,9 @@ The discussion MVP ships first, on the shadow PC. These milestones implement spe
 | M | Scope | Done when |
 |---|---|---|
 | **M9** | Extended phase model + imports (`pcs import invites|tpms-assignments|tpms-registrations|refcheck|do-not-invite`), versioned | Each import kind round-trips from fixture CSVs; a malformed CSV produces a row-level error report, not a partial import |
-| **M10** | Assignment validator + TPMS export/import (spec §10.3, §10.4 C), with the score-based solver path (FairIR via openreview-matcher, Python, run locally) and the two-pass autoassign recipe | A seeded `assignment` scenario containing an all-junior panel, an overloaded senior, an unapproved reserve candidate, a do-not-invite hit, and a **deliberate reciprocal 2-cycle and 3-cycle** is fully flagged. The generated fix-up CSV passes HotCRP's `POST /assign?dry_run=1` on the harness |
+| **M10** | Assignment validator + TPMS export/import (spec §10.3, §10.4 C) | A seeded `assignment` scenario containing an all-junior panel, an overloaded senior, an unapproved reserve candidate, a do-not-invite hit, and a **deliberate reciprocal 2-cycle and 3-cycle** is fully flagged. The generated fix-up CSV passes HotCRP's `POST /assign?dry_run=1` on the harness |
+| **M10a** | Solver core: a TS port of HotCRP `lib/mincostmaxflow.php` (lower bounds, cost scaling), keeping the copyright notice | **Differential test:** on ≥ 200 random instances (including ones with lower bounds), the TS min cost equals HotCRP's PHP `MinCostMaxFlow` run in the harness container (`php -r` driver in `seed/`), and flows are feasible. A 2,400×600 pruned instance solves in under 30 s in CI |
+| **M10b** | Assignment network (spec §10.5): tier gadget (soft by default, hard optional), convex load costs, pinned edges, affinity normalization, cycle and second-partition repair, bulk-assign CSV + solve report | On the seeded `assignment` scenario: every paper meets composition or is reported with a reason; no band is exceeded; no conflicted, do-not-invite, or unapproved-reserve edge appears; the deliberate reciprocal cycles are broken; the CSV passes `POST /assign?dry_run=1` on the harness |
 | **M11** | Reserve compliance (A) + quick-reject tracker (B) | A seeded `registration` scenario (missing designee, inconsistent designee, invalid exemption, over-covered person) is fully flagged; the DBLP lookup is mocked in tests and off by default |
 | **M12** | Reviewing-by-tier (D) + early reject (E) | A multi-stage scenario: candidates are computed at window open; some reviewers bump within the window, others don't; at window close the lists match expectations |
 | **M13** | Process report (G) + pseudonymous export | The report renders from the `shadow` and `scale` scenarios; exported rows contain no email, only HMAC pseudonyms, stable for a given key |
@@ -218,6 +220,6 @@ The discussion MVP ships first, on the shadow PC. These milestones implement spe
 
 - Shadow PC phase dates. These are only needed for real use; CI uses synthetic dates.
 - Whether to add a post-hoc shadow-vs-real comparison (spec §5d). Not scheduled.
-- Upstream HotCRP PRs (spec §10.5): action-log and mail-log endpoints; JSON `override` fix.
+- Upstream HotCRP PRs (spec §10.6): action-log and mail-log endpoints; JSON `override` fix.
 - **Questions for the TPMS operator** (drafted in the vault): can we get the score matrix, and the registration status as a CSV? What is the assignment CSV's column layout? Current price and turnaround?
 - Make sure the `ripley-cloud-gha` App installation covers this repo (docs/ci.md, one-time setup).

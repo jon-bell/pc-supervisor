@@ -25,6 +25,7 @@ These instructions are for anyone working in this repo, human or coding agent. R
   - If you change a rule's behavior, update the golden table in PLAN.md and the tests together.
 - **UI wording follows spec §7.** Write "no comments yet", not "disengaged". Never show a ranked leaderboard of people.
 - **Scale:** assume 2,400 papers and 10k reviews. Do the work in SQL with indexes, use virtualized tables, and don't load all text into memory.
+- **Ported code keeps its license notice.** The assignment solver is a port of HotCRP's `lib/mincostmaxflow.php` and `src/autoassigner.php` (MIT-style, © Eddie Kohler). Keep the copyright notice and a `Ported from hotcrp@<commit>` line at the top of each ported file.
 - TypeScript strict mode. Keep dependencies minimal; justify new ones in the PR description.
 
 ## Running things

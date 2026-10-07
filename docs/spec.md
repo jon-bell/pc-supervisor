@@ -341,10 +341,7 @@ The PDF ZIP comes from HotCRP's own download.
 - **Conflict sanity:** same affiliation, DBLP co-authorship (optional), and **reciprocal cycles**. Because reserve reviewers are authors, detect 2-cycles (and short k-cycles, `PCS_CYCLE_MAX_K`) in the graph whose edges run from an author of paper P to a reviewer of paper P. These are surfaced for human review, never auto-acted on.
 - **TPMS round-trip:** validate an imported TPMS assignment CSV *before* it reaches HotCRP; emit a corrected HotCRP assignment CSV (seniors first, then the third slot).
 - Reserve candidates must be AC-approved in the `invites` import and absent from `do-not-invite` before they appear in any generated assignment.
-- **TPMS cannot enforce tier composition.** It maximizes affinity under per-reviewer load balancing only, and specific requirements "don't work well with TPMS assignments" (OOPSLA 2023 notes). TPMS also readily assigns undeclared conflicts, so the conflict cross-check above is mandatory, not optional. The composition guarantee therefore comes from us. In order of preference:
-  1. **With `tpms-scores`:** solve a tier-constrained assignment locally with openreview-matcher's **FairIR** solver. It takes per-paper attribute constraints (e.g. `senior ≥ 2`, `third-slot = 1`), per-reviewer `max_papers` from the load bands, and conflicts as hard constraints. The output is a HotCRP bulk-assign CSV.
-  2. **With scores but no solver:** load the scores into HotCRP as review preferences (`paper,email,preference`; scale to integers with `round(score × 100)`, clamped above −100, because −100 means *conflict* in HotCRP). Then run **two passes of HotCRP autoassign**: 2 reviews per paper restricted to `#senior`, then 1 restricted to the third-slot tiers.
-  3. **Assignment CSV only:** validate it, then emit a fix-up CSV that swaps reviewers to satisfy composition, using expertise signals we have (topics, DBLP) as tie-breakers.
+- **TPMS cannot enforce tier composition.** It maximizes affinity under per-reviewer load balancing only, and specific requirements "don't work well with TPMS assignments" (OOPSLA 2023 notes). TPMS also readily assigns undeclared conflicts, so the conflict cross-check above is mandatory. **We build our own solver** (§10.5), and TPMS output becomes one input to it: scores if available, otherwise its assignment as a warm start that gets validated.
 - **Cold-start reviewers** (no TPMS profile, which is common for junior PC members) can get local affinity scores from **openreview-expertise** (SPECTER2/MFR). It runs entirely on our machine using titles and abstracts. Its hosted API is **not** allowed, because it would send submissions to a third party.
 
 **D. Reviewing progress, by tier**
@@ -366,6 +363,43 @@ The PDF ZIP comes from HotCRP's own download.
 - A carry-forward export of the do-not-invite list.
 - **Pseudonymous IDs** (a keyed HMAC of the email, with a chair-held key, `PCS_PSEUDONYM_KEY`) on every exported row, so the data could join a future cross-conference baseline without exposing identities.
 
-### 10.5 Upstream HotCRP contributions (proposed as PRs, not a fork)
+### 10.5 Assignment solver (port of HotCRP's autoassigner)
+
+**Why a port:** HotCRP's min-cost max-flow (`lib/mincostmaxflow.php`: push-relabel max flow, then cost-scaling push-relabel, with **edge lower bounds**) and its network construction (`src/autoassigner.php`) are well documented, compact (~2.6k lines of PHP), and MIT-style licensed. Keep the copyright notice in ported files. Running it ourselves lets us add the constraints HotCRP and TPMS lack, and keep scores local.
+
+**Network** (one solve, exact and integral, because tiers partition reviewers):
+
+```
+source ──(cap = load band max, convex cost for balance)──► reviewer r (tier t)
+reviewer r ──(cap 1, cost = −affinity(r,p); omitted if conflicted / do-not-invite / unapproved reserve)──► p.t   (p's node for r's tier)
+p.senior ──(cap = PCS_POLICY_MAX_SENIOR, lower bound PCS_POLICY_MIN_SENIOR)──► p
+p.third  ──(cap 1, lower bound 1 if PCS_POLICY_THIRD_SLOT=exactly1)──► p      (junior + reserve-active feed p.third)
+p ──(cap = reviews per paper)──► sink
+```
+
+- **Soft first, hard optionally.** Hard lower bounds make the whole solve infeasible if a single paper can't be staffed (e.g. too few unconflicted seniors in its area). The default models each required slot as an edge with a large negative cost (`PCS_SOLVER_SLOT_BONUS`), so the solve always succeeds, and every unmet requirement is reported per paper. This is the same technique as HotCRP's expertise gadget. `PCS_SOLVER_HARD=1` switches to true lower bounds.
+- **Load balance:** convex per-reviewer costs on the source edges, as in HotCRP (`paper_assignment_cost × i`), so loads spread within each band.
+- **Fixed assignments** (already-made reviews, quick-reject reviews, AC-chosen reserves) are pinned with lower bound 1.
+- **Affinity sources, in priority order:**
+  1. the `tpms-scores` import;
+  2. local openreview-expertise scores (SPECTER2/MFR);
+  3. HotCRP preferences, expertise, and topic scores (`get/allrevpref`).
+  Sources are normalized to one integer scale, with weights in env.
+- **Scale:** ~600 reviewers + ~7.2k paper/tier nodes. Edges are pruned to the top `PCS_SOLVER_TOPK` (default 60) candidates per paper, plus all pinned edges, giving ~150k edges. Use typed-array adjacency (`Int32Array`); the target is under 30 s for a full 2,400-paper solve.
+
+**What flow can't express, handled by repair passes** (each reports what it changed):
+- **Reciprocal cycles.** These are pairwise, not flow constraints. Detect 2- and short k-cycles in the assignment's author→reviewer graph; forbid the lowest-affinity edge of each cycle; re-solve warm. Repeat until clean, or until the cap is hit, then report the rest.
+- **Second partitions** (e.g. at most one reviewer per institution per paper, crossing tiers): the same forbid-and-re-solve loop. FairIR (openreview-matcher, run locally) remains the fallback if those constraints become central.
+
+**Outputs:**
+- a HotCRP bulk-assign CSV (`paper,action,email,round`), always applied by a chair through HotCRP with a dry run first;
+- a solve report: objective value, per-paper unmet requirements, load histogram by tier, repairs made, and the affinity coverage (papers whose best candidates are weak).
+
+**Correctness:** the port is **differentially tested against HotCRP's PHP implementation**. For random instances with no tier gadget, our min-cost-flow cost must equal `MinCostMaxFlow` run inside the harness container. Tier and repair behavior gets its own property tests:
+- every paper meets its composition, or it's reported;
+- no reviewer exceeds their band;
+- no conflicted edge is ever used.
+
+### 10.6 Upstream HotCRP contributions (proposed as PRs, not a fork)
 - An admin endpoint for the **action log**, and one for the **mail log**. Together they would make email reminders and assignment changes visible, closing the "nudges are invisible" gap in §1.
 - `POST /reviews`: honor `override` for JSON bodies, not just text uploads.
