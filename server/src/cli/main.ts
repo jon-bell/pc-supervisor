@@ -6,6 +6,7 @@ import { PROBE_USAGE, runProbe } from "../probe/command.js";
 import { ASSIGNMENT_COMMANDS } from "./assignment-command.js";
 import { IMPORT_COMMANDS } from "./import-command.js";
 import { PROGRESS_COMMANDS } from "./progress-command.js";
+import { REPORT_COMMANDS } from "./report-command.js";
 import { SERVE_COMMAND } from "./serve.js";
 import { STORE_COMMANDS } from "./store-commands.js";
 
@@ -20,6 +21,7 @@ export const COMMANDS: Record<string, Command> = {
   ...IMPORT_COMMANDS,
   ...ASSIGNMENT_COMMANDS,
   ...PROGRESS_COMMANDS,
+  ...REPORT_COMMANDS,
   serve: SERVE_COMMAND,
   "config-check": {
     summary: "Validate every PCS_* variable and print a summary (secrets redacted)",
