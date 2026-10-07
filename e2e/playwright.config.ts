@@ -31,7 +31,8 @@ export default defineConfig({
     trace: "retain-on-failure",
     // Argos injects its stabilization script inline, which the app's strict
     // CSP (script-src 'self') blocks. The CSP itself is asserted by the
-    // server's unit tests and by specs/security.spec.ts on response headers.
+    // server's unit tests, by specs/security.spec.ts on response headers, and
+    // in the browser by the "csp" project below, which does not bypass it.
     bypassCSP: true,
     // Argos-recommended flags for stable font rendering across runners.
     launchOptions: { args: ["--disable-lcd-text", "--font-render-hinting=none"] },
@@ -42,8 +43,11 @@ export default defineConfig({
   projects: [
     // Unnamed, so Argos screenshot names carry no project prefix and keep
     // matching the baselines on main.
-    { name: "", testIgnore: /tagging\.spec\.ts$/ },
-    { name: "tagging", testMatch: /tagging\.spec\.ts$/, dependencies: [""] },
+    { name: "", testIgnore: /(tagging|csp)\.spec\.ts$/ },
+    // The real CSP in a real browser (no bypassCSP; the spec takes no Argos
+    // screenshots): fails on any securitypolicyviolation (specs/csp.spec.ts).
+    { name: "csp", testMatch: /csp\.spec\.ts$/, use: { bypassCSP: false }, dependencies: [""] },
+    { name: "tagging", testMatch: /tagging\.spec\.ts$/, dependencies: ["", "csp"] },
   ],
   webServer: {
     command: "npx tsx e2e/support/golden-server.ts",
