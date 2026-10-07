@@ -7,3 +7,5 @@ export { pidChunks } from "./chunk.js";
 export type { PidChunk } from "./chunk.js";
 export { assertHarnessUrl, isHarnessUrl, NotHarnessError } from "./harness-guard.js";
 export * from "./schemas.js";
+export { AssignTagsResultSchema, tagAssignmentBody, tagDiffOf, WRITABLE_TAG_RE } from "./tag-assign.js";
+export type { AssignTagsResult, TagChange, TagDiff, TagOp } from "./tag-assign.js";

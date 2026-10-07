@@ -37,6 +37,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | Authors, submission options (M10) | `GET /papers?q=…&t=all&forceShow=1` | One `paper` object per paper: `authors` (`email given_name family_name affiliation`) and every submission option under its **name** (e.g. `"Reserve designee": "x@…"`; dropdown = choice name). Also carries the abstract and document metadata, which the sync drops unread. For a blind submission even a chair gets **no `authors` without `forceShow=1`**. **Verified (M10).** |
 | Submission-option definitions | `GET /settings?filter=sf` | `sf` list; configured options have numeric `id`s (intrinsic fields have string ids like `title`), `type`, and dropdown `values`. **Verified (M10).** |
 | Assignment dry run (M10) | `POST /assign?dry_run=1&forceShow=0&format=json` | Body: a JSON array of row objects with the CSV columns (`paper action user`). Returns `valid`, `assignment_count`, and the `assignments` HotCRP *would* make; nothing changes. An invalid set is **HTTP 403** with `ok: false`, `valid: false`, and the error messages. `forceShow=0` keeps conflicts enforced (`1` overrides them). **Verified (M10).** |
+| Tag changes (v1, the only write) | `POST /assign?dry_run=1&format=json` with a JSON body `[{pid, action: "tag"\|"cleartag", tag}]`, then the same without `dry_run` | **Not `POST /assigntags`**: at `60f693f` `Tags_API::assigntags` (`src/api/api_tags.php`) only adds tags and executes at once, with no `dry_run`. `Assign_API::assign` (`src/api/api_assign.php`) runs the same `AssignmentSet` and honors `dry_run=1`; with `format=json` it lists exactly the rows that would change state (a `tag` on a paper that already has the tag, or a `cleartag` on one that doesn't, is omitted), so that list is the preview diff. An unknown pid (*Submission #N does not exist*) or an empty list (*Empty file*) is HTTP 403 with `ok: false`; the tag client treats that as an error. **Verified (M8).** |
 | Activity feed | `GET /events` | Pre-rendered HTML, 10 per page. **Don't use it.** |
 | Ratings of reviews | `GET /{p}/reviewrating` | Optional quality signal (`short`, `vague`, `disrespectful` …). No per-review calls are needed: `/reviews` already carries `ratings` (one name or a list) on every rated review. **Verified (M3).** |
 
@@ -50,7 +51,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 - **`reviewer` (reviews) and `author` (comments) are HTML.** Use `reviewer_email` / `author_email`.
 - **`/reviewhistory` deltas (`object: "review_delta"`) have no `modified_at`**, and text fields may appear as `<UID>:p` patches.
 - **`POST /reviews` ignores `override=1` for JSON bodies**; only text-form uploads honor it. The seeder works around this by opening review deadlines in settings. This may be worth an upstream issue.
-- **HotCRP can't see the request `Content-Type` under Apache mod_php** (`Qrequest::header()` reads `HTTP_CONTENT_TYPE`, which mod_php doesn't set). Endpoints that branch on it fall back to sniffing: a body starting with `[`/`{` is JSON; anything else is unknown. `POST /assign` with a CSV or form body therefore prints PHP warnings ahead of its JSON on the harness, so the client sends assignments as a JSON body. (Found in M10.)
+- **HotCRP can't see the request `Content-Type` under Apache mod_php** (`Qrequest::header()` reads `HTTP_CONTENT_TYPE`, which mod_php doesn't set). Endpoints that branch on it fall back to sniffing: a body starting with `[`/`{` is JSON; anything else is unknown. `POST /assign` with a CSV or form body therefore prints PHP warnings ahead of its JSON on the harness, so the client sends assignments as a JSON body (M10's dry runs and M8's tag writes). (Found in M10, again in M8.)
 - **After truncating `PaperStorage`, re-insert row 1** (the "empty document", `src/schema.sql`). Otherwise the first PDF stored gets id 1, and that paper silently stays a draft. `seed reset` does this since M10.
 
 **Gaps that shape the design:**
@@ -68,7 +69,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 |---|---|
 | Data freshness | Periodic full sync (`PCS_SYNC_INTERVAL_MIN`, default 15) plus a manual "sync now". Live calls can't give us history. |
 | Store | SQLite (SQLCipher), one file per instance. |
-| Read vs. write | **Read-only through v0.** v1 adds copyable searches, drafted nudges, and dry-run-previewed tagging (§6). |
+| Read vs. write | **Read-only through v0.** v1 adds copyable searches, drafted nudges, and dry-run-previewed tagging (§6); tagging is the only write. |
 | Users | One user. The server binds to `127.0.0.1` and has no auth layer. |
 | Metric style | Rules that fire with a human-readable reason, rolled into a ranked attention list. No single opaque score. |
 | People views | An outlier list plus per-person drill-down. **No leaderboards.** |
@@ -115,7 +116,7 @@ HotCRP ◄── bearer token ── server (Node/TS: sync + JSON API, SQLite) �
 - **Clock injection:** all phase logic reads `now` from one function. `PCS_NOW` (ISO timestamp) pins it, for tests and for replaying a past state.
 - **Metrics** are SQL views plus a TS rules module evaluated at read time, so changing a threshold env var and restarting re-ranks everything. Indexes go on `pid` and `email`.
 - **UI:** React + Vite + TanStack Table/Query, with virtualized tables (2,400 rows must stay smooth). Every row deep-links into HotCRP: `/paper/{pid}`, `/review/{pid}{ordinal}` (unsubmitted reviews have no ordinal: `/review?p={pid}&r={rid}`), `/search?q=…`.
-- **Server (M5, `server/src/server/`):** `pcs serve [--watch]` runs Fastify on `127.0.0.1:PCS_PORT` and serves `web/dist` with an SPA fallback. Routes: `GET /api/meta` (phase, now, pinned, HotCRP base URL, rule weights, tiers), `GET /api/triage?ac=&rule=&tier=` (every paper in triage order with reasons, AC, merits, tier mix, last activity, plus facet counts), `GET /api/papers/:pid` (the drawer: reviews with versions and text, comments with author, word count, mentions and text, one merged timeline), `GET /api/sync/status`, `POST /api/sync` (202, or 409 while a sync runs; one at a time per process). Requests whose `Host` isn't a loopback name get 421 (DNS rebinding); every response carries a CSP that allows only `'self'`; sync errors are redacted; a unit test checks no body or header contains the token. M6 adds `/api/acs`, `/api/reviewers`, `/api/people/:email`, `/api/overview` to the same route list.
+- **Server (M5, `server/src/server/`):** `pcs serve [--watch]` runs Fastify on `127.0.0.1:PCS_PORT` and serves `web/dist` with an SPA fallback. Routes: `GET /api/meta` (phase, now, pinned, HotCRP base URL, rule weights, tiers), `GET /api/triage?ac=&rule=&tier=` (every paper in triage order with reasons, AC, merits, tier mix, last activity, plus facet counts), `GET /api/papers/:pid` (the drawer: reviews with versions and text, comments with author, word count, mentions and text, one merged timeline), `GET /api/sync/status`, `POST /api/sync` (202, or 409 while a sync runs; one at a time per process). Requests whose `Host` isn't a loopback name get 421 (DNS rebinding); every response carries a CSP that allows only `'self'`; sync errors are redacted; a unit test checks no body or header contains the token. M6 adds `/api/acs`, `/api/reviewers`, `/api/people/:email`, `/api/overview` to the same route list; M8 adds `/api/actions`, `/api/papers/:pid/nudge`, `POST /api/tags/preview`, and `POST /api/tags/commit` (§6); M12 adds `/api/tier-progress` and `/api/early-reject` (§10.4 D/E).
 - **Store → rules adapter (`server/src/views/snapshot.ts`):** builds the rules engine's snapshot view in six statements (papers, people, ACs, reviews, review versions, comments), each one indexed scan regardless of size, with scores extracted by `json_extract` and no text read. Version times are `coalesce(modified_at, seen_at)`; a comment's time is the earliest of `first_seen_at` and the first `modified_at` the sync saw, so an edit never moves it. The server caches the evaluated analysis per (latest sync run, clock minute).
 - **Movement before the first sync needs the backfill.** The first sync sees one version per review, so score changes that happened before it are only visible after `pcs backfill`. The golden integration test and the E2E setup run sync then backfill; without the backfill golden pids 3 and 12 also fire `UNRESOLVED_SPLIT`.
 
@@ -144,11 +145,14 @@ There's no config file. `.env.example` is the full, documented list. Startup val
 | `PCS_RULE_<NAME>_WEIGHT`, `PCS_THRESH_<NAME>` | Rule weights and thresholds (§5c) | see code |
 | `PCS_RESERVE_*`, `PCS_DBLP_*` | Reserve compliance (§10.4 A); the DBLP lookup is opt-in | see `.env.example`; `PCS_DBLP_ENABLED=false` |
 | `PCS_QR_*`, `PCS_REFCHECK_*` | Quick-reject tracker (§10.4 B) | see `.env.example` |
+| `PCS_RESERVE_TIERS`, `PCS_COACH_TIERS`, `PCS_COACH_MIN_WORDS`, `PCS_RESERVE_DROPOUT_DAYS`, `PCS_POLICY_WITHHOLD_REVIEWS`, `PCS_WITHHOLD_TAG` | Reviewing by tier (§10.4 D) | `reserve-active,reciprocal` / `junior` / `PCS_THRESH_MIN_WORDS` / 3 / `false` / `reviews-withheld` |
+| `PCS_POLICY_EARLYREJECT`, `PCS_MERIT_REJECT_MAX`, `PCS_MERIT_WEAK_REJECT_MAX`, `PCS_EARLYREJECT_MIN_REVIEWS`, `PCS_EARLYREJECT_WINDOW_H` | Early reject (§10.4 E) | `reject_only` / 1 / `PCS_MERIT_ACCEPT_MIN`−1 / `PCS_REVIEWS_REQUIRED` / 48 |
 | `PCS_DB_PATH` | SQLite file | `~/.local/share/pc-supervisor/<host>.db` |
 | `PCS_DB_KEY` | SQLCipher key (or read from keychain) | required outside tests |
 | `PCS_SYNC_INTERVAL_MIN`, `PCS_SYNC_CHUNK`, `PCS_SYNC_CONCURRENCY`, `PCS_HISTORY_RPS` | Sync tuning | 15 / 200 / 2 / 1 |
 | `PCS_FORCE_SHOW` | `false` = respect the chair's own conflicts | `true` |
 | `PCS_PORT` | Local server port | `5317` |
+| `PCS_ATTENTION_TAG` | Paper tag the v1 tagging action adds/removes (no `#`) | `chair-attention` |
 
 ---
 
@@ -239,11 +243,22 @@ Views:
 
 ## 6. Actions (v1)
 
-These are human-in-the-loop only; the app never sends email.
+These are human-in-the-loop only; the app never sends email and never posts comments.
 
-- **Copy a HotCRP search** for any flag set, to paste into the Mail tool.
-- **Draft a nudge comment** with the reason text filled in.
-- **Tag** flagged papers `#chair-attention` via `POST /assigntags`, behind a `dry_run=1` preview and a confirm step. This is the first write path, and it's E2E-tested against the harness, never against a live instance.
+- **Copy a HotCRP search** for any filtered set: the triage list under any AC, rule, or tier filter, and a person page's papers. The search is the pid list with consecutive pids collapsed into ranges (`1 3 4 8-10`); HotCRP reads bare numbers and ranges as exactly that set (checked on the harness, and the E2E test runs every copied search through `/api/search`). The bar shows the search, a **Copy search** button (clipboard), and a link to `${PCS_HOTCRP_URL}/search?q=…&t=all`. The builder is `server/src/actions/search.ts`, shared with the web app.
+- **Draft a nudge comment** from the paper drawer (`GET /api/papers/:pid/nudge`, `server/src/actions/nudge.ts`). The draft @mentions people by roster name, the form HotCRP's comment editor uses:
+  - `MISSING_REVIEWS`: the reviewers whose reviews aren't submitted;
+  - any discussion rule, or none: the submitted reviewers with no comment since `DISCUSSION_OPEN` (all of them if everyone has commented), plus the ACs if `AC_ABSENT` fired;
+  - only `AC_ABSENT` / `LOW_EXPERTISE` / `THIN_REVIEWS`: the ACs.
+
+  It lists the fired rules' reason strings verbatim ("Where things stand: …") and asks politely, in spec §7 wording. The app only copies it to the clipboard; the chair edits and posts it in HotCRP.
+- **Tag papers `#PCS_ATTENTION_TAG`** (default `chair-attention`) from the triage list (the filtered set, add or remove) or the drawer (one paper). This is the only write path (AGENTS.md rule 3). It goes through `POST /assign` (§1), not `/assigntags`, because only `/assign` has a dry run.
+  1. **Preview** (`POST /api/tags/preview {add, remove}`): the server runs HotCRP's dry run and returns the exact diff (papers that gain and lose the tag, plus those already as requested) and, if the diff isn't empty, a **token**: 32 random bytes, created server-side, bound to that diff, single-use, valid 5 minutes on a monotonic clock (so a pinned `PCS_NOW` can't keep it alive), at most 16 pending.
+  2. **Confirm** in a modal that shows the diff; the commit button stays disabled until the tag name is typed exactly.
+  3. **Commit** (`POST /api/tags/commit {token, gain, lose, confirm}`): the server consumes the token first, then rejects it if it is unknown or used (409), expired (410), or the sets differ from the preview (409), or `confirm` isn't the tag name (400). It then re-runs the dry run and refuses (409) if HotCRP changed since the preview. Only then does it write the **previewed** diff (never the request's), with the client's `allowWrites`, which nothing else in the app passes; without it `assignTags` throws `writes_disabled` before any request. Writes never retry.
+  4. The server starts a re-sync so the tags show in the list (a chip on the row) and the drawer.
+
+  Both tag routes refuse a cross-origin `Origin` header (403) on top of the loopback-`Host` check, and HotCRP errors come back redacted. The app targets the real instance at runtime because the chair uses it there; **tests never do**: the flow is E2E-tested only against the harness (`e2e/specs/tagging.spec.ts`), and the client contract test (`server/test/contract/tags.test.ts`) uses its own tag.
 
 ---
 
@@ -276,7 +291,7 @@ See [PLAN.md](../PLAN.md).
 | Unit | Rules, metrics, the mention parser, env validation, snapshot diffing. Uses in-memory SQLite and fixed `PCS_NOW`. | Every push |
 | API contract | Zod schemas for every HotCRP response we consume, checked against the seeded harness. This catches drift when `HOTCRP_REF` is bumped. | Every push; nightly against HotCRP `master` |
 | Integration | Seed scenario → sync → assert DB state. Multi-stage scenarios: seed stage 1, sync, mutate, advance `PCS_NOW`, sync, assert diffs. | Every push |
-| E2E (Playwright) | Seed → sync → server + built UI. Assert the triage ranking, reason chips, AC table, person page, drawer timeline, and (v1) the tagging dry run. | Every push |
+| E2E (Playwright) | Seed → sync → server + built UI. Assert the triage ranking, reason chips, AC table, person page, drawer timeline, and (v1) copy search and nudge drafts through the clipboard, and tagging: the dry run leaves HotCRP's tags unchanged, the confirmed run sets them, the re-sync shows them in the UI and the store. The tagging spec is the only one that writes, so it runs in its own Playwright project after all the others and removes the tag at the end. | Every push |
 | Visual (Argos) | `argosScreenshot` at fixed states of the golden scenario: triage list, paper drawer, AC table, person page, overview. `PCS_NOW` is pinned, and relative-time text and sync timestamps are masked (class `volatile`, `data-visual-test="transparent"`). Playwright runs with `bypassCSP`, because Argos injects an inline script that the app's CSP blocks; the CSP is asserted on response headers instead. Uploads come from CI only, through the Argos GitHub App (tokenless), and they show **synthetic harness data only**. | Every push (Argos diffs PRs against `main`) |
 | Scale | The `scale` scenario (2,400 papers, 40 ACs, ~10k reviews). Assert sync time and UI interaction budgets. | Nightly / manual |
 
@@ -323,6 +338,7 @@ Scenarios to ship:
 - **`multistage`**: 3 papers in two stages (score change, new/edited/deleted comment, unassigned review in stage 2), for the M3 snapshot-diff test. `seed/README.md` lists both stages exactly.
 - **`shadow`**: ~150 papers with realistic spread. Used for demos and manual UI work.
 - **`scale`**: generated from a fixed RNG seed.
+- **`earlyreject`** (M12): two stages around the early-reject window, for §10.4 D/E. Stage 2 uses the `assign` event (a review assignment added mid-scenario, with `timeRequested` warped to the event time). See `seed/README.md`.
 
 ### 9.4 CI
 
@@ -349,7 +365,7 @@ Each phase date is an env var:
 
 The modules activate by phase. Single-cycle only for now; a two-cycle conference would duplicate this set per cycle and still needs design.
 
-**Implemented (M9).** The six new dates are optional, so the MVP runs without them. Startup checks that the configured ones are in this order and reports every violation at once: `REGISTRATION_DUE ≤ SUBMISSION_DUE ≤ QUICKREJECT_DUE ≤ ASSIGNMENT_DONE ≤ REVIEW_DUE ≤ EARLYREJECT_OPEN ≤ EARLYREJECT_CLOSE ≤ RESPONSE_OPEN` (if set) `≤ DISCUSSION_OPEN`. Unset dates are skipped. Only pairs that involve a new date are checked, so MVP validation doesn't change. `EARLYREJECT_OPEN`/`_CLOSE`: set both or neither.
+**Implemented (M9).** The six new dates are optional, so the MVP runs without them. Startup checks that the configured ones are in this order and reports every violation at once: `REGISTRATION_DUE ≤ SUBMISSION_DUE ≤ QUICKREJECT_DUE ≤ ASSIGNMENT_DONE ≤ REVIEW_DUE ≤ EARLYREJECT_OPEN ≤ EARLYREJECT_CLOSE ≤ RESPONSE_OPEN` (if set) `≤ DISCUSSION_OPEN`. Unset dates are skipped. Only pairs that involve a new date are checked, so MVP validation doesn't change. `EARLYREJECT_CLOSE` needs `EARLYREJECT_OPEN`. Since M12, `EARLYREJECT_OPEN` alone is allowed: the window then closes `PCS_EARLYREJECT_WINDOW_H` hours (default 48) after it opens, and that derived close is order-checked like a configured one.
 
 `phaseAt()` (M4) stays the MVP model. `extendedPhaseAt()` (`server/src/rules/phase.ts`) refines it only where a new date is configured; with none configured, the two return the same phase. As with the MVP phases, a deadline instant belongs to the phase it ends:
 
@@ -567,6 +583,69 @@ A reviewer who already holds that assignment keeps their current type (`primary`
 - Candidates under `PCS_POLICY_EARLYREJECT` (`reject_only`|`include_weak_reject`), each shown with its discussion signals.
 - A drafted mail-tool search for "re-read and bump within N hours" (`PCS_EARLYREJECT_WINDOW_H`, default 48).
 - Window tracking from snapshots: at close, list the candidates that were bumped, those that weren't, and the reviewers who never responded.
+
+**Implemented (M12): `server/src/modules/tier-progress/` (D), `server/src/modules/early-reject/` (E), `pcs tier-progress`, `pcs early-reject`, `GET /api/tier-progress`, `GET /api/early-reject`, and the "Modules" views `/modules/tier-progress` and `/modules/early-reject`.**
+
+Both modules are pure functions over the rules engine's snapshot view (§4, `views/snapshot.ts`), plus two indexed store reads (`paper_author` and the review `first_seen_approx` flags). They are read-only and never call HotCRP. Their output holds pids, titles, emails, scores, and counts, but never review or comment text. The CLI prints no titles either.
+
+*D: shared definitions.*
+- A **reviewer review** is not a metareview and is not held by one of the paper's ACs (as in §5c). Its tier is the reviewer's tier (§10.2).
+- **Outstanding** means not submitted, on an undecided paper. Decided papers, e.g. early-rejected ones, are left out of outstanding and late.
+- **Assigned after the deadline** means the review was first seen by a sync after `REVIEW_DUE`, and not at the first sync (whose first-seen times are best guesses). Such a review is a replacement: it counts as outstanding but never as late.
+- **Late** means outstanding, `now > REVIEW_DUE`, and not assigned after the deadline. Its lateness is `now − REVIEW_DUE` in days.
+- **Submitted late** means the first submitted version was after `REVIEW_DUE`. The version time is HotCRP's `modified_at`, else when a sync saw it.
+
+*D: outstanding and late by tier.* One row per tier, in this order: `senior`, the `PCS_TIER_TAGS` tiers (empty ones included), then any other tier seen. Each row has reviewers, assigned, submitted, outstanding, late, the people with a late review, submitted late, and assigned after the deadline, plus a reason string with the numbers.
+
+*D: reserve dropout.* This covers every late review by a `PCS_RESERVE_TIERS` reviewer (default `reserve-active,reciprocal`). Each gets one escalation state, and the first match wins:
+1. `replaced`: another reviewer review on the paper was first seen after `REVIEW_DUE` and at or before now, with a non-approximate first-seen time. Someone was added after they went late.
+2. `replacement-needed`: lateness `> PCS_RESERVE_DROPOUT_DAYS` (default 3).
+3. `pinged`: a published, non-response comment on the paper @mentions them. It was posted at or after `REVIEW_DUE` and at or before now, by one of the paper's ACs or by a chair.
+4. `late`: none of the above.
+
+All four states come from synced data. A reminder sent through HotCRP's Mail tool is invisible (§1), so it is not a ping. A late review that is later unassigned leaves the list.
+
+*D: reserve accountability.* There is one row per `PCS_RESERVE_TIERS` person with a reviewer review, sorted by email (never ranked). It shows their own live papers (`paper_author` by email, synced from `GET /papers`) next to their review record:
+- assigned and submitted;
+- late: outstanding now, plus submitted after the deadline;
+- thin: submitted reviews under `PCS_THRESH_MIN_WORDS`;
+- rated short and rated vague.
+
+The UI and API say that this is evidence for a human decision about consequences, and that the tool decides and applies nothing.
+
+*D: coaching queue.* This lists the submitted reviews by `PCS_COACH_TIERS` reviewers (default `junior`) with fewer than `PCS_COACH_MIN_WORDS` words (default `PCS_THRESH_MIN_WORDS`), or rated short or vague. Rows are sorted by pid, then email. Each row links to the review in HotCRP (`/review/{pid}{ordinal}`, or `/review?p=&r=`), where the coaching happens as comments.
+
+*D: withholding reviews* (`PCS_POLICY_WITHHOLD_REVIEWS`, default `false`). With the policy on, every reserve reviewer with a late review gets a row: the late pids and their own undecided papers. A replaced review is still owed, so it counts. The HotCRP-side change is drafted as a bulk-assignment CSV `paper,action,tag` that tags those papers `PCS_WITHHOLD_TAG`, plus a search. The tool never applies it. HotCRP has no per-paper "withhold reviews" switch, so the note tells the chair to use the tag with HotCRP's own visibility settings, or to act by hand. With the policy off, nothing is drafted.
+
+*D: participation by tier (§10.4 F).* Each tier gets M4's reviewer metrics (§5a participation since `DISCUSSION_OPEN`) summed: papers, papers with a comment from the reviewer, and the share. Before discussion opens, the row also counts the published non-response comments by the tier's reviewers on papers they review, up to now, and how many of those reviewers commented.
+
+*E: review state as of an instant T.* This is the review's latest observed version with time `≤ T`, where the version time is HotCRP's `modified_at`, else when a sync first saw it. A review with no version by T didn't exist yet. "Merits as of T" are the merits of reviewer reviews submitted as of T. The result is the same at any `PCS_NOW`, whenever the syncs ran, as long as one of them saw each version. With no sync at or before `OPEN`, the earlier versions are unknown unless `pcs backfill` ran, and the report says so (`syncAtOpen`).
+
+*E: band and candidates.* Under `reject_only`, every merit must be `≤ PCS_MERIT_REJECT_MAX` (default 1, the bottom of the default scale). Under `include_weak_reject`, every merit must be `≤ PCS_MERIT_WEAK_REJECT_MAX` (default `PCS_MERIT_ACCEPT_MIN − 1`). A paper is a **candidate as of T** when all of these hold:
+- it is undecided as of T: no decision, or one the sync first saw after T;
+- it has at least `PCS_EARLYREJECT_MIN_REVIEWS` merits as of T (default `PCS_REVIEWS_REQUIRED`);
+- every one of those merits is in the band.
+
+*E: the window.* `OPEN = PCS_PHASE_EARLYREJECT_OPEN`. `CLOSE = PCS_PHASE_EARLYREJECT_CLOSE`, or `OPEN + PCS_EARLYREJECT_WINDOW_H` when only `OPEN` is set (§10.1). With `OPEN` unset, the status is `unconfigured`. Otherwise:
+
+| `now` | status | candidates as of | outcomes as of |
+|---|---|---|---|
+| `< OPEN` | `before` | now (provisional) | none |
+| `OPEN ≤ now ≤ CLOSE` | `open` | `OPEN` | now ("so far"); at `CLOSE` exactly, the final report |
+| `> CLOSE` | `closed` | `OPEN` | `CLOSE` (nothing after it counts) |
+
+*E: outcomes.* Let E = min(now, CLOSE).
+- **Bumped**: at least one reviewer's merit as of E is higher than as of `OPEN`. Any raise counts, even one that stays in the band; `stillInBand` reports whether the paper left it. A lowered merit, or a review first submitted during the window, is not a bump. Such a review shows up as a signal (`newReviewsInWindow`).
+- **Not bumped**: the other candidates.
+- **No response**: for each reviewer with a merit as of `OPEN` on a candidate, neither of these happened: a merit change in either direction, in a version with time in `(OPEN, E]`; or a published non-response comment by them on that paper, with time in `[OPEN, E]`. A comment's time is the earliest known (§4). Comments before `OPEN` don't count.
+
+*E: discussion signals per candidate.* Published non-response comments up to E (or now, before the window): how many were posted during the window, how many were by ACs, and the latest one's time. Also: reviewer reviews outstanding as of the candidate instant, and reviews first submitted during the window.
+
+*E: mail draft* (the app never sends mail). The search is the candidates' pids, space-separated: a HotCRP paper-number search, verified against the harness. The draft includes a Mail-tool path (`/mail?to=crev&t=s&q=…`, recipients "Reviewers with complete reviews"), and a subject and body that use HotCRP's `{{NUMBER}}`/`{{TITLE}}`/`{{NAME}}` mail keywords. The body names `PCS_EARLYREJECT_WINDOW_H` and the close time, and asks reviewers who agree with the early reject to say so in a comment, so that silence can be read as "no response".
+
+*Phase activation.* The views and routes work at any instant. `activeModules()` (§10.1) still decides when the modules are relevant: D from `before-review-due` through `response`, E during `early-reject`.
+
+*Tests.* Unit tests in `server/test/unit/modules/` (every state and boundary, at instants before, during, and after the window) and `server/test/unit/server-progress.test.ts` (routes and CLI renderers: no text, no token). The `earlyreject` integration test in `seed/test/integration/` checks `seed/scenarios/earlyreject/expected.ts` exactly. It seeds stage 1, syncs at `OPEN`, seeds stage 2, syncs at `CLOSE`, then checks the candidates per policy, the bumped / not-bumped / no-response lists at close and during the window, and the tier-progress outputs (late by tier, dropout states at both instants, accountability, coaching, withhold, participation). The e2e spec `e2e/specs/tier-progress.spec.ts` covers the views on golden.
 
 **F. Discussion and decisions:** §5, plus tier-aware participation (do junior reviewers comment?).
 

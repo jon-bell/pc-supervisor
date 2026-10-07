@@ -1,6 +1,6 @@
 // The seeder's HotCRP write calls (POST /reviews, POST /comments). The app's
-// client in server/src/hotcrp/ is read-only until PLAN M8, so the seeder
-// keeps its few writes here, harness-only: the constructor re-checks
+// client in server/src/hotcrp/ only writes tags, behind dry-run + confirm
+// (PLAN M8), so the seeder keeps its own writes here, harness-only: the constructor re-checks
 // assertHarnessUrl(). Every response is validated with a Zod schema; any
 // item HotCRP rejects fails the seed loudly.
 

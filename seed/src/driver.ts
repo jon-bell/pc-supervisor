@@ -36,6 +36,10 @@ const MARKER = "__pcs_seed";
 const REVIEW_BATCH = 100;
 const COMMENT_BATCH = 100;
 const API_CONCURRENCY = 4;
+// Comments go one request at a time: HotCRP's comment save (insert, then
+// ordinal assignment) races under concurrent POST /comments and intermittently
+// answers "Error saving comment" (seen in e2e seeding).
+const COMMENT_CONCURRENCY = 1;
 
 /** HotCRP settings every scenario needs (batch/settings.php JSON). */
 export const HARNESS_SETTINGS = {
@@ -409,9 +413,23 @@ class StageRunner {
       byActor.set(actor, list);
     };
 
+    // Assignments added during a stage go first, so their rids exist; their
+    // request time is warped to the event's time (M12).
+    const assigns = wave.flatMap(({ event: e }) => (e.type === "assign" ? [e] : []));
+    if (assigns.length > 0) {
+      await this.h.writeFile("/tmp/pcs-seed/assign-stage.csv", `paper,action,user\n${assigns.map((a) => `${a.pid},${a.role},${a.email}`).join("\n")}\n`);
+      await this.h.batch("assign.php", ["/tmp/pcs-seed/assign-stage.csv"]);
+      await this.loadRids();
+    }
+
     for (const { event: e } of wave) {
       const t = this.t(e);
       switch (e.type) {
+        case "assign": {
+          const rid = this.rid(e.pid, e.email);
+          warp.push(`update PaperReview set timeRequested=${t}, timeRequestNotified=if(timeRequestNotified>0,${t},0) where reviewId=${rid};`);
+          break;
+        }
         case "review": {
           const rid = this.rid(e.pid, e.email);
           reviews.push({ pid: e.pid, rid, ...e.scores, ...reviewText(reviewKey(e.pid, e.email), e.words), submitted: true });
@@ -478,7 +496,7 @@ class StageRunner {
 
     await pool(chunks(reviews, REVIEW_BATCH), API_CONCURRENCY, (batch) => this.writer.reviews(batch));
     const commentJobs = [...byActor.entries()].flatMap(([actor, xs]) => chunks(xs, COMMENT_BATCH).map((c) => [actor, c] as const));
-    await pool(commentJobs, API_CONCURRENCY, async ([actor, xs]) => {
+    await pool(commentJobs, COMMENT_CONCURRENCY, async ([actor, xs]) => {
       const cids = await this.writer.comments(
         actor,
         xs.map((x) => x.item),

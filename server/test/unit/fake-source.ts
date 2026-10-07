@@ -28,6 +28,8 @@ export interface FakePerson {
   email: string;
   tags?: string[];
   chair?: boolean;
+  /** Not on the PC: absent from /pc (an external reviewer), but can hold tags. */
+  external?: boolean;
 }
 
 export const FORM: RqcResponse = {
@@ -41,11 +43,14 @@ export const FORM: RqcResponse = {
   papers: [],
 };
 
-/** Parse a pid-range search ("3", "1-200") into [lo, hi]. */
-function range(q: string): [number, number] {
-  const m = /^(\d+)(?:-(\d+))?$/.exec(q);
-  if (!m) throw new Error(`fake source: unsupported q=${q}`);
-  return [Number(m[1]), Number(m[2] ?? m[1])];
+/** Parse a pid search ("3", "1-200", or a list like "3 7-9 40") into a pid test. */
+function range(q: string): (pid: number) => boolean {
+  const parts = q.trim().split(/\s+/).map((part) => {
+    const m = /^(\d+)(?:-(\d+))?$/.exec(part);
+    if (!m) throw new Error(`fake source: unsupported q=${q}`);
+    return [Number(m[1]), Number(m[2] ?? m[1])] as const;
+  });
+  return (pid) => parts.some(([lo, hi]) => pid >= lo && pid <= hi);
 }
 
 export class FakeHotcrp implements SyncSource {
@@ -74,7 +79,7 @@ export class FakeHotcrp implements SyncSource {
     for (const p of this.people) for (const t of p.tags ?? []) tags.add(t);
     return {
       ok: true,
-      pc: this.people.map((p) => ({ name: p.name, email: p.email, affiliation: "Example U", ...(p.chair ? { roles: "chair" } : {}) })),
+      pc: this.people.filter((p) => !p.external).map((p) => ({ name: p.name, email: p.email, affiliation: "Example U", ...(p.chair ? { roles: "chair" } : {}) })),
       tags: [...tags].sort(),
     };
   }
@@ -115,8 +120,8 @@ export class FakeHotcrp implements SyncSource {
 
   async reviews(q: string, rq?: string): Promise<Review[]> {
     this.hit(rq ? "reviews-rq" : "reviews");
-    const [lo, hi] = range(q);
-    let rs = this.reviewList.filter((r) => r.pid >= lo && r.pid <= hi);
+    const inQ = range(q);
+    let rs = this.reviewList.filter((r) => inQ(r.pid));
     if (rq) {
       const m = /^re:#(.+)$/.exec(rq);
       if (!m) throw new Error(`fake source: unsupported rq=${rq}`);
@@ -128,8 +133,8 @@ export class FakeHotcrp implements SyncSource {
 
   async comments(q: string): Promise<Comment[]> {
     this.hit("comments");
-    const [lo, hi] = range(q);
-    return structuredClone(this.commentList.filter((c) => c.pid >= lo && c.pid <= hi));
+    const inQ = range(q);
+    return structuredClone(this.commentList.filter((c) => inQ(c.pid)));
   }
 
   async reviewHistory(pid: number, rid: number): Promise<ReviewHistory> {

@@ -5,16 +5,19 @@
 
 import type { ReactNode } from "react";
 import { useMeta, type MetaResponse } from "./api";
+import { ModulesNav } from "./components/ModulesNav";
 import { SyncIndicator } from "./components/SyncIndicator";
 import { Volatile } from "./components/Time";
 import { formatTime, PHASE_LABELS } from "./format";
 import { Link, match, useLocation } from "./router";
 import { Acs } from "./views/Acs";
+import { EarlyReject } from "./views/EarlyReject";
 import { Overview } from "./views/Overview";
 import { Person } from "./views/Person";
 import { QuickReject } from "./views/QuickReject";
 import { Reserve } from "./views/Reserve";
 import { Reviewers } from "./views/Reviewers";
+import { TierProgress } from "./views/TierProgress";
 import { Triage } from "./views/Triage";
 
 interface Route {
@@ -32,6 +35,8 @@ const ROUTES: Route[] = [
   // Phase-2 modules (spec §10.4).
   { path: "/modules/reserve", render: (meta) => <Reserve meta={meta} /> },
   { path: "/modules/quickreject", render: (meta) => <QuickReject meta={meta} /> },
+  { path: "/modules/tier-progress", render: (meta) => <TierProgress meta={meta} /> },
+  { path: "/modules/early-reject", render: (meta) => <EarlyReject meta={meta} /> },
 ];
 
 /** Top-level nav. Not a ranking of people anywhere (spec §2). */
@@ -40,12 +45,6 @@ const NAV: { to: string; label: string; active: (path: string) => boolean }[] = 
   { to: "/acs", label: "ACs", active: (p) => p === "/acs" },
   { to: "/reviewers", label: "Reviewers", active: (p) => p === "/reviewers" || p.startsWith("/people/") },
   { to: "/overview", label: "Overview", active: (p) => p === "/overview" },
-];
-
-/** The "Modules" nav group: phase-2 module views (spec §10.4), in A-G order. */
-const MODULE_NAV: { to: string; label: string }[] = [
-  { to: "/modules/reserve", label: "Reserve" },
-  { to: "/modules/quickreject", label: "Quick reject" },
 ];
 
 export function App() {
@@ -80,14 +79,7 @@ export function App() {
             </Link>
           ))}
         </nav>
-        <nav className="nav nav-group" data-testid="nav-modules" aria-label="Modules">
-          <span className="nav-group-label">Modules</span>
-          {MODULE_NAV.map((n) => (
-            <Link key={n.to} to={n.to} className={loc.path === n.to ? "active" : undefined}>
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+        <ModulesNav path={loc.path} />
         {m ? (
           <div className="phase" data-testid="phase">
             {PHASE_LABELS[m.phase] ?? m.phase} ·{" "}

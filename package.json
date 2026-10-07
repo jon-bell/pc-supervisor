@@ -18,7 +18,7 @@
     "test:unit": "npm run test:unit --workspaces --if-present",
     "test:integration": "npm run test:integration -w @pcs/server && npm run test:integration -w @pcs/seed",
     "test:e2e": "npm run build -w @pcs/web && npm run test:e2e -w @pcs/e2e",
-    "test:scale": "node -e \"console.log('test:scale: not implemented yet (PLAN M7); nothing to run.')\"",
+    "test:scale": "npm run build -w @pcs/web && tsx e2e/scale/run.ts",
     "seed": "npm run --silent seed -w @pcs/seed --",
     "pcs": "npm run --silent pcs -w @pcs/server --",
     "dev": "node scripts/dev.mjs",

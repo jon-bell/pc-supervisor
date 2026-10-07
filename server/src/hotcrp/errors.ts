@@ -12,7 +12,7 @@ export type HotcrpErrorKind =
   | "api" // HotCRP said ok:false, or reported warnings about the request
   | "protocol" // body wasn't the expected JSON/CSV
   | "schema" // body didn't match its Zod schema
-  | "writes_disabled"; // a write method before M8
+  | "writes_disabled"; // a write without allowWrites (PLAN M8)
 
 export class HotcrpError extends Error {
   readonly kind: HotcrpErrorKind;

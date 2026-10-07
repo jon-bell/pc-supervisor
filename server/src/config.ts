@@ -194,6 +194,13 @@ function tierTags(v: string, ctx: z.RefinementCtx): TierTags {
   return out;
 }
 
+/** A plain, public HotCRP paper tag: no `#`, no `~` (private), no `#value`. */
+function paperTag(v: string, ctx: z.RefinementCtx): string {
+  const s = v.trim().replace(/^#/, "");
+  if (!TAG_RE.test(s)) return fail(ctx, `expected a HotCRP tag like chair-attention (${TAG_RE_HUMAN}), got ${show(v)}`);
+  return s;
+}
+
 function fieldUid(v: string, ctx: z.RefinementCtx): string {
   const s = v.trim();
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(s)) {
@@ -211,6 +218,32 @@ function thirdSlot(v: string, ctx: z.RefinementCtx): ThirdSlotPolicy {
   const s = v.trim().toLowerCase();
   if (s === "exactly1" || s === "atleast1") return s;
   return fail(ctx, `expected exactly1 or atleast1, got ${show(v)}`);
+}
+
+// Reviewing by tier + early reject (spec §10.4 D/E, PLAN M12).
+
+/** Which merits make a paper an early-reject candidate (spec §10.4 E). */
+export type EarlyRejectPolicy = "reject_only" | "include_weak_reject";
+
+function earlyRejectPolicy(v: string, ctx: z.RefinementCtx): EarlyRejectPolicy {
+  const s = v.trim().toLowerCase();
+  if (s === "reject_only" || s === "include_weak_reject") return s;
+  return fail(ctx, `expected reject_only or include_weak_reject, got ${show(v)}`);
+}
+
+/** A comma-separated list of tier names, e.g. reserve-active,reciprocal. */
+function tierList(v: string, ctx: z.RefinementCtx): string[] {
+  const out = v.split(",").map((p) => p.trim()).filter((p) => p !== "");
+  for (const t of out) {
+    if (!/^[a-z][a-z0-9_-]*$/.test(t)) return fail(ctx, `expected tier names like reserve-active,reciprocal, got ${show(v)}`);
+  }
+  return [...new Set(out)];
+}
+
+function tagName(v: string, ctx: z.RefinementCtx): string {
+  const s = v.trim().replace(/^#/, "");
+  if (!TAG_RE.test(s)) return fail(ctx, `expected a HotCRP tag (${TAG_RE_HUMAN}), got ${show(v)}`);
+  return s;
 }
 
 /** The four tiers of spec §10.2 that have load bands, with their env-name stems. */
@@ -264,13 +297,6 @@ function optionName(v: string, ctx: z.RefinementCtx): string {
   const s = v.trim();
   // eslint-disable-next-line no-control-regex
   if (s.length > 200 || /[\u0000-\u001f]/.test(s)) return fail(ctx, `expected a submission-option name, got ${show(v)}`);
-  return s;
-}
-
-/** A HotCRP paper tag (no leading #, no value). */
-function paperTag(v: string, ctx: z.RefinementCtx): string {
-  const s = v.trim().replace(/^#/, "");
-  if (!TAG_RE.test(s)) return fail(ctx, `expected a tag (${TAG_RE_HUMAN}), got ${show(v)}`);
   return s;
 }
 
@@ -418,6 +444,18 @@ export const FIELDS = {
   PCS_QR_EXCLUDE_FROM_SLOTS: withDefault(true, bool),
   PCS_REFCHECK_HALLUCINATED_MIN: withDefault(1, intIn(1, 100_000)),
   PCS_REFCHECK_IN_FIELD_MIN: withDefault(1, intIn(0, 100_000)),
+  // Reviewing by tier + early reject (spec §10.4 D/E, PLAN M12).
+  PCS_RESERVE_TIERS: withDefault<string[]>(["reserve-active", "reciprocal"], tierList),
+  PCS_COACH_TIERS: withDefault<string[]>(["junior"], tierList),
+  PCS_COACH_MIN_WORDS: optional(nonNeg),
+  PCS_RESERVE_DROPOUT_DAYS: numField(3),
+  PCS_POLICY_WITHHOLD_REVIEWS: withDefault(false, bool),
+  PCS_WITHHOLD_TAG: withDefault("reviews-withheld", tagName),
+  PCS_POLICY_EARLYREJECT: withDefault<EarlyRejectPolicy>("reject_only", earlyRejectPolicy),
+  PCS_MERIT_REJECT_MAX: withDefault(1, intIn(-1000, 1000)),
+  PCS_MERIT_WEAK_REJECT_MAX: optional(intIn(-1000, 1000)),
+  PCS_EARLYREJECT_MIN_REVIEWS: optional(intIn(1, 100)),
+  PCS_EARLYREJECT_WINDOW_H: withDefault(48, numberIn(0, 24 * 365, { exclusiveMin: true })),
   PCS_DB_PATH: optional(path),
   PCS_DB_KEY: optional(secret),
   PCS_SYNC_INTERVAL_MIN: withDefault(15, intIn(1, 24 * 60)),
@@ -425,6 +463,8 @@ export const FIELDS = {
   PCS_SYNC_CONCURRENCY: withDefault(2, intIn(1, 16)),
   PCS_HISTORY_RPS: withDefault(1, numberIn(0, 50, { exclusiveMin: true })),
   PCS_PORT: withDefault(5317, intIn(1, 65_535)),
+  // v1 actions (spec §6, PLAN M8): the paper tag the confirmed tagging flow adds or removes.
+  PCS_ATTENTION_TAG: withDefault("chair-attention", paperTag),
 } satisfies Record<string, z.ZodType<unknown, Raw>>;
 
 export type FieldName = keyof typeof FIELDS;
@@ -532,7 +572,9 @@ export const EXTENDED_PHASE_FIELDS = [
  *   <= RESPONSE_OPEN (if set) and <= DISCUSSION_OPEN.
  * Unset dates are skipped (each is compared with the nearest set neighbor).
  * Only pairs involving at least one extended date are checked here, so MVP
- * validation is unchanged. EARLYREJECT_OPEN/_CLOSE: set both or neither.
+ * validation is unchanged. EARLYREJECT_CLOSE needs EARLYREJECT_OPEN; OPEN
+ * alone is allowed (M12: loadConfig derives CLOSE = OPEN + PCS_EARLYREJECT_WINDOW_H
+ * before calling this, so the derived close is order-checked too).
  */
 export function extendedPhaseProblems(
   phases: Partial<Record<keyof Phases, Date | undefined>>,
@@ -569,12 +611,12 @@ export function extendedPhaseProblems(
     const n = phases.earlyRejectClose ? "PCS_PHASE_EARLYREJECT_CLOSE" : "PCS_PHASE_EARLYREJECT_OPEN";
     problems.push({ name: n, message: "must not be later than PCS_PHASE_DISCUSSION_OPEN" });
   }
-  const hasOpen = isSet("PCS_PHASE_EARLYREJECT_OPEN");
-  const hasClose = isSet("PCS_PHASE_EARLYREJECT_CLOSE");
-  if (hasOpen !== hasClose) {
+  // M12: OPEN alone is fine (loadConfig derives CLOSE = OPEN + PCS_EARLYREJECT_WINDOW_H);
+  // CLOSE alone is not.
+  if (isSet("PCS_PHASE_EARLYREJECT_CLOSE") && !isSet("PCS_PHASE_EARLYREJECT_OPEN")) {
     problems.push({
-      name: hasOpen ? "PCS_PHASE_EARLYREJECT_CLOSE" : "PCS_PHASE_EARLYREJECT_OPEN",
-      message: "set both PCS_PHASE_EARLYREJECT_OPEN and PCS_PHASE_EARLYREJECT_CLOSE, or neither",
+      name: "PCS_PHASE_EARLYREJECT_OPEN",
+      message: "required when PCS_PHASE_EARLYREJECT_CLOSE is set (or set only OPEN: the window then lasts PCS_EARLYREJECT_WINDOW_H)",
     });
   }
   return problems;
@@ -666,6 +708,54 @@ export function excludedRounds(c: { quickReject?: QuickRejectPolicy | undefined 
   const q = c.quickReject;
   return q && q.excludeFromSlots ? [q.round] : [];
 }
+/** Reviewing progress by tier (spec §10.4 D, PLAN M12). */
+export interface TierProgressPolicy {
+  /** PCS_RESERVE_TIERS: tiers shown in the reserve dropout and accountability views. */
+  reserveTiers: readonly string[];
+  /** PCS_COACH_TIERS: tiers whose thin or short/vague-rated reviews go in the coaching queue. */
+  coachTiers: readonly string[];
+  /** PCS_COACH_MIN_WORDS, else PCS_THRESH_MIN_WORDS: the coaching depth floor. */
+  coachMinWords: number;
+  /** PCS_RESERVE_DROPOUT_DAYS: days late after which a reserve review needs a replacement. */
+  dropoutDays: number;
+  /** PCS_POLICY_WITHHOLD_REVIEWS: list authors whose own reviews would be withheld. */
+  withholdReviews: boolean;
+  /** PCS_WITHHOLD_TAG: the tag the drafted HotCRP change would set. */
+  withholdTag: string;
+}
+
+/** Early reject (spec §10.4 E, PLAN M12). */
+export interface EarlyRejectSettings {
+  /** PCS_POLICY_EARLYREJECT. */
+  policy: EarlyRejectPolicy;
+  /** PCS_MERIT_REJECT_MAX: highest merit in the reject band (reject_only). */
+  rejectMax: number;
+  /** PCS_MERIT_WEAK_REJECT_MAX, else PCS_MERIT_ACCEPT_MIN - 1 (include_weak_reject). */
+  weakRejectMax: number;
+  /** PCS_EARLYREJECT_MIN_REVIEWS, else PCS_REVIEWS_REQUIRED: submitted merits a candidate needs. */
+  minReviews: number;
+  /** PCS_EARLYREJECT_WINDOW_H: hours to re-read and bump (mail draft; default close = open + this). */
+  windowHours: number;
+  /** True when PCS_PHASE_EARLYREJECT_CLOSE was unset and the close is OPEN + windowHours. */
+  closeDerived?: boolean;
+}
+
+export const DEFAULT_TIER_PROGRESS_POLICY: TierProgressPolicy = {
+  reserveTiers: ["reserve-active", "reciprocal"],
+  coachTiers: ["junior"],
+  coachMinWords: THRESHOLD_DEFAULTS.MIN_WORDS,
+  dropoutDays: 3,
+  withholdReviews: false,
+  withholdTag: "reviews-withheld",
+};
+
+export const DEFAULT_EARLY_REJECT: EarlyRejectSettings = {
+  policy: "reject_only",
+  rejectMax: 1,
+  weakRejectMax: 2,
+  minReviews: 3,
+  windowHours: 48,
+};
 
 export interface Config {
   hotcrp: HotcrpConfig;
@@ -692,9 +782,15 @@ export interface Config {
   reserve?: ReservePolicy;
   /** Quick-reject tracker (spec §10.4 B); optional like `assignment`, always set by loadConfig. */
   quickReject?: QuickRejectPolicy;
+  /** Reviewing by tier (spec §10.4 D); optional like `assignment`, loadConfig always sets it. */
+  tierProgress?: TierProgressPolicy;
+  /** Early reject (spec §10.4 E); optional like `assignment`, loadConfig always sets it. */
+  earlyReject?: EarlyRejectSettings;
   db: { path: string; key: string | undefined };
   sync: { intervalMin: number; chunk: number; concurrency: number; historyRps: number };
   port: number;
+  /** PCS_ATTENTION_TAG: the tag the v1 tagging action writes (no leading #). */
+  attentionTag: string;
 }
 
 const HOTCRP_FIELDS = [
@@ -813,6 +909,10 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
     earlyRejectOpen: at(v.PCS_PHASE_EARLYREJECT_OPEN),
     earlyRejectClose: at(v.PCS_PHASE_EARLYREJECT_CLOSE),
   };
+  // Early-reject window (M12): with only OPEN set, it closes PCS_EARLYREJECT_WINDOW_H later.
+  if (phases.earlyRejectOpen && !phases.earlyRejectClose && v.PCS_EARLYREJECT_WINDOW_H !== undefined) {
+    phases.earlyRejectClose = new Date(phases.earlyRejectOpen.getTime() + v.PCS_EARLYREJECT_WINDOW_H * 3_600_000);
+  }
 
   // Cross-field checks, on whichever values parsed.
   const order: [keyof typeof phases, FieldName][] = [
@@ -855,6 +955,9 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
     if (lo !== undefined && hi !== undefined && lo > hi) {
       problems.push({ name: `PCS_LOAD_${stem}_MAX`, message: `must not be less than PCS_LOAD_${stem}_MIN (${lo})` });
     }
+  }
+  if (v.PCS_MERIT_WEAK_REJECT_MAX !== undefined && v.PCS_MERIT_REJECT_MAX !== undefined && v.PCS_MERIT_WEAK_REJECT_MAX < v.PCS_MERIT_REJECT_MAX) {
+    problems.push({ name: "PCS_MERIT_WEAK_REJECT_MAX", message: `must not be less than PCS_MERIT_REJECT_MAX (${v.PCS_MERIT_REJECT_MAX})` });
   }
   if (problems.length > 0) throw new ConfigError(problems);
   const f = v as FieldValues;
@@ -914,6 +1017,22 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
       excludeFromSlots: f.PCS_QR_EXCLUDE_FROM_SLOTS,
       refcheck: { hallucinatedMin: f.PCS_REFCHECK_HALLUCINATED_MIN, inFieldMin: f.PCS_REFCHECK_IN_FIELD_MIN },
     },
+    tierProgress: {
+      reserveTiers: f.PCS_RESERVE_TIERS,
+      coachTiers: f.PCS_COACH_TIERS,
+      coachMinWords: f.PCS_COACH_MIN_WORDS ?? f.PCS_THRESH_MIN_WORDS,
+      dropoutDays: f.PCS_RESERVE_DROPOUT_DAYS,
+      withholdReviews: f.PCS_POLICY_WITHHOLD_REVIEWS,
+      withholdTag: f.PCS_WITHHOLD_TAG,
+    },
+    earlyReject: {
+      policy: f.PCS_POLICY_EARLYREJECT,
+      rejectMax: f.PCS_MERIT_REJECT_MAX,
+      weakRejectMax: f.PCS_MERIT_WEAK_REJECT_MAX ?? f.PCS_MERIT_ACCEPT_MIN - 1,
+      minReviews: f.PCS_EARLYREJECT_MIN_REVIEWS ?? f.PCS_REVIEWS_REQUIRED,
+      windowHours: f.PCS_EARLYREJECT_WINDOW_H,
+      closeDerived: phases.earlyRejectOpen !== undefined && cleaned(env, "PCS_PHASE_EARLYREJECT_CLOSE") === undefined,
+    },
     db: { path: f.PCS_DB_PATH ?? defaultDbPath(f.PCS_HOTCRP_URL, opts.home), key: f.PCS_DB_KEY },
     sync: {
       intervalMin: f.PCS_SYNC_INTERVAL_MIN,
@@ -922,6 +1041,7 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
       historyRps: f.PCS_HISTORY_RPS,
     },
     port: f.PCS_PORT,
+    attentionTag: f.PCS_ATTENTION_TAG,
   };
 }
 
@@ -989,11 +1109,22 @@ export function describeConfig(c: Config): string[] {
           `Quick reject      round ${c.quickReject.round}, verdict ${c.quickReject.field} <= ${c.quickReject.rejectMax}, AC flag #${c.quickReject.acFlagTag}; ${c.quickReject.excludeFromSlots ? "excluded from" : "counted in"} review slots`,
         ]
       : []),
+    ...(c.tierProgress
+      ? [
+          `Tier progress     reserve tiers ${c.tierProgress.reserveTiers.join(",") || "(none)"}; coaching ${c.tierProgress.coachTiers.join(",") || "(none)"} under ${c.tierProgress.coachMinWords} words; dropout after ${c.tierProgress.dropoutDays} days; withhold policy ${c.tierProgress.withholdReviews ? `on (#${c.tierProgress.withholdTag})` : "off"}`,
+        ]
+      : []),
+    ...(c.earlyReject
+      ? [
+          `Early-reject band ${c.earlyReject.policy}: merits <= ${c.earlyReject.policy === "reject_only" ? c.earlyReject.rejectMax : c.earlyReject.weakRejectMax}, >= ${c.earlyReject.minReviews} submitted; re-read window ${c.earlyReject.windowHours} h`,
+        ]
+      : []),
     `Rule weights      ${RULE_NAMES.map((n) => `${n}=${c.rules.weights[n]}`).join(" ")}`,
     `Thresholds        ${THRESHOLD_NAMES.map((n) => `${n}=${c.rules.thresholds[n]}`).join(" ")}`,
     `DB path           ${c.db.path}`,
     `DB key            ${c.db.key ? "(set; not shown)" : "(unset; test mode)"}`,
     `Sync              every ${c.sync.intervalMin} min, chunk ${c.sync.chunk}, concurrency ${c.sync.concurrency}, history ${c.sync.historyRps} rps`,
     `Port              ${c.port} (binds 127.0.0.1)`,
+    `Attention tag     #${c.attentionTag}`,
   ];
 }

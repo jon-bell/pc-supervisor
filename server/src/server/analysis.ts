@@ -21,9 +21,18 @@ export interface AnalysisView {
   people: ReadonlyMap<string, PersonView>;
 }
 
+/** How the last rebuild went, for the Server-Timing header (app.ts). */
+export interface AnalysisStats {
+  /** Rebuilds since start; a request that bumps it paid for one. */
+  builds: number;
+  snapshotMs: number;
+  rulesMs: number;
+}
+
 export class AnalysisSource {
   #key: string | undefined;
   #view: AnalysisView | undefined;
+  readonly stats: AnalysisStats = { builds: 0, snapshotMs: 0, rulesMs: 0 };
 
   constructor(
     private readonly store: Store,
@@ -38,8 +47,13 @@ export class AnalysisSource {
     };
     const key = `${run.id}:${Math.floor(ctx.now / 60_000)}`;
     if (this.#view && this.#key === key) return this.#view;
+    const t0 = performance.now();
     const snapshot = buildSnapshot(this.store, { fields: this.cfg.fields, acRole: this.cfg.acRole, excludeRounds: excludedRounds(this.cfg) });
+    const t1 = performance.now();
     const analysis = analyze(snapshot, ctx);
+    this.stats.builds++;
+    this.stats.snapshotMs = t1 - t0;
+    this.stats.rulesMs = performance.now() - t1;
     this.#view = { snapshot, analysis, ctx, people: analysis.evaluation.index.people };
     this.#key = key;
     return this.#view;

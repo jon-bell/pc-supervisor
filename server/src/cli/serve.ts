@@ -3,6 +3,7 @@
 // PCS_SYNC_INTERVAL_MIN; "sync now" in the UI works either way.
 // Output: the URL and sync one-liners only (never the token or content).
 
+import { TagFlow } from "../actions/tagging.js";
 import { clockFromConfig } from "../clock.js";
 import { loadConfig, orExit } from "../config.js";
 import { clientFromConfig } from "../hotcrp/client.js";
@@ -42,7 +43,10 @@ export const SERVE_COMMAND: Command = {
       }
       throw e;
     }
-    const source = clientSource(clientFromConfig(cfg.hotcrp));
+    const client = clientFromConfig(cfg.hotcrp);
+    const source = clientSource(client);
+    // The one write path (PLAN M8): dry run, explicit confirmation, then the write.
+    const tagFlow = new TagFlow({ writer: client, tag: cfg.attentionTag });
     const sync = new SyncRunner(
       async () => {
         const r = await runSync(store.db, source, {
@@ -60,7 +64,7 @@ export const SERVE_COMMAND: Command = {
       },
     );
     const webDir = defaultWebDir();
-    const { app } = await buildApp({ cfg, store, clock, sync, webDir });
+    const { app } = await buildApp({ cfg, store, clock, sync, tagFlow, webDir });
     if (!webDir) err("pcs serve: web/dist not found; serving the API only (run `npm run build -w @pcs/web`)");
     if (!store.lastSuccessfulSync()) err("pcs serve: the local store is empty; run `pcs sync` or press \"Sync now\"");
 

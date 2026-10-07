@@ -152,9 +152,18 @@ describe("extended phase config", () => {
     expect(q).toEqual({ PCS_PHASE_EARLYREJECT_CLOSE: "must not be later than PCS_PHASE_DISCUSSION_OPEN" });
   });
 
-  it("requires both early-reject dates or neither", () => {
-    expect(problems({ PCS_PHASE_EARLYREJECT_OPEN: "2030-02-03T00:00" })).toEqual({
-      PCS_PHASE_EARLYREJECT_CLOSE: "set both PCS_PHASE_EARLYREJECT_OPEN and PCS_PHASE_EARLYREJECT_CLOSE, or neither",
+  it("requires OPEN when CLOSE is set; OPEN alone closes PCS_EARLYREJECT_WINDOW_H later (M12)", () => {
+    expect(problems({ PCS_PHASE_EARLYREJECT_CLOSE: "2030-02-04T23:59" })).toEqual({
+      PCS_PHASE_EARLYREJECT_OPEN:
+        "required when PCS_PHASE_EARLYREJECT_CLOSE is set (or set only OPEN: the window then lasts PCS_EARLYREJECT_WINDOW_H)",
+    });
+    const c = loadConfig({ ...RULES_ENV, PCS_PHASE_EARLYREJECT_OPEN: "2030-02-03T09:00" });
+    expect(c.phases.earlyRejectClose?.toISOString()).toBe("2030-02-05T14:00:00.000Z"); // +48 h, EST
+    const c24 = loadConfig({ ...RULES_ENV, PCS_PHASE_EARLYREJECT_OPEN: "2030-02-03T09:00", PCS_EARLYREJECT_WINDOW_H: "24" });
+    expect(c24.phases.earlyRejectClose?.toISOString()).toBe("2030-02-04T14:00:00.000Z");
+    // The derived close is order-checked like a set one.
+    expect(problems({ PCS_PHASE_EARLYREJECT_OPEN: "2030-02-07T00:00" })).toEqual({
+      PCS_PHASE_EARLYREJECT_CLOSE: "must not be later than PCS_PHASE_RESPONSE_OPEN",
     });
   });
 

@@ -5,6 +5,7 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { usePerson, type MetaResponse, type PersonPaper, type PersonResponse } from "../api";
+import { SearchActions } from "../components/Actions";
 import { Chip } from "../components/Chip";
 import { DataTable } from "../components/DataTable";
 import { AbsTime } from "../components/Time";
@@ -203,6 +204,7 @@ export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
           Papers <span className="muted">({d.papers.length})</span>
         </h2>
       </div>
+      {d.papers.length ? <SearchActions pids={d.papers.map((p) => p.pid)} base={meta.hotcrpUrl} /> : null}
       <div className="tier-table" style={{ height: 36 + Math.min(Math.max(d.papers.length, 1), 12) * 44 }}>
       <DataTable
         testId="person-papers"
