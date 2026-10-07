@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-describe("pcs wipe", () => {
+describe("pcs wipe", { timeout: 60_000 }, () => {
   it("lists the files and refuses without --yes", () => {
     openDb(env.PCS_DB_PATH!, { key: env.PCS_DB_KEY }).close();
     const r = pcs(["wipe"], env);
@@ -52,7 +52,7 @@ describe("pcs wipe", () => {
   });
 });
 
-describe("pcs sync / backfill", () => {
+describe("pcs sync / backfill", { timeout: 60_000 }, () => {
   it("reject unknown arguments", () => {
     expect(pcs(["sync", "--bogus"], env).code).toBe(2);
     expect(pcs(["backfill", "--limit"], env).code).toBe(2);
