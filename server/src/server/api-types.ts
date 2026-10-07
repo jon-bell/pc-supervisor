@@ -166,3 +166,162 @@ export interface SyncStatus {
 export interface ApiError {
   error: string;
 }
+
+// ---------------------------------------------------------------------------
+// M6: AC table, reviewer outliers, person page, overview (spec §5a, §5b, §5c)
+
+export interface AcRow {
+  person: Person;
+  pids: number[];
+  /** Papers they are an AC on, and those with severity > 0 (load vs flagged). */
+  load: number;
+  flagged: number;
+  flaggedPids: number[];
+  coverage: { covered: number; of: number; share: number | null };
+  timeToFirstPost: { medianDays: number | null; posted: number; waiting: number };
+  /** A labeled proxy: AC comments that @mention a reviewer, or posted while a reviewer had no comment yet. */
+  nudges: { total: number; mentions: number; proxy: number };
+  stale: number;
+  stalePids: number[];
+  /** Their comments since DISCUSSION_OPEN, across their papers. */
+  discussionComments: number;
+  metareview: { byStatus: Record<string, number>; submitted: number; of: number; due: number };
+  /** Comments per 24 h from `start` (DISCUSSION_OPEN) to now. */
+  activity: { start: number; daily: number[] };
+}
+
+export interface AcsResponse {
+  now: number;
+  /** Largest load, for the load bars. */
+  maxLoad: number;
+  /** Alphabetical by name (not ranked). */
+  acs: AcRow[];
+}
+
+export type OutlierListId = "silentOnSplit" | "unansweredPings" | "late" | "thin";
+
+export interface OutlierEntry {
+  person: Person;
+  /** The count compared against the list's bar. */
+  count: number;
+  pids: number[];
+  detail: string;
+}
+
+export interface OutlierList {
+  id: OutlierListId;
+  label: string;
+  /** The absolute bar a person must cross to appear (never a rank). */
+  bar: string;
+  total: number;
+  /** One group per tier in /api/meta order (then any other tier seen); empty groups included. */
+  byTier: { tier: string; entries: OutlierEntry[] }[];
+}
+
+export interface ReviewersResponse {
+  now: number;
+  /** People with at least one non-AC review assignment. */
+  reviewers: number;
+  tiers: string[];
+  lists: OutlierList[];
+}
+
+export interface PersonPaper {
+  pid: number;
+  title: string;
+  decision: string | null;
+  role: "AC" | "reviewer";
+  /** Their review on the paper (reviewer review, or the AC's metareview). */
+  review: {
+    rid: number;
+    ordinal: string | null;
+    status: string;
+    submitted: boolean;
+    merit: number | null;
+    expertise: number | null;
+    wordCount: number;
+  } | null;
+  /** All submitted reviewer merits on the paper, for context. */
+  merits: number[];
+  /** Their published non-response comments on the paper, and those since DISCUSSION_OPEN. */
+  comments: number;
+  discussionComments: number;
+  lastComment: { cid: number; time: number; approximate: boolean; wordCount: number; excerpt: string } | null;
+  /** The paper's fired rules (names) and severity. */
+  rules: string[];
+  severity: number;
+  /** Their own flags on this paper. */
+  flags: { silentOnSplit: boolean; outstanding: boolean; thin: boolean; unansweredPing: boolean };
+}
+
+export interface OpenPing {
+  pid: number;
+  title: string;
+  since: number;
+  ageDays: number;
+  pings: number;
+  mentionedAt: number | null;
+  /** Older than PCS_THRESH_PING_DAYS (so it is in the unanswered-pings list). */
+  overThreshold: boolean;
+}
+
+export interface PersonReviewerSummary {
+  assigned: number;
+  submitted: number;
+  outstanding: number[];
+  late: boolean;
+  depth: {
+    medianWords: number | null;
+    pcMedianWords: number | null;
+    thin: number;
+    bottomDecile: number;
+    ratedShort: number;
+    ratedVague: number;
+  };
+  participation: { papers: number; commented: number; share: number | null };
+  responsiveness: { medianDays: number | null; answered: number };
+  movement: { reviews: number; pids: number[] };
+  silentOnSplit: number[];
+}
+
+export interface PersonResponse {
+  now: number;
+  person: Person & { roles: string[] };
+  pingDays: number;
+  reviewer: PersonReviewerSummary | null;
+  ac: AcRow | null;
+  /** Outlier lists this person appears in. */
+  outliers: OutlierListId[];
+  /** AC papers first, then reviewer papers; pid order within each. */
+  papers: PersonPaper[];
+  openPings: OpenPing[];
+}
+
+export interface OverviewResponse {
+  now: number;
+  phase: string;
+  /** Configured phase dates, in time order. */
+  phases: { key: string; label: string; at: number }[];
+  counts: {
+    papers: number;
+    /** Undecided, fewer than PCS_REVIEWS_REQUIRED submitted reviewer reviews. */
+    reviewing: number;
+    /** Undecided, with enough reviews. */
+    discussing: number;
+    decided: number;
+    /** Undecided and split (no consensus). */
+    noConsensus: number;
+    /** Severity > 0. */
+    flagged: number;
+  };
+  reviewsRequired: number;
+  /** Papers by merit range (max - min) over >= 2 submitted reviewer merits, range 0..max. */
+  spread: { range: number; papers: number; split: boolean }[];
+  splitRange: number;
+  /** Papers with fewer than 2 submitted merits (no spread yet). */
+  spreadUnknown: number;
+  /** Per AC, alphabetical by name (not ranked). */
+  flaggedPerAc: { person: Person; load: number; flagged: number }[];
+  /** Daily from REVIEW_DUE to now (rules/burndown.ts). */
+  burndown: { t: number; undecided: number; noConsensus: number }[];
+}

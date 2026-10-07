@@ -164,6 +164,8 @@ The view is an outlier list plus a person page (every paper, their score, their 
 
 Precise definitions are in the header of `server/src/rules/reviewer-metrics.ts`. Notable choices: a ping is an `@mention` of the reviewer or any AC comment on their paper; pings that arrive before the reviewer replies merge into one episode. "Bottom decile" means strictly below the PC's 10th-percentile word count. Outlier lists use absolute bars (≥ 1 silent split paper, ≥ 1 unanswered ping, ≥ 1 late review, ≥ 1 thin/flagged review), never a rank cutoff, and are grouped by tier.
 
+Views (M6): `/reviewers` shows the four lists, each with one group per tier (`senior` plus every `PCS_TIER_TAGS` tier, empty groups included). Each list states its bar. Entries sort by count or by name, with no rank numbers. Because any AC comment on a reviewer's paper counts as a ping, a reviewer who never comments on an AC-active paper appears under unanswered pings too (golden R-silent does). The person page `/people/:email` lists every paper the person reviews or chairs, with their review status and scores, their last comment (time, words, an excerpt on hover), the paper's fired rules, and their own flags there. It also lists their **open pings**: every open ping episode on an undecided paper, of any age, marked when it is over `PCS_THRESH_PING_DAYS`. An episode's age runs from its first ping.
+
 ### 5b. Area chair activity (per AC)
 
 | Signal | Definition |
@@ -178,6 +180,8 @@ Precise definitions are in the header of `server/src/rules/reviewer-metrics.ts`.
 The view is one row per AC (activity sparkline, coverage, stale, flagged). Clicking a row filters the triage list.
 
 Precise definitions are in the header of `server/src/rules/ac-metrics.ts`. Coverage and time to first post count only comments at or after `DISCUSSION_OPEN`. The sparkline buckets the AC's comments per 24 h from `DISCUSSION_OPEN`.
+
+The AC table (`/acs`, M6) lists ACs alphabetically. The load column reads "6 papers · 5 flagged", next to a bar whose length is the AC's load relative to the largest load and whose dark part is the flagged share. So a chair with many papers looks different from one whose few papers are all flagged. Nudges are labelled "(proxy)". The table also shows the AC's comment count since `DISCUSSION_OPEN`. Clicking a row opens `/?ac=<email>`.
 
 ### 5c. Paper risk
 
@@ -215,6 +219,9 @@ Views:
 - **Triage list:** pid, title, AC, scores, reason chips, last activity, and a link.
 - **Paper drawer:** a timeline of reviews, score changes, comments (author, word count, mentions), and the response.
 - **Overview:** counts by phase, a score-spread histogram, flagged papers per AC, and a **burndown of papers without consensus** against the phase dates.
+  - "Counts by phase" means paper counts by stage: awaiting reviews (undecided, fewer than `PCS_REVIEWS_REQUIRED` submitted reviewer reviews), in discussion (undecided, with enough), decided, no consensus (undecided and split), and flagged (severity > 0). The configured phase dates are listed beside them.
+  - The spread histogram counts papers with ≥ 2 submitted reviewer merits by range (max − min). It highlights ranges ≥ `PCS_THRESH_SPLIT_RANGE`. Splits that come only from straddling `MERIT_ACCEPT_MIN` aren't highlighted.
+  - The burndown (`rules/burndown.ts`) is an inline-SVG line chart, daily from `REVIEW_DUE` to now. It shows no-consensus and all-undecided papers, with markers at every configured phase date and at now. A decision counts from when the sync first saw it.
 
 ### 5d. Shadow-PC extras
 
