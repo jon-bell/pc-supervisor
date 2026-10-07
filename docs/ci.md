@@ -21,6 +21,12 @@ GitHub ──► ARC listener (arc-runners-jon-bell) ──► ephemeral runner 
 | C. A long-lived HotCRP on Ripley k8s, reset per run by DB restore | Faster per run, but shared state means concurrent PRs collide. It's also ops we'd have to keep alive. **Use it only for exploration and scale demos** (a seeded `scale` instance a human can click around), never for per-PR CI. |
 | D. A hosted hotcrp.com test instance | No way to reset, seed with batch scripts, or warp time. Rejected. |
 
+## Visual testing (Argos)
+
+The Playwright suite takes `argosScreenshot`s, and the reporter uploads them to Argos **only when `CI` is set**. Auth is tokenless: the Argos GitHub App is installed on the repo, and the SDK proves the job from the GitHub Actions run and job IDs. If an `ARGOS_TOKEN` secret exists, it's used instead.
+
+Tokenless auth also requires an **Argos project linked to this repository** (app.argos-ci.com → new project → import the repo). Without one, the upload fails with `No project found`. `.github/workflows/argos-canary.yml`, which runs on manual dispatch only, screenshots the harness home page to check this setup end to end.
+
 ## Runner gotcha
 
 The stock ARC runner image (`ghcr.io/actions/actions-runner`) has the docker CLI but **not** the compose v2 plugin. `ci.yml` installs a pinned plugin (v2.39.4) into `~/.docker/cli-plugins` before the harness starts.

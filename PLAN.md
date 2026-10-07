@@ -67,6 +67,7 @@ The CI steps for these are already in `.github/workflows/ci.yml`. They're gated 
   - `server/src/clock.ts`: the only source of "now". It honors `PCS_NOW`.
   - `server/src/hotcrp/`: a typed client. It handles bearer auth, `pretty=0`, POST-as-GET (`:method:=GET`), pid-range chunking, bounded concurrency, and retry with backoff on 429/5xx. Every response is validated with a Zod schema in `server/src/hotcrp/schemas.ts`, so schema failures surface as contract-test failures.
   - Contract tests run those schemas against the seeded harness.
+  - The Playwright config in `e2e/` adds the Argos reporter (`uploadToArgos: !!process.env.CI`) and Argos's recommended launch flags. Copy them from `e2e/argos-canary/`.
 - **Done when:** CI is green with lint, typecheck, unit, and the contract tests against the harness; and a bad env var produces one readable error listing every problem.
 
 ## M2: Seeder + scenarios
@@ -160,7 +161,8 @@ Changing this table means changing the M3 and M4 tests in the same PR.
   - the top of the triage list is ordered by severity as computed from the table;
   - paper 1 shows no chips;
   - paper 4's drawer shows the day +3 ping;
-  - deep links point at `PCS_HOTCRP_URL`.
+  - deep links point at `PCS_HOTCRP_URL`;
+  - Argos screenshots of the triage list and the paper 4 drawer are stable across two consecutive CI runs, with no diff.
 
 ## M6: AC table, reviewer outliers, overview
 
@@ -170,7 +172,7 @@ Changing this table means changing the M3 and M4 tests in the same PR.
   - The person page.
   - The overview with the no-consensus burndown.
   - The wording rules from spec §7, enforced by a test that greps the UI strings for "disengaged", "absent", and "lazy".
-- **Done when:** Playwright asserts the people-level golden facts. In particular, AC-busy and AC-idle must be distinguishable at a glance: an assertion on the load column, not just the flag count.
+- **Done when:** Playwright asserts the people-level golden facts, and Argos baselines exist for the AC table, a person page, and the overview. In particular, AC-busy and AC-idle must be distinguishable at a glance: an assertion on the load column, not just the flag count.
 
 ## M7: Scale
 
