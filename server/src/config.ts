@@ -202,6 +202,44 @@ function fieldUid(v: string, ctx: z.RefinementCtx): string {
   return s;
 }
 
+// Assignment validator policy (spec §10.4 C, PLAN M10).
+
+/** How many third-slot (junior or reserve) reviews a paper needs. */
+export type ThirdSlotPolicy = "exactly1" | "atleast1";
+
+function thirdSlot(v: string, ctx: z.RefinementCtx): ThirdSlotPolicy {
+  const s = v.trim().toLowerCase();
+  if (s === "exactly1" || s === "atleast1") return s;
+  return fail(ctx, `expected exactly1 or atleast1, got ${show(v)}`);
+}
+
+/** The four tiers of spec §10.2 that have load bands, with their env-name stems. */
+export const LOAD_TIERS = [
+  ["senior", "SENIOR"],
+  ["junior", "JUNIOR"],
+  ["reserve-active", "RESERVE_ACTIVE"],
+  ["reserve-pool", "RESERVE_POOL"],
+] as const;
+export type LoadTier = (typeof LOAD_TIERS)[number][0];
+
+/** Default review-load bands per tier (review assignments per person, inclusive). */
+export const LOAD_DEFAULTS: Readonly<Record<LoadTier, { min: number; max: number }>> = {
+  senior: { min: 4, max: 12 },
+  junior: { min: 2, max: 8 },
+  "reserve-active": { min: 1, max: 3 },
+  // Designated but not activated: any review assignment is a problem.
+  "reserve-pool": { min: 0, max: 0 },
+};
+
+const LOAD_FIELDS = Object.fromEntries(
+  LOAD_TIERS.flatMap(([tier, stem]) => [
+    [`PCS_LOAD_${stem}_MIN`, withDefault<number>(LOAD_DEFAULTS[tier].min, intIn(0, 100_000))],
+    [`PCS_LOAD_${stem}_MAX`, withDefault<number>(LOAD_DEFAULTS[tier].max, intIn(0, 100_000))],
+  ]),
+) as unknown as {
+  [S in (typeof LOAD_TIERS)[number][1] as `PCS_LOAD_${S}_MIN` | `PCS_LOAD_${S}_MAX`]: ReturnType<typeof withDefault<number>>;
+};
+
 function path(v: string): string {
   const s = v.trim();
   return s === "~" ? homedir() : s.startsWith("~/") ? join(homedir(), s.slice(2)) : s;
@@ -250,6 +288,14 @@ export const FIELDS = {
   PCS_REVIEWS_REQUIRED: withDefault(3, intIn(0, 100)),
   ...THRESHOLD_FIELDS,
   ...RULE_FIELDS,
+  // Assignment validator (spec §10.4 C, PLAN M10).
+  PCS_POLICY_MIN_SENIOR: withDefault(2, intIn(0, 20)),
+  PCS_POLICY_THIRD_SLOT: withDefault<ThirdSlotPolicy>("exactly1", thirdSlot),
+  ...LOAD_FIELDS,
+  PCS_CYCLE_MAX_K: withDefault(3, intIn(2, 6)),
+  PCS_CYCLE_MAX_REPORT: withDefault(500, intIn(1, 100_000)),
+  PCS_CONFLICT_AFFILIATION: withDefault(true, bool),
+  PCS_CONFLICT_DBLP: withDefault(false, bool),
   PCS_DB_PATH: optional(path),
   PCS_DB_KEY: optional(secret),
   PCS_SYNC_INTERVAL_MIN: withDefault(15, intIn(1, 24 * 60)),
@@ -412,6 +458,35 @@ export function extendedPhaseProblems(
   return problems;
 }
 
+/** PCS_POLICY_*, PCS_LOAD_*, PCS_CYCLE_*, PCS_CONFLICT_* (spec §10.4 C). */
+export interface AssignmentPolicy {
+  /** PCS_POLICY_MIN_SENIOR: senior reviews every paper needs. */
+  minSenior: number;
+  /** PCS_POLICY_THIRD_SLOT: junior/reserve reviews per paper. */
+  thirdSlot: ThirdSlotPolicy;
+  /** PCS_LOAD_<TIER>_MIN/_MAX: review assignments per person, inclusive. */
+  load: Readonly<Record<LoadTier, { min: number; max: number }>>;
+  /** PCS_CYCLE_MAX_K: longest reciprocal cycle searched for (2 = pairs only). */
+  cycleMaxK: number;
+  /** PCS_CYCLE_MAX_REPORT: stop listing cycles after this many. */
+  cycleMaxReport: number;
+  /** PCS_CONFLICT_AFFILIATION: flag reviewer/author pairs with the same affiliation. */
+  affiliationConflicts: boolean;
+  /** PCS_CONFLICT_DBLP: DBLP co-authorship check (optional; no provider ships in M10). */
+  dblpConflicts: boolean;
+}
+
+/** The default policy (every PCS_POLICY_/LOAD_/CYCLE_/CONFLICT_ variable unset). */
+export const DEFAULT_ASSIGNMENT_POLICY: AssignmentPolicy = {
+  minSenior: 2,
+  thirdSlot: "exactly1",
+  load: LOAD_DEFAULTS,
+  cycleMaxK: 3,
+  cycleMaxReport: 500,
+  affiliationConflicts: true,
+  dblpConflicts: false,
+};
+
 export interface Config {
   hotcrp: HotcrpConfig;
   tz: string;
@@ -428,6 +503,11 @@ export interface Config {
     weights: Readonly<Record<RuleName, number>>;
     thresholds: Readonly<Record<ThresholdName, number>>;
   };
+  /**
+   * Assignment validator policy (spec §10.4 C). Optional in the type so code
+   * that builds a Config literal keeps compiling; loadConfig always sets it.
+   */
+  assignment?: AssignmentPolicy;
   db: { path: string; key: string | undefined };
   sync: { intervalMin: number; chunk: number; concurrency: number; historyRps: number };
   port: number;
@@ -585,6 +665,13 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
     });
   }
 
+  for (const [, stem] of LOAD_TIERS) {
+    const lo = v[`PCS_LOAD_${stem}_MIN`];
+    const hi = v[`PCS_LOAD_${stem}_MAX`];
+    if (lo !== undefined && hi !== undefined && lo > hi) {
+      problems.push({ name: `PCS_LOAD_${stem}_MAX`, message: `must not be less than PCS_LOAD_${stem}_MIN (${lo})` });
+    }
+  }
   if (problems.length > 0) throw new ConfigError(problems);
   const f = v as FieldValues;
 
@@ -605,6 +692,17 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
         ThresholdName,
         number
       >,
+    },
+    assignment: {
+      minSenior: f.PCS_POLICY_MIN_SENIOR,
+      thirdSlot: f.PCS_POLICY_THIRD_SLOT,
+      load: Object.fromEntries(
+        LOAD_TIERS.map(([tier, stem]) => [tier, { min: f[`PCS_LOAD_${stem}_MIN`], max: f[`PCS_LOAD_${stem}_MAX`] }]),
+      ) as Record<LoadTier, { min: number; max: number }>,
+      cycleMaxK: f.PCS_CYCLE_MAX_K,
+      cycleMaxReport: f.PCS_CYCLE_MAX_REPORT,
+      affiliationConflicts: f.PCS_CONFLICT_AFFILIATION,
+      dblpConflicts: f.PCS_CONFLICT_DBLP,
     },
     db: { path: f.PCS_DB_PATH ?? defaultDbPath(f.PCS_HOTCRP_URL, opts.home), key: f.PCS_DB_KEY },
     sync: {
@@ -664,6 +762,13 @@ export function describeConfig(c: Config): string[] {
     `Tier tags         ${tiers}`,
     `Fields            merit=${c.fields.merit} (accept >= ${c.meritAcceptMin}), expertise=${c.fields.expertise} (ok >= ${c.expertiseOkMin})`,
     `Reviews required  ${c.reviewsRequired}`,
+    ...(c.assignment
+      ? [
+          `Assignment        ${c.assignment.minSenior} senior + ${c.assignment.thirdSlot} third slot; loads ` +
+            LOAD_TIERS.map(([t]) => `${t} ${c.assignment!.load[t].min}-${c.assignment!.load[t].max}`).join(", ") +
+            `; cycles k<=${c.assignment.cycleMaxK}; affiliation ${c.assignment.affiliationConflicts ? "on" : "off"}, dblp ${c.assignment.dblpConflicts ? "on" : "off"}`,
+        ]
+      : []),
     `Rule weights      ${RULE_NAMES.map((n) => `${n}=${c.rules.weights[n]}`).join(" ")}`,
     `Thresholds        ${THRESHOLD_NAMES.map((n) => `${n}=${c.rules.thresholds[n]}`).join(" ")}`,
     `DB path           ${c.db.path}`,

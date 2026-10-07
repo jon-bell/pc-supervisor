@@ -5,6 +5,7 @@
 import type { HotcrpClient } from "../hotcrp/client.js";
 import type {
   Comment,
+  Paper,
   PaperRoleRow,
   PcAssignmentRow,
   PcResponse,
@@ -12,6 +13,7 @@ import type {
   ReviewHistory,
   RqcResponse,
   SearchResponse,
+  SettingsSfResponse,
 } from "../hotcrp/schemas.js";
 
 /** /search display fields the sync reads (`manager` comes back as `administrator`). */
@@ -30,6 +32,14 @@ export interface SyncSource {
   comments(q: string): Promise<Comment[]>;
   /** Expanded history of one review (newest first). */
   reviewHistory(pid: number, rid: number): Promise<ReviewHistory>;
+  /**
+   * Paper objects (authors with affiliations, submission-option values) for
+   * one pid-range search `q` (PLAN M10). Optional: without it (older fakes)
+   * the sync skips authors and options.
+   */
+  paperDetails?(q: string): Promise<Paper[]>;
+  /** Submission fields (settings sf), to tell option keys from intrinsic ones (PLAN M10). */
+  submissionFields?(): Promise<SettingsSfResponse>;
 }
 
 export function clientSource(client: HotcrpClient): SyncSource {
@@ -42,5 +52,7 @@ export function clientSource(client: HotcrpClient): SyncSource {
     reviews: (q, rq) => client.reviews({ q, t: "all", rq }),
     comments: (q) => client.comments({ q, t: "all" }),
     reviewHistory: (pid, rid) => client.reviewHistory(pid, rid, { expand: true }),
+    paperDetails: (q) => client.papers({ q, t: "all" }),
+    submissionFields: () => client.submissionFields(),
   };
 }

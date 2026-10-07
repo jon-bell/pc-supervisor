@@ -314,7 +314,100 @@ export const SettingsRfSchema = z.looseObject({
 });
 export type SettingsRfResponse = z.infer<typeof SettingsRfSchema>;
 
+// --- /papers (PLAN M10: authors and submission-option values) -----------------
+// One `paper` object per paper (src/paperexport.php). Authors carry email and
+// affiliation, but only when the viewer may see authors: for a blind
+// submission a chair sees them only with forceShow=1 (checked against the
+// harness). Every submission option (settings `sf`, numeric id) appears as a
+// key named after the option's *name* (PaperOption::json_key), e.g.
+// "Reserve designee": text -> string, dropdown/radio -> the choice name,
+// checkbox -> boolean, numeric -> number, checkboxes -> list of names. Read
+// them with submissionOptionValue(). The object also carries the abstract and
+// document metadata; the sync ignores (never stores) those.
+
+export const PaperAuthorSchema = z.looseObject({
+  email: z.string().optional(),
+  given_name: z.string().optional(),
+  family_name: z.string().optional(),
+  affiliation: z.string().optional(),
+});
+export type PaperAuthor = z.infer<typeof PaperAuthorSchema>;
+
+export const PaperSchema = z.looseObject({
+  object: z.literal("paper"),
+  pid,
+  title: z.string().optional(),
+  status: z.string().optional(),
+  /** Omitted when the viewer can't see authors (blind, no forceShow). */
+  authors: z.array(PaperAuthorSchema).optional(),
+});
+export type Paper = z.infer<typeof PaperSchema>;
+
+export const PapersSchema = z.looseObject({ ...ok, papers: z.array(PaperSchema) });
+
+/** A submission-option value from /papers. */
+export const SubmissionOptionValueSchema = z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]);
+export type SubmissionOptionValue = z.infer<typeof SubmissionOptionValueSchema>;
+
+// --- /settings?filter=sf (submission fields) -----------------------------------
+// Intrinsic fields (title, authors, abstract, ...) have string ids; configured
+// submission options have numeric ids. `name` is the key in /papers.
+
+export const SettingsSfValueSchema = z.looseObject({ id: int, name: z.string(), order: int.optional() });
+
+export const SettingsSfFieldSchema = z.looseObject({
+  id: z.union([int, z.string()]),
+  name: z.string(),
+  type: z.string().optional(),
+  order: int.optional(),
+  visibility: z.string().optional(),
+  values: z.array(SettingsSfValueSchema).optional(),
+});
+export type SettingsSfField = z.infer<typeof SettingsSfFieldSchema>;
+
+export const SettingsSfSchema = z.looseObject({
+  ...ok,
+  settings: z.looseObject({ sf: z.array(SettingsSfFieldSchema) }),
+});
+export type SettingsSfResponse = z.infer<typeof SettingsSfSchema>;
+
+// --- POST /assign (dry run only in M10) ----------------------------------------
+// src/api/api_assign.php. With format=json the result lists the assignments
+// HotCRP *would* make (`assignments`, action names like "primaryreview").
+// `valid: false` comes with ok: false and error messages; it is a result here,
+// not a transport error.
+
+export const AssignResultRowSchema = z.looseObject({
+  pid,
+  action: z.string(),
+  email: z.string().optional(),
+  round: z.string().optional(),
+});
+
+export const AssignResultSchema = z.looseObject({
+  ok: z.boolean(),
+  message_list: z.array(MessageSchema).optional(),
+  dry_run: z.boolean().optional(),
+  valid: z.boolean(),
+  assignment_count: int.optional(),
+  assignment_header: z.array(z.string()).optional(),
+  assignments: z.array(AssignResultRowSchema).optional(),
+});
+export type AssignResult = z.infer<typeof AssignResultSchema>;
+
 // --- helpers -----------------------------------------------------------------
+
+/**
+ * A submission-option value from a /papers object, by option name (the key
+ * HotCRP uses); undefined when absent. Throws on an unexpected type.
+ */
+export function submissionOptionValue(p: Paper, name: string): SubmissionOptionValue | undefined {
+  const v = (p as Record<string, unknown>)[name];
+  if (v === undefined) return undefined;
+  const parsed = SubmissionOptionValueSchema.safeParse(v);
+  if (!parsed.success) throw new TypeError(`paper ${p.pid}: option ${JSON.stringify(name)} has unexpected type ${typeof v}`);
+  return parsed.data;
+}
 
 /**
  * A review-form field value by UID: a score (number, or a letter symbol), text,

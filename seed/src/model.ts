@@ -121,13 +121,20 @@ export function replay(scenario: Scenario, ctx: PhaseContext, upToStage = scenar
   }
   const papers = new Map(scenario.papers.map((p) => [p.pid, p]));
   if (papers.size !== scenario.papers.length) fail("duplicate pid");
+  const fieldDefs = new Map((scenario.submissionFields ?? []).map((f) => [f.name, f]));
+  if (fieldDefs.size !== (scenario.submissionFields ?? []).length) fail("duplicate submission field name");
+  const rounds = new Set(scenario.reviewRounds ?? []);
   for (const p of scenario.papers) {
     if (p.authors.length === 0) fail(`paper ${p.pid} has no authors`);
     for (const a of p.authors) {
       if (!/^[^@\s]+@example\.org$/.test(a.email)) fail(`${a.email}: emails must be @example.org`);
-      if (people.get(a.email.toLowerCase())?.roles.length) fail(`${a.email}: PC members can't be authors here`);
+    }
+    for (const [name, value] of Object.entries(p.options ?? {})) {
+      const f = fieldDefs.get(name) ?? fail(`paper ${p.pid}: option ${JSON.stringify(name)} is not in submissionFields`);
+      if (f.type === "dropdown" && !(f.values ?? []).includes(value)) fail(`paper ${p.pid}: ${JSON.stringify(value)} is not a value of ${name}`);
     }
   }
+  const authorsOf = new Map(scenario.papers.map((p) => [p.pid, new Set(p.authors.map((a) => a.email.toLowerCase()))]));
   const scoreFields = scenario.scoreFields ?? ["OveMer", "RevExp"];
 
   const state: ExpectedState = { reviews: new Map(), comments: new Map(), decisions: new Map() };
@@ -135,6 +142,8 @@ export function replay(scenario: Scenario, ctx: PhaseContext, upToStage = scenar
     const p = people.get(a.email.toLowerCase());
     if (!papers.has(a.pid)) fail(`assignment to unknown paper ${a.pid}`);
     if (!p || !p.roles.includes("pc")) fail(`assignment to ${a.email}, who is not on the PC`);
+    if (authorsOf.get(a.pid)?.has(a.email.toLowerCase())) fail(`${a.email} is an author of paper ${a.pid} and can't review it`);
+    if (a.round !== undefined && !rounds.has(a.round)) fail(`assignment round ${JSON.stringify(a.round)} is not in reviewRounds`);
     const k = reviewKey(a.pid, a.email);
     if (state.reviews.has(k)) fail(`${a.email} assigned twice to paper ${a.pid}`);
     state.reviews.set(k, {

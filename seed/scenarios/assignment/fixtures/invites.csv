@@ -1,0 +1,5 @@
+pid,candidate_email,ac_email,ac_decision,tpms_score,seniority_note,invited_at,response,activated_at
+2,felix.adeyemi@example.org,ac.hollis@example.org,reject,0.41,,,none,
+3,nora.quist@example.org,ac.hollis@example.org,pending,0.77,"PhD 2024, 3 papers",2030-01-02,none,
+4,felix.adeyemi@example.org,ac.hollis@example.org,approve,0.83,"PhD 2018, 7 papers",2030-01-02,accept,2030-01-04T10:00
+6,greta.holm@example.org,ac.marsh@example.org,approve,0.79,"PhD 2016, 12 papers",2030-01-03,accept,2030-01-05T09:00

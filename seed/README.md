@@ -42,6 +42,12 @@ except sysadmins. The chair account and its token in `.env.test` survive, so a
 reset takes about a second instead of a harness rebuild. Integration tests that
 seed must reset first; they run serially.
 
+A reset also re-inserts `PaperStorage` row 1, HotCRP's "empty document"
+placeholder. Without it, the first PDF stored after the truncate gets id 1 and
+that paper silently stays a draft ("Submission: Entry required"). This was fixed in M10.
+Settings survive a reset, so review rounds and submission options defined by an
+earlier scenario stay defined (with no values).
+
 ## Scenario format (`src/format.ts`)
 
 A scenario is typed TS data:
@@ -51,6 +57,35 @@ A scenario is typed TS data:
 - `assignments`: `{ pid, email, role: metareview | primary | secondary | pcreview, requestedAt? }`
   (`metareview` = the paper's AC; requests default to review deadline −28 d);
 - `stages`: `[{ name, now?, events }]`.
+
+Phase-2 additions (PLAN Phase 2 intro, M10; all optional, additive):
+
+- **Authors with affiliations.** `Author.affiliation` goes to savepapers, and
+  `Person.affiliation` to saveusers (so `/pc` has it). A PC member may now also
+  be a paper author, as reciprocal reviewers are. HotCRP then records an
+  `author` conflict, and `replay` rejects assigning an author to their own paper.
+- **Submission options.** `Scenario.submissionFields: SubmissionField[]`
+  (`{ name, type: "text" | "dropdown", values?, visibility? }`, default
+  visibility `admin`) is saved through `batch/settings.php` as `sf` entries
+  matched by **name**, so re-seeding is idempotent. Re-saving dropdown choices adds missing
+  ones and keeps the rest. `Paper.options: { [fieldName]: value }` goes into the
+  savepapers JSON under the option's name, and `GET /papers` returns it under
+  the same name. Ready-made: `RESERVE_DESIGNEE_FIELD` ("Reserve designee", text:
+  the designee's email) and `RESERVE_EXEMPTION_FIELD` ("Reserve exemption",
+  dropdown `no-eligible-author | all-authors-on-pc | other`).
+- **Review rounds.** `Scenario.reviewRounds` names extra rounds, saved as
+  settings `review` entries by name. `QUICKREJECT_ROUND = "quickreject"`.
+  `Assignment.round` puts an assignment in one; batch/assign.php gets a `round`
+  column. `/reviews` and `get/pcassignments` report the round name.
+- **Tiers.** `TIER_TAGS` = `junior`, `reserveactive`, `reservepool` as user
+  tags; untagged PC members are senior. Use `PCS_TIER_TAGS=TIER_TAGS_ENV`
+  (`junior=junior,reserve-active=reserveactive,reserve-pool=reservepool`). A
+  non-PC `Person` with `roles: []` is saved as a user only if it has tags (a
+  reserve-pool designee). Its tag can't be read back through the API (§1),
+  and `verify` skips it.
+
+`verify` also checks authors (email and affiliation, in order), option values,
+and named rounds.
 
 Every time is a `When` = `{ phase, day, time? }`: the phase date's local
 calendar date (in `PCS_TZ`) plus `day` days, at local `time` "HH:MM" (default:
@@ -177,6 +212,34 @@ Observe at `PCS_NOW=2030-02-26T12:00`.
 - `scale`: 2,400 papers, 40 ACs, 400 senior + 120 junior + 120 reciprocal;
   9,600 review rows, 6,594 comments, 1,068 responses. Seeds in about 2 min on a
   9-core dev machine (35 s of it is savepapers.php); `verify scale` takes about 70 s.
+
+### `assignment` (`scenarios/assignment/`), for M10's validator
+
+An assignment-phase state with 8 papers, 2 ACs, 8 seniors, 3 juniors, and 3
+reserve-active reviewers. Observe at `reviewDue −21 d` (`PCS_NOW=2030-01-11T12:00`).
+It needs `ASSIGNMENT_ENV` (tiers, plus load bands sized for 8 papers: senior 1–3,
+junior 1–3, reserve-active 1–1). `fixtures/` holds `invites.csv`,
+`do-not-invite.csv`, and `tpms-assignments.csv` for `pcs import`. Planted in
+the HotCRP assignment:
+
+- #5 is an all-junior panel (3 juniors);
+- `sofia.lund` (senior) reviews 4 papers;
+- `sofia.lund` shares an affiliation with the author of #4;
+- reserve `nora.quist` on #3 is `pending` in the invites fixture;
+- reserve `greta.holm` on #6 is approved, but on the do-not-invite fixture;
+- a reciprocal 2-cycle: `omar.reyes` authors #1, which `lena.brandt` reviews,
+  and she authors #2, which he reviews;
+- a 3-cycle: `kwame.osei` (#6) → `ingrid.falk` (#7) → `tariq.nasser` (#8) → back.
+
+The TPMS fixture adds an unknown paper (#99), a non-PC email, an author
+assigned to their own paper, and an extra third slot. `expected.ts` lists
+every expected finding for both modes and the exact TPMS fix-up CSV.
+`seed/test/unit/assignment.test.ts` checks it without a harness, and
+`seed/test/integration/assignment.test.ts` checks it through seed, sync,
+import, validate, and the `POST /assign?dry_run=1` dry run. #1–#4 and #6–#8
+name their first author as reserve designee; #5 claims the exemption
+`no-eligible-author`. #1's metareview is in the `quickreject` round.
+`amara.diallo` (non-PC author of #3) is tagged `reservepool`.
 
 ## Import fixtures (`fixtures/imports/`, PLAN M9)
 

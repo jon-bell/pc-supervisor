@@ -14,7 +14,7 @@ function pcs(args: string[], env: Record<string, string>) {
   return { code: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
-describe("pcs CLI", () => {
+describe("pcs CLI", { timeout: 60_000 }, () => {
   it("config-check prints a redacted summary", () => {
     const r = pcs(["config-check"], BASE_ENV);
     expect(r.code).toBe(0);

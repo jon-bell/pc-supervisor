@@ -48,6 +48,27 @@ export const HARNESS_SETTINGS = {
   response: [{ id: 1, name: "", open: "2020-01-01", done: "2099-01-01", wordlimit: 0 }],
 };
 
+/**
+ * HARNESS_SETTINGS plus the scenario's phase-2 structure: named review rounds
+ * (e.g. quickreject) and submission options (`sf`). Both are matched by name,
+ * so seeding again (after a reset, which keeps Settings) changes nothing.
+ * Rounds and options from an earlier scenario stay defined; they are empty.
+ */
+export function scenarioSettings(scenario: Scenario): Record<string, unknown> {
+  const rounds = (scenario.reviewRounds ?? []).map((name) => ({ name, soft: "2099-01-01", done: "2099-01-02" }));
+  const sf = (scenario.submissionFields ?? []).map((f) => ({
+    name: f.name,
+    type: f.type,
+    visibility: f.visibility ?? "admin",
+    ...(f.values ? { values: f.values.map((name) => ({ name })) } : {}),
+  }));
+  return {
+    ...HARNESS_SETTINGS,
+    review: [...HARNESS_SETTINGS.review, ...rounds],
+    ...(sf.length > 0 ? { sf } : {}),
+  };
+}
+
 export interface SeedOptions {
   /** Seed only this stage (1-based). Default: every stage, in order. */
   stage?: number;
@@ -121,6 +142,12 @@ export async function resetHarness(sc: SeedContext): Promise<void> {
       "delete from ContactCounter where contactId not in (select contactId from ContactInfo where (roles & 2) != 0);",
       "delete from ContactInfo where (roles & 2) = 0;",
       "update ContactInfo set contactTags=null;",
+      // HotCRP's install inserts paperStorageId 1 as the "empty document"
+      // (DocumentInfo::make_empty, src/schema.sql). Without it the first PDF
+      // stored after the truncate gets id 1, and that paper silently stays a
+      // draft ("Submission: Entry required").
+      "insert ignore into PaperStorage set paperStorageId=1, paperId=0, timestamp=0, mimetype='text/plain', paper='', " +
+        "sha1=x'da39a3ee5e6b4b0d3255bfef95601890afd80709', documentType=0, size=0, inactive=1;",
       `delete from Settings where name in (${sqlString(MARKER)}, 'pcrev_assigntime', 'metareviews', 'paperacc', 'paperlead', 'papermanager', 'tracker');`,
       "set foreign_key_checks=1;",
     ].join("\n"),
@@ -243,14 +270,15 @@ class StageRunner {
       this.log(`  ${what} (${((now - t) / 1000).toFixed(1)} s)`);
       t = now;
     };
-    await h.batch("settings.php", ["save", "-e", JSON.stringify(HARNESS_SETTINGS)]);
+    await h.batch("settings.php", ["save", "-e", JSON.stringify(scenarioSettings(scenario))]);
     lap("settings saved");
 
     // saveusers.php JSON goes through CsvParser::make_json without the CSV
     // synonyms, so keys must be the canonical ones: firstName, lastName, and
     // tags as ONE space-separated string (an array crashes trim()).
+    // Non-PC people are saved only when they carry tags (e.g. reserve-pool).
     const users = scenario.people
-      .filter((p) => p.roles.length > 0)
+      .filter((p) => p.roles.length > 0 || (p.tags?.length ?? 0) > 0)
       .map((p) => ({
         email: p.email,
         firstName: p.first,
@@ -273,12 +301,18 @@ class StageRunner {
       authors: p.authors.map((a) => ({ email: a.email, first: a.first, last: a.last, affiliation: a.affiliation ?? "" })),
       status: "submitted",
       submission: { content_file: "paper.pdf", mimetype: "application/pdf" },
+      // Submission options go under the option's name (savepapers JSON key).
+      ...(p.options ?? {}),
     }));
     await h.writeFile("/tmp/pcs-seed/papers.json", JSON.stringify(papers));
     await h.batch("savepapers.php", ["/tmp/pcs-seed/papers.json"]);
     lap(`${papers.length} papers saved`);
 
-    const csv = ["paper,action,user", ...scenario.assignments.map((a) => `${a.pid},${a.role},${a.email}`)].join("\n");
+    const withRound = scenario.assignments.some((a) => a.round !== undefined);
+    const csv = [
+      withRound ? "paper,action,user,round" : "paper,action,user",
+      ...scenario.assignments.map((a) => `${a.pid},${a.role},${a.email}${withRound ? `,${a.round ?? ""}` : ""}`),
+    ].join("\n");
     await h.writeFile("/tmp/pcs-seed/assign.csv", `${csv}\n`);
     await h.batch("assign.php", ["/tmp/pcs-seed/assign.csv"]);
     lap(`${scenario.assignments.length} assignments made`);

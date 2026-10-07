@@ -3,6 +3,7 @@
 
 import { describeConfig, loadConfig, orExit } from "../config.js";
 import { PROBE_USAGE, runProbe } from "../probe/command.js";
+import { ASSIGNMENT_COMMANDS } from "./assignment-command.js";
 import { IMPORT_COMMANDS } from "./import-command.js";
 import { SERVE_COMMAND } from "./serve.js";
 import { STORE_COMMANDS } from "./store-commands.js";
@@ -16,6 +17,7 @@ export interface Command {
 export const COMMANDS: Record<string, Command> = {
   ...STORE_COMMANDS,
   ...IMPORT_COMMANDS,
+  ...ASSIGNMENT_COMMANDS,
   serve: SERVE_COMMAND,
   "config-check": {
     summary: "Validate every PCS_* variable and print a summary (secrets redacted)",

@@ -8,7 +8,7 @@
 import { loadHotcrpConfig } from "@pcs/server/config";
 import { clientFromConfig, type HotcrpClient } from "@pcs/server/hotcrp/client";
 import { assertHarnessUrl } from "@pcs/server/hotcrp/harness-guard";
-import { reviewField, ReviewsSchema, type Review } from "@pcs/server/hotcrp/schemas";
+import { reviewField, ReviewsSchema, submissionOptionValue, type Review } from "@pcs/server/hotcrp/schemas";
 import { REVIEW_TEXT_FIELDS, type AssignRole, type Scenario } from "./format.js";
 import { replay, reviewKey, type ExpectedState } from "./model.js";
 import { epochSeconds, type PhaseContext } from "./time.js";
@@ -80,6 +80,22 @@ export async function verifyScenario(
     check(p.status !== "Not ready", () => `paper ${p.pid}: not submitted`);
   }
 
+  // Authors (email, affiliation, order) and submission options (phase 2), via /papers.
+  const details = new Map((await client.papers({ q: "all", t: "all" })).map((p) => [p.pid, p]));
+  for (const sp of scenario.papers) {
+    const d = details.get(sp.pid);
+    check(d !== undefined, () => `paper ${sp.pid}: missing from /papers`);
+    if (!d) continue;
+    const got = (d.authors ?? []).map((a) => `${(a.email ?? "").toLowerCase()}|${a.affiliation ?? ""}`);
+    const want = sp.authors.map((a) => `${a.email.toLowerCase()}|${a.affiliation ?? ""}`);
+    check(JSON.stringify(got) === JSON.stringify(want), () => `paper ${sp.pid}: authors ${got.join(",")}, expected ${want.join(",")}`);
+    for (const f of scenario.submissionFields ?? []) {
+      const v = submissionOptionValue(d, f.name);
+      const w = sp.options?.[f.name];
+      check((v ?? undefined) === w, () => `paper ${sp.pid}: option ${f.name} is ${JSON.stringify(v)}, expected ${JSON.stringify(w)}`);
+    }
+  }
+
   // Roster: every PC person, with name; tags via the reviewer-tag review search.
   const pc = await client.pc();
   const roster = new Map(pc.pc.map((m) => [m.email.toLowerCase(), m]));
@@ -88,7 +104,9 @@ export async function verifyScenario(
     check(m !== undefined, () => `pc: ${p.email} missing from /pc`);
     if (m) check(m.name === `${p.first} ${p.last}`, () => `pc: ${p.email} has name "${m.name}", expected "${p.first} ${p.last}"`);
   }
-  const tags = [...new Set(scenario.people.flatMap((p) => p.tags ?? []))].sort();
+  // Only PC members' tags are visible this way (/pc lists no others; a non-PC
+  // user's tag, e.g. reserve-pool, can't be queried).
+  const tags = [...new Set(scenario.people.filter((p) => p.roles.includes("pc")).flatMap((p) => p.tags ?? []))].sort();
   const liveReviewers = new Set([...expected.reviews.values()].filter((r) => !r.removed).map((r) => r.email));
   for (const tag of tags) {
     const got = await reviewerEmailsWithTag(client, tag);
@@ -107,6 +125,13 @@ export async function verifyScenario(
   const wantAssign = new Set([...expected.reviews.values()].filter((r) => !r.removed).map((r) => `${r.pid}:${r.email}:${ACTION[r.role]}`));
   for (const a of wantAssign) check(gotAssign.has(a), () => `assignment ${a} missing`);
   for (const a of gotAssign) check(wantAssign.has(a), () => `unexpected assignment ${a}`);
+  // Review rounds (phase 2): HotCRP reports the round only for named rounds.
+  const roundOf = new Map(rows.map((r) => [`${r.paper}:${(r.email ?? "").toLowerCase()}`, r.round ?? ""]));
+  for (const a of scenario.assignments) {
+    if (a.round === undefined) continue;
+    const k = `${a.pid}:${a.email.toLowerCase()}`;
+    check(roundOf.get(k) === a.round, () => `assignment ${k}: round ${JSON.stringify(roundOf.get(k))}, expected ${a.round}`);
+  }
 
   // Reviews.
   const reviews = await client.reviewsForPids(pids, { t: "all" });
