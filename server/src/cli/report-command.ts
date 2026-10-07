@@ -38,7 +38,8 @@ export function describeReport(r: ProcessReport, fmt: (t: number) => string): st
   section(`depth (words; floor ${r.depth.minWords})`, r.depth.rows);
   section(`timeliness (review deadline ${fmt(r.timeliness.reviewDue)})`, r.timeliness.rows);
   section(`merit distribution (${r.merits.field})`, r.merits.rows);
-  section("review ratings", r.ratings.rows);
+  if (r.ratings.enabled) section("review-rating flags", r.ratings.rows);
+  else lines.push("", "[review-rating flags]", "  review ratings are off in HotCRP (review_rating = no); not shown");
   section("score agreement", r.agreement.rows);
   lines.push("", "[reserve activation and dropout]", `  ${r.reserve.reason}`);
   lines.push("", "[early-reject yield]", `  ${r.earlyReject.reason}`);

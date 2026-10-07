@@ -9,6 +9,7 @@ import { SearchActions } from "../components/Actions";
 import { Chip } from "../components/Chip";
 import { DataTable } from "../components/DataTable";
 import { AbsTime } from "../components/Time";
+import { formatRatings, NEGATIVE_FLAGS, pickRatings } from "@pcs/server/ratings";
 import { formatDays, percent, plural, ruleLabel, tierLabel } from "../format";
 import { Link, navigate } from "../router";
 import { triageForAc } from "./Acs";
@@ -20,6 +21,7 @@ const OUTLIER_TEXT: Readonly<Record<string, string>> = {
   unansweredPings: "Unanswered pings",
   late: "Reviews not submitted",
   thin: "Short or flagged reviews",
+  flagged: "Repeatedly flagged reviews",
 };
 
 function Flags({ p }: { p: PersonPaper }) {
@@ -30,6 +32,11 @@ function Flags({ p }: { p: PersonPaper }) {
       {f.unansweredPing ? <Chip tone="warn" testId="flag-ping">ping unanswered</Chip> : null}
       {f.outstanding ? <Chip tone="alert" testId="flag-outstanding">review not submitted</Chip> : null}
       {f.thin ? <Chip tone="info" testId="flag-thin">short review</Chip> : null}
+      {f.ratingFlagged && p.review?.ratings ? (
+        <Chip tone="info" testId="flag-rated" title="HotCRP review ratings on their review: raters per flag">
+          rated {formatRatings(pickRatings(p.review.ratings, NEGATIVE_FLAGS))}
+        </Chip>
+      ) : null}
     </span>
   );
 }
@@ -60,9 +67,19 @@ function Summary({ d }: { d: PersonResponse }) {
           <dd>
             median {r.depth.medianWords ?? "–"} words vs PC {r.depth.pcMedianWords ?? "–"}
             {r.depth.thin ? ` · ${r.depth.thin} under the word minimum` : ""}
-            {r.depth.ratedShort ? ` · ${r.depth.ratedShort} rated short` : ""}
-            {r.depth.ratedVague ? ` · ${r.depth.ratedVague} rated vague` : ""}
+            {r.depth.ratedThin ? ` · ${r.depth.ratedThin} flagged short/vague` : ""}
           </dd>
+          {r.ratings ? (
+            <>
+              <dt>Rating flags</dt>
+              <dd data-testid="sum-ratings">
+                {r.ratings.negative + r.ratings.good === 0
+                  ? "no rating flags on their reviews"
+                  : `${formatRatings(r.ratings.received) || "none"} received` +
+                    (r.ratings.negativePids.length ? ` · flags other than good on ${plural(r.ratings.negativePids.length, "paper")}` : "")}
+              </dd>
+            </>
+          ) : null}
           <dt>Movement</dt>
           <dd>{r.movement.reviews ? `score changes on ${r.movement.pids.map((p) => `#${p}`).join(", ")}` : "no score changes since discussion opened"}</dd>
         </>
@@ -136,7 +153,7 @@ export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
         size: 150,
         cell: (c) => (
           <span className="ellipsis" title={c.row.original.rules.map(ruleLabel).join(", ")}>
-            {c.row.original.decision ? <span className="muted">decided</span> : c.row.original.rules.map(ruleLabel).join(", ") || <span className="muted">none</span>}
+            {c.row.original.rules.map(ruleLabel).join(", ") || <span className="muted">{c.row.original.decision ? "decided" : "none"}</span>}
           </span>
         ),
       }),

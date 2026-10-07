@@ -79,7 +79,7 @@ export function registerPapers(app: FastifyInstance, deps: RouteDeps): void {
         merit: scoreNumber(r.scores[cfg.fields.merit]),
         expertise: scoreNumber(r.scores[cfg.fields.expertise]),
         wordCount: r.wordCount,
-        ratings: r.ratings,
+        ratings: view.analysis.evaluation.index.ratingsEnabled ? { ...r.ratings } : null,
         modifiedAt: ms(r.modifiedAt),
         submittedAt,
         approximate: r.firstSeenApprox,

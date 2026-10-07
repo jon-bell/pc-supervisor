@@ -13,6 +13,7 @@ import type {
   ReviewHistory,
   RqcResponse,
   SearchResponse,
+  RatingSettings,
   SettingsSfResponse,
 } from "../hotcrp/schemas.js";
 
@@ -40,6 +41,8 @@ export interface SyncSource {
   paperDetails?(q: string): Promise<Paper[]>;
   /** Submission fields (settings sf), to tell option keys from intrinsic ones (PLAN M10). */
   submissionFields?(): Promise<SettingsSfResponse>;
+  /** Review-rating settings (spec §1). Optional: without it the ratings stay "unknown" (treated as on). */
+  ratingSettings?(): Promise<RatingSettings>;
 }
 
 export function clientSource(client: HotcrpClient): SyncSource {
@@ -54,5 +57,6 @@ export function clientSource(client: HotcrpClient): SyncSource {
     reviewHistory: (pid, rid) => client.reviewHistory(pid, rid, { expand: true }),
     paperDetails: (q) => client.papers({ q, t: "all" }),
     submissionFields: () => client.submissionFields(),
+    ratingSettings: () => client.ratingSettings(),
   };
 }

@@ -44,6 +44,8 @@ export interface SnapshotIndex {
   bundles: readonly PaperBundle[];
   byPid: ReadonlyMap<number, PaperBundle>;
   people: ReadonlyMap<string, PersonView>;
+  /** SnapshotView.ratingsEnabled (default true). */
+  ratingsEnabled: boolean;
 }
 
 function groupByPid<T extends { pid: number }>(rows: readonly T[]): Map<number, T[]> {
@@ -76,7 +78,7 @@ export function indexSnapshot(s: SnapshotView): SnapshotIndex {
     bundles.push(b);
     byPid.set(paper.pid, b);
   }
-  return { bundles, byPid, people: new Map(s.people.map((p) => [p.email, p])) };
+  return { bundles, byPid, people: new Map(s.people.map((p) => [p.email, p])), ratingsEnabled: s.ratingsEnabled !== false };
 }
 
 export function isSubmitted(r: Pick<ReviewView, "status">): boolean {

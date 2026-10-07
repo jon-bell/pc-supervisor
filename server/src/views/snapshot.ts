@@ -15,8 +15,8 @@
 //   authors who posted a response), with their tier.
 // - ACs: Store.areaChairs(PCS_AC_ROLE), the same query the store exposes.
 // - Reviews: live rows. merit/expertise = scores[PCS_FIELD_MERIT] /
-//   scores[PCS_FIELD_EXPERTISE], numeric or null. ratedShort/ratedVague from
-//   the ratings JSON. versions = review_version rows, oldest first by
+//   scores[PCS_FIELD_EXPERTISE], numeric or null. ratings = the ratings JSON
+//   (raters per flag, migration 5), or {} when ratings are off. versions = review_version rows, oldest first by
 //   coalesce(modified_at, seen_at): HotCRP's own edit time when known, else
 //   when the sync first saw it. A history row with neither time sorts first
 //   and gets seenAt 0 ("long ago"), so it never counts as discussion-time
@@ -26,6 +26,8 @@
 //   existed (an edit overwrites HotCRP's modified_at; comment_text keeps the
 //   first one we saw). approximate = first_seen_approx. Mentions come from the
 //   comment's mentions JSON (the same set as comment_mention).
+// - ratingsEnabled: from the synced HotCRP settings (meta review_rating;
+//   Store.ratingSettings()). Off = rating signals hidden, not zero.
 // - excludeRounds (PLAN M11): reviewer reviews (not metareviews) in these
 //   review rounds are left out, so quick-reject reviews don't fill the review
 //   slots (PCS_QR_EXCLUDE_FROM_SLOTS). Round names compare case-insensitively.
@@ -42,6 +44,7 @@ import type {
   ReviewView,
   SnapshotView,
 } from "../rules/model.js";
+import { parseRatings } from "../ratings.js";
 import type { Store } from "../store/store.js";
 
 export interface SnapshotOptions {
@@ -122,6 +125,7 @@ export function buildSnapshot(store: Store, o: SnapshotOptions): SnapshotView {
 
   const acs: AcView[] = store.areaChairs(o.acRole, o.pids ? { pids: o.pids } : undefined);
 
+  const ratingsEnabled = store.ratingSettings().enabled;
   const rp = pidClause(o.pids, "r.pid");
   const versions = new Map<number, ReviewVersionView[]>();
   for (const v of all(
@@ -151,7 +155,6 @@ export function buildSnapshot(store: Store, o: SnapshotOptions): SnapshotView {
        from review r where r.deleted_seen_at is null${rp.sql}${xr.sql} order by r.pid, r.rid`,
     [path(o.fields.merit), path(o.fields.expertise), ...rp.args, ...xr.args],
   ).map((r) => {
-    const ratings = jsonList(r.ratings).map((x) => x.toLowerCase());
     return {
       rid: r.rid as number,
       pid: r.pid as number,
@@ -162,8 +165,7 @@ export function buildSnapshot(store: Store, o: SnapshotOptions): SnapshotView {
       merit: scoreNumber(r.merit),
       expertise: scoreNumber(r.expertise),
       wordCount: r.word_count as number,
-      ratedShort: ratings.includes("short"),
-      ratedVague: ratings.includes("vague"),
+      ratings: ratingsEnabled ? parseRatings(r.ratings) : {},
       modifiedAt: ms(r.modified_at),
       firstSeenAt: ms(r.first_seen_at)!,
       firstCompleteSeenAt: ms(r.first_complete_seen_at),
@@ -193,5 +195,5 @@ export function buildSnapshot(store: Store, o: SnapshotOptions): SnapshotView {
     approximate: r.first_seen_approx === 1,
   }));
 
-  return { papers, people, acs, reviews, comments };
+  return { papers, people, acs, reviews, comments, ratingsEnabled };
 }

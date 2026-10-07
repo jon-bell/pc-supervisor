@@ -32,6 +32,7 @@ export const RULE_WEIGHT_DEFAULTS = {
   LOW_EXPERTISE: 2,
   THIN_REVIEWS: 1,
   RESPONSE_UNADDRESSED: 2,
+  REVIEW_FLAGGED: 4,
   DEADLINE_NO_CONSENSUS: 3,
 } as const;
 export type RuleName = keyof typeof RULE_WEIGHT_DEFAULTS;
@@ -50,6 +51,10 @@ export const THRESHOLD_DEFAULTS = {
   MIN_WORDS: 150,
   /** Days before DECISIONS_DUE when DEADLINE_NO_CONSENSUS can fire. */
   DEADLINE_DAYS: 3,
+  /** Raters who must flag a review short (or vague) before THIN_REVIEWS counts it. */
+  RATING_RATERS: 2,
+  /** Papers on which a reviewer's reviews drew negative rating flags before they are "repeatedly flagged". */
+  FLAGGED_PAPERS: 2,
 } as const;
 export type ThresholdName = keyof typeof THRESHOLD_DEFAULTS;
 export const THRESHOLD_NAMES = Object.keys(THRESHOLD_DEFAULTS) as ThresholdName[];

@@ -63,14 +63,16 @@ export interface MeritRow extends Cell {
   reason: string;
 }
 
-/** Review-quality ratings (HotCRP /reviewrating names) on submitted reviews. */
+/** HotCRP review-rating flags received by submitted reviews (spec §10.4 G). */
 export interface RatingRow extends Cell {
   tier: string;
   reviews: number | null;
-  /** Reviews with at least one rating. */
+  /** Reviews with at least one rating flag. */
   rated: number | null;
-  /** Rating name -> reviews carrying it. */
+  /** Flag -> flags received (raters, summed over reviews). */
   counts: Record<string, number> | null;
+  /** Flag -> flags per submitted review (2 decimals). */
+  perReview: Record<string, number> | null;
   reason: string;
 }
 
@@ -180,7 +182,8 @@ export interface ProcessReport {
   depth: { minWords: number; rows: DepthRow[] };
   timeliness: { reviewDue: number; rows: TimelinessRow[] };
   merits: { field: string; acceptMin: number; rows: MeritRow[] };
-  ratings: { names: string[]; rows: RatingRow[] };
+  /** enabled false: HotCRP has review ratings off (no rows; hidden, not zero). */
+  ratings: { enabled: boolean; names: string[]; rows: RatingRow[] };
   agreement: { rows: AgreementRow[] };
   reserve: ReserveSection;
   earlyReject: EarlyRejectYield;

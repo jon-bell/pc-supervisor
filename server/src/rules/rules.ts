@@ -5,7 +5,10 @@
 //
 // Precise semantics (threshold comparisons in brackets):
 //
-// Applies to all rules: a paper with a decision fires nothing (evaluate.ts).
+// Applies to all rules but REVIEW_FLAGGED: a paper with a decision fires
+// nothing (evaluate.ts).
+// Ratings (ratings.ts) are raters per flag. When the instance has ratings off
+// (ctx.ratingsEnabled false), the rating clauses are skipped: hidden, not zero.
 //
 // MISSING_REVIEWS   after REVIEW_DUE [now > due], submitted reviewer
 //                   reviews < PCS_REVIEWS_REQUIRED.
@@ -30,16 +33,24 @@
 // LOW_EXPERTISE     after REVIEW_DUE, >= 1 submitted review with an expertise
 //                   score, and none >= EXPERTISE_OK_MIN.
 // THIN_REVIEWS      some submitted reviewer review has wordCount <
-//                   PCS_THRESH_MIN_WORDS or is rated short/vague. Any phase.
+//                   PCS_THRESH_MIN_WORDS, or its `short` count or its `vague`
+//                   count is >= PCS_THRESH_RATING_RATERS (each flag on its
+//                   own: 1 short + 1 vague is not enough). Any phase.
 // RESPONSE_UNADDRESSED discussion opened, a published author response
 //                   exists, and no reviewer (non-AC) has a published comment
 //                   after the LATEST response. AC comments don't count.
+// REVIEW_FLAGGED    some review on the paper (reviewer or AC, any status) has
+//                   a `disrespectful` or `wrong` rating (count >= 1). Any
+//                   phase, and decided papers too: a decision usually goes
+//                   out WITH the reviews, so a decided paper is exactly where
+//                   the chair must act before authors see it.
 // DEADLINE_NO_CONSENSUS days to DECISIONS_DUE < PCS_THRESH_DEADLINE_DAYS
 //                   (including overdue), and the paper is SPLIT or
 //                   SILENT_DISCUSSION.
 
 import type { RuleName } from "../config.js";
-import type { RuleContext } from "./context.js";
+import { formatRatings, pickRatings, ratingTotal, SEVERE_FLAGS, type RatingCounts } from "../ratings.js";
+import { ratingsOn, type RuleContext } from "./context.js";
 import type { PaperFacts } from "./facts.js";
 import { daysSince, daysToDecisions, discussionOpened, reviewsDuePassed } from "./phase.js";
 
@@ -151,6 +162,16 @@ export function lowExpertise(f: PaperFacts, ctx: RuleContext): string | null {
   return `expertise ${xs.join("/")}; none >= ${ctx.expertiseOkMin}`;
 }
 
+/** "review B" (or "review #rid" before HotCRP assigns an ordinal). */
+const reviewName = (r: { ordinal: string | null; rid: number }) => `review ${r.ordinal ?? `#${r.rid}`}`;
+
+/** The short/vague flags that reach PCS_THRESH_RATING_RATERS (zeros dropped); {} when ratings are off. */
+export function thinFlags(ratings: RatingCounts, ctx: RuleContext): RatingCounts {
+  if (!ratingsOn(ctx)) return {};
+  const min = ctx.thresholds.RATING_RATERS;
+  return pickRatings(ratings, (["short", "vague"] as const).filter((x) => (ratings[x] ?? 0) >= min));
+}
+
 export function thinReviews(f: PaperFacts, ctx: RuleContext): string | null {
   const min = ctx.thresholds.MIN_WORDS;
   const parts: string[] = [];
@@ -158,15 +179,28 @@ export function thinReviews(f: PaperFacts, ctx: RuleContext): string | null {
   for (const r of f.submitted) {
     const why: string[] = [];
     if (r.wordCount < min) why.push(`${r.wordCount} words`);
-    if (r.ratedShort) why.push("rated short");
-    if (r.ratedVague) why.push("rated vague");
+    const flags = formatRatings(thinFlags(r.ratings, ctx));
+    if (flags) why.push(flags);
     if (why.length > 0) {
       n++;
-      parts.push(`${r.ordinal ?? `#${r.rid}`}: ${why.join(", ")}`);
+      parts.push(`${reviewName(r)}: ${why.join(", ")}`);
     }
   }
   if (n === 0) return null;
-  return `${n} of ${plural(f.submitted.length, "review")} thin (min ${min} words): ${parts.join("; ")}`;
+  const bar = ratingsOn(ctx) ? `min ${min} words, or short/vague from ${ctx.thresholds.RATING_RATERS}+ raters` : `min ${min} words`;
+  return `${n} of ${plural(f.submitted.length, "review")} thin (${bar}): ${parts.join("; ")}`;
+}
+
+export function reviewFlagged(f: PaperFacts, ctx: RuleContext): string | null {
+  if (!ratingsOn(ctx)) return null;
+  const parts: string[] = [];
+  for (const r of f.bundle.reviews) {
+    if (ratingTotal(r.ratings, SEVERE_FLAGS) === 0) continue;
+    // Quote the review's other flags too: "1× short" next to "1× disrespectful" is context.
+    parts.push(`${reviewName(r)}${r.rtype === 5 || f.acSet.has(r.email) ? " (AC)" : ""}: ${formatRatings(r.ratings)}`);
+  }
+  if (parts.length === 0) return null;
+  return `${plural(parts.length, "review")} rated disrespectful or wrong: ${parts.join("; ")}`;
 }
 
 export function responseUnaddressed(f: PaperFacts, ctx: RuleContext): string | null {
@@ -200,5 +234,6 @@ export const RULES: Readonly<Record<RuleName, Rule>> = {
   LOW_EXPERTISE: lowExpertise,
   THIN_REVIEWS: thinReviews,
   RESPONSE_UNADDRESSED: responseUnaddressed,
+  REVIEW_FLAGGED: reviewFlagged,
   DEADLINE_NO_CONSENSUS: deadlineNoConsensus,
 };

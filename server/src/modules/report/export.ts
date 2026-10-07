@@ -13,10 +13,12 @@
 //
 // Times are days relative to REVIEW_DUE (1 decimal), never timestamps.
 
+import { NEGATIVE_FLAGS, ratingTotal } from "../../ratings.js";
 import type { ReviewFact } from "./compute.js";
 import { PAPER_ID_RE, PSEUDONYM_RE, type Pseudonymizer } from "./pseudonym.js";
 
-export const EXPORT_FORMAT = "pcs-baseline-1";
+// 2: rating columns are flag counts (review ratings are a multiset, spec §1).
+export const EXPORT_FORMAT = "pcs-baseline-2";
 export const OTHER_TIER = "other";
 const TOKEN_RE = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 
@@ -130,9 +132,10 @@ function reviewColumns(tiers: readonly string[]): Column[] {
     { name: "merit", type: { kind: "int" }, doc: "overall merit (PCS_FIELD_MERIT); empty if not submitted" },
     { name: "expertise", type: { kind: "int" }, doc: "reviewer expertise (PCS_FIELD_EXPERTISE)" },
     { name: "words", type: { kind: "int" }, doc: "words across the review's text fields" },
-    { name: "rated_short", type: { kind: "bool" }, doc: "rated short by someone (HotCRP review ratings)" },
-    { name: "rated_vague", type: { kind: "bool" }, doc: "rated vague" },
-    { name: "ratings", type: { kind: "int" }, doc: "number of distinct rating names on the review" },
+    { name: "rated_short", type: { kind: "int" }, doc: "raters who flagged it short (HotCRP review ratings)" },
+    { name: "rated_vague", type: { kind: "int" }, doc: "raters who flagged it vague" },
+    { name: "ratings", type: { kind: "int" }, doc: "rating flags on the review, all flags (each rater's flag counts once)" },
+    { name: "flags_negative", type: { kind: "int" }, doc: "rating flags other than good" },
     { name: "days_vs_due", type: { kind: "dec", digits: 1 }, doc: "first submission minus REVIEW_DUE, days; negative = early" },
     { name: "submitted_late", type: { kind: "bool" }, doc: "first submitted after REVIEW_DUE (replacements excluded)" },
     { name: "assigned_after_due", type: { kind: "bool" }, doc: "first seen after REVIEW_DUE (a replacement)" },
@@ -155,8 +158,10 @@ function reviewerColumns(tiers: readonly string[]): Column[] {
     { name: "median_words", type: { kind: "dec", digits: 1 }, doc: "median words over submitted reviews" },
     { name: "mean_abs_dev", type: { kind: "dec", digits: 2 }, doc: "mean abs_dev over their merits" },
     { name: "on_side_share", type: { kind: "dec", digits: 3 }, doc: "share of their merits on decided papers on the decision's side" },
-    { name: "rated_short", type: { kind: "int" }, doc: "reviews rated short" },
-    { name: "rated_vague", type: { kind: "int" }, doc: "reviews rated vague" },
+    { name: "rated_short", type: { kind: "int" }, doc: "reviews flagged short by at least one rater" },
+    { name: "rated_vague", type: { kind: "int" }, doc: "reviews flagged vague by at least one rater" },
+    { name: "flags_negative", type: { kind: "int" }, doc: "rating flags other than good, over their reviews" },
+    { name: "flags_good", type: { kind: "int" }, doc: "good flags, over their reviews" },
     { name: "comments", type: { kind: "int" }, doc: "published non-response comments on papers they review" },
     { name: "papers_commented", type: { kind: "int" }, doc: "papers they review with at least one such comment" },
   ];
@@ -192,9 +197,10 @@ export function buildExport(input: ExportInput, ps: Pseudonymizer): ExportFiles 
       f.merit,
       f.expertise,
       f.submitted ? f.words : null,
-      f.ratedShort,
-      f.ratedVague,
-      new Set(f.ratings).size,
+      f.ratings.short ?? 0,
+      f.ratings.vague ?? 0,
+      ratingTotal(f.ratings),
+      ratingTotal(f.ratings, NEGATIVE_FLAGS),
       f.daysVsDue,
       f.submitted ? f.late : null,
       f.assignedAfterDue,
@@ -229,8 +235,10 @@ export function buildExport(input: ExportInput, ps: Pseudonymizer): ExportFiles 
         medianOf(sub.map((f) => f.words)),
         devs.length ? devs.reduce((a, b) => a + b, 0) / devs.length : null,
         decided.length ? decided.filter((f) => f.onSide).length / decided.length : null,
-        fs.filter((f) => f.ratedShort).length,
-        fs.filter((f) => f.ratedVague).length,
+        fs.filter((f) => (f.ratings.short ?? 0) > 0).length,
+        fs.filter((f) => (f.ratings.vague ?? 0) > 0).length,
+        fs.reduce((n, f) => n + ratingTotal(f.ratings, NEGATIVE_FLAGS), 0),
+        fs.reduce((n, f) => n + (f.ratings.good ?? 0), 0),
         c.comments,
         c.papers,
       ];

@@ -62,21 +62,6 @@ export interface ReportOptions {
 
 type View = { analysis: Analysis; ctx: RuleContext };
 
-/** rid -> HotCRP rating names, for live reviews that have any (one indexed scan). */
-export function loadRatings(db: Db): Map<number, string[]> {
-  const out = new Map<number, string[]>();
-  for (const r of db.prepare("select rid, ratings from review where deleted_seen_at is null and ratings != '[]'").all() as { rid: number; ratings: string }[]) {
-    try {
-      const v = JSON.parse(r.ratings) as unknown;
-      const names = (Array.isArray(v) ? v : [v]).filter((x): x is string => typeof x === "string");
-      if (names.length > 0) out.set(r.rid, names);
-    } catch {
-      // The sync writes this column as JSON; a bad row has no ratings.
-    }
-  }
-  return out;
-}
-
 /** Per reviewer: published non-response comments on papers they review, and how many papers. */
 export function commentsByReviewer(index: SnapshotIndex, facts: readonly ReviewFact[]): Map<string, { comments: number; papers: number }> {
   const reviews = new Map<number, Set<string>>();
@@ -110,7 +95,6 @@ function factsFrom(view: View, store: Store, cfg: Pick<Config, "report">): Revie
   const s = settings(cfg);
   return reviewFacts(view.analysis.evaluation.index, view.ctx, {
     approxRids: loadStoreExtras(store.db).approxRids,
-    ratings: loadRatings(store.db),
     acceptDecisions: s.acceptDecisions,
   });
 }
@@ -132,7 +116,7 @@ export function processReportFrom(view: View, store: Store, cfg: Config, clock: 
   const invites = rowsAsOf(store.db, "invites", at);
   const dni = runAsOf(store.db, "do-not-invite", at);
   const minWords = ctx.thresholds.MIN_WORDS;
-  const ratings = ratingsByTier(facts, tiers, s.minCell);
+  const ratings = ratingsByTier(facts, tiers, s.minCell, index.ratingsEnabled);
   const papers = index.bundles.length;
   const sides = index.bundles.map((b) => b.paper.decision).filter((d): d is string => d !== null);
   const accepted = sides.filter((d) => s.acceptDecisions.some((p) => d.trim().toLowerCase().startsWith(p))).length;

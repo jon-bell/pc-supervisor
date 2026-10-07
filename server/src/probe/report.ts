@@ -108,6 +108,12 @@ export interface ProbeReport {
     wordCountNonNull: number;
   };
   form: FormField[];
+  /**
+   * Review ratings: HotCRP's `review_rating` (pc | all | no) and
+   * `review_rating_visibility` (limited | yes | no) settings, and how many
+   * reviews carry ratings, with flag counts (raters per flag, summed).
+   */
+  ratings?: { setting?: Safe; visibility?: Safe; reviewsRated?: number; flags?: Counts };
   history: { sampled: boolean; versions?: number; objects: Counts; ratingKeys: Safe[] };
   rateLimit: { headers: Safe[]; limit?: number; minRemaining?: number; responses: number; status429: number };
   warnings: Safe[];
@@ -337,6 +343,17 @@ function sections(r: ProbeReport): Section[] {
             return lines;
           }),
   });
+  if (r.ratings) {
+    const g = r.ratings;
+    s.push({
+      title: "Review ratings",
+      lines: [
+        `review_rating: ${g.setting ?? "?"}; review_rating_visibility: ${g.visibility ?? "?"}${g.setting === "no" ? " (ratings off: rating signals will be hidden)" : ""}`,
+        `Reviews carrying ratings: ${g.reviewsRated ?? "?"}${r.reviews ? ` of ${r.reviews.total}` : ""}`,
+        `Flags: ${g.flags && g.flags.length > 0 ? counts(g.flags) : "(none)"}`,
+      ],
+    });
+  }
   s.push({
     title: "Review history / rating sample",
     lines: r.history.sampled

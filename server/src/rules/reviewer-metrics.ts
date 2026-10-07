@@ -10,7 +10,14 @@
 //                 (all submitted reviewer reviews). `bottomDecile` counts their
 //                 reviews strictly below the PC's 10th percentile (nearest
 //                 rank); `thin` counts reviews under PCS_THRESH_MIN_WORDS;
-//                 `ratedShort` / `ratedVague` count rating flags.
+//                 `ratedThin` counts reviews whose `short` or `vague` count
+//                 reaches PCS_THRESH_RATING_RATERS (THIN_REVIEWS' bar).
+// - rating flags: HotCRP review ratings received (spec §5a, ratings.ts),
+//                 summed over their submitted reviewer reviews: `ratings` =
+//                 raters per flag; `negative` = flags other than `good`
+//                 (HotCRP's "bad" mask); `negativePids` = papers where a
+//                 review of theirs drew at least one negative flag. `ratings`
+//                 is null when the instance has ratings off (hidden, not zero).
 // - participation: once discussion opens, over their assigned papers: how
 //                 many have a published comment from them since DISCUSSION_OPEN.
 // - responsiveness: a ping is a published non-response comment by someone
@@ -34,17 +41,22 @@
 //   silentOnSplit  >= 1 silent split paper
 //   unansweredPings >= 1 ping older than PCS_THRESH_PING_DAYS
 //   late           >= 1 outstanding review after REVIEW_DUE
-//   thin           >= 1 review that is thin, rated short/vague, or in the
-//                  PC's bottom decile (count = such reviews)
+//   thin           >= 1 review that is thin, flagged short/vague by >=
+//                  PCS_THRESH_RATING_RATERS raters, or in the PC's bottom
+//                  decile (count = such reviews)
+//   flagged        negative rating flags on >= PCS_THRESH_FLAGGED_PAPERS
+//                  different papers ("repeatedly flagged": a coaching case;
+//                  count = such papers). Empty when ratings are off.
 // Within a list, entries are ordered by that count (so "who's furthest over
 // the bar" is first), then by email. Lists are split by tier.
 
-import type { RuleContext } from "./context.js";
-import type { Evaluation } from "./evaluate.js";
+import { addRatings, formatRatings, NEGATIVE_FLAGS, pickRatings, ratingTotal, type RatingCounts, type RatingFlag } from "../ratings.js";
+import { ratingsOn, type RuleContext } from "./context.js";
+import { withRatings, type Evaluation } from "./evaluate.js";
 import { isSubmitted, median, movesSince, percentile, type PaperFacts } from "./facts.js";
 import { DEFAULT_TIER, type Millis, type Tier } from "./model.js";
 import { DAY_MS, discussionOpened, reviewsDuePassed } from "./phase.js";
-import { splitOf } from "./rules.js";
+import { splitOf, thinFlags } from "./rules.js";
 
 export interface UnansweredPing {
   pid: number;
@@ -70,11 +82,25 @@ export interface ReviewerMetrics {
     pcMedianWords: number | null;
     bottomDecile: number;
     thin: number;
-    ratedShort: number;
-    ratedVague: number;
+    /** Reviews flagged short or vague by >= PCS_THRESH_RATING_RATERS raters. */
+    ratedThin: number;
     /** Papers with a thin, bottom-decile, or short/vague-rated review of theirs. */
     flaggedPids: readonly number[];
   };
+  /** Rating flags received (spec §5a); null when the instance has ratings off. */
+  ratings: {
+    /** Raters per flag, summed over their submitted reviews. */
+    received: RatingCounts;
+    /** Flags other than `good`. */
+    negative: number;
+    good: number;
+    /** Their reviews with at least one negative flag, by pid. */
+    flaggedReviews: readonly { pid: number; ordinal: string | null; ratings: RatingCounts }[];
+    /** Distinct papers in flaggedReviews. */
+    negativePids: readonly number[];
+    /** negativePids reaches PCS_THRESH_FLAGGED_PAPERS. */
+    repeated: boolean;
+  } | null;
   participation: { papers: number; commented: number; share: number | null };
   responsiveness: {
     medianDays: number | null;
@@ -118,7 +144,8 @@ function pingsOn(f: PaperFacts, email: string, ctx: RuleContext) {
   return { delays, open, episode };
 }
 
-export function computeReviewerMetrics(ev: Evaluation, ctx: RuleContext): ReviewerMetrics[] {
+export function computeReviewerMetrics(ev: Evaluation, base: RuleContext): ReviewerMetrics[] {
+  const ctx = withRatings(base, ev.index.ratingsEnabled);
   const opened = discussionOpened(ctx.phases, ctx.now);
   const roles = new Map<string, PaperRole[]>();
   const allWords: number[] = [];
@@ -152,9 +179,10 @@ export function computeReviewerMetrics(ev: Evaluation, ctx: RuleContext): Review
     let submitted = 0;
     let bottomDecile = 0;
     let thin = 0;
-    let ratedShort = 0;
-    let ratedVague = 0;
+    let ratedThin = 0;
     let commented = 0;
+    const received: Partial<Record<RatingFlag, number>> = {};
+    const flaggedReviews: { pid: number; ordinal: string | null; ratings: RatingCounts }[] = [];
 
     for (const { f, split } of papers) {
       let movedHere = false;
@@ -168,9 +196,11 @@ export function computeReviewerMetrics(ev: Evaluation, ctx: RuleContext): Review
           const short = r.wordCount < ctx.thresholds.MIN_WORDS;
           if (low) bottomDecile++;
           if (short) thin++;
-          if (r.ratedShort) ratedShort++;
-          if (r.ratedVague) ratedVague++;
-          if (low || short || r.ratedShort || r.ratedVague) thinPids.push(f.pid);
+          const rated = ratingTotal(thinFlags(r.ratings, ctx)) > 0;
+          if (rated) ratedThin++;
+          if (low || short || rated) thinPids.push(f.pid);
+          addRatings(received, r.ratings);
+          if (ratingTotal(r.ratings, NEGATIVE_FLAGS) > 0) flaggedReviews.push({ pid: f.pid, ordinal: r.ordinal, ratings: r.ratings });
         } else {
           outstanding.push(f.pid);
         }
@@ -196,7 +226,8 @@ export function computeReviewerMetrics(ev: Evaluation, ctx: RuleContext): Review
       submitted,
       outstanding,
       late: outstanding.length > 0 && reviewsDuePassed(ctx.phases, ctx.now),
-      depth: { medianWords: median(words), pcMedianWords: pcMedian, bottomDecile, thin, ratedShort, ratedVague, flaggedPids: thinPids },
+      depth: { medianWords: median(words), pcMedianWords: pcMedian, bottomDecile, thin, ratedThin, flaggedPids: thinPids },
+      ratings: ratingsOn(ctx) ? ratingSummary(received, flaggedReviews, ctx) : null,
       participation: {
         papers: opened ? papers.length : 0,
         commented,
@@ -210,10 +241,26 @@ export function computeReviewerMetrics(ev: Evaluation, ctx: RuleContext): Review
   return out.sort((x, y) => x.email.localeCompare(y.email));
 }
 
+function ratingSummary(
+  received: RatingCounts,
+  flaggedReviews: { pid: number; ordinal: string | null; ratings: RatingCounts }[],
+  ctx: RuleContext,
+): NonNullable<ReviewerMetrics["ratings"]> {
+  const negativePids = [...new Set(flaggedReviews.map((x) => x.pid))];
+  return {
+    received: pickRatings(received, Object.keys(received) as RatingFlag[]),
+    negative: ratingTotal(received, NEGATIVE_FLAGS),
+    good: received.good ?? 0,
+    flaggedReviews,
+    negativePids,
+    repeated: negativePids.length >= ctx.thresholds.FLAGGED_PAPERS,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Outlier lists
 
-export type OutlierList = "silentOnSplit" | "unansweredPings" | "late" | "thin";
+export type OutlierList = "silentOnSplit" | "unansweredPings" | "late" | "thin" | "flagged";
 
 export interface OutlierEntry {
   email: string;
@@ -257,15 +304,24 @@ function entryFor(list: OutlierList, m: ReviewerMetrics): Omit<OutlierEntry, "em
       const parts = [
         ...(d.thin > 0 ? [`${d.thin} under the word minimum`] : []),
         ...(d.bottomDecile > 0 ? [`${d.bottomDecile} in the PC's bottom decile`] : []),
-        ...(d.ratedShort > 0 ? [`${d.ratedShort} rated short`] : []),
-        ...(d.ratedVague > 0 ? [`${d.ratedVague} rated vague`] : []),
+        ...(d.ratedThin > 0 ? [`${d.ratedThin} flagged short/vague`] : []),
       ];
       return { count: n, pids: d.flaggedPids, detail: `${parts.join(", ")}; median ${d.medianWords} words vs PC ${d.pcMedianWords}` };
+    }
+    case "flagged": {
+      const r = m.ratings;
+      if (!r || !r.repeated) return null;
+      const n = r.negativePids.length;
+      return {
+        count: n,
+        pids: r.negativePids,
+        detail: `negative rating flags on ${plural(n, "paper")}: ${formatRatings(pickRatings(r.received, NEGATIVE_FLAGS))}${r.good > 0 ? `; ${r.good}× good` : ""}`,
+      };
     }
   }
 }
 
-export const OUTLIER_LISTS: readonly OutlierList[] = ["silentOnSplit", "unansweredPings", "late", "thin"];
+export const OUTLIER_LISTS: readonly OutlierList[] = ["silentOnSplit", "unansweredPings", "late", "thin", "flagged"];
 
 export function computeOutliers(metrics: readonly ReviewerMetrics[]): Outliers {
   const out = Object.fromEntries(OUTLIER_LISTS.map((l) => [l, {}])) as Outliers;

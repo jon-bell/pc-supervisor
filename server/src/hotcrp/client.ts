@@ -30,6 +30,8 @@ import {
   PcSchema,
   paperRoleRowsSchema,
   ReviewHistorySchema,
+  RatingSettingsSchema,
+  RATING_SETTINGS_FILTER,
   ReviewRatingSchema,
   ReviewsSchema,
   RqcSchema,
@@ -325,6 +327,11 @@ export class HotcrpClient {
   /** All paper objects for `pids`, in pid-range chunks with bounded concurrency. */
   papersForPids(pids: Iterable<number>, opts: { t?: SearchScope } = {}): Promise<Paper[]> {
     return this.chunked(pids, (q) => this.papers({ q, ...opts }));
+  }
+
+  /** GET /settings: the review-rating settings (who may rate, who sees ratings). */
+  ratingSettings() {
+    return this.call({ path: "settings", params: { filter: RATING_SETTINGS_FILTER }, schema: RatingSettingsSchema });
   }
 
   /** GET /settings?filter=sf: submission fields; configured options have numeric ids. */

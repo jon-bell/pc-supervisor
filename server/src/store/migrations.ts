@@ -326,6 +326,30 @@ export const MIGRATIONS: readonly string[] = [
   ) strict, without rowid;
   create index paper_option_name on paper_option(name, pid);
   `,
+
+  // 5: review ratings (spec §1, §3; server/src/ratings.ts). review.ratings
+  // becomes counts per flag ({"short":2,"vague":1}) instead of HotCRP's flag
+  // list. Ratings change with no vtag change and no timestamp, so the sync
+  // diffs them and logs each observed change here. before = null: the
+  // review's ratings at first sight (the review was new to the store).
+  // seen_at = the sync's clock time (PCS_NOW applies).
+  `
+  update review set ratings = coalesce(
+    (select json_group_object(f, n) from (select value as f, count(*) as n from json_each(review.ratings) group by value)),
+    '{}')
+  where json_valid(ratings) and json_type(ratings) = 'array';
+  update review set ratings = '{}' where not json_valid(ratings) or json_type(ratings) != 'object';
+
+  create table rating_change (
+    id integer primary key,
+    rid integer not null,
+    seen_at integer not null,
+    before text,
+    after text not null,
+    sync_run_id integer
+  ) strict;
+  create index rating_change_rid on rating_change(rid, seen_at);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

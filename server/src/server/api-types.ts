@@ -40,6 +40,11 @@ export interface MetaResponse {
   /** Tier names in use: "senior" plus PCS_TIER_TAGS tiers. */
   tiers: string[];
   fields: { merit: string; expertise: string };
+  /**
+   * HotCRP review ratings (spec §1) as last synced. When `enabled` is false
+   * the instance has ratings off: rating signals are hidden, not zero.
+   */
+  ratings: { enabled: boolean; setting: string | null; visibility: string | null; flags: string[] };
 }
 
 export interface TriageRow {
@@ -94,7 +99,8 @@ export interface ReviewDetail {
   merit: number | null;
   expertise: number | null;
   wordCount: number;
-  ratings: string[];
+  /** Raters per rating flag ({ short: 2 }); null when ratings are off. */
+  ratings: Record<string, number> | null;
   modifiedAt: number | null;
   /** When the review was first seen submitted (first complete version), if ever. */
   submittedAt: number | null;
@@ -200,7 +206,7 @@ export interface AcsResponse {
   acs: AcRow[];
 }
 
-export type OutlierListId = "silentOnSplit" | "unansweredPings" | "late" | "thin";
+export type OutlierListId = "silentOnSplit" | "unansweredPings" | "late" | "thin" | "flagged";
 
 export interface OutlierEntry {
   person: Person;
@@ -225,6 +231,7 @@ export interface ReviewersResponse {
   /** People with at least one non-AC review assignment. */
   reviewers: number;
   tiers: string[];
+  /** The lists, in order. "flagged" (rating flags) is left out when ratings are off. */
   lists: OutlierList[];
 }
 
@@ -242,6 +249,8 @@ export interface PersonPaper {
     merit: number | null;
     expertise: number | null;
     wordCount: number;
+    /** Raters per rating flag on this review; null when ratings are off. */
+    ratings: Record<string, number> | null;
   } | null;
   /** All submitted reviewer merits on the paper, for context. */
   merits: number[];
@@ -253,7 +262,7 @@ export interface PersonPaper {
   rules: string[];
   severity: number;
   /** Their own flags on this paper. */
-  flags: { silentOnSplit: boolean; outstanding: boolean; thin: boolean; unansweredPing: boolean };
+  flags: { silentOnSplit: boolean; outstanding: boolean; thin: boolean; unansweredPing: boolean; ratingFlagged: boolean };
 }
 
 export interface OpenPing {
@@ -277,9 +286,20 @@ export interface PersonReviewerSummary {
     pcMedianWords: number | null;
     thin: number;
     bottomDecile: number;
-    ratedShort: number;
-    ratedVague: number;
+    /** Reviews flagged short or vague by >= PCS_THRESH_RATING_RATERS raters. */
+    ratedThin: number;
   };
+  /** Rating flags received over their reviews (spec §5a); null when ratings are off. */
+  ratings: {
+    received: Record<string, number>;
+    /** Flags other than `good`. */
+    negative: number;
+    good: number;
+    /** Papers where a review of theirs drew a negative flag. */
+    negativePids: number[];
+    /** On the "repeatedly flagged" list (PCS_THRESH_FLAGGED_PAPERS). */
+    repeated: boolean;
+  } | null;
   participation: { papers: number; commented: number; share: number | null };
   responsiveness: { medianDays: number | null; answered: number };
   movement: { reviews: number; pids: number[] };

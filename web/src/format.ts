@@ -70,6 +70,7 @@ export const RULE_LABELS: Readonly<Record<string, string>> = {
   LOW_EXPERTISE: "Low expertise",
   THIN_REVIEWS: "Thin reviews",
   RESPONSE_UNADDRESSED: "Response not discussed",
+  REVIEW_FLAGGED: "Flagged review",
   DEADLINE_NO_CONSENSUS: "Deadline, no consensus",
 };
 

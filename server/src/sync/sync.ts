@@ -15,6 +15,13 @@
 //      Reviewers the cover missed (new since the last sync, and not on the PC)
 //      get the tag queries on one of their own papers afterwards.
 //   4. Mark absent reviews/comments deleted. Write sync_run counts. COMMIT.
+//
+// Review ratings (spec §1, ratings.ts) come with /reviews as a flag multiset
+// and are stored as counts per flag. They change with no vtag change and no
+// timestamp, so each sync compares them with the stored counts and logs every
+// difference in rating_change (before -> after, seen_at = now). Unchanged
+// ratings write nothing, so a re-sync is idempotent. The rating settings
+// (GET /settings) are kept in `meta` (review_rating, review_rating_visibility).
 // On any error: ROLLBACK, and the sync_run row records the error.
 //
 // Times: `now` comes from the injected Clock (PCS_NOW). Items new after the
@@ -25,6 +32,7 @@ import { systemClock, type Clock } from "../clock.js";
 import type { AcRole, TierTags } from "../config.js";
 import { pidChunks, pidListChunks, type PidChunk } from "../hotcrp/chunk.js";
 import { reviewField, type Comment, type Review, type RqcField } from "../hotcrp/schemas.js";
+import { countRatings, parseRatings, ratingsJson } from "../ratings.js";
 import { redact } from "../redact.js";
 import type { Db } from "../store/db.js";
 import { mentionRoster, parseMentions, textHash, wordCount, type MentionRoster } from "./text.js";
@@ -225,6 +233,7 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
       source.reviewForm(),
     ]);
     const sf = source.submissionFields ? (await source.submissionFields()).settings.sf : undefined;
+    const ratingSettings = source.ratingSettings ? (await source.ratingSettings()).settings : undefined;
     const pids = search.ids;
     const chunks = pidChunks(pids, opts.chunkSize);
     log(`fetched roster (${pc.pc.length}), papers (${pids.length}), assignments (${assignRows.length})`);
@@ -277,6 +286,12 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
       db.prepare("select 1 from sync_run where kind = 'sync' and ok = 1 limit 1").get() === undefined;
     const approx = firstSync ? 1 : 0;
 
+    if (ratingSettings) {
+      const setMeta = db.prepare("insert into meta (key, value) values (?, ?) on conflict(key) do update set value = excluded.value");
+      setMeta.run("review_rating", ratingSettings.review_rating);
+      setMeta.run("review_rating_visibility", ratingSettings.review_rating_visibility);
+    }
+
     const fields = Object.values(form.reviewform);
     syncFields(db, fields, now, counts);
     const textUids = fields.filter((f) => TEXT_FIELD_TYPES.has(f.type)).map((f) => f.uid);
@@ -295,7 +310,7 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
     const onCover = new Set<string>(); // reviewers with a review on a covering paper
     const elsewhere = new Map<string, number>(); // the others: email -> one of their pids
     for await (const rs of ahead(chunks, (c) => source.reviews(c.q), opts.concurrency)) {
-      applyReviews(db, rv, rs, { now, firstSync, runId, textUids, scoreUids }, counts);
+      applyReviews(rv, rs, { now, firstSync, runId, textUids, scoreUids }, counts);
       counts.add("reviews_fetched", rs.length);
       if (tags.length === 0) continue;
       for (const r of rs) {
@@ -674,6 +689,7 @@ function reviewStatements(db: Db) {
     ),
     text: db.prepare("insert or ignore into review_text (rid, vtag, field_uid, text) values (?, ?, ?, ?)"),
     seen: db.prepare("insert or ignore into temp.seen_rid (rid) values (?)"),
+    ratingChange: db.prepare("insert into rating_change (rid, seen_at, before, after, sync_run_id) values (?, ?, ?, ?, ?)"),
     person: db.prepare("insert or ignore into person (email, is_pc, first_seen_at) values (?, 0, ?)"),
   };
 }
@@ -702,10 +718,10 @@ export function reviewParts(r: Review, textUids: readonly string[], scoreUids: r
       words += wordCount(v);
     }
   }
-  return { scores: json(scores), texts, words, ratings: json(asList(r.ratings)) };
+  return { scores: json(scores), texts, words, ratings: ratingsJson(countRatings(r.ratings)) };
 }
 
-function applyReviews(db: Db, st: ReturnType<typeof reviewStatements>, rs: Review[], ctx: ReviewCtx, counts: Counter) {
+function applyReviews(st: ReturnType<typeof reviewStatements>, rs: Review[], ctx: ReviewCtx, counts: Counter) {
   if (rs.length === 0) return;
   let lo = Infinity;
   let hi = -Infinity;
@@ -758,7 +774,19 @@ function applyReviews(db: Db, st: ReturnType<typeof reviewStatements>, rs: Revie
       );
       counts.add("reviews_new");
       addVersion();
+      if (ratings !== "{}") {
+        st.ratingChange.run(r.rid, ctx.now, null, ratings, ctx.runId);
+        counts.add("rating_changes");
+      }
       continue;
+    }
+
+    // Compare canonical forms, so a row migrated from the flag-list form
+    // (migration 5) doesn't count as a change.
+    const prevRatings = ratingsJson(parseRatings(prev.ratings));
+    if (prevRatings !== ratings) {
+      st.ratingChange.run(r.rid, ctx.now, prevRatings, ratings, ctx.runId);
+      counts.add("rating_changes");
     }
 
     if (vtag !== null && vtag !== prev.vtag) addVersion();

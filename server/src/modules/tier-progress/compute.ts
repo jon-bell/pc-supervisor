@@ -39,7 +39,10 @@
 //
 // Coaching queue: submitted reviews by PCS_COACH_TIERS reviewers with fewer
 // than PCS_COACH_MIN_WORDS (default PCS_THRESH_MIN_WORDS) words, or rated
-// short or vague. Sorted by pid, then email.
+// short or vague by at least one rater (evidence for a human, so a lower bar
+// than THIN_REVIEWS' PCS_THRESH_RATING_RATERS; reasons quote the counts).
+// Sorted by pid, then email. "Rated short/vague" in the accountability rows
+// counts reviews with at least one such flag.
 //
 // Withhold draft (PCS_POLICY_WITHHOLD_REVIEWS): for each reserve reviewer with
 // a late review (any escalation state, replaced included: the review is still
@@ -51,6 +54,7 @@
 // comments by the tier's reviewers on papers they review, up to now (useful
 // before discussion opens).
 
+import { formatRatings, THIN_FLAGS } from "../../ratings.js";
 import type { TierProgressPolicy } from "../../config.js";
 import type { RuleContext } from "../../rules/context.js";
 import { isSubmitted, type SnapshotIndex } from "../../rules/facts.js";
@@ -223,11 +227,13 @@ export function computeTierProgress(input: TierProgressInput, ctx: RuleContext, 
 
       if (coach.has(tier) && submitted) {
         const underFloor = r.wordCount < policy.coachMinWords;
-        if (underFloor || r.ratedShort || r.ratedVague) {
+        const ratedShort = (r.ratings.short ?? 0) > 0;
+        const ratedVague = (r.ratings.vague ?? 0) > 0;
+        if (underFloor || ratedShort || ratedVague) {
+          const flags = formatRatings(r.ratings, THIN_FLAGS);
           const why = [
             ...(underFloor ? [`${r.wordCount} words, under the coaching floor of ${policy.coachMinWords}`] : [`${r.wordCount} words`]),
-            ...(r.ratedShort ? ["rated short"] : []),
-            ...(r.ratedVague ? ["rated vague"] : []),
+            ...(flags ? [`rated ${flags}`] : []),
           ];
           coaching.push({
             pid: b.paper.pid,
@@ -236,8 +242,8 @@ export function computeTierProgress(input: TierProgressInput, ctx: RuleContext, 
             person: person(r.email),
             words: r.wordCount,
             underFloor,
-            ratedShort: r.ratedShort,
-            ratedVague: r.ratedVague,
+            ratedShort,
+            ratedVague,
             reason: why.join("; "),
             hotcrpPath: hotcrpReviewPath(r),
           });
@@ -296,8 +302,8 @@ export function computeTierProgress(input: TierProgressInput, ctx: RuleContext, 
       lateOutstanding: lateNow.length,
       submittedLate: subLate.length,
       thin: thin.length,
-      ratedShort: fs.filter((f) => f.r.ratedShort).length,
-      ratedVague: fs.filter((f) => f.r.ratedVague).length,
+      ratedShort: fs.filter((f) => (f.r.ratings.short ?? 0) > 0).length,
+      ratedVague: fs.filter((f) => (f.r.ratings.vague ?? 0) > 0).length,
       reviewPids: fs.map((f) => f.r.pid),
       latePids: [...lateNow, ...subLate].map((f) => f.r.pid).sort((a, b) => a - b),
       thinPids: thin.map((f) => f.r.pid),

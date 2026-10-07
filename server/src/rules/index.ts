@@ -13,7 +13,7 @@ export * from "./burndown.js";
 import type { RuleContext } from "./context.js";
 import { computeAcMetrics, type AcMetrics } from "./ac-metrics.js";
 import { computeBurndown, type BurndownPoint } from "./burndown.js";
-import { evaluateAll, type Evaluation } from "./evaluate.js";
+import { evaluateAll, withRatings, type Evaluation } from "./evaluate.js";
 import type { SnapshotView } from "./model.js";
 import { phaseAt, type PhaseName } from "./phase.js";
 import { computeOutliers, computeReviewerMetrics, type Outliers, type ReviewerMetrics } from "./reviewer-metrics.js";
@@ -28,7 +28,8 @@ export interface Analysis {
 }
 
 /** Everything the UI needs, in one O(rows) pass family. */
-export function analyze(snapshot: SnapshotView, ctx: RuleContext): Analysis {
+export function analyze(snapshot: SnapshotView, base: RuleContext): Analysis {
+  const ctx = withRatings(base, snapshot.ratingsEnabled !== false);
   const evaluation = evaluateAll(snapshot, ctx);
   const reviewers = computeReviewerMetrics(evaluation, ctx);
   return {
