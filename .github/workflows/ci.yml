@@ -68,29 +68,33 @@ jobs:
         run: scripts/harness-smoke.sh
 
       - uses: actions/setup-node@v4
-        if: hashFiles('package.json') != ''
         with:
           node-version: 22
           cache: npm
 
       - name: Install
-        if: hashFiles('package.json') != ''
         run: npm ci
 
       - name: Lint + typecheck
-        if: hashFiles('package.json') != ''
         run: npm run lint && npm run typecheck
 
       - name: Unit tests
-        if: hashFiles('package.json') != ''
         run: npm run test:unit
 
       - name: Contract + integration tests (against harness)
-        if: hashFiles('package.json') != ''
         run: set -a && . ./.env.test && set +a && npm run test:integration
 
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
       - name: Playwright E2E
-        if: hashFiles('package.json') != ''
         run: |
           npx playwright install --with-deps chromium
           set -a && . ./.env.test && set +a && npm run test:e2e
@@ -122,6 +126,11 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scale)
     runs-on: ripley-cloud-large
     timeout-minutes: 45
+    env:
+      # Perf budgets run against the pinned HotCRP, never master: a slow or
+      # broken master would read as our regression. The ci job covers master.
+      # Keep in sync with the workflow-level HOTCRP_REF and hotcrp/Dockerfile.
+      HOTCRP_REF: ${{ inputs.hotcrp_ref || '60f693f88b9a0ef9e34b11af957a513f1c122690' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -144,9 +153,20 @@ jobs:
           cache: npm
 
       - name: Install
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
+        run: npm ci
+
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
 
       - name: Scale scenario
         run: set -a && . ./.env.test && set +a && npm run test:scale

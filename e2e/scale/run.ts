@@ -198,7 +198,8 @@ async function main(): Promise<number> {
   } else {
     const t0 = performance.now();
     await seedScenario(scale, { reset: true, log });
-    record("Seed `scale`", sec(performance.now() - t0));
+    const seedMs = performance.now() - t0;
+    record("Seed `scale`", sec(seedMs), under(seedMs, BUDGET.seedMs, sec));
   }
 
   // ---- syncs --------------------------------------------------------------

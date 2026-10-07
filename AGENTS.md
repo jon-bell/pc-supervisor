@@ -41,7 +41,16 @@ npm run test:integration
 npm run test:e2e
 ```
 
-To try the UI against seeded data, run `npm run seed -- shadow`, then `npm run dev`.
+To try the UI against seeded data (see README "Running the app locally"):
+
+```bash
+set -a; . ./.env.test; set +a                 # harness URL + token, plus the PCS_PHASE_* dates from ci.yml
+export PCS_DB_PATH=$PWD/data/dev.db PCS_DB_KEY=dev-only PCS_NOW=2030-02-26T12:00 \
+  PCS_TIER_TAGS=junior=junior,reciprocal=reciprocal
+npm run seed -- shadow --reset
+npm run pcs -- sync && npm run pcs -- backfill
+npm run dev                                   # http://127.0.0.1:5173/
+```
 
 ## HotCRP harness gotchas (already solved; don't re-learn them)
 
@@ -54,7 +63,7 @@ To try the UI against seeded data, run `npm run seed -- shadow`, then `npm run d
 
 ## Bumping HotCRP
 
-Change `HOTCRP_REF` in `hotcrp/Dockerfile`, `hotcrp/compose.yaml`, and `.github/workflows/ci.yml` together. Run the contract tests. The nightly job already runs against `master` to warn early.
+Change `HOTCRP_REF` in `hotcrp/Dockerfile`, `hotcrp/compose.yaml`, and `.github/workflows/ci.yml` (the workflow-level `env` and the `scale` job's `env`) together. Run the contract tests. The nightly job already runs against `master` to warn early.
 
 ## PR checklist
 

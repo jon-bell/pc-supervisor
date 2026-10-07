@@ -19,7 +19,7 @@ let rid1: number;
 
 beforeAll(async () => {
   client = harnessClient();
-  seed = new MiniSeed();
+  seed = await MiniSeed.create();
   tag = `ct${seed.run}`;
   seed.openReviewing();
   seed.saveUsers([

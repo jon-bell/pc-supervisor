@@ -5,6 +5,8 @@
 export const SCALE_PORT = 5328;
 
 export const BUDGET = {
+  /** `seed reset` + `seed scale` on a fresh harness (PLAN M2: under 15 minutes). */
+  seedMs: 15 * 60_000,
   /** Full sync into an empty store, against the harness. */
   fullSyncMs: 5 * 60_000,
   /** Re-sync with nothing changed in HotCRP. */

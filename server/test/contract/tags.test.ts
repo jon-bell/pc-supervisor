@@ -1,11 +1,12 @@
 // Contract test for the one write path (PLAN M8): tag changes through
 // POST /assign, dry run first. Harness only (harnessClient re-checks the
-// guard). Uses its own tag so it can't disturb other tests' data, and clears
-// it again at the end.
+// guard). Uses its own tag on its own fresh paper (MiniSeed), so it can't
+// disturb other tests' data and needs none, and clears the tag at the end.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { HotcrpClient } from "../../src/hotcrp/client.js";
 import { HotcrpError } from "../../src/hotcrp/errors.js";
 import { harnessClient } from "../support/harness.js";
+import { MiniSeed } from "../support/mini-seed.js";
 
 const TAG = "pcs-contract-m8";
 
@@ -22,9 +23,9 @@ async function tagged(): Promise<number[]> {
 
 beforeAll(async () => {
   client = harnessClient();
-  const res = await client.search({ t: "all" });
-  expect(res.ids.length).toBeGreaterThan(0);
-  pid = res.ids[0]!;
+  const seed = await MiniSeed.create();
+  pid = await seed.nextPid();
+  seed.savePapers([{ pid, title: `Tag contract paper ${seed.run}` }]);
   await client.assignTags([{ pid, op: "remove" }], TAG, { dryRun: false, allowWrites: true });
 });
 

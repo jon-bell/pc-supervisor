@@ -25,7 +25,7 @@ let pid: number;
 
 beforeAll(async () => {
   client = harnessClient();
-  seed = new MiniSeed();
+  seed = await MiniSeed.create();
   seed.php("batch/settings.php", [
     "save",
     "-e",

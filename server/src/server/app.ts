@@ -76,6 +76,29 @@ export const ROUTES: readonly RegisterRoutes[] = [
   registerReport,
 ];
 
+export interface RouteInfo {
+  method: string;
+  /** Fastify pattern, e.g. "/api/papers/:pid". */
+  url: string;
+}
+
+/**
+ * Every route ROUTES registers, without serving anything (for tests that must
+ * cover every route, e.g. e2e/specs/security.spec.ts). Sorted by URL.
+ */
+export async function listRoutes(o: Pick<AppOptions, "cfg" | "store" | "clock">): Promise<RouteInfo[]> {
+  const app = Fastify({ logger: false });
+  const out: RouteInfo[] = [];
+  app.addHook("onRoute", (r) => {
+    for (const method of [r.method].flat()) if (method !== "HEAD") out.push({ method, url: r.url });
+  });
+  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis: new AnalysisSource(o.store, o.cfg, o.clock), sync: undefined, ruleNames: RULE_NAMES };
+  for (const register of ROUTES) register(app, deps);
+  await app.ready();
+  await app.close();
+  return out.sort((a, b) => a.url.localeCompare(b.url) || a.method.localeCompare(b.method));
+}
+
 export const CSP = [
   "default-src 'self'",
   "script-src 'self'",

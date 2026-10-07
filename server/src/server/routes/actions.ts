@@ -5,8 +5,9 @@
 //                                 single-use token for the exact diff
 //   POST /api/tags/commit         the confirmed write (see actions/tagging.ts),
 //                                 then a re-sync so the tags show
-// The tag routes refuse a cross-origin Origin header (on top of the
-// loopback-Host check), and HotCRP errors come back redacted.
+// The tag routes refuse any Origin header but this server's own (loopback
+// name + PCS_PORT), or the Vite dev server's under PCS_DEV, on top of the
+// loopback-Host check; HotCRP errors come back redacted.
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { nudgeDraft } from "../../actions/nudge.js";
@@ -16,10 +17,18 @@ import { redact } from "../../redact.js";
 import type { ActionsInfo, NudgeResponse, TagCommitResponse, TagPaper, TagPreviewResponse } from "../action-types.js";
 import { personOf, type RouteDeps } from "../app.js";
 
-const LOOPBACK_ORIGIN = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i;
+/** The Vite dev server's port (web/vite.config.ts server.port). */
+export const VITE_DEV_PORT = 5173;
+
+/** Origins allowed to change tags: this server's, plus the Vite dev server's when `dev`. */
+export function allowedOrigins(port: number, dev: boolean): ReadonlySet<string> {
+  const ports = dev ? [port, VITE_DEV_PORT] : [port];
+  return new Set(ports.flatMap((p) => ["127.0.0.1", "localhost", "[::1]"].map((h) => `http://${h}:${p}`)));
+}
 
 export function registerActions(app: FastifyInstance, deps: RouteDeps): void {
   const token = deps.cfg.hotcrp.token;
+  const origins = allowedOrigins(deps.cfg.port, deps.cfg.dev ?? false);
 
   app.get("/api/actions", async (): Promise<ActionsInfo> => ({
     attentionTag: deps.cfg.attentionTag,
@@ -41,7 +50,7 @@ export function registerActions(app: FastifyInstance, deps: RouteDeps): void {
 
   const guard = (req: FastifyRequest, reply: FastifyReply): boolean => {
     const origin = req.headers.origin;
-    if (origin !== undefined && !LOOPBACK_ORIGIN.test(origin)) {
+    if (origin !== undefined && !origins.has(origin.toLowerCase())) {
       void reply.code(403).send({ error: "cross-origin requests may not change tags" });
       return false;
     }

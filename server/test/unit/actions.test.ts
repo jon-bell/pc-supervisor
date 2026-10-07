@@ -13,6 +13,7 @@ import type { TagChange, TagDiff } from "../../src/hotcrp/tag-assign.js";
 import { analyze } from "../../src/rules/index.js";
 import type { ActionsInfo, NudgeResponse, TagCommitResponse, TagPreviewResponse } from "../../src/server/action-types.js";
 import { buildApp, type App } from "../../src/server/app.js";
+import { allowedOrigins } from "../../src/server/routes/actions.js";
 import { SyncRunner } from "../../src/server/sync-runner.js";
 import { memoryStore, type Store } from "../../src/store/store.js";
 import { runSync } from "../../src/sync/sync.js";
@@ -365,10 +366,28 @@ describe("tag routes", () => {
     const r = await post("/api/tags/preview", { add: [1] }, { origin: "https://evil.example" });
     expect(r.statusCode).toBe(403);
     expect((await post("/api/tags/preview", { add: [3] }, { origin: "http://127.0.0.1:5317" })).statusCode).toBe(200);
+    expect((await post("/api/tags/preview", { add: [3] }, { origin: "http://localhost:5317" })).statusCode).toBe(200);
+    // Another loopback port (some other local page) is cross-origin too, as is the Vite port outside PCS_DEV.
+    for (const origin of ["http://127.0.0.1:8000", "http://127.0.0.1:5173", "https://127.0.0.1:5317", "http://127.0.0.1"]) {
+      expect((await post("/api/tags/preview", { add: [3] }, { origin })).statusCode, origin).toBe(403);
+    }
     const bare = await buildApp({ cfg, store, clock: fixedClock(cfg.now!), webDir: null });
     expect((await bare.app.inject({ method: "POST", url: "/api/tags/preview", payload: { add: [1] } })).statusCode).toBe(503);
     expect((await bare.app.inject({ method: "GET", url: "/api/actions" })).json()).toMatchObject({ taggingAvailable: false });
     await bare.app.close();
+  });
+
+  it("accepts the Vite dev origin only under PCS_DEV", async () => {
+    expect([...allowedOrigins(5317, false)]).toEqual(["http://127.0.0.1:5317", "http://localhost:5317", "http://[::1]:5317"]);
+    expect(allowedOrigins(5317, true).has("http://127.0.0.1:5173")).toBe(true);
+    expect(loadConfig({ ...RULES_ENV, PCS_DEV: "true" }).dev).toBe(true);
+    expect(loadConfig(RULES_ENV).dev).toBe(false);
+    const dev = await buildApp({ cfg: { ...cfg, dev: true }, store, clock: fixedClock(cfg.now!), webDir: null });
+    const r = await dev.app.inject({ method: "POST", url: "/api/tags/preview", payload: { add: [1] }, headers: { origin: "http://127.0.0.1:5173" } });
+    expect(r.statusCode).toBe(503); // past the Origin check; this app has no tag flow
+    const other = await dev.app.inject({ method: "POST", url: "/api/tags/preview", payload: { add: [1] }, headers: { origin: "http://127.0.0.1:5174" } });
+    expect(other.statusCode).toBe(403);
+    await dev.app.close();
   });
 
   it("GET /api/papers/:pid/nudge returns a draft with @mentions", async () => {

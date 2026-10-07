@@ -5,6 +5,7 @@
 
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { checkPublishedPort, harnessProject } from "@pcs/server/hotcrp/harness-guard";
 
 export const REPO_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 export const COMPOSE_FILE = fileURLToPath(new URL("../../hotcrp/compose.yaml", import.meta.url));
@@ -18,7 +19,7 @@ export interface DockerOptions {
 
 export function dockerOptionsFromEnv(env: Readonly<Record<string, string | undefined>> = process.env): DockerOptions {
   return {
-    project: env.HOTCRP_COMPOSE_PROJECT || env.COMPOSE_PROJECT_NAME || "pcs",
+    project: harnessProject(env),
     dbName: env.HOTCRP_DB_NAME || "hotcrp",
   };
 }
@@ -109,12 +110,7 @@ export async function checkHarnessMatchesUrl(h: Harness, url: string): Promise<v
       `can't find the harness's compose project "${h.opts.project}" (set HOTCRP_COMPOSE_PROJECT, as .env.test does): ${(e as Error).message}`,
     );
   }
-  const u = new URL(url);
-  const port = u.port || (u.protocol === "https:" ? "443" : "80");
-  const m = /:(\d+)$/.exec(addr);
-  if (!m || m[1] !== port) {
-    throw new DockerError(`compose project "${h.opts.project}" publishes ${addr || "(nothing)"}, but PCS_HOTCRP_URL is ${u.host}`);
-  }
+  checkPublishedPort(addr, url, h.opts.project);
 }
 
 /** SQL string literal (MariaDB, default sql_mode). */

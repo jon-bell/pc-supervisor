@@ -1,7 +1,8 @@
 // API contract tests: every schema in src/hotcrp/schemas.ts against the live
-// harness (HotCRP @ HOTCRP_REF; nightly against master). They assume only what
-// scripts/harness-smoke.sh guarantees: >= 1 submitted paper with a
-// metareviewer, >= 2 complete primary reviews, and >= 1 comment.
+// harness (HotCRP @ HOTCRP_REF; nightly against master). They need >= 1
+// submitted paper with a metareviewer, >= 2 complete primary reviews, and >= 1
+// comment, which beforeAll seeds itself (MiniSeed.seedSmokeShape, a fresh
+// pid), so the file passes in any order with the suites that reset the harness.
 //
 // Run: set -a; . ./.env.test; set +a; npm run test:integration
 
@@ -10,6 +11,7 @@ import { HotcrpClient } from "../../src/hotcrp/client.js";
 import { HotcrpError } from "../../src/hotcrp/errors.js";
 import { reviewField, SearchSchema, type Comment, type Review, type RqcResponse } from "../../src/hotcrp/schemas.js";
 import { harnessClient } from "../support/harness.js";
+import { MiniSeed } from "../support/mini-seed.js";
 
 const SEARCH_FIELDS = ["title", "status", "decision", "tags", "lead", "shepherd", "manager", "reviewers", "revstat"];
 
@@ -21,6 +23,7 @@ let form: RqcResponse;
 
 beforeAll(async () => {
   client = harnessClient();
+  await (await MiniSeed.create()).seedSmokeShape();
   const res = await client.search({ t: "all" });
   pids = res.ids;
   [reviews, comments, form] = await Promise.all([
@@ -28,7 +31,7 @@ beforeAll(async () => {
     client.comments({ q: "all" }),
     client.reviewForm(),
   ]);
-});
+}, 120_000);
 
 describe("account and roster", () => {
   it("whoami: the harness token is a chair/sysadmin", async () => {

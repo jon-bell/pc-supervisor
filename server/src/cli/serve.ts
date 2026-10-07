@@ -62,6 +62,7 @@ export const SERVE_COMMAND: Command = {
         out(describeSync(r, clock));
         for (const e of r.errors) err(`  ${r.ok ? "warning" : "error"}: ${e}`);
       },
+      [cfg.hotcrp.token],
     );
     const webDir = defaultWebDir();
     const { app } = await buildApp({ cfg, store, clock, sync, tagFlow, webDir });

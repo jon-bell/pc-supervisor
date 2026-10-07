@@ -1,12 +1,13 @@
 // Runs once before any spec (after the webServer is up: Playwright starts
-// webServers first). Refuses unless PCS_HOTCRP_URL is the local harness
-// (AGENTS.md rule 2) and checks the server is serving the pinned golden state.
-import { assertHarnessUrl } from "@pcs/server/hotcrp/harness-guard";
+// webServers first). Refuses unless PCS_HOTCRP_URL is the local, disposable
+// harness (AGENTS.md rule 2; harness-verify.ts) and checks the server is
+// serving the pinned golden state.
+import { verifyHarness } from "@pcs/server/hotcrp/harness-verify";
 import type { MetaResponse, SyncStatus } from "@pcs/server/server/api-types";
 import { E2E_PORT } from "./env.js";
 
 export default async function globalSetup(): Promise<void> {
-  const url = assertHarnessUrl();
+  const url = await verifyHarness();
   if (process.env.ARGOS_TOKEN && !process.env.CI) throw new Error("ARGOS_TOKEN is set outside CI; refusing to upload screenshots");
   const base = `http://127.0.0.1:${E2E_PORT}`;
   const meta = (await (await fetch(`${base}/api/meta`)).json()) as MetaResponse;

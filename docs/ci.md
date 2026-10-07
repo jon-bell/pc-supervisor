@@ -72,9 +72,9 @@ Don't do either until build time actually hurts.
 
 | Job | Trigger | Runs |
 |---|---|---|
-| `ci` | push, PR | harness up → API smoke → (once `package.json` exists) lint, typecheck, unit, contract, seed `golden`, integration, Playwright → artifacts on failure → teardown |
+| `ci` | push, PR | harness up → API smoke → lint, typecheck, unit, contract + integration (each file seeds its own data), Playwright (its webServer seeds `golden`) → artifacts on failure → teardown |
 | `ci` (nightly) | schedule + manual | the same suite against `HOTCRP_REF=master` (an early warning when upstream changes the API) |
-| `scale` | schedule, or manual dispatch with `scale: true` | `ripley-cloud-large`, its own fresh harness: `npm run test:scale` (PLAN M7). Seeds `scale`, times a full sync and a no-change re-sync, times the analyze()-backed API endpoints cold and warm, then runs the Playwright perf spec (`e2e/scale/perf.spec.ts`: render, filter, scripted scroll). Budgets live in `e2e/scale/budgets.ts` and are assertions. The timings, HotCRP traffic, and DB size are printed and written to the job summary. |
+| `scale` | schedule, or manual dispatch with `scale: true` | `ripley-cloud-large`, its own fresh harness on the pinned `HOTCRP_REF` (never `master`, so a slow upstream can't read as our regression): `npm run test:scale` (PLAN M7). Seeds `scale`, times a full sync and a no-change re-sync, times the analyze()-backed API endpoints cold and warm, then runs the Playwright perf spec (`e2e/scale/perf.spec.ts`: render, filter, scripted scroll). Budgets live in `e2e/scale/budgets.ts` and are assertions. The timings, HotCRP traffic, and DB size are printed and written to the job summary. |
 
 ### Scale job notes
 

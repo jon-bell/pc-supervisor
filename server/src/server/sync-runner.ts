@@ -9,10 +9,15 @@ export class SyncRunner {
   #current: Promise<SyncResult> | undefined;
   #lastError: string | null = null;
 
-  /** `run` performs one sync (runSync with the server's store and source). Errors must already be redacted. */
+  /**
+   * `run` performs one sync (runSync with the server's store and source). Its
+   * result's errors must already be redacted; a thrown error is redacted here
+   * with `secrets` (pass [cfg.hotcrp.token]).
+   */
   constructor(
     private readonly run: () => Promise<SyncResult>,
     private readonly onDone: (r: SyncResult) => void = () => undefined,
+    private readonly secrets: readonly string[] = [],
   ) {}
 
   get running(): boolean {
@@ -43,7 +48,7 @@ export class SyncRunner {
     this.#current = p;
     // Failures are recorded above; don't leave an unhandled rejection behind.
     p.catch((e: unknown) => {
-      this.#lastError = redact(e instanceof Error ? e.message : String(e));
+      this.#lastError = redact(e instanceof Error ? e.message : String(e), this.secrets);
     });
     return true;
   }
