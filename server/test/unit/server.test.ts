@@ -231,3 +231,20 @@ describe("the token never reaches the client", () => {
     await leaky.app.close();
   });
 });
+
+describe("SyncRunner", () => {
+  it("redacts the secrets it was given from a thrown error", async () => {
+    const secret = "plain-secret-value";
+    const runner = new SyncRunner(
+      async () => {
+        throw new Error(`fetch failed for ${secret}`);
+      },
+      undefined,
+      [secret],
+    );
+    runner.start();
+    await runner.current?.catch(() => undefined);
+    await new Promise((r) => setImmediate(r));
+    expect(runner.lastError).toBe("fetch failed for [REDACTED]");
+  });
+});
