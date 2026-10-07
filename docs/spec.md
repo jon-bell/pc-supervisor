@@ -155,6 +155,8 @@ Windows are relative to the phase-date env vars. Every threshold has an env over
 
 The view is an outlier list plus a person page (every paper, their score, their last comment, open pings).
 
+Precise definitions are in the header of `server/src/rules/reviewer-metrics.ts`. Notable choices: a ping is an `@mention` of the reviewer or any AC comment on their paper; pings that arrive before the reviewer replies merge into one episode. "Bottom decile" means strictly below the PC's 10th-percentile word count. Outlier lists use absolute bars (≥ 1 silent split paper, ≥ 1 unanswered ping, ≥ 1 late review, ≥ 1 thin/flagged review), never a rank cutoff, and are grouped by tier.
+
 ### 5b. Area chair activity (per AC)
 
 | Signal | Definition |
@@ -168,6 +170,8 @@ The view is an outlier list plus a person page (every paper, their score, their 
 
 The view is one row per AC (activity sparkline, coverage, stale, flagged). Clicking a row filters the triage list.
 
+Precise definitions are in the header of `server/src/rules/ac-metrics.ts`. Coverage and time to first post count only comments at or after `DISCUSSION_OPEN`. The sparkline buckets the AC's comments per 24 h from `DISCUSSION_OPEN`.
+
 ### 5c. Paper risk
 
 Each rule fires with a reason string. Severity is the sum of weights. Sort by severity, then by time to `DECISIONS_DUE`.
@@ -180,11 +184,24 @@ Each rule fires with a reason string. Severity is the sum of weights. Sort by se
 | `SILENT_DISCUSSION` | in discussion, 0 comments since `DISCUSSION_OPEN` | 3 |
 | `GONE_QUIET` | last activity older than `PCS_THRESH_STALE_DAYS`, no decision | 2 |
 | `AC_ABSENT` | no AC comment since `DISCUSSION_OPEN` | 2 |
-| `CHAMPION_MISSING` | the top merit is ≥ `MERIT_ACCEPT_MIN`, and that reviewer hasn't commented | 1 |
+| `CHAMPION_MISSING` | the top merit is ≥ `MERIT_ACCEPT_MIN`, and no reviewer holding it has commented since `DISCUSSION_OPEN` | 1 |
 | `LOW_EXPERTISE` | no review with expertise ≥ `EXPERTISE_OK_MIN` | 2 |
 | `THIN_REVIEWS` | a review under `PCS_THRESH_MIN_WORDS`, or rated short/vague | 1 |
 | `RESPONSE_UNADDRESSED` | an author response exists, with no reviewer comment after it | 2 |
 | `DEADLINE_NO_CONSENSUS` | < `PCS_THRESH_DEADLINE_DAYS` (3) to `DECISIONS_DUE`, no decision, and split or silent | +3 |
+
+Clarifications (the precise semantics, with every threshold comparison, are in the header of `server/src/rules/rules.ts`):
+
+- "Reviewer" means a non-AC review on the paper; "complete" means status `delivered`, `approved`, or `complete`. Merits and expertise come from submitted reviewer reviews only.
+- **A paper with a decision fires nothing.** Undecided means HotCRP's decision is unset/"undecided".
+- Thresholds named "older than" / "under" are strict (`>` / `<`); `SPLIT_RANGE` is inclusive (`≥`).
+- Phase gates: `MISSING_REVIEWS` and `LOW_EXPERTISE` only after `REVIEW_DUE`; the discussion rules (`UNRESOLVED_SPLIT`, `SILENT_DISCUSSION`, `GONE_QUIET`, `AC_ABSENT`, `CHAMPION_MISSING`, `RESPONSE_UNADDRESSED`) only once `DISCUSSION_OPEN` has passed; `SPLIT` and `THIN_REVIEWS` in any phase.
+- "Comments" are published (non-draft) comments; author responses are not comments for `SILENT_DISCUSSION`, and not activity for `GONE_QUIET`.
+- **Movement** is a merit change between consecutive observed versions where the later one was seen at or after `DISCUSSION_OPEN`.
+- **Last activity** is the latest review `modified_at` (falling back to `first_complete_seen_at`), AC reviews included, or published non-response comment, AC comments included. `GONE_QUIET` measures quiet time from `max(last activity, DISCUSSION_OPEN)`.
+- `RESPONSE_UNADDRESSED` looks for a reviewer comment strictly after the **latest** response.
+- `DEADLINE_NO_CONSENSUS` keeps firing once `DECISIONS_DUE` has passed; "silent" means the `SILENT_DISCUSSION` condition.
+- With one global `DECISIONS_DUE`, the secondary sort key ties for every paper, so ties fall through to pid.
 
 Views:
 
