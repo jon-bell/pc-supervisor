@@ -1,0 +1,208 @@
+// The scenario format (spec §9.3, PLAN M2). A scenario is plain typed data:
+// people, papers, assignments, and one or more stages of timeline events.
+// Every time is symbolic (`When`): a day offset from a named phase date. The
+// driver resolves them against PCS_PHASE_* / PCS_TZ at seed time, so no date
+// is ever hard-coded in a scenario.
+//
+// All names and emails are invented; emails are @example.org (AGENTS.md).
+
+/** Phase dates a `When` can be relative to (config.ts Phases). */
+export const PHASE_NAMES = [
+  "reviewDue",
+  "responseOpen",
+  "responseClose",
+  "discussionOpen",
+  "discussionClose",
+  "decisionsDue",
+] as const;
+export type PhaseName = (typeof PHASE_NAMES)[number];
+
+/**
+ * A point in time: the phase's local calendar date plus `day` days, at local
+ * time `time` ("HH:MM", in PCS_TZ). Without `time`, the phase's own local
+ * time of day is kept. `day` may be negative.
+ */
+export interface When {
+  phase: PhaseName;
+  day: number;
+  time?: string;
+}
+
+/** Shorthand: at("discussionOpen", 3, "10:00"). */
+export function at(phase: PhaseName, day: number, time?: string): When {
+  return time === undefined ? { phase, day } : { phase, day, time };
+}
+
+export type Role = "pc" | "chair";
+
+export interface Person {
+  email: string;
+  first: string;
+  last: string;
+  affiliation?: string;
+  /** PC roles. Omit (or []) for a person who is only an author. */
+  roles: readonly Role[];
+  /** HotCRP user tags, e.g. ["junior"]. */
+  tags?: readonly string[];
+}
+
+export interface Author {
+  email: string;
+  first: string;
+  last: string;
+  affiliation?: string;
+}
+
+export interface Paper {
+  pid: number;
+  title: string;
+  /** Default: generated filler. */
+  abstract?: string;
+  authors: readonly Author[];
+}
+
+/** HotCRP assignment actions (batch/assign.php). metareview = area chair. */
+export type AssignRole = "metareview" | "primary" | "secondary" | "pcreview";
+
+export interface Assignment {
+  pid: number;
+  email: string;
+  role: AssignRole;
+  /** When the review was requested. Default: DEFAULT_REQUESTED_AT. */
+  requestedAt?: When;
+}
+
+/** Score fields by review-form UID, e.g. { OveMer: 3, RevExp: 4 }. */
+export type Scores = Readonly<Record<string, number>>;
+
+/** A review is submitted. Text is generated filler of exactly `words` words. */
+export interface ReviewEvent {
+  type: "review";
+  at: When;
+  pid: number;
+  email: string;
+  scores: Scores;
+  /** Total words across the review's text fields (PapSum + ComAut). */
+  words: number;
+}
+
+/** An already-submitted review changes its scores (HotCRP keeps the old version in history). */
+export interface ScoreChangeEvent {
+  type: "scoreChange";
+  at: When;
+  pid: number;
+  email: string;
+  scores: Scores;
+}
+
+export type Visibility = "rev" | "pc" | "admin";
+
+export interface CommentEvent {
+  type: "comment";
+  at: When;
+  /** Scenario-unique id, so later events (edit/delete) can name this comment. */
+  key: string;
+  pid: number;
+  email: string;
+  /** Emails of people @mentioned (written as "@First Last" at the start of the text). */
+  mentions?: readonly string[];
+  /** Filler words after the mentions. Default 40. */
+  words?: number;
+  visibility?: Visibility;
+}
+
+export interface CommentEditEvent {
+  type: "commentEdit";
+  at: When;
+  key: string;
+  /** New filler word count; the edit keeps the original mentions. Default 50. */
+  words?: number;
+}
+
+export interface CommentDeleteEvent {
+  type: "commentDelete";
+  at: When;
+  key: string;
+}
+
+/** An author response (response round 1), posted as the author contact. */
+export interface ResponseEvent {
+  type: "response";
+  at: When;
+  key: string;
+  pid: number;
+  /** Must be one of the paper's authors. */
+  email: string;
+  words?: number;
+}
+
+/** Decision name from HotCRP's default set ("Accepted", "Rejected"). */
+export interface DecisionEvent {
+  type: "decision";
+  at: When;
+  pid: number;
+  decision: string;
+}
+
+/** Remove a review assignment (batch/assign.php clearreview). Use on unsubmitted reviews. */
+export interface UnassignEvent {
+  type: "unassign";
+  at: When;
+  pid: number;
+  email: string;
+}
+
+export type ScenarioEvent =
+  | ReviewEvent
+  | ScoreChangeEvent
+  | CommentEvent
+  | CommentEditEvent
+  | CommentDeleteEvent
+  | ResponseEvent
+  | DecisionEvent
+  | UnassignEvent;
+
+export interface Stage {
+  name: string;
+  /** The PCS_NOW this stage's state is meant to be observed at (informational; printed by the CLI). */
+  now?: When;
+  events: readonly ScenarioEvent[];
+}
+
+export interface Scenario {
+  name: string;
+  description: string;
+  people: readonly Person[];
+  papers: readonly Paper[];
+  /** Created in stage 1, before any event. */
+  assignments: readonly Assignment[];
+  /** At least one. Multi-stage scenarios are seeded with --stage 1, then --stage 2, ... */
+  stages: readonly Stage[];
+  /** Score fields every review must carry (default ["OveMer", "RevExp"]). */
+  scoreFields?: readonly string[];
+}
+
+/** Review requests default to four weeks before the review deadline. */
+export const DEFAULT_REQUESTED_AT: When = at("reviewDue", -28, "09:00");
+/** Papers are marked submitted six weeks before the review deadline. */
+export const PAPER_SUBMITTED_AT: When = at("reviewDue", -42, "12:00");
+
+/** The text fields reviews are written into, and how words are split between them. */
+export const REVIEW_TEXT_FIELDS = ["PapSum", "ComAut"] as const;
+
+/** The object an event acts on; events on one object must be strictly ordered in time. */
+export function objectKey(e: ScenarioEvent): string {
+  switch (e.type) {
+    case "review":
+    case "scoreChange":
+    case "unassign":
+      return `review:${e.pid}:${e.email.toLowerCase()}`;
+    case "comment":
+    case "commentEdit":
+    case "commentDelete":
+    case "response":
+      return `comment:${e.key}`;
+    case "decision":
+      return `decision:${e.pid}`;
+  }
+}

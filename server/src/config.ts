@@ -396,6 +396,39 @@ export function loadClockConfig(env: Env = process.env): { now: Date | undefined
   return { tz, now: values.PCS_NOW ? zonedTimeToInstant(values.PCS_NOW, tz) : undefined };
 }
 
+const PHASE_FIELDS = [
+  "PCS_TZ",
+  "PCS_PHASE_REVIEW_DUE",
+  "PCS_PHASE_RESPONSE_OPEN",
+  "PCS_PHASE_RESPONSE_CLOSE",
+  "PCS_PHASE_DISCUSSION_OPEN",
+  "PCS_PHASE_DISCUSSION_CLOSE",
+  "PCS_PHASE_DECISIONS_DUE",
+] as const satisfies readonly FieldName[];
+
+/**
+ * Only PCS_TZ and the PCS_PHASE_* dates, for tools (the seeder) that place
+ * events relative to phase dates but don't need a DB or token. Same parsing
+ * as loadConfig; the cross-field ordering checks are loadConfig's job.
+ */
+export function loadPhaseConfig(env: Env = process.env): { tz: string; phases: Phases } {
+  const { values: v, problems } = parseFields(env, PHASE_FIELDS);
+  if (problems.length > 0) throw new ConfigError(problems);
+  const tz = v.PCS_TZ!;
+  const at = (t: LocalDateTime | undefined): Date | undefined => (t ? zonedTimeToInstant(t, tz) : undefined);
+  return {
+    tz,
+    phases: {
+      reviewDue: at(v.PCS_PHASE_REVIEW_DUE)!,
+      responseOpen: at(v.PCS_PHASE_RESPONSE_OPEN),
+      responseClose: at(v.PCS_PHASE_RESPONSE_CLOSE),
+      discussionOpen: at(v.PCS_PHASE_DISCUSSION_OPEN)!,
+      discussionClose: at(v.PCS_PHASE_DISCUSSION_CLOSE)!,
+      decisionsDue: at(v.PCS_PHASE_DECISIONS_DUE)!,
+    },
+  };
+}
+
 export interface LoadOptions {
   /** Home directory for the default DB path (tests). */
   home?: string;

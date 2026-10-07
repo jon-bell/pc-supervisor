@@ -54,7 +54,9 @@ describe("search", () => {
     expect(res.papers?.map((p) => p.pid)).toEqual(res.ids);
     const first = res.papers![0]!;
     expect(typeof first.title).toBe("string");
-    expect(first.revstat).toMatch(/^\d+\/\d+$/);
+    // "done/total" while reviews are outstanding, just "N" once all are done
+    // (seen on the seeded golden scenario).
+    expect(first.revstat).toMatch(/^\d+(\/\d+)?$/);
     // `manager` is reported under the key `administrator`.
     expect(res.fields?.map((f) => f.name)).toContain("administrator");
     expect(res.fields?.map((f) => f.name)).not.toContain("manager");
