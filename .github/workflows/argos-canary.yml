@@ -1,0 +1,46 @@
+name: Argos canary
+
+# Manual check that Argos visual uploads work from this repo (tokenless via
+# the Argos GitHub App, or ARGOS_TOKEN if set). Screenshots are of the
+# synthetic HotCRP harness only.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  COMPOSE_PROJECT_NAME: pcs-argos-${{ github.run_id }}-${{ github.run_attempt }}
+  HOTCRP_PORT: "8080"
+
+jobs:
+  argos-canary:
+    runs-on: ripley-cloud
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install docker compose plugin
+        run: |
+          if ! docker compose version >/dev/null 2>&1; then
+            mkdir -p ~/.docker/cli-plugins
+            curl -fsSL -o ~/.docker/cli-plugins/docker-compose \
+              https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-x86_64
+            chmod +x ~/.docker/cli-plugins/docker-compose
+          fi
+      - name: Start HotCRP harness
+        run: scripts/hotcrp-up.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Screenshot + upload to Argos
+        working-directory: e2e/argos-canary
+        env:
+          ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          set -a && . ../../.env.test && set +a
+          npx playwright test
+      - name: Tear down harness
+        if: always()
+        run: docker compose -f hotcrp/compose.yaml down -v --remove-orphans || true

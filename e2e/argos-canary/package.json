@@ -1,0 +1,10 @@
+{
+  "name": "argos-canary",
+  "private": true,
+  "description": "Standalone canary: proves Argos uploads work from this repo's CI. Superseded by the real e2e/ suite (PLAN M5) but kept for debugging Argos auth.",
+  "scripts": { "test": "playwright test" },
+  "devDependencies": {
+    "@argos-ci/playwright": "7.7.1",
+    "@playwright/test": "1.63.0"
+  }
+}
