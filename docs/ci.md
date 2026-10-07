@@ -21,6 +21,10 @@ GitHub ──► ARC listener (arc-runners-jon-bell) ──► ephemeral runner 
 | C. A long-lived HotCRP on Ripley k8s, reset per run by DB restore | Faster per run, but shared state means concurrent PRs collide. It's also ops we'd have to keep alive. **Use it only for exploration and scale demos** (a seeded `scale` instance a human can click around), never for per-PR CI. |
 | D. A hosted hotcrp.com test instance | No way to reset, seed with batch scripts, or warp time. Rejected. |
 
+## Runner gotcha
+
+The stock ARC runner image (`ghcr.io/actions/actions-runner`) has the docker CLI but **not** the compose v2 plugin. `ci.yml` installs a pinned plugin (v2.39.4) into `~/.docker/cli-plugins` before the harness starts.
+
 ## Runner labels
 
 - `ripley-cloud`: the default for the `ci` job (dind; 4 CPU / 8 Gi limit).
@@ -29,7 +33,7 @@ GitHub ──► ARC listener (arc-runners-jon-bell) ──► ephemeral runner 
 
 ## One-time setup (Jon)
 
-1. **Register scale sets for this repo.** On a personal account, ARC scale sets are per repository: `githubConfigUrl` is a repo URL, as in `arc-runners-jon-bell-slopcoder`, `…-teleport-contest`, etc. So no existing `ripley-cloud` set will pick up `jon-bell/pc-supervisor` jobs; they queue forever. To add this repo's sets, clone slopcoder's:
+1. **Done 2026-10-07** (k8s repo `485205e`, `apps/arc/install-jonbell-pc-supervisor.sh`; App access granted). Kept for reference: **register scale sets for this repo.** On a personal account, ARC scale sets are per repository: `githubConfigUrl` is a repo URL, as in `arc-runners-jon-bell-slopcoder`, `…-teleport-contest`, etc. So no existing `ripley-cloud` set will pick up `jon-bell/pc-supervisor` jobs; they queue forever. To add this repo's sets, clone slopcoder's:
 
    ```bash
    export KUBECONFIG=~/work/k8s/talos/kube/kubeconfig
