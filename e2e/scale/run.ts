@@ -303,7 +303,7 @@ async function main(): Promise<number> {
     record("Triage render (navigation → rows painted)", `${msf(p.renderMs)} (${p.renderRows} rows, ${mib(p.triageBytes)} JSON; ${msf(p.renderAfterDataMs)} after data)`, under(p.renderMs, BUDGET.renderMs));
     for (const f of p.filters) record(`Triage filter: ${f.name}`, `${msf(f.ms)} (${f.rows} rows)`, under(f.ms, BUDGET.filterMs));
     const s = p.scroll;
-    record("Scroll: frame interval p95", `${s.p95FrameMs.toFixed(1)} ms (p50 ${s.p50FrameMs.toFixed(1)}, max ${s.maxFrameMs.toFixed(1)}; ${s.frames} frames over ${s.px} px)`, under(s.p95FrameMs, BUDGET.scrollP95FrameMs, (n) => `${n} ms`));
+    record("Scroll: frame interval p95", `${s.p95FrameMs.toFixed(1)} ms (p50 ${s.p50FrameMs.toFixed(1)}, max ${s.maxFrameMs.toFixed(1)}; ${s.frames} frames over ${s.px} px; passes' p95 ${s.passesP95Ms.map((x) => x.toFixed(1)).join("/")} ms)`, under(s.p95FrameMs, BUDGET.scrollP95FrameMs, (n) => `${n} ms`));
     record("Scroll: longest long task", `${msf(s.maxLongTaskMs)} (${s.longTasks} long tasks)`, under(s.maxLongTaskMs, BUDGET.scrollMaxLongTaskMs));
     if (code !== 0) failures.push(`Playwright perf spec exited ${code}`);
   }

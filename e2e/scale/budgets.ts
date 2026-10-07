@@ -17,7 +17,7 @@ export const BUDGET = {
   renderMs: 300,
   /** Triage list: filter change to the filtered rows painted. */
   filterMs: 300,
-  /** Scripted scroll through the virtualized list: worst long task. */
+  /** Scripted scroll through the virtualized list (median of 3 passes): worst long task. */
   scrollMaxLongTaskMs: 100,
   /** Scripted scroll: 95th-percentile frame interval (≈ 30 fps or better). */
   scrollP95FrameMs: 34,
@@ -33,5 +33,15 @@ export interface PerfResult {
   renderAfterDataMs: number;
   triageBytes: number;
   filters: { name: string; ms: number; rows: number }[];
-  scroll: { frames: number; p50FrameMs: number; p95FrameMs: number; maxFrameMs: number; longTasks: number; maxLongTaskMs: number; px: number };
+  /** The median of three scroll passes (by p95 frame interval). */
+  scroll: {
+    frames: number;
+    p50FrameMs: number;
+    p95FrameMs: number;
+    maxFrameMs: number;
+    longTasks: number;
+    maxLongTaskMs: number;
+    px: number;
+    passesP95Ms: number[];
+  };
 }

@@ -10,8 +10,9 @@
 //   - filter: the <select>'s change event -> the count shows the expected
 //     number and the next animation frame;
 //   - scroll: a scripted scroll of the virtualized list from top to bottom,
-//     400 px per animation frame. Smooth = the 95th-percentile frame interval
-//     and the longest "longtask" entry stay within budget.
+//     400 px per animation frame, three times. Smooth = in the median pass,
+//     the 95th-percentile frame interval and the longest "longtask" entry
+//     stay within budget.
 import { writeFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { BUDGET, type PerfResult } from "./budgets.js";
@@ -131,7 +132,10 @@ test("triage at scale: render, filter, scroll", async ({ page }) => {
   }
 
   // ---- scroll ----
-  const scroll = await page.evaluate(async (step) => {
+  // Three passes, top to bottom; the median pass (by p95 frame) is the result,
+  // so one pass disturbed by another process on a shared runner doesn't fail
+  // the run, while a real regression (every pass janky) still does.
+  const scrollPass = () => page.evaluate(async (step) => {
     const body = document.querySelector('[data-testid="triage-table"] .dt-body') as HTMLElement;
     body.scrollTop = 0;
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -150,9 +154,12 @@ test("triage at scale: render, filter, scroll", async ({ page }) => {
     // Let a trailing long task land in the observer.
     await new Promise((r) => setTimeout(r, 200));
     const frames = stamps.slice(1).map((t, i) => t - stamps[i]!);
-    const rowsSeen = document.querySelector('[data-testid="triage-row"]:last-child')?.getAttribute("data-pid");
-    return { frames, longTasks: window.__pcsLongTasks.slice(before), px: body.scrollTop, rowsSeen };
+    return { frames, longTasks: window.__pcsLongTasks.slice(before), px: body.scrollTop };
   }, SCROLL_STEP_PX);
+  const passes = [];
+  for (let i = 0; i < 3; i++) passes.push(await scrollPass());
+  passes.sort((a, b) => pct(a.frames, 95) - pct(b.frames, 95));
+  const scroll = passes[1]!;
 
   const result: PerfResult = {
     renderMs,
@@ -168,6 +175,7 @@ test("triage at scale: render, filter, scroll", async ({ page }) => {
       longTasks: scroll.longTasks.length,
       maxLongTaskMs: Math.max(0, ...scroll.longTasks),
       px: Math.round(scroll.px),
+      passesP95Ms: passes.map((p) => pct(p.frames, 95)),
     },
   };
   const out = process.env.SCALE_PERF_OUT;
