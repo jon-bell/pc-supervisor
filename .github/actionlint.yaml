@@ -1,0 +1,6 @@
+# actionlint config: our self-hosted (ARC) runner labels.
+# docker run --rm -v "$PWD/.github:/w/.github:ro" -w /w rhysd/actionlint -config-file .github/actionlint.yaml .github/workflows/*.yml
+self-hosted-runner:
+  labels:
+    - ripley-cloud
+    - ripley-cloud-large
