@@ -216,7 +216,7 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
     const scoreUids = fields.filter((f) => !TEXT_FIELD_TYPES.has(f.type)).map((f) => f.uid);
 
     const nameToEmails = syncPeople(db, pc.pc, holders, opts.tierTags, now, counts);
-    const managerByPid = syncPapers(db, search.papers ?? [], leads, shepherds, nameToEmails, now, counts, warnings);
+    const managerByPid = syncPapers(db, search.papers ?? [], leads, shepherds, nameToEmails, now, approx, counts, warnings);
     syncAssignments(db, assignRows, leads, shepherds, managerByPid, now, approx, counts);
 
     // ---- 3. reviews and comments -------------------------------------------
@@ -402,6 +402,7 @@ function syncPapers(
   shepherds: { pid: number; email: string }[],
   nameToEmails: ReadonlyMap<string, string[]>,
   now: number,
+  approx: number,
   counts: Counter,
   warnings: string[],
 ): Map<number, string> {
@@ -412,8 +413,11 @@ function syncPapers(
     "select title, status, decision, tags, lead, shepherd, manager, deleted_seen_at from paper where pid = ?",
   );
   const ins = db.prepare(
-    "insert into paper (pid, title, status, decision, tags, lead, shepherd, manager, first_seen_at, synced_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    `insert into paper (pid, title, status, decision, tags, lead, shepherd, manager, first_seen_at, synced_at,
+       decision_seen_at, decision_seen_approx) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
+  // A changed decision restarts its first-seen clock; a cleared one clears it.
+  const decSeen = db.prepare("update paper set decision_seen_at = ?, decision_seen_approx = 0 where pid = ?");
   const upd = db.prepare(
     "update paper set title = ?, status = ?, decision = ?, tags = ?, lead = ?, shepherd = ?, manager = ?, deleted_seen_at = null where pid = ?",
   );
@@ -439,7 +443,9 @@ function syncPapers(
       | { title: string | null; status: string | null; decision: string | null; tags: string; lead: string | null; shepherd: string | null; manager: string | null; deleted_seen_at: number | null }
       | undefined;
     if (!old) {
-      ins.run(p.pid, title, status, decision, tags, lead, shepherd, manager, now, now);
+      // A decision already there at the first sync has no known time: approximate.
+      const decAt = decision === null ? null : now;
+      ins.run(p.pid, title, status, decision, tags, lead, shepherd, manager, now, now, decAt, decAt !== null ? approx : 0);
       counts.add("papers_new");
     } else if (
       old.title !== title ||
@@ -452,6 +458,7 @@ function syncPapers(
       old.deleted_seen_at !== null
     ) {
       upd.run(title, status, decision, tags, lead, shepherd, manager, p.pid);
+      if (old.decision !== decision) decSeen.run(decision === null ? null : now, p.pid);
       counts.add("papers_changed");
     }
   }
