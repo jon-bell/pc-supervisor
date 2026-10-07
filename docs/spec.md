@@ -178,12 +178,12 @@ Each rule fires with a reason string. Severity is the sum of weights. Sort by se
 | Rule (`NAME`) | Fires when | Default weight |
 |---|---|---|
 | `MISSING_REVIEWS` | complete < `PCS_REVIEWS_REQUIRED` after `REVIEW_DUE` | 3 |
-| `SPLIT` | merit range ≥ `PCS_THRESH_SPLIT_RANGE` (3), or there are scores on both sides of `MERIT_ACCEPT_MIN` | 3 |
+| `SPLIT` | merit range ≥ `PCS_THRESH_SPLIT_RANGE` (2), or there are scores on both sides of `MERIT_ACCEPT_MIN` | 3 |
 | `UNRESOLVED_SPLIT` | split, no movement since `DISCUSSION_OPEN`, discussion older than `PCS_THRESH_UNRESOLVED_DAYS` | +2 |
 | `SILENT_DISCUSSION` | in discussion, 0 comments since `DISCUSSION_OPEN` | 3 |
 | `GONE_QUIET` | last activity older than `PCS_THRESH_STALE_DAYS`, no decision | 2 |
 | `AC_ABSENT` | no AC comment since `DISCUSSION_OPEN` | 2 |
-| `CHAMPION_MISSING` | the top merit is ≥ `MERIT_ACCEPT_MIN` and at least `PCS_THRESH_CHAMPION_GAP` (2) above the lowest, and no reviewer holding it has commented since `DISCUSSION_OPEN` | 1 |
+| `CHAMPION_MISSING` | the top merit is ≥ `MERIT_ACCEPT_MIN`, and no reviewer holding it has commented since `DISCUSSION_OPEN` | 1 |
 | `LOW_EXPERTISE` | no review with expertise ≥ `EXPERTISE_OK_MIN` | 2 |
 | `THIN_REVIEWS` | a review under `PCS_THRESH_MIN_WORDS`, or rated short/vague | 1 |
 | `RESPONSE_UNADDRESSED` | an author response exists, with no reviewer comment after it | 2 |
@@ -193,7 +193,7 @@ Clarifications (the precise semantics, with every threshold comparison, are in t
 
 - "Reviewer" means a non-AC review on the paper; "complete" means status `delivered`, `approved`, or `complete`. Merits and expertise come from submitted reviewer reviews only.
 - **A paper with a decision fires nothing.** Undecided means HotCRP's decision is unset/"undecided".
-- Thresholds named "older than" / "under" are strict (`>` / `<`); `SPLIT_RANGE` and `CHAMPION_GAP` are inclusive (`≥`).
+- Thresholds named "older than" / "under" are strict (`>` / `<`); `SPLIT_RANGE` is inclusive (`≥`).
 - Phase gates: `MISSING_REVIEWS` and `LOW_EXPERTISE` only after `REVIEW_DUE`; the discussion rules (`UNRESOLVED_SPLIT`, `SILENT_DISCUSSION`, `GONE_QUIET`, `AC_ABSENT`, `CHAMPION_MISSING`, `RESPONSE_UNADDRESSED`) only once `DISCUSSION_OPEN` has passed; `SPLIT` and `THIN_REVIEWS` in any phase.
 - "Comments" are published (non-draft) comments; author responses are not comments for `SILENT_DISCUSSION`, and not activity for `GONE_QUIET`.
 - **Movement** is a merit change between consecutive observed versions where the later one was seen at or after `DISCUSSION_OPEN`.

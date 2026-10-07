@@ -26,10 +26,10 @@
 //   5  dee 2, fay 2, gus 2 (all -); no AC comment
 //   6  eli 4, fay 4, hal 4 (all day +2); AC +1
 //   7  ana 3 (3), gus 3 (8), hal 4 (13); no AC comment
-//   8  champ 5 (-), ben 3 (8), dee 3 (13); AC +1
+//   8  champ 5 (-), ben 4 (8), dee 4 (13); AC +1
 //   9  cal 3/exp 2 (3), eli 3/exp 2 (8), fay 4/exp 1 (13); AC +1
 //  10  gus 3 (3), hal 3 with 35 words (8), ana 4 (13); AC +1
-//  11  ben 3, cal 3, dee 4 (all -); AC +1, +12; response 2030-02-09T12:00
+//  11  ben 2, cal 2, dee 2 (all -); AC +1, +12; response 2030-02-09T12:00
 //  12  silent 1->2 day +5 (-), eli 4 (8), hal 4 (13); AC +1
 // Default expertise is 3/4/3; default length 250 words.
 
@@ -178,7 +178,7 @@ const SPECS: PaperSpec[] = [
   {
     pid: 8,
     ac: E.acBusy,
-    slots: [{ email: E.champ, merit: 5, comments: [] }, { email: E.ben }, { email: E.dee }],
+    slots: [{ email: E.champ, merit: 5, comments: [] }, { email: E.ben, merit: 4 }, { email: E.dee, merit: 4 }],
     acComments: [{ day: 1 }],
   },
   {
@@ -201,9 +201,9 @@ const SPECS: PaperSpec[] = [
     pid: 11,
     ac: E.acNormal,
     slots: [
-      { email: E.ben, comments: [] },
-      { email: E.cal, comments: [] },
-      { email: E.dee, merit: 4, comments: [] },
+      { email: E.ben, merit: 2, comments: [] },
+      { email: E.cal, merit: 2, comments: [] },
+      { email: E.dee, merit: 2, comments: [] },
     ],
     acComments: [{ day: 1 }, { day: 12 }],
     responseAt: "2030-02-09T12:00",

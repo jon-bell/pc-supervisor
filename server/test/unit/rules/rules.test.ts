@@ -67,16 +67,17 @@ describe("SPLIT", () => {
   it("fires when scores straddle MERIT_ACCEPT_MIN", () => {
     expect(run(R.split, bundle({ reviews: three([2, 3, 3]) }))).toBe("merit 2/3/3 (scores on both sides of 3)");
   });
-  it("does not fire on 5/3/3 (range 2 < 3, all accept side) or 2/2/2", () => {
-    expect(run(R.split, bundle({ reviews: three([5, 3, 3]) }))).toBeNull();
+  it("does not fire on 5/4/4, 3/3/4, or 2/2/2", () => {
+    expect(run(R.split, bundle({ reviews: three([5, 4, 4]) }))).toBeNull();
+    expect(run(R.split, bundle({ reviews: three([3, 3, 4]) }))).toBeNull();
     expect(run(R.split, bundle({ reviews: three([2, 2, 2]) }))).toBeNull();
   });
   it("boundary: range equal to PCS_THRESH_SPLIT_RANGE fires, one less doesn't", () => {
-    const ctx = contextAt(MID.now, { PCS_MERIT_ACCEPT_MIN: "1" });
-    expect(run(R.split, bundle({ reviews: three([2, 5, 4]) }), ctx)).toBe("merit 2/5/4 (range 3 >= 3)");
-    expect(run(R.split, bundle({ reviews: three([2, 4, 4]) }), ctx)).toBeNull();
-    const ctx2 = contextAt(MID.now, { PCS_THRESH_SPLIT_RANGE: "2" });
-    expect(run(R.split, bundle({ reviews: three([5, 3, 3]) }), ctx2)).toBe("merit 5/3/3 (range 2 >= 2)");
+    expect(run(R.split, bundle({ reviews: three([5, 3, 3]) }))).toBe("merit 5/3/3 (range 2 >= 2)");
+    expect(run(R.split, bundle({ reviews: three([5, 4, 4]) }))).toBeNull();
+    const ctx3 = contextAt(MID.now, { PCS_THRESH_SPLIT_RANGE: "3" });
+    expect(run(R.split, bundle({ reviews: three([5, 3, 3]) }), ctx3)).toBeNull();
+    expect(run(R.split, bundle({ reviews: three([2, 4, 4]) }))).toBe("merit 2/4/4 (range 2 >= 2; scores on both sides of 3)");
   });
   it("needs two submitted merits", () => {
     const rs = [review({ rid: 1, pid: 1, email: A, merit: 1 }), review({ rid: 2, pid: 1, email: B, merit: 5, status: "draft" })];
@@ -182,8 +183,8 @@ describe("AC_ABSENT", () => {
 
 describe("CHAMPION_MISSING", () => {
   it("fires when the standout top reviewer hasn't commented", () => {
-    expect(run(R.championMissing, bundle({ reviews: three([5, 3, 3]), comments: [cm(B, day(2))] }))).toBe(
-      "top merit 5 (1 reviewer, 2 above the lowest 3); no comment from that reviewer since discussion opened",
+    expect(run(R.championMissing, bundle({ reviews: three([5, 4, 4]), comments: [cm(B, day(2))] }))).toBe(
+      "top merit 5 (1 reviewer); no comment from that reviewer since discussion opened",
     );
   });
   it("does not fire once a top-merit holder comments", () => {
@@ -194,13 +195,12 @@ describe("CHAMPION_MISSING", () => {
   it("does not fire when the top merit is below MERIT_ACCEPT_MIN", () => {
     expect(run(R.championMissing, bundle({ reviews: three([1, 2, 2]) }))).toBeNull();
   });
-  it("boundary: gap equal to PCS_THRESH_CHAMPION_GAP fires; one less doesn't", () => {
-    expect(run(R.championMissing, bundle({ reviews: three([2, 4, 4]) }))).toMatch(/^top merit 4 \(2 reviewers, 2 above the lowest 2\); no comment from any of them/);
-    expect(run(R.championMissing, bundle({ reviews: three([3, 3, 4]) }))).toBeNull();
-    expect(run(R.championMissing, bundle({ reviews: three([3, 3, 4]) }), contextAt(MID.now, { PCS_THRESH_CHAMPION_GAP: "1" }))).not.toBeNull();
+  it("several top holders: fires only if none of them commented", () => {
+    expect(run(R.championMissing, bundle({ reviews: three([2, 4, 4]) }))).toMatch(/^top merit 4 \(2 reviewers\); no comment from any of them/);
   });
-  it("boundary: top merit exactly MERIT_ACCEPT_MIN qualifies", () => {
+  it("boundary: top merit exactly MERIT_ACCEPT_MIN qualifies; one less doesn't", () => {
     expect(run(R.championMissing, bundle({ reviews: three([1, 3, 2]) }))).not.toBeNull();
+    expect(run(R.championMissing, bundle({ reviews: three([1, 3, 2]) }), contextAt(MID.now, { PCS_MERIT_ACCEPT_MIN: "4" }))).toBeNull();
   });
   it("a pre-discussion comment by the champion doesn't count", () => {
     expect(run(R.championMissing, bundle({ reviews: three([5, 3, 3]), comments: [cm(A, DISCUSSION_OPEN - 1)] }))).not.toBeNull();

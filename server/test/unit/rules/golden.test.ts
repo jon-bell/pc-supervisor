@@ -24,7 +24,7 @@ describe(`golden at ${GOLDEN_NOW}`, () => {
     expect(reason(2, "MISSING_REVIEWS")).toBe(
       "2 of 3 required reviews complete; 1 assigned review not submitted; reviews were due 24.5 days ago",
     );
-    expect(reason(3, "SPLIT")).toBe("merit 2/4/4 (scores on both sides of 3)");
+    expect(reason(3, "SPLIT")).toBe("merit 2/4/4 (range 2 >= 2; scores on both sides of 3)");
     expect(reason(4, "UNRESOLVED_SPLIT")).toBe(
       "scores 2/4/4; no movement since discussion opened 14.5 days ago (limit 5 days)",
     );
@@ -33,7 +33,7 @@ describe(`golden at ${GOLDEN_NOW}`, () => {
     expect(reason(6, "GONE_QUIET")).toBe("no in-HotCRP activity for 12 days (limit 4 days); last activity 12 days ago");
     expect(reason(7, "AC_ABSENT")).toBe("no AC comment since discussion opened 14.5 days ago (1 AC)");
     expect(reason(8, "CHAMPION_MISSING")).toBe(
-      "top merit 5 (1 reviewer, 2 above the lowest 3); no comment from that reviewer since discussion opened",
+      "top merit 5 (1 reviewer); no comment from that reviewer since discussion opened",
     );
     expect(reason(9, "LOW_EXPERTISE")).toBe("expertise 2/2/1; none >= 3");
     expect(reason(10, "THIN_REVIEWS")).toBe("1 of 3 reviews thin (min 150 words): B: 35 words");

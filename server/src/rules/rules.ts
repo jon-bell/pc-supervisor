@@ -24,11 +24,9 @@
 // AC_ABSENT         discussion opened, and none of the paper's ACs has a
 //                   published comment since DISCUSSION_OPEN (also fires,
 //                   with its own reason, when the paper has no AC).
-// CHAMPION_MISSING  discussion opened; with top = max submitted merit and
-//                   low = min, top >= MERIT_ACCEPT_MIN and top - low >=
-//                   PCS_THRESH_CHAMPION_GAP (someone actually needs
-//                   championing), and NO reviewer holding the top merit has
-//                   commented since DISCUSSION_OPEN.
+// CHAMPION_MISSING  discussion opened; top = max submitted merit is >=
+//                   MERIT_ACCEPT_MIN, and NO reviewer holding the top merit
+//                   has commented since DISCUSSION_OPEN.
 // LOW_EXPERTISE     after REVIEW_DUE, >= 1 submitted review with an expertise
 //                   score, and none >= EXPERTISE_OK_MIN.
 // THIN_REVIEWS      some submitted reviewer review has wordCount <
@@ -136,12 +134,11 @@ export function acAbsent(f: PaperFacts, ctx: RuleContext): string | null {
 export function championMissing(f: PaperFacts, ctx: RuleContext): string | null {
   if (!discussionOpened(ctx.phases, ctx.now) || f.merits.length === 0) return null;
   const top = Math.max(...f.merits);
-  const low = Math.min(...f.merits);
-  if (top < ctx.meritAcceptMin || top - low < ctx.thresholds.CHAMPION_GAP) return null;
+  if (top < ctx.meritAcceptMin) return null;
   const champions = f.submitted.filter((r) => r.merit === top);
   if (champions.some((r) => f.discussionCommenters.has(r.email))) return null;
   return (
-    `top merit ${top} (${plural(champions.length, "reviewer")}, ${top - low} above the lowest ${low}); ` +
+    `top merit ${top} (${plural(champions.length, "reviewer")}); ` +
     `no comment from ${champions.length === 1 ? "that reviewer" : "any of them"} since discussion opened`
   );
 }

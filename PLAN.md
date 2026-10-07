@@ -105,10 +105,10 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 | 5 | `SILENT_DISCUSSION`, `AC_ABSENT`, `GONE_QUIET` | Merit 2/2/2. No comments at all. The last activity is review submission before 02-01. |
 | 6 | `GONE_QUIET` | Merit 4/4/4. The last comment is on day +2. |
 | 7 | `AC_ABSENT` | The AC never comments; the reviewers do. |
-| 8 | `CHAMPION_MISSING` | Merit 5/3/3. The 5 reviewer never comments. |
+| 8 | `CHAMPION_MISSING` | Merit 5/4/4. The 5 reviewer never comments. |
 | 9 | `LOW_EXPERTISE` | All expertise ≤ 2. |
 | 10 | `THIN_REVIEWS` | One review is 35 words. |
-| 11 | `RESPONSE_UNADDRESSED` | An author response is posted on 02-09. Reviewers never comment, and the AC comments on days +1 and +12. |
+| 11 | `RESPONSE_UNADDRESSED` | Merit 2/2/2. An author response is posted on 02-09. Reviewers never comment, and the AC comments on days +1 and +12. |
 | 12 | `SPLIT` | Merit 2/4/4, with movement 1→2 on day +5. At the second instant (below), it also fires `DEADLINE_NO_CONSENSUS`. |
 
 **Second assertion instant:** `PCS_NOW = 2030-03-01T12:00` (~2.5 days to decisions, inside the 3-day window). Assert only that pid 12 includes `DEADLINE_NO_CONSENSUS` and pid 1 fires nothing. Other rows drift with time and aren't asserted here.
@@ -117,8 +117,6 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 - `CHAMPION_MISSING` fires only if **no** reviewer holding the top merit has commented.
 - `SILENT_DISCUSSION` and `GONE_QUIET` count AC comments as activity.
 - `RESPONSE_UNADDRESSED` counts only reviewer comments.
-- `SPLIT` uses `PCS_THRESH_SPLIT_RANGE=3`, so 5/3/3 (pid 8: range 2, all on the accept side) is not split, while 2/4/4 is (it straddles `MERIT_ACCEPT_MIN`).
-- `CHAMPION_MISSING` also needs the top merit to be at least `PCS_THRESH_CHAMPION_GAP` (2) above the lowest. That keeps 3/3/4 (pid 11, where reviewers never comment) from firing it, while 5/3/3 (pid 8) does.
 - A paper with a decision fires nothing (pid 1).
 - `GONE_QUIET` measures quiet time from `max(last activity, DISCUSSION_OPEN)`.
 

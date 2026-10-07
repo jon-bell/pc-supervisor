@@ -57,13 +57,12 @@ describe("loadConfig defaults", () => {
       DEADLINE_NO_CONSENSUS: 3,
     });
     expect(c.rules.thresholds).toEqual({
-      SPLIT_RANGE: 3,
+      SPLIT_RANGE: 2,
       STALE_DAYS: 4,
       UNRESOLVED_DAYS: 5,
       PING_DAYS: 3,
       MIN_WORDS: 150,
       DEADLINE_DAYS: 3,
-      CHAMPION_GAP: 2,
     });
   });
 
