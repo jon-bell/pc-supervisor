@@ -194,6 +194,13 @@ function tierTags(v: string, ctx: z.RefinementCtx): TierTags {
   return out;
 }
 
+/** A plain, public HotCRP paper tag: no `#`, no `~` (private), no `#value`. */
+function paperTag(v: string, ctx: z.RefinementCtx): string {
+  const s = v.trim().replace(/^#/, "");
+  if (!TAG_RE.test(s)) return fail(ctx, `expected a HotCRP tag like chair-attention (${TAG_RE_HUMAN}), got ${show(v)}`);
+  return s;
+}
+
 function fieldUid(v: string, ctx: z.RefinementCtx): string {
   const s = v.trim();
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(s)) {
@@ -257,6 +264,8 @@ export const FIELDS = {
   PCS_SYNC_CONCURRENCY: withDefault(2, intIn(1, 16)),
   PCS_HISTORY_RPS: withDefault(1, numberIn(0, 50, { exclusiveMin: true })),
   PCS_PORT: withDefault(5317, intIn(1, 65_535)),
+  // v1 actions (spec §6, PLAN M8): the paper tag the confirmed tagging flow adds or removes.
+  PCS_ATTENTION_TAG: withDefault("chair-attention", paperTag),
 } satisfies Record<string, z.ZodType<unknown, Raw>>;
 
 export type FieldName = keyof typeof FIELDS;
@@ -431,6 +440,8 @@ export interface Config {
   db: { path: string; key: string | undefined };
   sync: { intervalMin: number; chunk: number; concurrency: number; historyRps: number };
   port: number;
+  /** PCS_ATTENTION_TAG: the tag the v1 tagging action writes (no leading #). */
+  attentionTag: string;
 }
 
 const HOTCRP_FIELDS = [
@@ -614,6 +625,7 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
       historyRps: f.PCS_HISTORY_RPS,
     },
     port: f.PCS_PORT,
+    attentionTag: f.PCS_ATTENTION_TAG,
   };
 }
 
@@ -670,5 +682,6 @@ export function describeConfig(c: Config): string[] {
     `DB key            ${c.db.key ? "(set; not shown)" : "(unset; test mode)"}`,
     `Sync              every ${c.sync.intervalMin} min, chunk ${c.sync.chunk}, concurrency ${c.sync.concurrency}, history ${c.sync.historyRps} rps`,
     `Port              ${c.port} (binds 127.0.0.1)`,
+    `Attention tag     #${c.attentionTag}`,
   ];
 }

@@ -42,6 +42,7 @@ import {
   type PcAssignmentRow,
   type Review,
 } from "./schemas.js";
+import { AssignTagsResultSchema, tagAssignmentBody, tagDiffOf, type TagChange, type TagDiff } from "./tag-assign.js";
 
 /**
  * Paper-set scopes (`t=`). HotCRP silently treats an unknown scope as "none",
@@ -106,6 +107,8 @@ interface CallSpec<S extends z.ZodType> {
   schema: S;
   /** Throw if HotCRP returns warnings (e.g. an unknown search keyword). Default true. */
   rejectWarnings?: boolean;
+  /** POST only: send this as a JSON body; `params` then go in the query string. */
+  json?: unknown;
 }
 
 const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
@@ -289,16 +292,36 @@ export class HotcrpClient {
   }
 
   // ------------------------------------------------------------------------
-  // Writes (PLAN M8). Disabled: the app is read-only until then.
+  // Writes (PLAN M8). The only write path: tag changes, dry-run first.
 
   /**
-   * POST /assigntags. M8 implements this, dry-run first with explicit
-   * confirmation (spec §6). Until then it always throws.
+   * Add or remove one tag on papers via POST /assign (see tag-assign.ts for
+   * why not /assigntags). `dryRun: true` changes nothing in HotCRP and
+   * returns the diff it would make. A real run additionally requires
+   * `allowWrites: true`, which only the confirmed tagging flow
+   * (server/src/actions/tagging.ts) passes; anything else gets a
+   * `writes_disabled` error before a request is made. Writes never retry.
    */
-  assignTags(_assignments: readonly { pid: number; tags: readonly string[] }[], _opts: { dryRun: boolean }): Promise<never> {
-    return Promise.reject(
-      new HotcrpError("writes_disabled", "POST /assigntags", "writes are disabled until PLAN M8 (dry-run-first tagging)"),
-    );
+  async assignTags(
+    changes: readonly TagChange[],
+    tag: string,
+    opts: { dryRun: true } | { dryRun: false; allowWrites: true },
+  ): Promise<TagDiff> {
+    const endpoint = "POST /assign";
+    if (!opts.dryRun && (opts as { allowWrites?: unknown }).allowWrites !== true) {
+      throw new HotcrpError("writes_disabled", endpoint, "writes need allowWrites (only the confirmed tagging flow passes it)");
+    }
+    const body = tagAssignmentBody(changes, tag);
+    const res = await this.call({
+      path: "assign",
+      method: "POST",
+      params: { dry_run: opts.dryRun ? 1 : undefined, format: "json", forceShow: this.forceShow ? 1 : 0 },
+      json: body,
+      schema: AssignTagsResultSchema,
+    });
+    if (!res.valid) throw new HotcrpError("api", endpoint, "HotCRP reported the assignment as invalid");
+    if (opts.dryRun && res.dry_run !== true) throw new HotcrpError("protocol", endpoint, "asked for a dry run but HotCRP did not report one");
+    return tagDiffOf(res, tag);
   }
 
   // ------------------------------------------------------------------------
@@ -325,11 +348,15 @@ export class HotcrpClient {
 
     const url = new URL(`${this.baseUrl}/api/${spec.path}`);
     if (url.origin !== new URL(this.baseUrl).origin) throw new Error("HotcrpClient: refusing cross-origin path");
-    let body: URLSearchParams | undefined;
+    let body: URLSearchParams | string | undefined;
     let httpMethod: string = method;
     const asGet = new URL(url);
     asGet.search = params.toString();
-    if (method === "POST" || spec.postAsGet || asGet.href.length > this.#o.maxGetUrlLength) {
+    if (spec.json !== undefined) {
+      if (method !== "POST") throw new Error("HotcrpClient: a JSON body needs method POST");
+      url.search = params.toString();
+      body = JSON.stringify(spec.json);
+    } else if (method === "POST" || spec.postAsGet || asGet.href.length > this.#o.maxGetUrlLength) {
       httpMethod = "POST";
       if (method === "GET") url.searchParams.set(":method:", "GET");
       body = params;
@@ -347,7 +374,7 @@ export class HotcrpClient {
     endpoint: string,
     url: URL,
     method: string,
-    body: URLSearchParams | undefined,
+    body: URLSearchParams | string | undefined,
     format: "json" | "csv",
     retryable: boolean,
   ): Promise<string> {
@@ -362,6 +389,7 @@ export class HotcrpClient {
           headers: {
             Authorization: `Bearer ${this.#token}`,
             Accept: format === "json" ? "application/json" : "text/csv, application/json",
+            ...(typeof body === "string" ? { "Content-Type": "application/json" } : {}),
           },
           body,
           redirect: "manual",

@@ -1,10 +1,13 @@
 // The paper drawer (spec §5c): reasons, then one timeline of reviews, score
 // changes, comments (author, word count, mentions) and the author response,
 // with full text from the local store. Every review links into HotCRP.
+// Actions (PLAN M8): draft a nudge comment to copy (never posted), and add or
+// remove PCS_ATTENTION_TAG behind HotCRP's dry run and a typed confirmation.
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { CommentDetail, MetaResponse, PaperDetail, ReviewDetail, TimelineEvent } from "../api";
-import { usePaper } from "../api";
+import { useActions, useNudge, usePaper } from "../api";
+import { CopyButton, TagDialog } from "../components/Actions";
 import { Chip, ReasonChips } from "../components/Chip";
 import { AbsTime } from "../components/Time";
 import { hotcrp, plural } from "../format";
@@ -144,6 +147,48 @@ function Timeline({ d, meta }: { d: PaperDetail; meta: MetaResponse }) {
   );
 }
 
+const hasTag = (tags: readonly string[], tag: string) => tags.some((t) => t.replace(/#.*$/, "").toLowerCase() === tag.toLowerCase());
+
+function DrawerActions({ d }: { d: PaperDetail }) {
+  const actions = useActions().data;
+  const [showNudge, setShowNudge] = useState(false);
+  const [tagging, setTagging] = useState(false);
+  const nudge = useNudge(d.pid, showNudge);
+  const tag = actions?.attentionTag;
+  const tagged = tag ? hasTag(d.tags, tag) : false;
+  return (
+    <section className="drawer-actions" data-testid="drawer-actions">
+      <div className="actions-bar">
+        <button type="button" className="btn" data-testid="nudge-draft" aria-expanded={showNudge} onClick={() => setShowNudge((v) => !v)}>
+          {showNudge ? "Hide nudge draft" : "Draft a nudge comment"}
+        </button>
+        {tag && actions?.taggingAvailable ? (
+          <button type="button" className="btn" data-testid="drawer-tag" onClick={() => setTagging(true)}>
+            {tagged ? `Remove #${tag}…` : `Tag #${tag}…`}
+          </button>
+        ) : null}
+      </div>
+      {showNudge ? (
+        <div className="nudge" data-testid="nudge-panel">
+          {nudge.error ? <p className="error">{nudge.error.message}</p> : null}
+          {nudge.data ? (
+            <>
+              <p className="muted">A draft to copy into a HotCRP comment and edit there. The app never posts it.</p>
+              <textarea readOnly className="nudge-text" data-testid="nudge-text" value={nudge.data.text} rows={Math.min(14, nudge.data.text.split("\n").length + 1)} />
+              <CopyButton text={nudge.data.text} label="Copy draft" testId="copy-nudge" />
+            </>
+          ) : nudge.isLoading ? (
+            <p className="muted">Drafting…</p>
+          ) : null}
+        </div>
+      ) : null}
+      {tagging && tag ? (
+        <TagDialog tag={tag} add={tagged ? [] : [d.pid]} remove={tagged ? [d.pid] : []} onClose={() => setTagging(false)} />
+      ) : null}
+    </section>
+  );
+}
+
 export function PaperDrawer({ pid, meta, onClose }: { pid: number; meta: MetaResponse; onClose: () => void }) {
   const q = usePaper(pid);
   const d = q.data;
@@ -174,6 +219,8 @@ export function PaperDrawer({ pid, meta, onClose }: { pid: number; meta: MetaRes
             <dd>{d.decision ?? "none yet"}</dd>
             <dt>Severity</dt>
             <dd data-testid="drawer-severity">{d.severity}</dd>
+            <dt>Tags</dt>
+            <dd data-testid="drawer-tags">{d.tags.length ? d.tags.map((t) => `#${t}`).join(" ") : "none"}</dd>
           </dl>
           {d.reasons.length ? (
             <ul className="reasons" data-testid="drawer-reasons">
@@ -188,6 +235,7 @@ export function PaperDrawer({ pid, meta, onClose }: { pid: number; meta: MetaRes
               No rules fire for this paper.
             </p>
           )}
+          <DrawerActions d={d} />
           {pcComments === 0 ? <p className="muted">No comments yet.</p> : null}
           <Timeline d={d} meta={meta} />
         </div>

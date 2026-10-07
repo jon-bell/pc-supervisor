@@ -36,6 +36,15 @@ export default defineConfig({
     // Argos-recommended flags for stable font rendering across runners.
     launchOptions: { args: ["--disable-lcd-text", "--font-render-hinting=none"] },
   },
+  // The tagging spec is the only one that writes to HotCRP: it runs in its
+  // own project after all the read-only specs, so their triage order and
+  // Argos screenshots never see its tags (PLAN M8).
+  projects: [
+    // Unnamed, so Argos screenshot names carry no project prefix and keep
+    // matching the baselines on main.
+    { name: "", testIgnore: /tagging\.spec\.ts$/ },
+    { name: "tagging", testMatch: /tagging\.spec\.ts$/, dependencies: [""] },
+  ],
   webServer: {
     command: "npx tsx e2e/support/golden-server.ts",
     cwd: "..",
