@@ -35,6 +35,7 @@ existed at the first successful sync take HotCRP's `modified_at` (or the sync ti
 | `comment_mention` | (cid, email) | Mentions, for SQL joins (indexed on email). |
 | `sync_run` | run | `kind` `sync`/`backfill`, `now_used` (clock), `ok`, `counts` JSON, `errors` JSON (messages only, no content). |
 | `history_backfill` | rid | Backfill progress (resumable). |
+| `import_run` | `pcs import` | Imported local CSVs (spec §10.3, M9): `kind`, `file_sha256`, `file_name`, `imported_at` (clock), `row_count`. Rows go in `import_invite`, `import_tpms_assignment`, `import_tpms_registration`, `import_refcheck`, and `import_do_not_invite`, keyed by `run_id`, and are never updated. API: `server/src/imports/store.ts` (`runAsOf`, `rowsAsOf`, `diffRuns`). |
 | `text_fts` | text row | Contentless FTS5 over `review_text` (rowid = id·2) and `comment_text` (id·2+1), maintained by triggers. |
 
 Indexes: `pid` and `email` on review, comment, and assignment; email on `comment_mention`.

@@ -11,13 +11,26 @@ export class CsvError extends Error {
 
 /** Parse CSV text into rows of fields. Blank lines are skipped. */
 export function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
+  return parseCsvLines(text).map((r) => r.cells);
+}
+
+/** A parsed CSV row with the 1-based line it starts on (for error reports). */
+export interface CsvLine {
+  line: number;
+  cells: string[];
+}
+
+/** Like parseCsv, but keeps each row's starting line number. */
+export function parseCsvLines(text: string): CsvLine[] {
+  const rows: CsvLine[] = [];
   let row: string[] = [];
   let field = "";
   // start: at the beginning of a field; bare: inside an unquoted field;
   // quoted: inside quotes; closed: just after a closing quote.
   let state: "start" | "bare" | "quoted" | "closed" = "start";
   let line = 1;
+  let rowLine = 1;
+  let quoteLine = 1;
 
   const endField = () => {
     row.push(field);
@@ -28,7 +41,7 @@ export function parseCsv(text: string): string[][] {
     // A row with no fields and nothing typed is a blank line: skip it.
     if (row.length > 0 || field !== "" || state !== "start") {
       endField();
-      rows.push(row);
+      rows.push({ line: rowLine, cells: row });
     }
     row = [];
     state = "start";
@@ -52,17 +65,19 @@ export function parseCsv(text: string): string[][] {
       if (c === "\r" && text[i + 1] === "\n") i++;
       endRow();
       line++;
+      rowLine = line;
     } else if (state === "closed") {
       throw new CsvError(`line ${line}: text after a closing quote`);
     } else if (c === '"') {
       if (state === "bare") throw new CsvError(`line ${line}: quote inside an unquoted field`);
       state = "quoted";
+      quoteLine = line;
     } else {
       field += c;
       state = "bare";
     }
   }
-  if (state === "quoted") throw new CsvError(`line ${line}: unterminated quoted field`);
+  if (state === "quoted") throw new CsvError(`line ${quoteLine}: unterminated quoted field`);
   endRow();
   return rows;
 }
