@@ -13,6 +13,9 @@ export interface PaperRow {
   status: string | null;
   /** null = no decision ("Unspecified" in HotCRP). */
   decision: string | null;
+  /** When the sync first saw the current decision (null if undecided). */
+  decisionSeenAt: number | null;
+  decisionSeenApprox: boolean;
   tags: string[];
   lead: string | null;
   shepherd: string | null;
@@ -211,6 +214,8 @@ function paperRow(r: Raw): PaperRow {
     title: r.title as string | null,
     status: r.status as string | null,
     decision: r.decision as string | null,
+    decisionSeenAt: (r.decision_seen_at ?? null) as number | null,
+    decisionSeenApprox: bool(r.decision_seen_approx),
     tags: parse(r.tags, []),
     lead: r.lead as string | null,
     shepherd: r.shepherd as string | null,
