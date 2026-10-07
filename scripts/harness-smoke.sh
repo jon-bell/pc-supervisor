@@ -6,6 +6,12 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 set -a; . "${PCS_ENV_OUT:-$ROOT/.env.test}"; set +a
+# This script writes. Only ever to the local harness (AGENTS.md rules 2-3).
+case "${PCS_HOTCRP_URL:-}" in
+  *@*) echo "harness-smoke: refusing: PCS_HOTCRP_URL carries userinfo (@)" >&2; exit 1 ;;
+  http://127.0.0.1:*|http://localhost:*) ;;
+  *) echo "harness-smoke: refusing: PCS_HOTCRP_URL is not http://127.0.0.1:<port> or http://localhost:<port>" >&2; exit 1 ;;
+esac
 dc() { docker compose -p "${HOTCRP_COMPOSE_PROJECT:-pcs}" -f "$ROOT/hotcrp/compose.yaml" "$@"; }
 api() { curl -fsS -H "Authorization: Bearer $PCS_HOTCRP_TOKEN" "$@"; }
 U="$PCS_HOTCRP_URL/api"
