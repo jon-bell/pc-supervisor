@@ -116,6 +116,34 @@ export const PcAssignmentRowSchema = z.looseObject({
 export const PcAssignmentsSchema = z.array(PcAssignmentRowSchema);
 export type PcAssignmentRow = z.infer<typeof PcAssignmentRowSchema>;
 
+// --- /searchaction?action=get/lead | get/shepherd (CSV) ----------------------
+// Header: paper,title,given_name,family_name,<kind>email. One row per paper
+// that has a lead (shepherd). /search's `lead` and `manager` fields give only
+// display names, so lead/shepherd emails come from here
+// (src/listactions/la_getlead.php).
+
+export interface PaperRoleRow {
+  pid: number;
+  email: string;
+}
+
+const csvPid = z.string().regex(/^[1-9]\d*$/, "expected a pid").transform(Number);
+
+export const LeadRowsSchema = z.array(
+  z
+    .looseObject({ paper: csvPid, leademail: z.string().min(1) })
+    .transform((r): PaperRoleRow => ({ pid: r.paper, email: r.leademail })),
+);
+export const ShepherdRowsSchema = z.array(
+  z
+    .looseObject({ paper: csvPid, shepherdemail: z.string().min(1) })
+    .transform((r): PaperRoleRow => ({ pid: r.paper, email: r.shepherdemail })),
+);
+
+export function paperRoleRowsSchema(kind: "lead" | "shepherd") {
+  return kind === "lead" ? LeadRowsSchema : ShepherdRowsSchema;
+}
+
 // --- /reviews, /{p}/reviewhistory -------------------------------------------
 
 /** rtype: 1 external, 2 PC, 3 secondary, 4 primary, 5 metareview. */
@@ -152,6 +180,11 @@ export const ReviewSchema = z.looseObject({
   reviewer_email: z.string().optional(),
   modified_at: int.optional(),
   user_rating: z.union([z.string(), z.array(z.string())]).optional(),
+  /**
+   * Ratings of this review by PC members ("short", "vague", ...): one name or
+   * a sorted list. Omitted when the review has none (src/paperexport.php).
+   */
+  ratings: z.union([z.string(), z.array(z.string())]).optional(),
 });
 export type Review = z.infer<typeof ReviewSchema>;
 
