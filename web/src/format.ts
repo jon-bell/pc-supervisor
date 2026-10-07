@@ -6,16 +6,25 @@
 
 const DAY = 86_400_000;
 
+// Constructing an Intl.DateTimeFormat costs ~1 ms; one per row per render made
+// scrolling the 2,400-row triage list janky (PLAN M7). Keep one per zone.
+const timeFormats = new Map<string, Intl.DateTimeFormat>();
+
 /** "Feb 26, 12:00" in the conference time zone. */
 export function formatTime(ms: number, tz: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(ms);
+  let f = timeFormats.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    timeFormats.set(tz, f);
+  }
+  return f.format(ms);
 }
 
 /** "Feb 26" in the conference time zone. */

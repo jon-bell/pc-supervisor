@@ -27,3 +27,21 @@ export function pidChunks(pids: Iterable<number>, size: number): PidChunk[] {
   }
   return out;
 }
+
+/**
+ * Like pidChunks, but each chunk's search names exactly its pids ("3 7-9 40"),
+ * so a sparse pid set never pulls in the papers between them. HotCRP reads a
+ * space-separated list of numbers and ranges as those papers.
+ */
+export function pidListChunks(pids: Iterable<number>, size: number): PidChunk[] {
+  return pidChunks(pids, size).map((c) => {
+    const parts: string[] = [];
+    for (let i = 0; i < c.pids.length; ) {
+      let j = i;
+      while (j + 1 < c.pids.length && c.pids[j + 1] === c.pids[j]! + 1) j++;
+      parts.push(i === j ? String(c.pids[i]) : `${c.pids[i]}-${c.pids[j]}`);
+      i = j + 1;
+    }
+    return { q: parts.join(" "), pids: c.pids };
+  });
+}
