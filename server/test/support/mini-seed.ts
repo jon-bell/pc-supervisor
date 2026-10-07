@@ -9,6 +9,7 @@
 
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import { assertHarnessUrl, harnessProject } from "../../src/hotcrp/harness-guard.js";
 import { verifyHarnessOnce } from "../../src/hotcrp/harness-verify.js";
 
@@ -20,6 +21,8 @@ export interface SeedUser {
   last: string;
   tags?: string[];
 }
+
+const RatingResponse = z.looseObject({ ok: z.boolean(), message_list: z.array(z.unknown()).optional() });
 
 export class MiniSeed {
   readonly url: string;
@@ -163,8 +166,8 @@ export class MiniSeed {
       headers: { Authorization: `Bearer ${this.#token}`, "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ user_rating: rating }),
     });
-    const j = (await res.json()) as { ok?: boolean };
-    if (!j.ok) throw new Error(`rating failed: ${JSON.stringify(j)}`);
+    const j = RatingResponse.safeParse(await res.json());
+    if (!j.success || !j.data.ok) throw new Error(`rating failed: HTTP ${res.status} ${JSON.stringify(j.success ? j.data : j.error.issues)}`);
   }
 
   async comment(pid: number, authorKey: string, text: string): Promise<number> {
