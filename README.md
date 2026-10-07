@@ -8,7 +8,7 @@ A local, single-user dashboard that helps a program-committee chair supervise a 
 
 It syncs from the HotCRP API into an encrypted local SQLite file every 15 minutes, keeps snapshots so it can see change over time, and serves a React UI on `127.0.0.1`. It is read-only against HotCRP until v1.
 
-> **Status:** pre-alpha. Sync, rules, the JSON API, and the triage UI work against the harness; the AC, reviewer, and overview views are next. See [PLAN.md](PLAN.md).
+> **Status:** pre-alpha. Sync, rules, the JSON API, and the UI (triage, AC table, reviewer outlier lists, person pages, overview) work against the harness; scale testing (M7) is next. See [PLAN.md](PLAN.md).
 
 ## Docs
 
@@ -34,8 +34,8 @@ The repo is an npm workspace (`server/`, `web/`, `seed/`, `e2e/`; `e2e/argos-can
 - `server/src/config.ts`: every `PCS_*` variable, validated with Zod. `npm run pcs -- config-check` prints a redacted summary or every problem at once.
 - `server/src/clock.ts`: the only source of "now" (ESLint enforces it).
 - `server/src/hotcrp/`: the HotCRP client and its response schemas.
-- `server/src/server/`: the Fastify JSON API (`/api/meta`, `/api/triage`, `/api/papers/:pid`, `/api/sync/status`, `POST /api/sync`); `server/src/views/snapshot.ts` turns the store into the rules engine's input.
-- `web/`: React + Vite + TanStack Query/Table/Virtual (triage list, paper drawer, sync status).
+- `server/src/server/`: the Fastify JSON API (`/api/meta`, `/api/triage`, `/api/papers/:pid`, `/api/acs`, `/api/reviewers`, `/api/people/:email`, `/api/overview`, `/api/sync/status`, `POST /api/sync`); `server/src/views/snapshot.ts` turns the store into the rules engine's input.
+- `web/`: React + Vite + TanStack Query/Table/Virtual (triage list, paper drawer, AC table, reviewer outlier lists, person page, overview, sync status). Charts are inline SVG; there is no chart library.
 - Tests: `server/test/unit/` (no network), `server/test/contract/` and `server/test/integration/` (live harness; refuse non-localhost URLs), `e2e/specs/` (Playwright + Argos).
 
 ### Running the app locally
