@@ -54,6 +54,7 @@ The CI steps for these are already in `.github/workflows/ci.yml`. They're gated 
   - counts (papers, PC, reviews by `rtype`/`status`, comments);
   - review-form field UIDs, with each score field's value range;
   - user tags present;
+  - the rating settings (`review_rating`, `review_rating_visibility`) and how many reviews carry ratings;
   - whether `modified_at` is present on reviews and comments.
 - It **prints no content**: no titles, names, emails, or text.
 - **Depends on:** the HotCRP client from M1.
@@ -107,9 +108,10 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 | 7 | `AC_ABSENT` | The AC never comments; the reviewers do. |
 | 8 | `CHAMPION_MISSING` | Merit 5/3/3. The 5 reviewer never comments. |
 | 9 | `LOW_EXPERTISE` | All expertise ≤ 2. |
-| 10 | `THIN_REVIEWS` | One review is 35 words. |
+| 10 | `THIN_REVIEWS` | One review is 35 words and is rated `short` by both co-reviewers. |
 | 11 | `RESPONSE_UNADDRESSED` | An author response is posted on 02-09. Reviewers never comment, and the AC comments on days +1 and +12. |
 | 12 | `SPLIT` | Merit 2/4/4, with movement 1→2 on day +5. At the second instant (below), it also fires `DEADLINE_NO_CONSENSUS`. |
+| 13 | `REVIEW_FLAGGED` | One review is rated `disrespectful` by the AC and `short` by a co-reviewer. Otherwise healthy (that review is ≥ 200 words, so `THIN_REVIEWS` doesn't fire, because `THIN_REVIEWS` counts only `short`/`vague` ratings from **≥ 2 raters** or word count). |
 
 **Second assertion instant:** `PCS_NOW = 2030-03-01T12:00` (~2.5 days to decisions, inside the 3-day window). Assert only that pid 12 includes `DEADLINE_NO_CONSENSUS` and pid 1 fires nothing. Other rows drift with time and aren't asserted here.
 
@@ -117,13 +119,15 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 - `CHAMPION_MISSING` fires only if **no** reviewer holding the top merit has commented.
 - `SILENT_DISCUSSION` and `GONE_QUIET` count AC comments as activity.
 - `RESPONSE_UNADDRESSED` counts only reviewer comments.
+- `THIN_REVIEWS` fires on word count < floor, **or** a `short`/`vague` flag from ≥ `PCS_THRESH_RATING_RATERS` (2) raters.
+- Ratings are seeded with `POST /{p}/reviewrating?actas=<rater>`. The rater must be a co-reviewer who has already submitted, or the metareviewer.
 
 **People:**
 - **R-silent** is the low scorer on 3, 4, and 12 and never comments. They top "silent on split papers" with 3. Because they're the low scorer, no `CHAMPION_MISSING` fires.
 - **R-pinged** is pinged on pid 4 on day +3 and never comments there. That's an unanswered ping of 11+ days.
 - **AC-busy** holds pids 1, 3, 4, 8, 9, and 10: 6 papers, 5 flagged, commenting on all of them.
 - **AC-idle** holds pids 5 and 7: 2 papers, 0 comments, both flagged.
-- **AC-normal** holds pids 2, 6, 11, and 12.
+- **AC-normal** holds pids 2, 6, 11, 12, and 13.
 - The pid 2 laggard is tagged `reciprocal`. R-silent is tagged `junior`. Everyone else is senior.
 
 Changing this table means changing the M3 and M4 tests in the same PR.
@@ -215,6 +219,5 @@ The discussion MVP ships first, on the shadow PC. These milestones implement spe
 - Shadow PC phase dates. These are only needed for real use; CI uses synthetic dates.
 - Whether to add a post-hoc shadow-vs-real comparison (spec §5d). Not scheduled.
 - Upstream HotCRP PRs (spec §10.5): action-log and mail-log endpoints; JSON `override` fix.
-- Two-cycle support for phase 2? Undecided.
 - Will TPMS provide a registration-status export?
 - Make sure the `ripley-cloud-gha` App installation covers this repo (docs/ci.md, one-time setup).

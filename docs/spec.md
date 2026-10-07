@@ -32,13 +32,14 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | Discussion comments | `GET /comments?q=all` | `cid pid author_email text topic visibility response draft modified_at tags by_author by_shepherd`. **Verified**, including `actas`-authored comments and `@mention` detection. |
 | PC roster + user tags | `GET /pc` | Roles and visible user tags. Tiers (junior / reciprocal) come from user tags. |
 | Activity feed | `GET /events` | Pre-rendered HTML, 10 per page. **Don't use it.** |
-| Ratings of reviews | `GET /{p}/reviewrating` | Optional quality signal (`short`, `vague`, `disrespectful` …). |
+| Ratings of reviews | **included in `GET /reviews`** (`ratings` field) | Flags: `good needswork short vague narrow disrespectful wrong`. Encoding: a sorted **multiset** of flags (`["short","short","vague"]` means 2 raters said short and 1 said vague); a bare string for a single flag; absent when unrated. **No rater identity and no timestamp, even for chairs.** Raters must be able to see the review (co-reviewers after submitting, or the metareviewer), and nobody can rate their own review. Per-review `GET /{p}/reviewrating` exists but isn't needed. `rate:<flag>` works in searches. **Verified.** |
 
 **API facts that differ from what the docs suggest (from the harness):**
 
 - **Review `version` is an opaque version tag, not a counter.** Seen values: 269888, 455859, 157921. Detect change by inequality only, never by ordering.
 - **Review `modified_at` is admin-visible, but HotCRP suppresses it when `reviewModified <= timeRequested`, which includes a review requested and submitted in the same second.** That matters for seeding (§9.3). In production, treat a missing `modified_at` as "unknown" and fall back to `first_seen_at`.
 - **Comment `word_count` is null for ordinary comments.** We compute word counts ourselves.
+- **Ratings depend on instance settings.** `review_rating` (`pc` | `all` | `no`) controls who may rate, and `review_rating_visibility` controls who sees them. `pcs probe` reports both; if ratings are off, the rating-based signals are hidden, not shown as zero.
 - **`POST /reviews` ignores `override=1` for JSON bodies**; only text-form uploads honor it. The seeder works around this by opening review deadlines in settings. This may be worth an upstream issue.
 
 **Gaps that shape the design:**
@@ -73,8 +74,9 @@ paper(pid PK, title, status, decision, tags[], synced_at)
 assignment(pid, email, role)                           -- get/pcassignments
 review(rid PK, pid, email, rtype, status, round, ordinal, vtag,
        modified_at NULL, first_seen_at, first_complete_seen_at,
-       scores JSON, word_count)
-review_version(rid, vtag, seen_at, source, scores JSON, status) -- source: snapshot|history
+       scores JSON, word_count, ratings JSON)                 -- ratings as {flag: count}
+review_version(rid, vtag, seen_at, source, scores JSON, status)  -- source: snapshot|history
+rating_change(rid, seen_at, before JSON, after JSON)    -- ratings carry no vtag change or timestamp; diff per sync
 review_text(rid, vtag, field_uid, text)
 comment(cid PK, pid, email, topic, visibility, is_response, draft,
         word_count, mentions[], modified_at, first_seen_at, deleted_seen_at NULL)
@@ -141,7 +143,7 @@ Windows are relative to the phase-date env vars. Every threshold has an env over
 | Signal | Definition |
 |---|---|
 | Outstanding / late | Assigned reviews not complete (or delivered) after `REVIEW_DUE`. |
-| Review depth | Word count vs. the PC median. Flag the bottom decile and reviews rated `short`/`vague`. |
+| Review depth & quality | Word count vs. the PC median (flag the bottom decile), plus **rating flags received**: counts of `short`/`vague`/`needswork`/`narrow`/`wrong` vs. `good`, across all their reviews. A reviewer whose reviews repeatedly draw negative flags from different papers is a coaching case. |
 | Discussion participation | Share of their in-discussion papers where they've commented since `DISCUSSION_OPEN`. |
 | Responsiveness | After an `@mention`, or an AC comment on their paper: the median time to their next comment there. Unanswered pings older than `PCS_THRESH_PING_DAYS` are listed. |
 | Movement | Score/expertise changes after `DISCUSSION_OPEN` (from `review_version`). |
@@ -164,7 +166,7 @@ The view is one row per AC (activity sparkline, coverage, stale, flagged). Click
 
 ### 5c. Paper risk
 
-Each rule fires with a reason string. Severity is the sum of weights. Sort by severity, then by time to `DECISIONS_DUE`.
+Each rule fires with a reason string. Rating-based reasons quote the counts, e.g. "review B: 2× short, 1× vague". Severity is the sum of weights. Sort by severity, then by time to `DECISIONS_DUE`.
 
 | Rule (`NAME`) | Fires when | Default weight |
 |---|---|---|
@@ -176,8 +178,9 @@ Each rule fires with a reason string. Severity is the sum of weights. Sort by se
 | `AC_ABSENT` | no AC comment since `DISCUSSION_OPEN` | 2 |
 | `CHAMPION_MISSING` | the top merit is ≥ `MERIT_ACCEPT_MIN`, and that reviewer hasn't commented | 1 |
 | `LOW_EXPERTISE` | no review with expertise ≥ `EXPERTISE_OK_MIN` | 2 |
-| `THIN_REVIEWS` | a review under `PCS_THRESH_MIN_WORDS`, or rated short/vague | 1 |
+| `THIN_REVIEWS` | a review under `PCS_THRESH_MIN_WORDS`, or flagged short/vague by ≥ `PCS_THRESH_RATING_RATERS` (2) raters | 1 |
 | `RESPONSE_UNADDRESSED` | an author response exists, with no reviewer comment after it | 2 |
+| `REVIEW_FLAGGED` | any review on the paper carries a `disrespectful` or `wrong` rating. **Phase-independent**, because a disrespectful review needs chair action before authors see it | 4 |
 | `DEADLINE_NO_CONSENSUS` | < `PCS_THRESH_DEADLINE_DAYS` (3) to `DECISIONS_DUE`, no decision, and split or silent | +3 |
 
 Views:
@@ -291,7 +294,7 @@ Each phase date is an env var:
 
 `PCS_PHASE_REGISTRATION_DUE`, `PCS_PHASE_SUBMISSION_DUE`, `PCS_PHASE_QUICKREJECT_DUE`, `PCS_PHASE_ASSIGNMENT_DONE`, `PCS_PHASE_REVIEW_DUE`, `PCS_PHASE_EARLYREJECT_OPEN`, `PCS_PHASE_EARLYREJECT_CLOSE`, `PCS_PHASE_RESPONSE_OPEN/_CLOSE`, `PCS_PHASE_DISCUSSION_OPEN/_CLOSE`, `PCS_PHASE_DECISIONS_DUE`.
 
-The modules activate by phase. Single-cycle only for now; a two-cycle conference would duplicate this set per cycle and still needs design.
+The modules activate by phase. **Single cycle (decided).** There is no resubmission linking and no per-cycle phase sets.
 
 ### 10.2 Tiers
 
@@ -344,7 +347,7 @@ Imports are versioned like snapshots, so "what did the sheet say on day X" is an
 **F. Discussion and decisions:** §5, plus tier-aware participation (do junior reviewers comment?).
 
 **G. Process report** (after the conference)
-- Junior vs. senior depth, timeliness, rating distributions, and score agreement.
+- Junior vs. senior depth, timeliness, **rating-flag distributions** (flags received per review, by tier), and score agreement.
 - Reserve activation and dropout rates; early-reject yield; quick/desk-reject counts and appeals.
 - A carry-forward export of the do-not-invite list.
 - **Pseudonymous IDs** (a keyed HMAC of the email, with a chair-held key, `PCS_PSEUDONYM_KEY`) on every exported row, so the data could join a future cross-conference baseline without exposing identities.
