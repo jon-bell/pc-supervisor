@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 7 * * *"   # nightly: HotCRP master + scale scenario
+  workflow_dispatch:
+    inputs:
+      hotcrp_ref:
+        description: HotCRP commit/branch to test against (default = pinned)
+        required: false
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Pinned HotCRP commit; nightly overrides with master. Keep in sync with
+  # hotcrp/Dockerfile's default.
+  HOTCRP_REF: ${{ inputs.hotcrp_ref || (github.event_name == 'schedule' && 'master') || '60f693f88b9a0ef9e34b11af957a513f1c122690' }}
+  COMPOSE_PROJECT_NAME: pcs-${{ github.run_id }}-${{ github.run_attempt }}
+  HOTCRP_PORT: "8080"
+  # Phase dates for the synthetic conference. Seed scenarios are written
+  # relative to these, and PCS_NOW pins the clock so rule output is stable.
+  PCS_TZ: America/New_York
+  PCS_PHASE_REVIEW_DUE: "2030-02-01T23:59"
+  PCS_PHASE_RESPONSE_OPEN: "2030-02-08T00:00"
+  PCS_PHASE_RESPONSE_CLOSE: "2030-02-11T23:59"
+  PCS_PHASE_DISCUSSION_OPEN: "2030-02-12T00:00"
+  PCS_PHASE_DISCUSSION_CLOSE: "2030-03-01T23:59"
+  PCS_PHASE_DECISIONS_DUE: "2030-03-03T23:59"
+  PCS_NOW: "2030-02-26T12:00"
+  PCS_DB_PATH: ${{ github.workspace }}/data/ci.db
+  PCS_DB_KEY: ci-only-not-secret
+
+jobs:
+  ci:
+    runs-on: ripley-cloud
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start HotCRP harness
+        run: scripts/hotcrp-up.sh
+
+      - name: Harness API smoke test
+        run: scripts/harness-smoke.sh
+
+      - uses: actions/setup-node@v4
+        if: hashFiles('package.json') != ''
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        if: hashFiles('package.json') != ''
+        run: npm ci
+
+      - name: Lint + typecheck
+        if: hashFiles('package.json') != ''
+        run: npm run lint && npm run typecheck
+
+      - name: Unit tests
+        if: hashFiles('package.json') != ''
+        run: npm run test:unit
+
+      - name: Contract + integration tests (against harness)
+        if: hashFiles('package.json') != ''
+        run: set -a && . ./.env.test && set +a && npm run test:integration
+
+      - name: Playwright E2E
+        if: hashFiles('package.json') != ''
+        run: |
+          npx playwright install --with-deps chromium
+          set -a && . ./.env.test && set +a && npm run test:e2e
+
+      - name: Scale scenario (nightly only)
+        if: github.event_name == 'schedule' && hashFiles('package.json') != ''
+        run: set -a && . ./.env.test && set +a && npm run test:scale
+
+      - name: Collect harness logs
+        if: failure()
+        run: docker compose -f hotcrp/compose.yaml logs --no-color > hotcrp-logs.txt 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: failure-artifacts
+          path: |
+            hotcrp-logs.txt
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
+      - name: Tear down harness
+        if: always()
+        run: docker compose -f hotcrp/compose.yaml down -v --remove-orphans || true

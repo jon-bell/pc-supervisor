@@ -1,0 +1,37 @@
+# Disposable HotCRP + MariaDB. `docker compose -f hotcrp/compose.yaml up -d --build`
+# Data lives in an anonymous volume: `down -v` resets everything.
+services:
+  db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: ${HOTCRP_DB_NAME:-hotcrp}
+      MARIADB_USER: ${HOTCRP_DB_USER:-hotcrp}
+      MARIADB_PASSWORD: ${HOTCRP_DB_PASSWORD:-hotcrp}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    tmpfs:
+      - /var/lib/mysql:size=2g
+  hotcrp:
+    build:
+      context: .
+      args:
+        HOTCRP_REF: ${HOTCRP_REF:-60f693f88b9a0ef9e34b11af957a513f1c122690}
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      HOTCRP_DB_HOST: db
+      HOTCRP_DB_NAME: ${HOTCRP_DB_NAME:-hotcrp}
+      HOTCRP_DB_USER: ${HOTCRP_DB_USER:-hotcrp}
+      HOTCRP_DB_PASSWORD: ${HOTCRP_DB_PASSWORD:-hotcrp}
+      HOTCRP_SITE_URL: http://localhost:${HOTCRP_PORT:-8080}
+    ports:
+      - "127.0.0.1:${HOTCRP_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost/"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
