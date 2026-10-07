@@ -1,8 +1,9 @@
 // `pcs` CLI. Subcommands register in COMMANDS below; each returns an exit code.
-// probe (M0) lives in ../probe/. sync / backfill / wipe (M3) live in ./store-commands.ts. Planned: serve (M5).
+// probe (M0) lives in ../probe/. sync / backfill / wipe (M3) live in ./store-commands.ts. serve (M5) in ./serve.ts.
 
 import { describeConfig, loadConfig, orExit } from "../config.js";
 import { PROBE_USAGE, runProbe } from "../probe/command.js";
+import { SERVE_COMMAND } from "./serve.js";
 import { STORE_COMMANDS } from "./store-commands.js";
 
 export interface Command {
@@ -13,6 +14,7 @@ export interface Command {
 
 export const COMMANDS: Record<string, Command> = {
   ...STORE_COMMANDS,
+  serve: SERVE_COMMAND,
   "config-check": {
     summary: "Validate every PCS_* variable and print a summary (secrets redacted)",
     run() {

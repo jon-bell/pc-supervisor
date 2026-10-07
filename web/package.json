@@ -2,7 +2,7 @@
   "name": "@pcs/web",
   "private": true,
   "type": "module",
-  "description": "React + Vite UI (PLAN M5). Placeholder until then.",
+  "description": "React + Vite UI: triage list, paper drawer, sync status (PLAN M5).",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
@@ -10,10 +10,14 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@tanstack/react-query": "5.104.1",
+    "@tanstack/react-table": "8.21.3",
+    "@tanstack/react-virtual": "3.14.13",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@pcs/server": "*",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",

@@ -145,7 +145,8 @@ describe("buildSnapshot", () => {
 
 describe("buildSnapshot at scale", () => {
   it("uses a constant number of statements (no N+1) and stays fast", async () => {
-    const PAPERS = 600;
+    // SCALE=1 npm run test:unit: the AGENTS.md size (2,400 papers, ~10k reviews).
+    const PAPERS = process.env.SCALE === "1" ? 2400 : 600;
     const hc = new FakeHotcrp();
     for (let i = 0; i < 20; i++) hc.people.push({ name: `Area Chair${i}`, email: `ac${i}@example.org` });
     for (let i = 0; i < 300; i++) hc.people.push({ name: `Rev Iewer${i}`, email: `r${i}@example.org` });
@@ -187,7 +188,8 @@ describe("buildSnapshot at scale", () => {
     const one = count([5]);
     expect(full.n).toBe(one.n);
     expect(full.n).toBeLessThanOrEqual(6);
-    // Generous bound; 2,400 papers measured in the M5 report.
+    console.log(`buildSnapshot: ${PAPERS} papers, ${full.v.reviews.length} reviews, ${full.v.comments.length} comments in ${full.ms.toFixed(0)} ms (${full.n} statements)`);
+    // Generous bound (CI machines vary).
     expect(full.ms).toBeLessThan(5000);
     store.close();
   }, 60_000);

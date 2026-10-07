@@ -194,7 +194,7 @@ describe("golden people facts", () => {
   });
 
   it("everyone else is senior", () => {
-    const special = new Set([...PEOPLE.tiers.junior, ...PEOPLE.tiers.reciprocal]);
+    const special = new Set<string>([...PEOPLE.tiers.junior, ...PEOPLE.tiers.reciprocal]);
     const tiers = new Set(primary.reviewers.filter((r) => !special.has(r.email)).map((r) => r.tier));
     expect([...tiers]).toEqual(["senior"]);
   });

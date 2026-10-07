@@ -46,9 +46,12 @@ async function sync(at: number): Promise<SyncResult> {
   return r;
 }
 
-const cidOf = (pid: number, email: string) => {
-  const rows = store.comments({ pids: [pid], includeGone: true }).filter((c) => c.email === email);
-  return rows.map((c) => c.cid);
+/** The one comment by `email` on `pid` (the scenario has at most one per pair and stage). */
+const cidOf = (pid: number, email: string, seenAt: number): number => {
+  const rows = store.comments({ pids: [pid], includeGone: true }).filter((c) => c.email === email && c.firstSeenAt <= seenAt);
+  const fresh = rows.filter((c) => !Object.values(cid).includes(c.cid));
+  expect(fresh, `comment by ${email} on ${pid}`).toHaveLength(1);
+  return fresh[0]!.cid;
 };
 
 beforeAll(async () => {
@@ -67,16 +70,16 @@ beforeAll(async () => {
 
   await seedScenario(scenario, { stage: 1, reset: true });
   run1 = await sync(t1);
-  [cid.c1] = cidOf(1, M.ac);
-  [cid.c2] = cidOf(1, M.ana);
-  [cid.c3] = cidOf(2, M.ac);
-  [cid.c4] = cidOf(2, M.bo);
-  [cid.c5] = cidOf(3, M.cy);
+  cid.c1 = cidOf(1, M.ac, t1);
+  cid.c2 = cidOf(1, M.ana, t1);
+  cid.c3 = cidOf(2, M.ac, t1);
+  cid.c4 = cidOf(2, M.bo, t1);
+  cid.c5 = cidOf(3, M.cy, t1);
 
   await seedScenario(scenario, { stage: 2 });
   run2 = await sync(t2);
-  [cid.c6] = cidOf(1, M.bo);
-  [cid.c7] = cidOf(3, M.ac);
+  cid.c6 = cidOf(1, M.bo, t2);
+  cid.c7 = cidOf(3, M.ac, t2);
 }, 180_000);
 
 afterAll(() => {
