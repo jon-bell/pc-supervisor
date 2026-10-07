@@ -13,7 +13,17 @@ import type {
   TriageResponse,
 } from "@pcs/server/server/api-types";
 
+import type {
+  ActionsInfo,
+  NudgeResponse,
+  TagCommitRequest,
+  TagCommitResponse,
+  TagPreviewRequest,
+  TagPreviewResponse,
+} from "@pcs/server/server/action-types";
+
 export type * from "@pcs/server/server/api-types";
+export type * from "@pcs/server/server/action-types";
 
 export class ApiError extends Error {
   constructor(
@@ -53,6 +63,8 @@ export const keys = {
   reviewers: ["reviewers"] as const,
   person: (email: string) => ["person", email] as const,
   overview: ["overview"] as const,
+  actions: ["actions"] as const,
+  nudge: (pid: number) => ["nudge", pid] as const,
 };
 
 export function useMeta() {
@@ -111,6 +123,35 @@ export function useSyncNow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => getJson<SyncStatus>("/api/sync", { method: "POST" }),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.sync }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// v1 actions (PLAN M8)
+
+export function useActions() {
+  return useQuery({ queryKey: keys.actions, queryFn: () => getJson<ActionsInfo>("/api/actions") });
+}
+
+/** A nudge draft for one paper; fetched only when asked for. */
+export function useNudge(pid: number, enabled: boolean) {
+  return useQuery({ queryKey: keys.nudge(pid), queryFn: () => getJson<NudgeResponse>(`/api/papers/${pid}/nudge`), enabled });
+}
+
+const postJson = <T>(url: string, body: unknown) =>
+  getJson<T>(url, { method: "POST", headers: { accept: "application/json", "content-type": "application/json" }, body: JSON.stringify(body) });
+
+/** The HotCRP dry run: what tagging would change, and a single-use token for exactly that. */
+export function useTagPreview() {
+  return useMutation({ mutationFn: (req: TagPreviewRequest) => postJson<TagPreviewResponse>("/api/tags/preview", req) });
+}
+
+/** The confirmed write. The server re-syncs afterwards; polling the sync status picks that up. */
+export function useTagCommit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: TagCommitRequest) => postJson<TagCommitResponse>("/api/tags/commit", req),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.sync }),
   });
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pidChunks } from "../../src/hotcrp/chunk.js";
+import { pidChunks, pidListChunks } from "../../src/hotcrp/chunk.js";
 
 describe("pidChunks", () => {
   it("chunks sorted, de-duplicated pids into ranges", () => {
@@ -25,5 +25,13 @@ describe("pidChunks", () => {
     expect(pidChunks([], 200)).toEqual([]);
     expect(() => pidChunks([1], 0)).toThrow(RangeError);
     expect(() => pidChunks([0], 10)).toThrow(RangeError);
+  });
+});
+
+describe("pidListChunks", () => {
+  it("names exactly its pids, as runs and singletons", () => {
+    const chunks = pidListChunks([40, 1, 2, 3, 7, 9, 10, 2], 4);
+    expect(chunks.map((c) => c.q)).toEqual(["1-3 7", "9-10 40"]);
+    expect(chunks.map((c) => c.pids)).toEqual([[1, 2, 3, 7], [9, 10, 40]]);
   });
 });

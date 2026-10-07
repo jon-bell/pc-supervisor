@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { fixedClock } from "../../src/clock.js";
 import type { AcRole } from "../../src/config.js";
 import { memoryStore, type Store } from "../../src/store/store.js";
-import { parseTagField, runSync, tierFor, type SyncOptions } from "../../src/sync/sync.js";
+import { coverPids, parseTagField, runSync, tierFor, type SyncOptions } from "../../src/sync/sync.js";
 import { smallWorld, type FakeHotcrp } from "./fake-source.js";
 
 const T1 = new Date("2030-02-12T12:00:00Z");
@@ -114,12 +114,30 @@ describe("first sync", () => {
     expect(rh.find((h) => h.kind === "review")).toMatchObject({ rid: 12, fieldUid: "ComAut" });
   });
 
-  it("asks HotCRP for tag holders in pid chunks, only for tags that exist", async () => {
+  it("asks HotCRP for tag holders on covering papers only, only for tags that exist", async () => {
     await runSync(store.db, hc, opts(T1, { tierTags: { junior: "junior", gone: "nosuchtag" } }));
-    // 3 papers / chunk 2 = 2 chunks, one tag that exists.
-    expect(hc.calls.filter((c) => c === "reviews-rq")).toHaveLength(2);
+    // Papers 1 and 2 cover every reviewer (one chunk of 2); one tag exists.
+    expect(hc.calls.filter((c) => c === "reviews-rq")).toHaveLength(1);
+    // 3 papers / chunk 2 = 2 chunks.
     expect(hc.calls.filter((c) => c === "reviews")).toHaveLength(2);
     expect(hc.calls.filter((c) => c === "comments")).toHaveLength(2);
+  });
+
+  it("finds a tagged reviewer the covering papers miss (external, not in get/pcassignments)", async () => {
+    hc.people.push({ name: "Xi Outside", email: "xi@example.org", tags: ["junior"], external: true });
+    hc.papersList.push({ pid: 4, title: "Paper Four" });
+    hc.review({ pid: 4, rid: 41, rtype: 1, reviewer_email: "xi@example.org", OveMer: 3, RevExp: 2, PapSum: "Ok.", ComAut: "Fine." });
+    const first = await runSync(store.db, hc, opts(T1));
+    expect(first.ok, first.errors.join("; ")).toBe(true);
+    expect(store.people().find((p) => p.email === "xi@example.org")).toMatchObject({ isPc: false, tier: "junior", tags: ["junior"] });
+    expect(store.people().find((p) => p.email === "cy@example.org")).toMatchObject({ tier: "junior" });
+    // Next time xi is a known reviewer, so paper 4 is in the cover: no extra queries, no changes.
+    hc.calls = [];
+    const again = await runSync(store.db, hc, opts(T2));
+    const { reviews_fetched: _r, comments_fetched: _c, tag_queries, ...rest } = again.counts;
+    expect(rest).toEqual({});
+    expect(tag_queries).toBe(2);
+    expect(store.people().find((p) => p.email === "xi@example.org")).toMatchObject({ tier: "junior" });
   });
 
   it("records the run", async () => {
@@ -315,5 +333,24 @@ describe("helpers", () => {
     expect(tierFor(["recip", "junior"], tiers)).toBe("junior");
     expect(tierFor(["RECIP"], tiers)).toBe("reciprocal");
     expect(tierFor([], tiers)).toBe("senior");
+  });
+});
+
+describe("coverPids", () => {
+  it("picks few papers that together hold a review by every reviewer", () => {
+    const pairs = [
+      { pid: 1, email: "a" }, { pid: 1, email: "b" },
+      { pid: 2, email: "b" }, { pid: 2, email: "c" }, { pid: 2, email: "d" },
+      { pid: 3, email: "a" }, { pid: 3, email: "e" },
+      { pid: 4, email: "d" },
+    ];
+    const cover = coverPids(pairs);
+    expect(cover).toEqual([2, 3]);
+    const covered = new Set(pairs.filter((p) => cover.includes(p.pid)).map((p) => p.email));
+    expect([...covered].sort()).toEqual(["a", "b", "c", "d", "e"]);
+  });
+
+  it("is empty for no reviewers", () => {
+    expect(coverPids([])).toEqual([]);
   });
 });

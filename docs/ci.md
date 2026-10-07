@@ -73,4 +73,11 @@ Don't do either until build time actually hurts.
 | Job | Trigger | Runs |
 |---|---|---|
 | `ci` | push, PR | harness up → API smoke → (once `package.json` exists) lint, typecheck, unit, contract, seed `golden`, integration, Playwright → artifacts on failure → teardown |
-| `nightly` | schedule + manual | the same suite against `HOTCRP_REF=master` (an early warning when upstream changes the API), plus the `scale` scenario on `ripley-cloud-large` |
+| `ci` (nightly) | schedule + manual | the same suite against `HOTCRP_REF=master` (an early warning when upstream changes the API) |
+| `scale` | schedule, or manual dispatch with `scale: true` | `ripley-cloud-large`, its own fresh harness: `npm run test:scale` (PLAN M7). Seeds `scale`, times a full sync and a no-change re-sync, times the analyze()-backed API endpoints cold and warm, then runs the Playwright perf spec (`e2e/scale/perf.spec.ts`: render, filter, scripted scroll). Budgets live in `e2e/scale/budgets.ts` and are assertions. The timings, HotCRP traffic, and DB size are printed and written to the job summary. |
+
+### Scale job notes
+
+- It's a separate job, not a step in `ci`, so it gets the large runner and a harness whose chair token hasn't spent its rate-limit budget on the rest of the suite.
+- The harness keeps HotCRP's default rate limits for the chair token (250 requests/min, 5,000/h; the seeder uses its own raised token). Those are also the defaults on a real instance unless its `apiRefreshAmount*` options change them. Bytes cost budget only for *downloads* (`searchaction` CSVs, 0.01 per KiB); JSON `/reviews` and `/comments` cost one per request. A full sync of `scale` is ~34 requests, so the budget is not the bottleneck; WAN latency on a real instance is, and the sync has 50x headroom on the 5-minute budget against the harness.
+- Locally: `scripts/hotcrp-up.sh`, load `.env.test` and the ci.yml `PCS_*` vars, then `npm run test:scale` (`-- --skip-seed` reuses a harness already seeded with `scale`; `--skip-browser` stops after the API checks).

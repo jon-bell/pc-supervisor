@@ -656,3 +656,93 @@ pre.draft {
   padding: 0 16px;
   font-size: 12px;
 }
+
+/* v1 actions (PLAN M8) */
+.actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.drawer-actions .actions-bar {
+  padding: 6px 0;
+  border-bottom: 0;
+}
+.search-q {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #f4f4f4;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.title-cell {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.title-cell .title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nudge {
+  margin: 4px 0 10px;
+}
+.nudge-text {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  margin: 4px 0;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.modal {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  padding: 16px 20px;
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100% - 64px);
+  overflow: auto;
+}
+.modal h3 {
+  margin: 0 0 8px;
+}
+.modal h4 {
+  margin: 10px 0 4px;
+}
+.tag-list {
+  margin: 0;
+  padding-left: 18px;
+}
+.confirm {
+  display: block;
+  margin: 12px 0 4px;
+}
+.confirm input {
+  font: inherit;
+  margin-left: 4px;
+}
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
