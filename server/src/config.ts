@@ -240,6 +240,105 @@ const LOAD_FIELDS = Object.fromEntries(
   [S in (typeof LOAD_TIERS)[number][1] as `PCS_LOAD_${S}_MIN` | `PCS_LOAD_${S}_MAX`]: ReturnType<typeof withDefault<number>>;
 };
 
+// Reserve compliance and quick-reject tracker (spec §10.4 A/B, PLAN M11).
+
+/** A comma-separated list of non-empty names (trimmed; duplicates dropped, case-insensitively). */
+function nameList(what: string) {
+  return (v: string, ctx: z.RefinementCtx): string[] => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const part of v.split(",").map((p) => p.trim())) {
+      if (part === "") continue;
+      if (part.length > 200) return fail(ctx, `${what} names must be at most 200 characters, got ${show(part)}`);
+      if (seen.has(part.toLowerCase())) continue;
+      seen.add(part.toLowerCase());
+      out.push(part);
+    }
+    if (out.length === 0) return fail(ctx, `expected a comma-separated list of ${what} names, got ${show(v)}`);
+    return out;
+  };
+}
+
+/** A HotCRP submission-option name (free text, as configured in HotCRP). */
+function optionName(v: string, ctx: z.RefinementCtx): string {
+  const s = v.trim();
+  // eslint-disable-next-line no-control-regex
+  if (s.length > 200 || /[\u0000-\u001f]/.test(s)) return fail(ctx, `expected a submission-option name, got ${show(v)}`);
+  return s;
+}
+
+/** A HotCRP paper tag (no leading #, no value). */
+function paperTag(v: string, ctx: z.RefinementCtx): string {
+  const s = v.trim().replace(/^#/, "");
+  if (!TAG_RE.test(s)) return fail(ctx, `expected a tag (${TAG_RE_HUMAN}), got ${show(v)}`);
+  return s;
+}
+
+/** A review round name (HotCRP: letters, digits, _ and -). */
+function roundName(v: string, ctx: z.RefinementCtx): string {
+  const s = v.trim();
+  if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(s)) return fail(ctx, `expected a review round name like quickreject, got ${show(v)}`);
+  return s;
+}
+
+function httpsBase(v: string, ctx: z.RefinementCtx): string {
+  let u: URL;
+  try {
+    u = new URL(v.trim());
+  } catch {
+    return fail(ctx, `expected an absolute https URL, got ${show(v)}`);
+  }
+  if (u.protocol !== "https:" || u.search || u.hash || u.username || u.password) {
+    return fail(ctx, `expected an https URL without credentials, query, or fragment, got ${show(v)}`);
+  }
+  return `${u.origin}${u.pathname.replace(/\/+$/, "")}`;
+}
+
+/** The quick-reject tag vocabulary (PCS_QR_TAGS): state -> paper tag. */
+export const QR_TAG_KEYS = [
+  "ac-reject",
+  "ac-keep",
+  "chair-desk-reject",
+  "chair-keep",
+  "appeal",
+  "appeal-upheld",
+  "appeal-overturned",
+] as const;
+export type QrTagKey = (typeof QR_TAG_KEYS)[number];
+export type QrTags = Readonly<Record<QrTagKey, string>>;
+export const QR_TAG_DEFAULTS: QrTags = {
+  "ac-reject": "qr-ac-reject",
+  "ac-keep": "qr-ac-keep",
+  "chair-desk-reject": "qr-chair-desk-reject",
+  "chair-keep": "qr-chair-keep",
+  appeal: "qr-appeal",
+  "appeal-upheld": "qr-appeal-upheld",
+  "appeal-overturned": "qr-appeal-overturned",
+};
+
+/** Overrides of QR_TAG_DEFAULTS, as key=tag pairs; unnamed keys keep their default. */
+function qrTags(v: string, ctx: z.RefinementCtx): QrTags {
+  const out: Record<string, string> = { ...QR_TAG_DEFAULTS };
+  const given = new Set<string>();
+  for (const part of v.split(",").map((p) => p.trim()).filter((p) => p !== "")) {
+    const m = /^([a-z-]+)=#?(.+)$/.exec(part);
+    if (!m || !(QR_TAG_KEYS as readonly string[]).includes(m[1]!) || !TAG_RE.test(m[2]!)) {
+      return fail(ctx, `expected key=tag pairs with keys ${QR_TAG_KEYS.join(", ")} (tags: ${TAG_RE_HUMAN}), got ${show(v)}`);
+    }
+    if (given.has(m[1]!)) return fail(ctx, `"${m[1]}" listed twice in ${show(v)}`);
+    given.add(m[1]!);
+    out[m[1]!] = m[2]!;
+  }
+  const tags = Object.values(out).map((t) => t.toLowerCase());
+  if (new Set(tags).size !== tags.length) return fail(ctx, `every quick-reject state needs its own tag, got ${show(v)}`);
+  return out as QrTags;
+}
+
+/** Default reserve-exemption reasons: the values M10's seeder gives the dropdown. */
+export const RESERVE_EXEMPTION_DEFAULTS: readonly string[] = ["no-eligible-author", "all-authors-on-pc", "other"];
+/** Default venue list for the optional DBLP hint (spec §10.4 A). */
+export const DBLP_VENUE_DEFAULTS: readonly string[] = ["ICSE", "ESEC/SIGSOFT FSE", "SIGSOFT FSE", "Proc. ACM Softw. Eng.", "ASE", "ISSTA"];
+
 function path(v: string): string {
   const s = v.trim();
   return s === "~" ? homedir() : s.startsWith("~/") ? join(homedir(), s.slice(2)) : s;
@@ -296,6 +395,29 @@ export const FIELDS = {
   PCS_CYCLE_MAX_REPORT: withDefault(500, intIn(1, 100_000)),
   PCS_CONFLICT_AFFILIATION: withDefault(true, bool),
   PCS_CONFLICT_DBLP: withDefault(false, bool),
+  // Reserve compliance (spec §10.4 A, PLAN M11).
+  PCS_RESERVE_DESIGNEE_FIELD: withDefault("Reserve designee", optionName),
+  PCS_RESERVE_EXEMPTION_FIELD: withDefault("Reserve exemption", optionName),
+  PCS_RESERVE_SENIORITY_FIELD: withDefault("Reserve seniority", optionName),
+  PCS_RESERVE_EXEMPTIONS: withDefault<string[]>([...RESERVE_EXEMPTION_DEFAULTS], nameList("exemption")),
+  PCS_RESERVE_EXEMPTION_ALL_PC: withDefault("all-authors-on-pc", optionName),
+  PCS_RESERVE_MAX_COVER: withDefault(3, intIn(1, 10_000)),
+  PCS_RESERVE_TPMS_MIN_PAPERS: withDefault(1, intIn(0, 10_000)),
+  PCS_DBLP_ENABLED: withDefault(false, bool),
+  PCS_DBLP_URL: withDefault("https://dblp.org", httpsBase),
+  PCS_DBLP_VENUES: withDefault<string[]>([...DBLP_VENUE_DEFAULTS], nameList("venue")),
+  PCS_DBLP_SENIOR_MIN: withDefault(5, intIn(1, 10_000)),
+  PCS_DBLP_RPS: withDefault(1, numberIn(0, 10, { exclusiveMin: true })),
+  // Quick-reject tracker (spec §10.4 B, PLAN M11).
+  PCS_QR_ROUND: withDefault("quickreject", roundName),
+  PCS_QR_FIELD: optional(fieldUid),
+  PCS_QR_REJECT_MAX: withDefault(1, intIn(-1000, 1000)),
+  PCS_QR_AC_FLAG_TAG: withDefault("qr-flag", paperTag),
+  PCS_QR_TAGS: withDefault<QrTags>(QR_TAG_DEFAULTS, qrTags),
+  PCS_QR_REJECT_DECISIONS: withDefault<string[]>(["Rejected"], nameList("decision")),
+  PCS_QR_EXCLUDE_FROM_SLOTS: withDefault(true, bool),
+  PCS_REFCHECK_HALLUCINATED_MIN: withDefault(1, intIn(1, 100_000)),
+  PCS_REFCHECK_IN_FIELD_MIN: withDefault(1, intIn(0, 100_000)),
   PCS_DB_PATH: optional(path),
   PCS_DB_KEY: optional(secret),
   PCS_SYNC_INTERVAL_MIN: withDefault(15, intIn(1, 24 * 60)),
@@ -487,6 +609,64 @@ export const DEFAULT_ASSIGNMENT_POLICY: AssignmentPolicy = {
   dblpConflicts: false,
 };
 
+/** PCS_RESERVE_* and PCS_DBLP_* (spec §10.4 A). */
+export interface ReservePolicy {
+  /** Submission-option names in HotCRP. */
+  designeeField: string;
+  exemptionField: string;
+  seniorityField: string;
+  /** PCS_RESERVE_EXEMPTIONS: the exemption reasons that count. */
+  exemptions: readonly string[];
+  /** PCS_RESERVE_EXEMPTION_ALL_PC: the reason whose claim is "every author is on the PC" (checked). */
+  exemptionAllPc: string;
+  maxCover: number;
+  tpmsMinPapers: number;
+  dblp: { enabled: boolean; url: string; venues: readonly string[]; seniorMin: number; rps: number };
+}
+
+export const DEFAULT_RESERVE_POLICY: ReservePolicy = {
+  designeeField: "Reserve designee",
+  exemptionField: "Reserve exemption",
+  seniorityField: "Reserve seniority",
+  exemptions: RESERVE_EXEMPTION_DEFAULTS,
+  exemptionAllPc: "all-authors-on-pc",
+  maxCover: 3,
+  tpmsMinPapers: 1,
+  dblp: { enabled: false, url: "https://dblp.org", venues: DBLP_VENUE_DEFAULTS, seniorMin: 5, rps: 1 },
+};
+
+/** PCS_QR_* and PCS_REFCHECK_* (spec §10.4 B). */
+export interface QuickRejectPolicy {
+  round: string;
+  /** Review-form field holding the verdict (PCS_QR_FIELD, else PCS_FIELD_MERIT). */
+  field: string;
+  /** A quick-reject review votes "reject" when its field value is at most this. */
+  rejectMax: number;
+  acFlagTag: string;
+  tags: QrTags;
+  rejectDecisions: readonly string[];
+  /** Leave quick-reject-round reviews out of the review slots (MISSING_REVIEWS, composition, load). */
+  excludeFromSlots: boolean;
+  refcheck: { hallucinatedMin: number; inFieldMin: number };
+}
+
+export const DEFAULT_QUICKREJECT_POLICY: QuickRejectPolicy = {
+  round: "quickreject",
+  field: "OveMer",
+  rejectMax: 1,
+  acFlagTag: "qr-flag",
+  tags: QR_TAG_DEFAULTS,
+  rejectDecisions: ["Rejected"],
+  excludeFromSlots: true,
+  refcheck: { hallucinatedMin: 1, inFieldMin: 1 },
+};
+
+/** Review rounds left out of the review slots (empty unless PCS_QR_EXCLUDE_FROM_SLOTS). */
+export function excludedRounds(c: { quickReject?: QuickRejectPolicy | undefined }): string[] {
+  const q = c.quickReject;
+  return q && q.excludeFromSlots ? [q.round] : [];
+}
+
 export interface Config {
   hotcrp: HotcrpConfig;
   tz: string;
@@ -508,6 +688,10 @@ export interface Config {
    * that builds a Config literal keeps compiling; loadConfig always sets it.
    */
   assignment?: AssignmentPolicy;
+  /** Reserve compliance (spec §10.4 A); optional like `assignment`, always set by loadConfig. */
+  reserve?: ReservePolicy;
+  /** Quick-reject tracker (spec §10.4 B); optional like `assignment`, always set by loadConfig. */
+  quickReject?: QuickRejectPolicy;
   db: { path: string; key: string | undefined };
   sync: { intervalMin: number; chunk: number; concurrency: number; historyRps: number };
   port: number;
@@ -704,6 +888,32 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
       affiliationConflicts: f.PCS_CONFLICT_AFFILIATION,
       dblpConflicts: f.PCS_CONFLICT_DBLP,
     },
+    reserve: {
+      designeeField: f.PCS_RESERVE_DESIGNEE_FIELD,
+      exemptionField: f.PCS_RESERVE_EXEMPTION_FIELD,
+      seniorityField: f.PCS_RESERVE_SENIORITY_FIELD,
+      exemptions: f.PCS_RESERVE_EXEMPTIONS,
+      exemptionAllPc: f.PCS_RESERVE_EXEMPTION_ALL_PC,
+      maxCover: f.PCS_RESERVE_MAX_COVER,
+      tpmsMinPapers: f.PCS_RESERVE_TPMS_MIN_PAPERS,
+      dblp: {
+        enabled: f.PCS_DBLP_ENABLED,
+        url: f.PCS_DBLP_URL,
+        venues: f.PCS_DBLP_VENUES,
+        seniorMin: f.PCS_DBLP_SENIOR_MIN,
+        rps: f.PCS_DBLP_RPS,
+      },
+    },
+    quickReject: {
+      round: f.PCS_QR_ROUND,
+      field: f.PCS_QR_FIELD ?? f.PCS_FIELD_MERIT,
+      rejectMax: f.PCS_QR_REJECT_MAX,
+      acFlagTag: f.PCS_QR_AC_FLAG_TAG,
+      tags: f.PCS_QR_TAGS,
+      rejectDecisions: f.PCS_QR_REJECT_DECISIONS,
+      excludeFromSlots: f.PCS_QR_EXCLUDE_FROM_SLOTS,
+      refcheck: { hallucinatedMin: f.PCS_REFCHECK_HALLUCINATED_MIN, inFieldMin: f.PCS_REFCHECK_IN_FIELD_MIN },
+    },
     db: { path: f.PCS_DB_PATH ?? defaultDbPath(f.PCS_HOTCRP_URL, opts.home), key: f.PCS_DB_KEY },
     sync: {
       intervalMin: f.PCS_SYNC_INTERVAL_MIN,
@@ -767,6 +977,16 @@ export function describeConfig(c: Config): string[] {
           `Assignment        ${c.assignment.minSenior} senior + ${c.assignment.thirdSlot} third slot; loads ` +
             LOAD_TIERS.map(([t]) => `${t} ${c.assignment!.load[t].min}-${c.assignment!.load[t].max}`).join(", ") +
             `; cycles k<=${c.assignment.cycleMaxK}; affiliation ${c.assignment.affiliationConflicts ? "on" : "off"}, dblp ${c.assignment.dblpConflicts ? "on" : "off"}`,
+        ]
+      : []),
+    ...(c.reserve
+      ? [
+          `Reserve           designee "${c.reserve.designeeField}", exemption "${c.reserve.exemptionField}" (${c.reserve.exemptions.join(", ")}); max cover ${c.reserve.maxCover}; DBLP hint ${c.reserve.dblp.enabled ? `ON (${c.reserve.dblp.url}; venues ${c.reserve.dblp.venues.join(", ")})` : "off"}`,
+        ]
+      : []),
+    ...(c.quickReject
+      ? [
+          `Quick reject      round ${c.quickReject.round}, verdict ${c.quickReject.field} <= ${c.quickReject.rejectMax}, AC flag #${c.quickReject.acFlagTag}; ${c.quickReject.excludeFromSlots ? "excluded from" : "counted in"} review slots`,
         ]
       : []),
     `Rule weights      ${RULE_NAMES.map((n) => `${n}=${c.rules.weights[n]}`).join(" ")}`,

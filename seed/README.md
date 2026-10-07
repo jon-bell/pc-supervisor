@@ -84,8 +84,11 @@ Phase-2 additions (PLAN Phase 2 intro, M10; all optional, additive):
   reserve-pool designee). Its tag can't be read back through the API (§1),
   and `verify` skips it.
 
+- **Paper tags** (M11). `Paper.tags` (no leading `#`) are set in stage 1 through
+  `batch/assign.php` `paper,tag,<tag>` lines, as a chair would set them.
+
 `verify` also checks authors (email and affiliation, in order), option values,
-and named rounds.
+named rounds, and paper tags (when a scenario has any).
 
 Every time is a `When` = `{ phase, day, time? }`: the phase date's local
 calendar date (in `PCS_TZ`) plus `day` days, at local `time` "HH:MM" (default:
@@ -240,6 +243,33 @@ import, validate, and the `POST /assign?dry_run=1` dry run. #1–#4 and #6–#8
 name their first author as reserve designee; #5 claims the exemption
 `no-eligible-author`. #1's metareview is in the `quickreject` round.
 `amara.diallo` (non-PC author of #3) is tagged `reservepool`.
+
+### `registration` (`scenarios/registration/`), for M11's reserve and quick-reject modules
+
+There are 21 papers, 2 ACs (metareviewers on every paper), 2 quick-reject reviewers, and 2 more PC members. Observe at `reviewDue −33 d 12:00` (`PCS_NOW=2029-12-30T12:00` under the ci.yml dates). It needs `registrationEnv(ctx)`, which sets `PCS_PHASE_QUICKREJECT_DUE` to `reviewDue −35 d 23:59` and `PCS_PHASE_ASSIGNMENT_DONE` to `reviewDue −21 d 23:59`. Both are derived from the phase dates, never hard-coded, and put now in the assignment phase. The submission fields are the designee option, the exemption dropdown with an extra non-allowed choice `on-sabbatical`, and a `Reserve seniority` text option. `fixtures/` holds `tpms-registrations.csv` and `refcheck.csv`.
+
+Reserve compliance (#1–#12):
+- #1 is the clean control.
+- #2 has neither a designee nor an exemption.
+- Kim Park is designated as `kim.park@` on #3 and as `K.Park@Example.ORG` on #4. That is inconsistent, and only `kim.park@` is TPMS-registered.
+- #5 claims `on-sabbatical`.
+- #6 claims `all-authors-on-pc`, but one author isn't on the PC.
+- `victor.okafor` is the designee of #7–#10, more than `PCS_RESERVE_MAX_COVER=3`.
+- #11 has a valid `no-eligible-author` claim. The mocked DBLP table (`DBLP_MOCK`) makes one of its authors "possibly senior", which is a hint, not a finding.
+- #12 names its designee by name.
+
+Quick-reject queue (#13–#21, tags from the `PCS_QR_TAGS` defaults):
+- #13 has a refcheck hit and an overdue quick-reject review.
+- #14 is flagged, has a reject verdict, and is awaiting the chair.
+- #15 has a refcheck hit and was desk-rejected (decision Rejected).
+- #16 has an appeal requested.
+- #17 has an overturned appeal.
+- #18 was flagged and the AC kept it.
+- #19 was desk-rejected, but the decision was never entered (`DECISION_MISSING`).
+- #20 is the clean control: a keep verdict and a clean refcheck row.
+- #21 has an upheld appeal.
+
+`expected.ts` lists every finding and queue item. `seed/test/unit/registration.test.ts` checks it without a harness. `seed/test/integration/registration.test.ts` checks it through seed, verify, sync, import, both modules (DBLP mocked), and `GET /search` for each drafted Mail-tool search.
 
 ## Import fixtures (`fixtures/imports/`, PLAN M9)
 

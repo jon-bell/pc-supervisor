@@ -142,6 +142,8 @@ There's no config file. `.env.example` is the full, documented list. Startup val
 | `PCS_EXPERTISE_OK_MIN` | Lowest "knowledgeable" expertise value | `3` |
 | `PCS_REVIEWS_REQUIRED` | Complete reviews needed per paper | `3` |
 | `PCS_RULE_<NAME>_WEIGHT`, `PCS_THRESH_<NAME>` | Rule weights and thresholds (§5c) | see code |
+| `PCS_RESERVE_*`, `PCS_DBLP_*` | Reserve compliance (§10.4 A); the DBLP lookup is opt-in | see `.env.example`; `PCS_DBLP_ENABLED=false` |
+| `PCS_QR_*`, `PCS_REFCHECK_*` | Quick-reject tracker (§10.4 B) | see `.env.example` |
 | `PCS_DB_PATH` | SQLite file | `~/.local/share/pc-supervisor/<host>.db` |
 | `PCS_DB_KEY` | SQLCipher key (or read from keychain) | required outside tests |
 | `PCS_SYNC_INTERVAL_MIN`, `PCS_SYNC_CHUNK`, `PCS_SYNC_CONCURRENCY`, `PCS_HISTORY_RPS` | Sync tuning | 15 / 200 / 2 / 1 |
@@ -247,7 +249,7 @@ These are human-in-the-loop only; the app never sends email.
 
 ## 7. Confidentiality and tone
 
-- **Local only.** There's no hosted mode and no telemetry. The only outbound calls go to `PCS_HOTCRP_URL`.
+- **Local only.** There's no hosted mode and no telemetry. The only outbound calls go to `PCS_HOTCRP_URL`, with one opt-in exception: the reserve module's DBLP lookup (§10.4 A), off unless the chair sets `PCS_DBLP_ENABLED=true`. It sends public author names only, to `PCS_DBLP_URL`, and its results are hints, never verdicts.
 - **The DB is the most sensitive artifact** (every review and comment, plus reviewer identities).
   - Encrypt it with SQLCipher (`better-sqlite3-multiple-ciphers`).
   - The default path is outside the repo and outside any synced folder.
@@ -424,10 +426,91 @@ There's no public spec for the TPMS formats. The TPMS kinds therefore use a mini
 - TPMS registration status, if it's imported.
 - Output: a non-compliance list with evidence, plus drafted mail-tool searches for warnings.
 
+**Implemented (M11): `server/src/modules/reserve/`, `pcs reserve [--no-dblp]`, `GET /api/reserve`, *Modules → Reserve*.**
+
+*Inputs.* Everything comes from the local store and imports, never from HotCRP directly: live papers that aren't withdrawn, with their authors (email and name; migration 4); the values of three submission options named by `PCS_RESERVE_DESIGNEE_FIELD` ("Reserve designee"), `PCS_RESERVE_EXEMPTION_FIELD` ("Reserve exemption"), and `PCS_RESERVE_SENIORITY_FIELD` ("Reserve seniority", optional self-declared evidence, shown but never judged); which of those options HotCRP defines (`submission_field`); the current PC; and the latest `tpms-registrations` import as of the app clock. If neither the designee nor the exemption option exists, nothing is checked: every paper is `unchecked` and a note says why.
+
+*Identity.* M10 seeds the designee option as a **text** field holding the designee's email, so designees are identified **by email**: the email is what HotCRP, TPMS, and the invites sheet key people by. The value is normalized first: trimmed, lowercased, and unwrapped from `Name <email>` or `mailto:`. A value with no email is matched by **normalized name** to the paper's own authors (accents, case, punctuation, and spacing ignored; `Last, First` read as `First Last`). It is accepted only if exactly one author with an email matches, and is then reported as `identifiedBy: "name"`. Names never decide identity on their own; they only resolve a name-only value and group designations for the consistency check. A non-text designee option gets a note.
+
+*Per-paper checks* (severity `noncompliant`; one function each in `check.ts`):
+- `DESIGNEE_UNRESOLVED`: the designee value is not text, an invalid email, or a name that matches zero or several authors.
+- `DESIGNEE_NOT_AUTHOR`: the designee email is not among the paper's authors. The designation still counts for coverage, consistency, and TPMS.
+- With no designee, the exemption decides:
+  - `DESIGNEE_MISSING`: no exemption claimed either.
+  - `EXEMPTION_NOT_ALLOWED`: the claimed reason is not in `PCS_RESERVE_EXEMPTIONS` (compared case-insensitively). The default set is the dropdown values M10 seeds: `no-eligible-author, all-authors-on-pc, other`.
+  - `EXEMPTION_CONTRADICTED`: the claimed reason is `PCS_RESERVE_EXEMPTION_ALL_PC` (default `all-authors-on-pc`; empty disables the check), but some author isn't a current PC member. An author without an email counts as not on the PC.
+- A paper with a designee is compliant even if it also claims an exemption.
+- Paper states: `designee`, `exempt` (a valid claim), `noncompliant`, or `unchecked`.
+
+*Per-designee checks* (severity `warning`):
+- `DESIGNEE_INCONSISTENT`: one normalized name is designated under two or more different emails across papers (the same person designated differently). The name comes from `Name <email>`, else the matching author record, else the person table. The finding lists every email with its papers.
+- `OVER_COVERED`: an email is the designee of more than `PCS_RESERVE_MAX_COVER` papers (default 3). Coverage does not scale the obligation; it is flagged for the chair. Coverage is counted per email, so the papers of an inconsistent designee are split across emails.
+- `TPMS_NOT_REGISTERED` (only with a `tpms-registrations` import): the designee email has no row in the import, or a row with `registered=no`.
+- `TPMS_FEW_PAPERS`: registered, but `papers_uploaded` is less than `PCS_RESERVE_TPMS_MIN_PAPERS` (default 1). An empty `papers_uploaded` is not flagged.
+- Without the import, a note says TPMS wasn't checked.
+
+*Mail drafts.* There is one HotCRP Mail-tool search per finding code: the space-separated paper numbers involved (e.g. `7 8 9 10`), to send to *Contact authors*. The integration test runs each search through `GET /search` and checks that HotCRP reads it as exactly those papers. Nothing is sent by the tool.
+
+*DBLP lookup (optional, off by default).* `PCS_DBLP_ENABLED=true` is the **one outbound call besides `PCS_HOTCRP_URL`**, an explicit opt-in exception to §7 and AGENTS.md rule 4 that the chair enables.
+- It sends only a public author name, as `GET <PCS_DBLP_URL>/search/publ/api?q=<name>&format=json&h=1000`. It never sends an email, title, abstract, review, or anything else from a submission.
+- The response is Zod-parsed. A hit counts only when its author list contains the normalized name (DBLP's numeric homonym suffix is ignored), and hits are tallied per venue in `PCS_DBLP_VENUES`, matched case-insensitively against DBLP's venue string.
+- Names looked up: designees, and the authors of papers that claim an exemption.
+- At least `PCS_DBLP_SENIOR_MIN` papers (default 5) makes the hint read "possibly senior".
+- Hints attach to designees and to an exempted paper's authors. They never create or remove a finding. Every hint's text says it is "a hint for a human, not a verdict: the name may match a different person", and the UI says the same.
+- Lookups go through the `AuthorLookup` interface (`dblp.ts`): `dblpLookup()` is the real fetch implementation, and tests use a fake fetch or `staticLookup()`. No test calls the network.
+- A process-lifetime `HintCache` rate-limits lookups to `PCS_DBLP_RPS` (default 1/s). The server answers at once with the hints it has and queues the rest in the background (`dblp.pending`; the view refetches while lookups are pending). `pcs reserve` waits for all lookups (`--no-dblp` skips them).
+- A failed lookup gives no hint and is counted in `dblp.failed`.
+
+*Output.* `{ papers[], designees[], findings[], mailDrafts[], counts, dblp, notes }`, where each finding is `{ code, severity, pids, emails, reason }` and the reason carries the numbers and the `PCS_*` setting involved. The CLI prints counts, reasons, and searches. It never prints titles or the self-declared seniority text (the API and view show those to the chair).
+
 **B. Quick-reject / desk-reject tracker**
 - A queue of `paper → signals (refcheck, AC flag, quick-reject review verdict) → AC decision → chair action → appeal status`.
 - Quick-reject reviews are a dedicated review round, tracked against `QUICKREJECT_DUE`.
 - Evidence is stored with each item. An appeal state is required.
+
+**Implemented (M11): `server/src/modules/quickreject/`, `pcs quickreject`, `GET /api/quickreject`, *Modules → Quick reject*.**
+
+The tool stays **read-only**. AC decisions, chair actions, and appeals are what the chair and ACs record in HotCRP as **paper tags**, plus the HotCRP decision; the tracker reads them after each sync.
+
+*Tag vocabulary* (`PCS_QR_TAGS`, `key=tag` overrides; each state needs its own tag). The AC flag is `PCS_QR_AC_FLAG_TAG`, default `qr-flag`. Tags are matched case-insensitively, ignoring a `#value`.
+
+| Key | Default tag | Meaning |
+|---|---|---|
+| `ac-reject` / `ac-keep` | `qr-ac-reject` / `qr-ac-keep` | the AC's decision |
+| `chair-desk-reject` / `chair-keep` | `qr-chair-desk-reject` / `qr-chair-keep` | the chair's action |
+| `appeal` | `qr-appeal` | the authors appealed |
+| `appeal-upheld` / `appeal-overturned` | `qr-appeal-upheld` / `qr-appeal-overturned` | the appeal's outcome |
+
+*Signals* (each carries its evidence, never text):
+- `refcheck`: the latest `refcheck` import as of the app clock has a row for the paper with `hallucinated_refs ≥ PCS_REFCHECK_HALLUCINATED_MIN` (default 1) or `in_field_refs < PCS_REFCHECK_IN_FIELD_MIN` (default 1, i.e. "no in-field references"). Evidence: run id and counts. The importer's `note` is not shown.
+- `ac-flag`: the paper carries `PCS_QR_AC_FLAG_TAG`.
+- `qr-verdict`: at least one submitted (`delivered`/`approved`/`complete`) non-meta review in round `PCS_QR_ROUND` (default `quickreject`) votes reject, meaning its `PCS_QR_FIELD` value (default `PCS_FIELD_MERIT`) is at most `PCS_QR_REJECT_MAX` (default 1). Unsubmitted and unscored reviews don't vote. Evidence: the voting review ids, votes, and submitted/assigned counts.
+
+*Queue.* A paper is an item when it has at least one signal or any quick-reject state tag. Each item has:
+- `acDecision` (`none`|`reject`|`keep`), `chairAction` (`none`|`desk-reject`|`keep`), and the HotCRP `decision`;
+- `appealState`, always present: `none`, `requested` (`appeal` only), `upheld`, or `overturned`. An outcome tag implies an appeal was filed.
+- `stage`, whose move it is: `appeal` while an appeal is requested; else `done` once there's a chair action or an appeal outcome; else `chair-action` after an AC reject; else `done` after an AC keep; else `ac-decision`;
+- `stateTags` (the vocabulary tags present), `signals`, the quick-reject `reviews`, the paper's ACs (`PCS_AC_ROLE`), and `warnings`:
+  - `CONFLICTING_TAGS`: both tags of a pair are present (the reject/desk-reject/upheld one wins).
+  - `DECISION_MISSING`: a desk reject (not overturned) whose decision isn't in `PCS_QR_REJECT_DECISIONS` (default `Rejected`).
+  - `DECISION_STILL_REJECT`: an overturned appeal whose decision is still a reject.
+  - `APPEAL_WITHOUT_DESK_REJECT`: an appeal tag without a desk reject.
+
+*Evidence* is attached to each item when the report is computed from the store and imports. Both are versioned (snapshots and import runs), so an item's evidence names the import run and the review ids it rests on.
+
+*Deadline.* With `PCS_PHASE_QUICKREJECT_DUE` set, every quick-reject review not submitted when `now > QUICKREJECT_DUE` is listed as overdue, with days overdue, whether or not its paper is queued. Without the date, nothing is overdue and a note says so.
+
+*Mail drafts.* Two HotCRP Mail-tool searches (paper numbers): one for the papers with overdue quick-reject reviews (*Reviewers with incomplete reviews*), and one for the items awaiting an AC decision (to their ACs).
+
+*Review slots.* `PCS_QR_EXCLUDE_FROM_SLOTS` (default `true`) leaves non-meta reviews in `PCS_QR_ROUND` out of the review slots. In practice:
+- The rules snapshot (`buildSnapshot(..., { excludeRounds })`) leaves them out, so `MISSING_REVIEWS`, the overview counts, and reviewer metrics don't count them.
+- The assignment validator's current assignment (§10.4 C composition and load bands) leaves them out too.
+- Metareviews in the round are kept. The golden tables are unchanged, since golden has no rounds.
+- `false` restores M4/M10 behavior.
+
+**Module status.** Each module response carries `module`: the current extended phase, whether the module is active (`MODULE_PHASES`, M9), and the window its phases span under the configured dates (`modules/status.ts`). It is `null` when none of its phases has a date, e.g. A or B with only the MVP dates set.
+
+*Seeded scenario* `registration` (`seed/scenarios/registration/`, `expected.ts`): papers #1–#12 plant the reserve problems (with a clean control); #13–#21 hold queue items in every stage and appeal state, an overdue quick-reject review, and a clean control. Fixtures: `tpms-registrations.csv` and `refcheck.csv`. The scenario adds `Paper.tags` to the seeder format, set through `batch/assign.php` `tag` lines.
 
 **C. Assignment validator** (the highest-value module)
 - **Composition** per paper, from the policy env vars: `PCS_POLICY_MIN_SENIOR` (2) and `PCS_POLICY_THIRD_SLOT` (`exactly1`|`atleast1`). Flag papers with all-junior panels, a missing senior, or a missing third slot.
@@ -442,7 +525,7 @@ There's no public spec for the TPMS formats. The TPMS kinds therefore use a mini
 
 *Tiers.* A reviewer's tier is `PCS_TIER_TAGS` applied to their user tags (§10.2), else `senior`. Seniors fill the senior slots. Every other tier (`junior`, `reserve-active`, `reserve-pool`, or a custom one) fills the third slot. Load bands exist for `senior`, `junior`, `reserve-active`, and `reserve-pool`. A PC member with no review rows at all can't be tiered through the API (§1), so they count as senior.
 
-*Review slots.* Only `primary`, `secondary`, and `pc` review assignments count. Metareviews (ACs) and external reviews don't.
+*Review slots.* Only `primary`, `secondary`, and `pc` review assignments count. Metareviews (ACs) and external reviews don't, and neither do assignments in the quick-reject round while `PCS_QR_EXCLUDE_FROM_SLOTS` is on (M11, §10.4 B).
 
 *Row checks (dropped before anything else).* `DUPLICATE_ROW` (same pid and email twice), `UNKNOWN_PAPER` (not a live paper at the last sync), and `NOT_PC_MEMBER` (activated reserves must be added to the PC first). The rows that remain are the **panel**. Composition, load, and cycles are judged on the panel, that is, on the assignment as proposed.
 

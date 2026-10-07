@@ -27,6 +27,7 @@ import type { Person } from "./api-types.js";
 import { AnalysisSource } from "./analysis.js";
 import { registerAcs } from "./routes/acs.js";
 import { registerMeta, registerSync } from "./routes/meta.js";
+import { registerModules } from "./routes/modules.js";
 import { registerOverview } from "./routes/overview.js";
 import { registerPapers } from "./routes/papers.js";
 import { registerPeople } from "./routes/people.js";
@@ -56,6 +57,8 @@ export const ROUTES: readonly RegisterRoutes[] = [
   registerReviewers,
   registerPeople,
   registerOverview,
+  // Phase-2 modules (PLAN M11): /api/reserve, /api/quickreject.
+  registerModules,
 ];
 
 export const CSP = [

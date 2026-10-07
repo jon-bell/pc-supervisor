@@ -8,6 +8,7 @@
 import { loadHotcrpConfig } from "@pcs/server/config";
 import { clientFromConfig, type HotcrpClient } from "@pcs/server/hotcrp/client";
 import { assertHarnessUrl } from "@pcs/server/hotcrp/harness-guard";
+import { parseTagField } from "@pcs/server/sync/sync";
 import { reviewField, ReviewsSchema, submissionOptionValue, type Review } from "@pcs/server/hotcrp/schemas";
 import { REVIEW_TEXT_FIELDS, type AssignRole, type Scenario } from "./format.js";
 import { replay, reviewKey, type ExpectedState } from "./model.js";
@@ -72,12 +73,19 @@ export async function verifyScenario(
 
   // Papers and decisions.
   const pids = scenario.papers.map((p) => p.pid).sort((a, b) => a - b);
-  const search = await client.search({ t: "all", fields: ["decision", "status"] });
+  const withTags = scenario.papers.some((p) => (p.tags?.length ?? 0) > 0);
+  const search = await client.search({ t: "all", fields: withTags ? ["decision", "status", "tags"] : ["decision", "status"] });
+  const wantTags = new Map(scenario.papers.map((p) => [p.pid, [...(p.tags ?? [])].map((t) => t.toLowerCase()).sort()]));
   check(JSON.stringify(search.ids) === JSON.stringify(pids), () => `papers: expected ${pids.length} (${pids.slice(0, 20).join(",")}), got ${search.ids.length}`);
   for (const p of search.papers ?? []) {
     const want = expected.decisions.get(p.pid) ?? "Unspecified";
     check(p.decision === want, () => `paper ${p.pid}: decision ${p.decision ?? "(none)"}, expected ${want}`);
     check(p.status !== "Not ready", () => `paper ${p.pid}: not submitted`);
+    if (withTags) {
+      const got = parseTagField(typeof p.tags === "string" ? p.tags : undefined).map((t) => t.replace(/#.*$/, "").toLowerCase());
+      const want = wantTags.get(p.pid) ?? [];
+      check(JSON.stringify(got) === JSON.stringify(want), () => `paper ${p.pid}: tags ${got.join(" ") || "(none)"}, expected ${want.join(" ") || "(none)"}`);
+    }
   }
 
   // Authors (email, affiliation, order) and submission options (phase 2), via /papers.

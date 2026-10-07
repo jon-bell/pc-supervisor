@@ -12,7 +12,7 @@
 // comment text. Findings are for a human; nothing is auto-applied.
 
 import type { Clock } from "../../clock.js";
-import { DEFAULT_ASSIGNMENT_POLICY, type AssignmentPolicy, type Config } from "../../config.js";
+import { DEFAULT_ASSIGNMENT_POLICY, type AssignmentPolicy, type Config, type QuickRejectPolicy } from "../../config.js";
 import type { Store } from "../../store/store.js";
 import type { CoauthorshipSource } from "./dblp.js";
 import { loadValidatorInput } from "./load.js";
@@ -36,7 +36,7 @@ export interface ValidateOptions {
 /** Validate an assignment from the store. Throws NoTpmsImportError for source "tpms" without an import. */
 export function validateAssignments(
   store: Store,
-  cfg: Pick<Config, "acRole"> & { assignment?: AssignmentPolicy | undefined },
+  cfg: Pick<Config, "acRole"> & { assignment?: AssignmentPolicy | undefined; quickReject?: QuickRejectPolicy | undefined },
   opts: ValidateOptions,
 ): AssignmentReport {
   const input = loadValidatorInput(store, cfg, {

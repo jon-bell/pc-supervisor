@@ -1,0 +1,5 @@
+pid,total_refs,hallucinated_refs,in_field_refs,note
+1,30,0,15,
+13,40,4,9,synthetic: four references not found
+15,25,0,0,synthetic: no in-field references
+20,38,0,12,

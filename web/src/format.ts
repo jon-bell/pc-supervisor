@@ -73,6 +73,12 @@ export const PHASE_LABELS: Readonly<Record<string, string>> = {
   discussion: "Discussion",
   decisions: "Decisions",
   "after-decisions": "After decisions",
+  // Extended phases (spec §10.1).
+  registration: "Registration",
+  submission: "Submission",
+  "quick-reject": "Quick reject",
+  assignment: "Assignment",
+  "early-reject": "Early reject",
 };
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;

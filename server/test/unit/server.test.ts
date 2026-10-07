@@ -215,7 +215,7 @@ describe("the token never reaches the client", () => {
     store.db.prepare("insert into sync_run (kind, started_at, finished_at, now_used, ok, errors) values ('sync', 1, 2, 3, 0, ?)").run(
       JSON.stringify([`HotCRP said ${TOKEN}`]),
     );
-    const urls = ["/", "/app.js", "/papers/1", "/api/meta", "/api/triage", "/api/triage?rule=SPLIT", "/api/papers/1", "/api/papers/2", "/api/papers/3", "/api/papers/x", "/api/papers/99", "/api/sync/status", "/api/nope", `/api/nope?t=${TOKEN}`];
+    const urls = ["/", "/app.js", "/papers/1", "/api/meta", "/api/triage", "/api/triage?rule=SPLIT", "/api/papers/1", "/api/papers/2", "/api/papers/3", "/api/papers/x", "/api/papers/99", "/api/sync/status", "/api/reserve", "/api/quickreject", "/api/nope", `/api/nope?t=${TOKEN}`];
     const responses = [
       ...(await Promise.all(urls.map((url) => leaky.app.inject({ method: "GET", url })))),
       await leaky.app.inject({ method: "POST", url: "/api/sync" }),

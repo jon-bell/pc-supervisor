@@ -8,6 +8,8 @@ import type {
   OverviewResponse,
   PaperDetail,
   PersonResponse,
+  QuickRejectResponse,
+  ReserveResponse,
   ReviewersResponse,
   SyncStatus,
   TriageResponse,
@@ -53,6 +55,8 @@ export const keys = {
   reviewers: ["reviewers"] as const,
   person: (email: string) => ["person", email] as const,
   overview: ["overview"] as const,
+  reserve: ["reserve"] as const,
+  quickreject: ["quickreject"] as const,
 };
 
 export function useMeta() {
@@ -92,6 +96,20 @@ export function usePerson(email: string) {
 
 export function useOverview() {
   return useQuery({ queryKey: keys.overview, queryFn: () => getJson<OverviewResponse>("/api/overview") });
+}
+
+// Phase-2 modules (PLAN M11). /api/reserve may fill in DBLP hints in the
+// background, so it refetches while lookups are pending.
+export function useReserve() {
+  return useQuery({
+    queryKey: keys.reserve,
+    queryFn: () => getJson<ReserveResponse>("/api/reserve"),
+    refetchInterval: (q) => ((q.state.data?.dblp.pending ?? 0) > 0 ? 5_000 : false),
+  });
+}
+
+export function useQuickReject() {
+  return useQuery({ queryKey: keys.quickreject, queryFn: () => getJson<QuickRejectResponse>("/api/quickreject") });
 }
 
 /** In-app path of a person page. */
