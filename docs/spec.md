@@ -34,6 +34,9 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | PC roster | `GET /pc` | Name, email, affiliation, `roles: "chair"` for chairs. **No per-user tags**: only `color_classes` (tags that have colors) and a top-level list of tag names. The users page's `pcinfo` CSV has tags, but pages ignore bearer tokens (API only). |
 | Who holds a user tag (tiers) | `GET /reviews?q=<pids>&rq=re:%23<tag>` | `rq` is a per-review search; `re:#tag` keeps reviews written by holders of user tag `<tag>`. The sync runs one such query per tier tag (in pid chunks) and keeps only the reviewer emails. PC members with no reviews at all aren't seen this way. A tag nobody holds yields a warning (*User tag … not found*), so only query tags listed in `/pc`'s `tags`. **Verified (M3).** |
 | Review-form fields | `GET /searchaction?action=get/jsonrqc&q=NONE` | `reviewform` keyed by field UID (the keys in `/reviews`), with type and score labels; `q=NONE` keeps paper content out. A download: no `ok` key, always pretty-printed. `GET /settings?filter=rf` has the same fields by internal id (`s01`, `t01`) with per-value symbols, but no UIDs. |
+| Authors, submission options (M10) | `GET /papers?q=…&t=all&forceShow=1` | One `paper` object per paper: `authors` (`email given_name family_name affiliation`) and every submission option under its **name** (e.g. `"Reserve designee": "x@…"`; dropdown = choice name). Also carries the abstract and document metadata, which the sync drops unread. For a blind submission even a chair gets **no `authors` without `forceShow=1`**. **Verified (M10).** |
+| Submission-option definitions | `GET /settings?filter=sf` | `sf` list; configured options have numeric `id`s (intrinsic fields have string ids like `title`), `type`, and dropdown `values`. **Verified (M10).** |
+| Assignment dry run (M10) | `POST /assign?dry_run=1&forceShow=0&format=json` | Body: a JSON array of row objects with the CSV columns (`paper action user`). Returns `valid`, `assignment_count`, and the `assignments` HotCRP *would* make; nothing changes. An invalid set is **HTTP 403** with `ok: false`, `valid: false`, and the error messages. `forceShow=0` keeps conflicts enforced (`1` overrides them). **Verified (M10).** |
 | Activity feed | `GET /events` | Pre-rendered HTML, 10 per page. **Don't use it.** |
 | Ratings of reviews | `GET /{p}/reviewrating` | Optional quality signal (`short`, `vague`, `disrespectful` …). No per-review calls are needed: `/reviews` already carries `ratings` (one name or a list) on every rated review. **Verified (M3).** |
 
@@ -47,6 +50,8 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 - **`reviewer` (reviews) and `author` (comments) are HTML.** Use `reviewer_email` / `author_email`.
 - **`/reviewhistory` deltas (`object: "review_delta"`) have no `modified_at`**, and text fields may appear as `<UID>:p` patches.
 - **`POST /reviews` ignores `override=1` for JSON bodies**; only text-form uploads honor it. The seeder works around this by opening review deadlines in settings. This may be worth an upstream issue.
+- **HotCRP can't see the request `Content-Type` under Apache mod_php** (`Qrequest::header()` reads `HTTP_CONTENT_TYPE`, which mod_php doesn't set). Endpoints that branch on it fall back to sniffing: a body starting with `[`/`{` is JSON; anything else is unknown. `POST /assign` with a CSV or form body therefore prints PHP warnings ahead of its JSON on the harness, so the client sends assignments as a JSON body. (Found in M10.)
+- **After truncating `PaperStorage`, re-insert row 1** (the "empty document", `src/schema.sql`). Otherwise the first PDF stored gets id 1, and that paper silently stays a draft. `seed reset` does this since M10.
 
 **Gaps that shape the design:**
 
@@ -423,6 +428,44 @@ There's no public spec for the TPMS formats. The TPMS kinds therefore use a mini
 - **Conflict sanity:** same affiliation, DBLP co-authorship (optional), and **reciprocal cycles**. Because reserve reviewers are authors, detect 2-cycles (and short k-cycles, `PCS_CYCLE_MAX_K`) in the graph whose edges run from an author of paper P to a reviewer of paper P. These are surfaced for human review, never auto-acted on.
 - **TPMS round-trip:** validate an imported TPMS assignment CSV *before* it reaches HotCRP; emit a corrected HotCRP assignment CSV (seniors first, then the third slot).
 - Reserve candidates must be AC-approved in the `invites` import and absent from `do-not-invite` before they appear in any generated assignment.
+
+**Implemented (M10): `server/src/modules/assignment/`, `pcs validate-assignments [--tpms] [--out fixup.csv]`.**
+
+*Inputs.* Everything comes from the local store and the imports, never from HotCRP directly: live papers with their authors (email, affiliation; store migration 4, synced from `GET /papers`), people with tier and affiliation (`/pc`), current review assignments with their review's status, area chairs per `PCS_AC_ROLE`, and the latest `invites`, `do-not-invite`, and (with `--tpms`) `tpms-assignments` imports as of the app clock. The assignment being validated is either the current HotCRP one (default) or the TPMS proposal (`--tpms`).
+
+*Tiers.* A reviewer's tier is `PCS_TIER_TAGS` applied to their user tags (§10.2), else `senior`. Seniors fill the senior slots. Every other tier (`junior`, `reserve-active`, `reserve-pool`, or a custom one) fills the third slot. Load bands exist for `senior`, `junior`, `reserve-active`, and `reserve-pool`. A PC member with no review rows at all can't be tiered through the API (§1), so they count as senior.
+
+*Review slots.* Only `primary`, `secondary`, and `pc` review assignments count. Metareviews (ACs) and external reviews don't.
+
+*Row checks (dropped before anything else).* `DUPLICATE_ROW` (same pid and email twice), `UNKNOWN_PAPER` (not a live paper at the last sync), and `NOT_PC_MEMBER` (activated reserves must be added to the PC first). The rows that remain are the **panel**. Composition, load, and cycles are judged on the panel, that is, on the assignment as proposed.
+
+*Composition* (per paper; in `--tpms` mode only for papers the proposal covers):
+- `ALL_JUNIOR_PANEL`: 0 seniors and at least 1 third-slot reviewer.
+- `SENIOR_MISSING`: otherwise, fewer than `PCS_POLICY_MIN_SENIOR` seniors.
+- `THIRD_SLOT_MISSING`: no third-slot reviewer.
+- `THIRD_SLOT_EXTRA`: more than one, under `PCS_POLICY_THIRD_SLOT=exactly1`.
+Extra seniors are allowed (a 4th review is possible).
+
+*Load bands* (per PC member; chairs and ACs exempt): `LOAD_OVER` when the count of review assignments is greater than `PCS_LOAD_<TIER>_MAX`, `LOAD_UNDER` when it is less than `_MIN`. In `--tpms` mode, people the proposal doesn't mention aren't flagged as under. Defaults: senior 4–12, junior 2–8, reserve-active 1–3, reserve-pool 0–0 (a designee who hasn't been activated should have no assignment).
+
+*Conflict sanity* (per panel row; each such row is left out of the fix-up):
+- `AUTHOR_IS_REVIEWER`: the reviewer is an author of the paper.
+- `SAME_AFFILIATION` (`PCS_CONFLICT_AFFILIATION`, default on): the reviewer's `/pc` affiliation equals an author's affiliation on the paper, ignoring case, accents, punctuation, and spacing. An empty affiliation never matches.
+- `COAUTHOR` (`PCS_CONFLICT_DBLP`, default off): asks a `CoauthorshipSource` (`dblp.ts`). No source ships in M10, and there are no network calls. With the flag on, the report notes that the check was skipped.
+
+*Reserve candidates* (each such row is left out of the fix-up):
+- `DO_NOT_INVITE`: any reviewer on the latest `do-not-invite` import.
+- `RESERVE_NOT_APPROVED`: a reviewer in a `reserve-*` tier needs a row for *that paper* in the latest `invites` import with `ac_decision=approve` and `response≠decline`. With no `invites` import, no reserve candidate is approved.
+
+*Reciprocal cycles* (`RECIPROCAL_CYCLE`, for human review only, never dropped). Nodes are people; there is an edge a → r when a is an author of a paper P in the panel and r reviews P. The validator reports every simple cycle of length 2..`PCS_CYCLE_MAX_K` (default 3, max 6). Each cycle is listed once, starting at its smallest email, with the papers behind each edge. The graph is first pruned to nodes with both incoming and outgoing edges, which leaves only people who are both authors and reviewers. A depth-bounded DFS from each node then visits only larger nodes, so no dedup pass is needed. Listing stops after `PCS_CYCLE_MAX_REPORT` cycles (default 500), with a note. 2,400 papers and ~10k review edges take well under a second (unit perf test).
+
+*Fix-up CSV* (`--out`, `report.fixup.csv`): `paper,action,user`, ordered by paper. For each paper, the lines are:
+1. `clearreview` lines;
+2. the kept seniors, by TPMS score and then email;
+3. the third slot, trimmed to the single best-scored reviewer under `exactly1`.
+A reviewer who already holds that assignment keeps their current type (`primary`/`secondary`/`pcreview`). New seniors get `primary`; a new third slot gets `secondary`. A `clearreview` line is emitted only when it is **needed and safe**: the reviewer currently holds a review assignment on a paper in scope that the fix-up doesn't keep (dropped, trimmed, or not in the TPMS proposal), *and* their review is still `empty`. Started reviews are kept and listed instead. Metareviews are never touched. Papers in scope: all live papers (default), or only those the TPMS proposal covers (`--tpms`). What a paper still lacks after the fix-up (seniors, third slot) is reported as a **gap**, not as a finding. Re-emitted unchanged lines are no-ops in HotCRP. The chair dry-runs the CSV (HotCRP's upload preview, or `HotcrpClient.assign(csv, { dryRun: true })`) before applying it.
+
+*Output.* Each finding is `{ check, code, pid?, emails, cyclePids?, reason, dropped? }`, where `reason` carries the numbers and the `PCS_*` setting involved. Findings never include review or comment text. The CLI prints findings grouped by check, then the fix-up summary and gaps, and exits 0 when it has run (whether or not there are findings). For the server, `validateAssignments(store, cfg, { source, clock })` in `modules/assignment/index.ts` returns the same report.
 
 **D. Reviewing progress, by tier**
 - Outstanding and late reviews by tier, with a dedicated **reserve dropout** view and its escalation state.

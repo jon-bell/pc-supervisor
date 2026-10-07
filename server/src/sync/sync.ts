@@ -26,6 +26,7 @@ import { redact } from "../redact.js";
 import type { Db } from "../store/db.js";
 import { mentionRoster, parseMentions, textHash, wordCount, type MentionRoster } from "./text.js";
 import type { SyncSource } from "./source.js";
+import { applyPaperDetails, storedOptionFields, submissionStatements, syncSubmissionFields } from "./submissions.js";
 
 /** Review statuses that count as a finished review. */
 export const COMPLETE_STATUSES: ReadonlySet<string> = new Set(["complete", "approved"]);
@@ -181,6 +182,7 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
       source.paperRoles("shepherd"),
       source.reviewForm(),
     ]);
+    const sf = source.submissionFields ? (await source.submissionFields()).settings.sf : undefined;
     const pids = search.ids;
     const chunks = pidChunks(pids, opts.chunkSize);
     log(`fetched roster (${pc.pc.length}), papers (${pids.length}), assignments (${assignRows.length})`);
@@ -240,6 +242,24 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
       counts.add("comments_fetched", cs.length);
     }
     log(`comments: ${counts.c.comments_fetched ?? 0} fetched`);
+
+    // Submissions (PLAN M10): option fields, then authors and option values
+    // from /papers in the same pid chunks. Abstracts are dropped unread.
+    if (sf && source.paperDetails) {
+      const optionFields = storedOptionFields(sf);
+      syncSubmissionFields(db, optionFields, now, counts);
+      const sst = submissionStatements(db);
+      const optionNames = optionFields.map((f) => f.name);
+      const fetchDetails = source.paperDetails.bind(source);
+      for await (const ps of ahead(chunks, (c) => fetchDetails(c.q), opts.concurrency)) {
+        applyPaperDetails(sst, ps, { now, optionNames }, counts);
+        counts.add("paper_details_fetched", ps.length);
+      }
+      if ((counts.c.papers_authors_hidden ?? 0) > 0) {
+        warnings.push(`authors not visible on ${counts.c.papers_authors_hidden} paper(s); is PCS_FORCE_SHOW off?`);
+      }
+      log(`papers: ${counts.c.paper_details_fetched ?? 0} author/option records fetched`);
+    }
 
     // ---- 4. absences ------------------------------------------------------
     counts.add(

@@ -216,7 +216,7 @@ describe("M3 store + sync against the harness", () => {
     const before = rowCounts();
     const r = await sync(T3, "unchanged");
     expect(rowCounts()).toEqual(before);
-    const changes = Object.entries(r.counts).filter(([k]) => !["reviews_fetched", "comments_fetched", "tag_queries"].includes(k));
+    const changes = Object.entries(r.counts).filter(([k]) => !["reviews_fetched", "comments_fetched", "paper_details_fetched", "tag_queries"].includes(k));
     expect(changes).toEqual([]);
   });
 

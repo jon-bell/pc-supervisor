@@ -64,6 +64,8 @@ npm run dev                                   # or: hot reload at http://127.0.0
 
 **Local CSV imports (large-conference modules, spec §10.3).** Run `pcs import <kind> <file.csv>` to load the reserve-invitation sheet (`invites`), the TPMS output (`tpms-assignments`, `tpms-registrations`), a reference checker's output (`refcheck`), or the do-not-invite list (`do-not-invite`) into the encrypted store. Each import is a new version, so earlier versions stay queryable. A file with any bad row is rejected whole, with a `line N, column C: problem` report. `pcs import --list` shows the history with counts only. `pcs import --help` lists the expected columns.
 
+**Assignment validator (spec §10.4 C).** After `pcs sync` and the imports, `pcs validate-assignments` checks the current HotCRP assignment: per-paper composition (`PCS_POLICY_*`), load bands per tier (`PCS_LOAD_*`), same-affiliation conflicts, reciprocal review cycles (`PCS_CYCLE_MAX_K`), and reserve reviewers who aren't AC-approved in the `invites` sheet or who are on the do-not-invite list. `--tpms` validates the latest `tpms-assignments` import instead. `--out fixup.csv` writes a corrected `paper,action,user` CSV. Upload it in HotCRP and check the preview before saving. The tool never applies assignments itself.
+
 The local database holds every review and comment. Keep it off synced folders and backups that leave the machine, and never share screenshots of the real data.
 
 ## CI

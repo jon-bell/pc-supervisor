@@ -118,7 +118,10 @@ interface CallSpec<S extends z.ZodType> {
    * endpoints that branch on content type misbehave there.
    */
   jsonBody?: unknown;
-  /** Return `ok: false` responses (e.g. an invalid dry run) instead of throwing. Default false. */
+  /**
+   * Return `ok: false` responses (e.g. an invalid dry run, which HotCRP sends
+   * as HTTP 403 with a `valid: false` result body) instead of throwing. Default false.
+   */
   allowNotOk?: boolean;
 }
 
@@ -417,7 +420,7 @@ export class HotcrpClient {
     }
 
     const text = await this.#limiter.run(() =>
-      this.send(endpoint, url, httpMethod, body, format, method === "GET"),
+      this.send(endpoint, url, httpMethod, body, format, method === "GET", spec.allowNotOk ?? false),
     );
     return this.parse(endpoint, text, format, spec.schema, spec.rejectWarnings ?? true, spec.allowNotOk ?? false);
   }
@@ -429,6 +432,7 @@ export class HotcrpClient {
     body: URLSearchParams | string | undefined,
     format: "json" | "csv",
     retryable: boolean,
+    allowNotOk = false,
   ): Promise<string> {
     const o = this.#o;
     for (let attempt = 0; ; attempt++) {
@@ -506,6 +510,11 @@ export class HotcrpClient {
       }
 
       const text = await res.text();
+      // An invalid /assign dry run is HTTP 403 with a full result body
+      // (`valid: false`); with allowNotOk that body is the answer.
+      if (!res.ok && allowNotOk && res.status >= 400 && res.status < 500 && /"valid"\s*:/.test(text)) {
+        return text;
+      }
       if (!res.ok) {
         const messages = this.cleanMessages(jsonMessages(text));
         const detail = messages.length > 0 ? `: ${this.clean(describeMessages(messages))}` : "";

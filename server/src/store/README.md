@@ -36,6 +36,9 @@ existed at the first successful sync take HotCRP's `modified_at` (or the sync ti
 | `sync_run` | run | `kind` `sync`/`backfill`, `now_used` (clock), `ok`, `counts` JSON, `errors` JSON (messages only, no content). |
 | `history_backfill` | rid | Backfill progress (resumable). |
 | `import_run` | `pcs import` | Imported local CSVs (spec §10.3, M9): `kind`, `file_sha256`, `file_name`, `imported_at` (clock), `row_count`. Rows go in `import_invite`, `import_tpms_assignment`, `import_tpms_registration`, `import_refcheck`, and `import_do_not_invite`, keyed by `run_id`, and are never updated. API: `server/src/imports/store.ts` (`runAsOf`, `rowsAsOf`, `diffRuns`). |
+| `submission_field` | option name | Configured submission options from `GET /settings?filter=sf` (numeric ids only; document types skipped): `sf_id`, `type`, `values_json` (choice names). M10, migration 4. |
+| `paper_author` | (pid, author_key) | Authors from `GET /papers` (needs `PCS_FORCE_SHOW=true` for blind submissions): `ord`, `email` (lowercased; null if absent), `name`, `affiliation`. `author_key` = email or `name:<name>`. Hidden authors are kept, with a sync warning; vanished ones get `removed_seen_at`. |
+| `paper_option` | (pid, name) | Submission-option values from `GET /papers`, keyed by option name (e.g. `Reserve designee`). `value` is JSON. `changed_seen_at` is when the current value was first seen. Empty values count as removed. Abstracts and documents are never stored. |
 | `text_fts` | text row | Contentless FTS5 over `review_text` (rowid = id·2) and `comment_text` (id·2+1), maintained by triggers. |
 
 Indexes: `pid` and `email` on review, comment, and assignment; email on `comment_mention`.
@@ -58,6 +61,10 @@ store.reviewFields()
 store.lastSync() / store.lastSync("backfill") / store.lastSuccessfulSync()
 store.searchText("baselines")              // FTS5 hits: {kind, pid, rid|cid, snippet}
 store.db                                   // the better-sqlite3 handle, for SQL views (M4/M5)
+// Submissions (M10), plain functions over the handle (store/submissions.ts):
+paperAuthors(store.db, { pids? })          // PaperAuthorRow[] by pid, author order
+paperOptions(store.db, { name?, pids? })   // PaperOptionRow[]: {pid, name, value}
+submissionFields(store.db)                 // SubmissionFieldRow[]
 store.close()
 ```
 
