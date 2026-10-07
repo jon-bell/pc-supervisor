@@ -71,7 +71,7 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
       }),
       col.accessor("reasons", {
         header: "Reasons",
-        size: 360,
+        size: 420,
         cell: (c) => <ReasonChips reasons={c.getValue()} />,
       }),
       col.accessor("severity", {

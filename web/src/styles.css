@@ -109,13 +109,16 @@ a {
 /* Chips */
 .chips {
   display: flex;
-  gap: 4px;
-  flex-wrap: nowrap;
-  overflow: hidden;
+  gap: 2px 4px;
+  /* Wrap rather than clip: every chip stays visible (a row fits two lines). */
+  flex-wrap: wrap;
+  align-content: center;
+  max-height: 100%;
 }
 .chip {
   display: inline-block;
   white-space: nowrap;
+  line-height: 16px;
   border-radius: 10px;
   padding: 1px 8px;
   font-size: 12px;
@@ -345,4 +348,249 @@ a {
 }
 .ext {
   text-decoration: none;
+}
+
+/* Pages (M6): AC table, reviewers, person, overview */
+:root {
+  --chart-main: #1f5fbf;
+  --chart-ref: #7b8490;
+  --chart-hl: #b5541b;
+  --chart-light: #c9dcf6;
+  --grid: #ececec;
+}
+.page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.page-scroll {
+  overflow: auto;
+  padding-bottom: 24px;
+}
+.page-head {
+  padding: 10px 16px 6px;
+}
+.page-head h1 {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+.page h2 {
+  font-size: 15px;
+  margin: 14px 0 4px;
+}
+.page h3 {
+  font-size: 13px;
+  margin: 8px 0 4px;
+  color: #333;
+}
+.page-head p {
+  margin: 2px 0 6px;
+  max-width: 900px;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.warn-text {
+  color: #8a4b00;
+}
+.load {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.loadbar .load-total {
+  fill: var(--chart-light);
+}
+.loadbar .load-flagged {
+  fill: var(--chart-main);
+}
+.spark .spark-base {
+  stroke: #d0d0d0;
+  stroke-width: 1;
+}
+.spark .spark-bar {
+  fill: var(--chart-main);
+}
+.sort .btn-on {
+  background: #e6eefb;
+  border-color: #9bb7e6;
+}
+.outlier-list {
+  padding: 0 16px;
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+}
+.outlier-list .bar {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+.tier-group {
+  margin: 0 0 6px;
+}
+.tier-group .none {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+.tier-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  margin: 0 16px 0 0;
+}
+.page-scroll > .tier-table {
+  margin: 0 16px;
+}
+.pids a {
+  text-decoration: none;
+}
+.chips-wrap {
+  flex-wrap: wrap;
+}
+.facts-wide {
+  grid-template-columns: 100px 1fr;
+}
+.pings {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.pings li {
+  margin: 3px 0;
+}
+/* Overview */
+.ov-section {
+  padding: 0 16px;
+  margin-bottom: 8px;
+}
+.ov-section > p {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.ov-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.stat {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 14px;
+  min-width: 110px;
+}
+.stat-value {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.phase-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+.phase-list li.past {
+  color: var(--muted);
+}
+.per-ac {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.per-ac li {
+  display: grid;
+  grid-template-columns: 160px 100px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.chart {
+  display: block;
+  font-size: 11px;
+}
+.chart-wide {
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+}
+.chart .axis {
+  stroke: #bbb;
+}
+.chart .grid {
+  stroke: var(--grid);
+}
+.chart .tick,
+.chart .val {
+  fill: #555;
+}
+.chart .bar {
+  fill: var(--chart-main);
+}
+.chart .bar-hl {
+  fill: var(--chart-hl);
+}
+.chart .line {
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart .line-main {
+  stroke: var(--chart-main);
+}
+.chart .line-ref {
+  stroke: var(--chart-ref);
+  stroke-dasharray: 4 3;
+}
+.chart .end-label {
+  fill: #333;
+}
+.chart .marker line {
+  stroke: #b8b8b8;
+  stroke-dasharray: 2 3;
+}
+.chart .marker-now line {
+  stroke: #333;
+  stroke-dasharray: none;
+}
+.chart .marker-label {
+  fill: #555;
+}
+.chart .hover-col {
+  fill: transparent;
+}
+.chart .hover-col:hover {
+  fill: rgba(31, 95, 191, 0.06);
+}
+.legend {
+  font-size: 12px;
+}
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+  margin: 0 4px 0 10px;
+  vertical-align: middle;
+}
+.swatch-bar,
+.swatch-main {
+  background: var(--chart-main);
+}
+.swatch-hl {
+  background: var(--chart-hl);
+}
+.swatch-ref {
+  background: var(--chart-ref);
 }

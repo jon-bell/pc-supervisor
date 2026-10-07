@@ -20,7 +20,9 @@
 //                 next comment on the paper answers it. `medianDays` is the
 //                 median reply delay over answered episodes. `unanswered`
 //                 lists open episodes older than PCS_THRESH_PING_DAYS, one per
-//                 undecided paper, with the first @mention time if any.
+//                 undecided paper, with the first @mention time if any; `open`
+//                 lists every open episode on an undecided paper, whatever its
+//                 age (the person page's "open pings").
 // - movement:     their reviews with a merit or expertise change seen at or
 //                 after DISCUSSION_OPEN.
 // - silentOnSplit: undecided SPLIT papers (rules.ts splitOf) they review,
@@ -74,7 +76,13 @@ export interface ReviewerMetrics {
     flaggedPids: readonly number[];
   };
   participation: { papers: number; commented: number; share: number | null };
-  responsiveness: { medianDays: number | null; answered: number; unanswered: readonly UnansweredPing[] };
+  responsiveness: {
+    medianDays: number | null;
+    answered: number;
+    unanswered: readonly UnansweredPing[];
+    /** Every open episode on an undecided paper, any age (unanswered is the subset over PCS_THRESH_PING_DAYS). */
+    open: readonly UnansweredPing[];
+  };
   movement: { reviews: number; pids: readonly number[] };
   silentOnSplit: readonly number[];
 }
@@ -104,11 +112,10 @@ function pingsOn(f: PaperFacts, email: string, ctx: RuleContext) {
     if (mention && mentionedAt === null) mentionedAt = c.time;
     count++;
   }
-  const open =
-    start !== null && (ctx.now - start) / DAY_MS > ctx.thresholds.PING_DAYS
-      ? { pid: f.pid, since: start, ageDays: (ctx.now - start) / DAY_MS, pings: count, mentionedAt }
-      : null;
-  return { delays, open };
+  const episode: UnansweredPing | null =
+    start !== null ? { pid: f.pid, since: start, ageDays: (ctx.now - start) / DAY_MS, pings: count, mentionedAt } : null;
+  const open = episode !== null && episode.ageDays > ctx.thresholds.PING_DAYS ? episode : null;
+  return { delays, open, episode };
 }
 
 export function computeReviewerMetrics(ev: Evaluation, ctx: RuleContext): ReviewerMetrics[] {
@@ -140,6 +147,7 @@ export function computeReviewerMetrics(ev: Evaluation, ctx: RuleContext): Review
     const delays: number[] = [];
     const thinPids: number[] = [];
     const unanswered: UnansweredPing[] = [];
+    const openPings: UnansweredPing[] = [];
     let assigned = 0;
     let submitted = 0;
     let bottomDecile = 0;
@@ -176,6 +184,7 @@ export function computeReviewerMetrics(ev: Evaluation, ctx: RuleContext): Review
       const p = pingsOn(f, email, ctx);
       delays.push(...p.delays);
       if (p.open && !f.decided) unanswered.push(p.open);
+      if (p.episode && !f.decided) openPings.push(p.episode);
     }
 
     out.push({
@@ -193,7 +202,7 @@ export function computeReviewerMetrics(ev: Evaluation, ctx: RuleContext): Review
         commented,
         share: opened && papers.length > 0 ? commented / papers.length : null,
       },
-      responsiveness: { medianDays: median(delays), answered: delays.length, unanswered },
+      responsiveness: { medianDays: median(delays), answered: delays.length, unanswered, open: openPings },
       movement: { reviews: moved.length, pids: moved },
       silentOnSplit,
     });

@@ -27,6 +27,28 @@ export function formatTime(ms: number, tz: string): string {
   return f.format(ms);
 }
 
+/** "Feb 26" in the conference time zone. */
+export function formatDate(ms: number, tz: string): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(ms);
+}
+
+/** "2.5 days" (one decimal under 10, whole days above). */
+export function formatDays(d: number): string {
+  const v = d < 10 ? d.toFixed(1) : String(Math.round(d));
+  return `${v} ${v === "1.0" ? "day" : "days"}`;
+}
+
+/** "75%"; "–" when unknown. */
+export const percent = (share: number | null) => (share === null ? "–" : `${Math.round(share * 100)}%`);
+
+/** Labels for the reviewer outlier lists and for tiers. */
+export const TIER_LABELS: Readonly<Record<string, string>> = {
+  senior: "Senior PC",
+  junior: "Junior PC",
+  reciprocal: "Reciprocal",
+};
+export const tierLabel = (t: string) => TIER_LABELS[t] ?? t;
+
 /** "3 days ago", "today", "in 2 days". */
 export function relativeDays(ms: number, now: number): string {
   const d = (now - ms) / DAY;

@@ -1,7 +1,7 @@
 // The app shell: header (title, phase, now, nav, sync status) and the routed
-// view. Views register in ROUTES and, if they belong in the nav, in NAV.
-// M6 adds the AC table (/acs), reviewer outliers (/reviewers), the person
-// page (/people/:email) and the overview (/overview) here.
+// view. Views register in ROUTES and, if they belong in the nav, in NAV:
+// triage (/, /papers/:pid), the AC table (/acs), reviewer outliers
+// (/reviewers), the person page (/people/:email) and the overview (/overview).
 
 import type { ReactNode } from "react";
 import { useMeta, type MetaResponse } from "./api";
@@ -9,6 +9,10 @@ import { SyncIndicator } from "./components/SyncIndicator";
 import { Volatile } from "./components/Time";
 import { formatTime, PHASE_LABELS } from "./format";
 import { Link, match, useLocation } from "./router";
+import { Acs } from "./views/Acs";
+import { Overview } from "./views/Overview";
+import { Person } from "./views/Person";
+import { Reviewers } from "./views/Reviewers";
 import { Triage } from "./views/Triage";
 
 interface Route {
@@ -19,11 +23,18 @@ interface Route {
 const ROUTES: Route[] = [
   { path: "/", render: (meta) => <Triage meta={meta} pid={null} /> },
   { path: "/papers/:pid", render: (meta, p) => <Triage meta={meta} pid={/^\d+$/.test(p.pid ?? "") ? Number(p.pid) : null} /> },
+  { path: "/acs", render: (meta) => <Acs meta={meta} /> },
+  { path: "/reviewers", render: () => <Reviewers /> },
+  { path: "/people/:email", render: (meta, p) => <Person key={p.email} meta={meta} email={p.email ?? ""} /> },
+  { path: "/overview", render: (meta) => <Overview meta={meta} /> },
 ];
 
 /** Top-level nav. Not a ranking of people anywhere (spec §2). */
 const NAV: { to: string; label: string; active: (path: string) => boolean }[] = [
   { to: "/", label: "Triage", active: (p) => p === "/" || p.startsWith("/papers/") },
+  { to: "/acs", label: "ACs", active: (p) => p === "/acs" },
+  { to: "/reviewers", label: "Reviewers", active: (p) => p === "/reviewers" || p.startsWith("/people/") },
+  { to: "/overview", label: "Overview", active: (p) => p === "/overview" },
 ];
 
 export function App() {
