@@ -28,6 +28,7 @@ import {
   EnvelopeSchema,
   PcAssignmentsSchema,
   PcSchema,
+  paperRoleRowsSchema,
   ReviewHistorySchema,
   ReviewRatingSchema,
   ReviewsSchema,
@@ -37,6 +38,7 @@ import {
   WhoamiSchema,
   type Comment,
   type HotcrpMessage,
+  type PaperRoleRow,
   type PcAssignmentRow,
   type Review,
 } from "./schemas.js";
@@ -200,11 +202,29 @@ export class HotcrpClient {
     });
   }
 
-  /** POST-as-GET /reviews for one query (use reviewsForPids for bulk). */
-  async reviews(opts: { q: string; t?: SearchScope }): Promise<Review[]> {
+  /**
+   * GET /searchaction?action=get/lead (or get/shepherd): one {pid, email} per
+   * paper that has a discussion lead (shepherd). /search only gives names.
+   */
+  paperRoles(kind: "lead" | "shepherd", opts: { q?: string; t?: SearchScope } = {}): Promise<PaperRoleRow[]> {
+    return this.call({
+      path: "searchaction",
+      params: { action: `get/${kind}`, q: opts.q ?? "all", t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      format: "csv",
+      schema: paperRoleRowsSchema(kind),
+    });
+  }
+
+  /**
+   * POST-as-GET /reviews for one query (use reviewsForPids for bulk).
+   * `rq` keeps only reviews matching a review search, e.g. `re:#junior`
+   * (reviews by PC members holding user tag `junior`). HotCRP warns, and the
+   * client throws, if `rq` names a user tag nobody holds.
+   */
+  async reviews(opts: { q: string; t?: SearchScope; rq?: string }): Promise<Review[]> {
     const res = await this.call({
       path: "reviews",
-      params: { q: opts.q, t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      params: { q: opts.q, t: opts.t, rq: opts.rq, forceShow: this.forceShow ? 1 : 0 },
       postAsGet: true,
       schema: ReviewsSchema,
     });
@@ -223,7 +243,7 @@ export class HotcrpClient {
   }
 
   /** All reviews for `pids`, fetched in pid-range chunks with bounded concurrency. */
-  reviewsForPids(pids: Iterable<number>, opts: { t?: SearchScope } = {}): Promise<Review[]> {
+  reviewsForPids(pids: Iterable<number>, opts: { t?: SearchScope; rq?: string } = {}): Promise<Review[]> {
     return this.chunked(pids, (q) => this.reviews({ q, ...opts }));
   }
 
@@ -232,9 +252,17 @@ export class HotcrpClient {
     return this.chunked(pids, (q) => this.comments({ q, ...opts }));
   }
 
-  /** GET /{pid}/reviewhistory?r=: one review's versions (admin only; backfill). */
-  reviewHistory(pid: number, rid: number) {
-    return this.call({ path: `${checkId(pid)}/reviewhistory`, params: { r: checkId(rid) }, schema: ReviewHistorySchema });
+  /**
+   * GET /{pid}/reviewhistory?r=: one review's versions (admin only; backfill).
+   * With `expand: true`, older versions come back as full `review` objects
+   * (with their own modified_at) instead of `review_delta` patches.
+   */
+  reviewHistory(pid: number, rid: number, opts: { expand?: boolean } = {}) {
+    return this.call({
+      path: `${checkId(pid)}/reviewhistory`,
+      params: { r: checkId(rid), expand: opts.expand ? 1 : undefined },
+      schema: ReviewHistorySchema,
+    });
   }
 
   /** GET /{pid}/reviewrating?r=: ratings of one review. */

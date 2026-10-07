@@ -17,6 +17,10 @@
     "pcs": "tsx src/cli.ts"
   },
   "dependencies": {
+    "better-sqlite3-multiple-ciphers": "13.0.3",
     "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13"
   }
 }
