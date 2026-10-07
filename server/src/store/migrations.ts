@@ -199,6 +199,79 @@ export const MIGRATIONS: readonly string[] = [
     delete from text_fts where rowid = old.id * 2 + 1;
   end;
   `,
+
+  // 2: imported local files (spec §10.3, PLAN M9; server/src/imports/).
+  // Versioned like snapshots: every `pcs import` is one import_run, and its
+  // rows are stored under that run. Nothing is updated or deleted, so "what
+  // did the sheet say on day X" = the latest run of that kind with
+  // imported_at <= X (ties: highest id). Column names = canonical CSV columns.
+  // The do-not-invite list lives only here, i.e. inside the SQLCipher file.
+  `
+  create table import_run (
+    id integer primary key,
+    kind text not null check (kind in ('invites','tpms-assignments','tpms-registrations','refcheck','do-not-invite')),
+    file_sha256 text not null,
+    file_name text,
+    imported_at integer not null,
+    row_count integer not null
+  ) strict;
+  create index import_run_kind on import_run(kind, imported_at, id);
+
+  create table import_invite (
+    run_id integer not null references import_run(id),
+    line integer not null,
+    pid integer not null,
+    candidate_email text not null,
+    tpms_score real,
+    seniority_note text,
+    ac_email text,
+    ac_decision text not null check (ac_decision in ('approve','reject','pending')),
+    invited_at integer,
+    response text not null check (response in ('accept','decline','none')),
+    activated_at integer,
+    primary key (run_id, pid, candidate_email)
+  ) strict, without rowid;
+  create index import_invite_email on import_invite(run_id, candidate_email);
+
+  create table import_tpms_assignment (
+    run_id integer not null references import_run(id),
+    line integer not null,
+    pid integer not null,
+    email text not null,
+    score real,
+    primary key (run_id, pid, email)
+  ) strict, without rowid;
+  create index import_tpms_assignment_email on import_tpms_assignment(run_id, email);
+
+  create table import_tpms_registration (
+    run_id integer not null references import_run(id),
+    line integer not null,
+    email text not null,
+    registered integer not null check (registered in (0, 1)),
+    papers_uploaded integer,
+    primary key (run_id, email)
+  ) strict, without rowid;
+
+  create table import_refcheck (
+    run_id integer not null references import_run(id),
+    line integer not null,
+    pid integer not null,
+    total_refs integer,
+    hallucinated_refs integer not null,
+    in_field_refs integer not null,
+    note text,
+    primary key (run_id, pid)
+  ) strict, without rowid;
+
+  create table import_do_not_invite (
+    run_id integer not null references import_run(id),
+    line integer not null,
+    email text not null,
+    reason text,
+    source text,
+    primary key (run_id, email)
+  ) strict, without rowid;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

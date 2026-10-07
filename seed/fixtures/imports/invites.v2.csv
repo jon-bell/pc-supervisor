@@ -1,0 +1,6 @@
+pid,candidate_email,tpms_score,seniority_note,ac_email,ac_decision,invited_at,response,activated_at
+1,rosa.quill@example.org,0.82,"PhD 2019, 9 papers at venue list",ac.amber@example.org,approve,2030-01-20,accept,2030-01-22T09:30
+1,tomas.vey@example.org,0.77,student,ac.amber@example.org,reject,,none,
+2,ines.marlow@example.org,0.64,,ac.birch@example.org,approve,2030-01-24,none,
+4,kenji.arlo@example.org,0.9,senior,ac.cedar@example.org,approve,2030-01-20T08:00,decline,
+5,olu.brandt@example.org,0.71,postdoc,ac.cedar@example.org,pending,,none,

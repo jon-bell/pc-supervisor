@@ -227,7 +227,14 @@ export const FIELDS = {
   PCS_HOTCRP_TOKEN: required("chair API token: HotCRP > Account settings > Developer", secret),
   PCS_FORCE_SHOW: withDefault(true, bool),
   PCS_TZ: withDefault("America/New_York", timeZone),
+  // Extended phase model (spec §10.1, PLAN M9). All optional; the MVP runs without them.
+  PCS_PHASE_REGISTRATION_DUE: optional(localDateTime),
+  PCS_PHASE_SUBMISSION_DUE: optional(localDateTime),
+  PCS_PHASE_QUICKREJECT_DUE: optional(localDateTime),
+  PCS_PHASE_ASSIGNMENT_DONE: optional(localDateTime),
   PCS_PHASE_REVIEW_DUE: required("review deadline, ISO date-time", localDateTime),
+  PCS_PHASE_EARLYREJECT_OPEN: optional(localDateTime),
+  PCS_PHASE_EARLYREJECT_CLOSE: optional(localDateTime),
   PCS_PHASE_RESPONSE_OPEN: optional(localDateTime),
   PCS_PHASE_RESPONSE_CLOSE: optional(localDateTime),
   PCS_PHASE_DISCUSSION_OPEN: required("discussion opens, ISO date-time", localDateTime),
@@ -330,6 +337,79 @@ export interface Phases {
   discussionOpen: Date;
   discussionClose: Date;
   decisionsDue: Date;
+  // Extended phase model (spec §10.1). Optional, so code that builds a
+  // Phases literal for the MVP keeps compiling; unset = undefined.
+  registrationDue?: Date | undefined;
+  submissionDue?: Date | undefined;
+  quickRejectDue?: Date | undefined;
+  assignmentDone?: Date | undefined;
+  earlyRejectOpen?: Date | undefined;
+  earlyRejectClose?: Date | undefined;
+}
+
+/** Extended (spec §10.1) phase keys of Phases, in deadline order, with their env names. */
+export const EXTENDED_PHASE_FIELDS = [
+  ["registrationDue", "PCS_PHASE_REGISTRATION_DUE"],
+  ["submissionDue", "PCS_PHASE_SUBMISSION_DUE"],
+  ["quickRejectDue", "PCS_PHASE_QUICKREJECT_DUE"],
+  ["assignmentDone", "PCS_PHASE_ASSIGNMENT_DONE"],
+  ["earlyRejectOpen", "PCS_PHASE_EARLYREJECT_OPEN"],
+  ["earlyRejectClose", "PCS_PHASE_EARLYREJECT_CLOSE"],
+] as const;
+
+/**
+ * Ordering problems for the extended phase dates (spec §10.1 order):
+ *   REGISTRATION_DUE <= SUBMISSION_DUE <= QUICKREJECT_DUE <= ASSIGNMENT_DONE
+ *   <= REVIEW_DUE <= EARLYREJECT_OPEN <= EARLYREJECT_CLOSE
+ *   <= RESPONSE_OPEN (if set) and <= DISCUSSION_OPEN.
+ * Unset dates are skipped (each is compared with the nearest set neighbor).
+ * Only pairs involving at least one extended date are checked here, so MVP
+ * validation is unchanged. EARLYREJECT_OPEN/_CLOSE: set both or neither.
+ */
+export function extendedPhaseProblems(
+  phases: Partial<Record<keyof Phases, Date | undefined>>,
+  isSet: (name: FieldName) => boolean,
+): ConfigProblem[] {
+  const problems: ConfigProblem[] = [];
+  const chain: [keyof Phases, FieldName, boolean][] = [
+    ["registrationDue", "PCS_PHASE_REGISTRATION_DUE", true],
+    ["submissionDue", "PCS_PHASE_SUBMISSION_DUE", true],
+    ["quickRejectDue", "PCS_PHASE_QUICKREJECT_DUE", true],
+    ["assignmentDone", "PCS_PHASE_ASSIGNMENT_DONE", true],
+    ["reviewDue", "PCS_PHASE_REVIEW_DUE", false],
+    ["earlyRejectOpen", "PCS_PHASE_EARLYREJECT_OPEN", true],
+    ["earlyRejectClose", "PCS_PHASE_EARLYREJECT_CLOSE", true],
+    ["responseOpen", "PCS_PHASE_RESPONSE_OPEN", false],
+    ["discussionOpen", "PCS_PHASE_DISCUSSION_OPEN", false],
+  ];
+  const present = chain.filter(([k]) => phases[k] !== undefined);
+  for (let i = 1; i < present.length; i++) {
+    const [prevKey, prevName, prevExt] = present[i - 1]!;
+    const [key, name, ext] = present[i]!;
+    if (!prevExt && !ext) continue;
+    if (phases[key]! < phases[prevKey]!) {
+      // Blame the extended date (the MVP ones are checked elsewhere).
+      problems.push(
+        ext ? { name, message: `must not be earlier than ${prevName}` } : { name: prevName, message: `must not be later than ${name}` },
+      );
+    }
+  }
+  // With a response window set, the chain above skips EARLYREJECT_CLOSE vs
+  // DISCUSSION_OPEN; check it directly so the windows can never overlap.
+  const erClose = phases.earlyRejectClose ?? phases.earlyRejectOpen;
+  if (erClose && phases.responseOpen && phases.discussionOpen && phases.discussionOpen < erClose) {
+    const n = phases.earlyRejectClose ? "PCS_PHASE_EARLYREJECT_CLOSE" : "PCS_PHASE_EARLYREJECT_OPEN";
+    problems.push({ name: n, message: "must not be later than PCS_PHASE_DISCUSSION_OPEN" });
+  }
+  const hasOpen = isSet("PCS_PHASE_EARLYREJECT_OPEN");
+  const hasClose = isSet("PCS_PHASE_EARLYREJECT_CLOSE");
+  if (hasOpen !== hasClose) {
+    problems.push({
+      name: hasOpen ? "PCS_PHASE_EARLYREJECT_CLOSE" : "PCS_PHASE_EARLYREJECT_OPEN",
+      message: "set both PCS_PHASE_EARLYREJECT_OPEN and PCS_PHASE_EARLYREJECT_CLOSE, or neither",
+    });
+  }
+  return problems;
 }
 
 export interface Config {
@@ -404,6 +484,12 @@ const PHASE_FIELDS = [
   "PCS_PHASE_DISCUSSION_OPEN",
   "PCS_PHASE_DISCUSSION_CLOSE",
   "PCS_PHASE_DECISIONS_DUE",
+  "PCS_PHASE_REGISTRATION_DUE",
+  "PCS_PHASE_SUBMISSION_DUE",
+  "PCS_PHASE_QUICKREJECT_DUE",
+  "PCS_PHASE_ASSIGNMENT_DONE",
+  "PCS_PHASE_EARLYREJECT_OPEN",
+  "PCS_PHASE_EARLYREJECT_CLOSE",
 ] as const satisfies readonly FieldName[];
 
 /**
@@ -425,6 +511,12 @@ export function loadPhaseConfig(env: Env = process.env): { tz: string; phases: P
       discussionOpen: at(v.PCS_PHASE_DISCUSSION_OPEN)!,
       discussionClose: at(v.PCS_PHASE_DISCUSSION_CLOSE)!,
       decisionsDue: at(v.PCS_PHASE_DECISIONS_DUE)!,
+      registrationDue: at(v.PCS_PHASE_REGISTRATION_DUE),
+      submissionDue: at(v.PCS_PHASE_SUBMISSION_DUE),
+      quickRejectDue: at(v.PCS_PHASE_QUICKREJECT_DUE),
+      assignmentDone: at(v.PCS_PHASE_ASSIGNMENT_DONE),
+      earlyRejectOpen: at(v.PCS_PHASE_EARLYREJECT_OPEN),
+      earlyRejectClose: at(v.PCS_PHASE_EARLYREJECT_CLOSE),
     },
   };
 }
@@ -450,6 +542,12 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
     discussionOpen: at(v.PCS_PHASE_DISCUSSION_OPEN),
     discussionClose: at(v.PCS_PHASE_DISCUSSION_CLOSE),
     decisionsDue: at(v.PCS_PHASE_DECISIONS_DUE),
+    registrationDue: at(v.PCS_PHASE_REGISTRATION_DUE),
+    submissionDue: at(v.PCS_PHASE_SUBMISSION_DUE),
+    quickRejectDue: at(v.PCS_PHASE_QUICKREJECT_DUE),
+    assignmentDone: at(v.PCS_PHASE_ASSIGNMENT_DONE),
+    earlyRejectOpen: at(v.PCS_PHASE_EARLYREJECT_OPEN),
+    earlyRejectClose: at(v.PCS_PHASE_EARLYREJECT_CLOSE),
   };
 
   // Cross-field checks, on whichever values parsed.
@@ -479,6 +577,7 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
   if (phases.responseOpen && phases.responseClose && phases.responseClose < phases.responseOpen) {
     problems.push({ name: "PCS_PHASE_RESPONSE_CLOSE", message: "must not be earlier than PCS_PHASE_RESPONSE_OPEN" });
   }
+  problems.push(...extendedPhaseProblems(phases, (n) => cleaned(env, n) !== undefined));
   if (cleaned(env, "PCS_DB_KEY") === undefined && !isTestMode(env)) {
     problems.push({
       name: "PCS_DB_KEY",
@@ -539,11 +638,23 @@ export function describeConfig(c: Config): string[] {
   const when = (d: Date | undefined) => (d ? formatInZone(d, c.tz) : "(unset)");
   const acRole = c.acRole.kind === "tag" ? `tag:${c.acRole.tag}` : c.acRole.kind;
   const tiers = Object.entries(c.tierTags).map(([t, g]) => `${t}=${g}`).join(",") || "(none)";
+  // Extended phases (spec §10.1) are listed only when any is set, so MVP output is unchanged.
+  const p = c.phases;
+  const extended = EXTENDED_PHASE_FIELDS.some(([k]) => p[k] !== undefined)
+    ? [
+        `Registration due  ${when(p.registrationDue)}`,
+        `Submission due    ${when(p.submissionDue)}`,
+        `Quick-reject due  ${when(p.quickRejectDue)}`,
+        `Assignment done   ${when(p.assignmentDone)}`,
+        `Early reject      ${when(p.earlyRejectOpen)} .. ${when(p.earlyRejectClose)}`,
+      ]
+    : [];
   return [
     `HotCRP URL        ${c.hotcrp.url}`,
     `HotCRP token      (set, ${c.hotcrp.token.length} chars; not shown)`,
     `Force show        ${c.hotcrp.forceShow}`,
     `Time zone         ${c.tz}`,
+    ...extended,
     `Review due        ${when(c.phases.reviewDue)}`,
     `Response window   ${when(c.phases.responseOpen)} .. ${when(c.phases.responseClose)}`,
     `Discussion        ${when(c.phases.discussionOpen)} .. ${when(c.phases.discussionClose)}`,

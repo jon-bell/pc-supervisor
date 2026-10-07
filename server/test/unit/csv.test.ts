@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CsvError, parseCsv, parseCsvRecords } from "../../src/hotcrp/csv.js";
+import { CsvError, parseCsv, parseCsvLines, parseCsvRecords } from "../../src/hotcrp/csv.js";
 
 describe("parseCsv", () => {
   it("parses plain rows with LF, CRLF, and CR", () => {
@@ -45,5 +45,20 @@ describe("parseCsvRecords", () => {
 
   it("returns nothing for empty input", () => {
     expect(parseCsvRecords("")).toEqual([]);
+  });
+});
+
+describe("parseCsvLines", () => {
+  it("keeps each row's starting line, across blank lines and quoted newlines", () => {
+    expect(parseCsvLines('h\n\na\n"b\nc"\r\nd\n')).toEqual([
+      { line: 1, cells: ["h"] },
+      { line: 3, cells: ["a"] },
+      { line: 4, cells: ["b\nc"] },
+      { line: 6, cells: ["d"] },
+    ]);
+  });
+
+  it("reports an unterminated quote at the line where it opened", () => {
+    expect(() => parseCsvLines('a\n"b\nc\nd\n')).toThrow(/^line 2: unterminated/);
   });
 });

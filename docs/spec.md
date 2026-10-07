@@ -125,6 +125,7 @@ There's no config file. `.env.example` is the full, documented list. Startup val
 | `PCS_PHASE_DISCUSSION_CLOSE` | Discussion closes | required |
 | `PCS_PHASE_DECISIONS_DUE` | Decisions due | required |
 | `PCS_PHASE_RESPONSE_OPEN` / `_CLOSE` | Author-response window | optional |
+| `PCS_PHASE_REGISTRATION_DUE`, `_SUBMISSION_DUE`, `_QUICKREJECT_DUE`, `_ASSIGNMENT_DONE`, `_EARLYREJECT_OPEN` / `_CLOSE` | Extended phase model (§10.1) | optional |
 | `PCS_NOW` | Pin the clock | unset = real time |
 | `PCS_AC_ROLE` | `meta` \| `lead` \| `manager` \| `tag:<t>` | `meta` |
 | `PCS_TIER_TAGS` | e.g. `junior=junior,reciprocal=reciprocal`; untagged reviewers = senior | empty |
@@ -331,6 +332,34 @@ Each phase date is an env var:
 
 The modules activate by phase. Single-cycle only for now; a two-cycle conference would duplicate this set per cycle and still needs design.
 
+**Implemented (M9).** The six new dates are optional, so the MVP runs without them. Startup checks that the configured ones are in this order and reports every violation at once: `REGISTRATION_DUE ≤ SUBMISSION_DUE ≤ QUICKREJECT_DUE ≤ ASSIGNMENT_DONE ≤ REVIEW_DUE ≤ EARLYREJECT_OPEN ≤ EARLYREJECT_CLOSE ≤ RESPONSE_OPEN` (if set) `≤ DISCUSSION_OPEN`. Unset dates are skipped. Only pairs that involve a new date are checked, so MVP validation doesn't change. `EARLYREJECT_OPEN`/`_CLOSE`: set both or neither.
+
+`phaseAt()` (M4) stays the MVP model. `extendedPhaseAt()` (`server/src/rules/phase.ts`) refines it only where a new date is configured; with none configured, the two return the same phase. As with the MVP phases, a deadline instant belongs to the phase it ends:
+
+| Phase | Interval |
+|---|---|
+| `registration` | `now ≤ REGISTRATION_DUE` |
+| `submission` | previous set deadline `< now ≤ SUBMISSION_DUE` |
+| `quick-reject` | `… < now ≤ QUICKREJECT_DUE` |
+| `assignment` | `… < now ≤ ASSIGNMENT_DONE` |
+| `before-review-due` | `… < now ≤ REVIEW_DUE` |
+| `early-reject` | `EARLYREJECT_OPEN ≤ now ≤ EARLYREJECT_CLOSE` (replaces `reviewing-late` there) |
+| `reviewing-late`, `response`, `discussion`, `decisions`, `after-decisions` | as in `phaseAt()` |
+
+Each pre-review phase starts at the previous *configured* deadline, so leaving a date unset removes its phase. For example, with only `SUBMISSION_DUE` set, everything before it is `submission`.
+
+`activeModules(phase)` gives the §10.4 modules for a phase. The spec leaves the exact spans open, so these are the M9 choices (`MODULE_PHASES`; change the table to change them):
+
+| Module | Active in |
+|---|---|
+| A reserve compliance | registration, submission, quick-reject (follow-up of warnings) |
+| B quick-reject tracker | quick-reject, assignment (appeal tail) |
+| C assignment validator | assignment, before-review-due, reviewing-late, early-reject (reserve activations add assignments) |
+| D reviewing by tier | before-review-due, reviewing-late, early-reject, response |
+| E early reject | early-reject (the close report is computed at the close instant, which is inside the window) |
+| F discussion and decisions | response, discussion, decisions |
+| G process report | after-decisions |
+
 ### 10.2 Tiers
 
 There are four tiers: `senior`, `junior`, `reserve-pool` (designated but not activated), and `reserve-active`. They come from PC user tags (`PCS_TIER_TAGS`). Activated reserve reviewers are **added to the PC**, not requested as external reviewers, because HotCRP can't change an external reviewer's round without a new request.
@@ -346,6 +375,30 @@ There are four tiers: `senior`, `junior`, `reserve-pool` (designated but not act
 | `do-not-invite` | The chair-to-chair do-not-invite list, stored encrypted alongside the DB | email |
 
 Imports are versioned like snapshots, so "what did the sheet say on day X" is answerable.
+
+**Implemented (M9): `server/src/imports/`, migration 2, `pcs import`.**
+
+*File format.* Files must be UTF-8 CSV (RFC 4180, with an optional BOM) and need a header row. Headers are matched case-insensitively after trimming, with runs of spaces or hyphens read as `_`, so `Candidate Email` matches `candidate_email`. Each column also accepts the aliases listed below. Column order doesn't matter, and unrecognized columns are ignored (their count is reported). An empty cell means unset. Emails are lowercased and must look like `x@y.z`. Dates can be `YYYY-MM-DD` (midnight) or `YYYY-MM-DD[T ]HH:MM[:SS]`, in `PCS_TZ` unless they carry `Z` or an offset, and are stored as epoch seconds. Enum values are case-insensitive. Within one file, a key may appear only once (checked after lowercasing).
+
+There's no public spec for the TPMS formats. The TPMS kinds therefore use a minimal documented column set plus aliases for likely header names. No `PCS_*` mapping variable was needed; if a real export uses other headers, rename them or add an alias in `kinds.ts`.
+
+| Kind | Key | Columns (`*` = required; aliases in parentheses) |
+|---|---|---|
+| `invites` | pid + candidate_email | `pid`\* integer ≥ 1 (paper, paper_id, paperid, submission, submission_id); `candidate_email`\* (email, candidate); `tpms_score` number (score); `seniority_note` text (seniority); `ac_email` email (ac); `ac_decision` `approve`\|`reject`\|`pending`, empty = `pending`; `invited_at` date; `response` `accept`\|`decline`\|`none`, empty = `none`; `activated_at` date |
+| `tpms-assignments` | pid + email | `pid`\* (as above); `email`\* (reviewer, reviewer_email); `score` number (tpms_score, affinity) |
+| `tpms-registrations` | email | `email`\* (reviewer, reviewer_email): the HotCRP email the reviewer registered with; `registered`\* `yes`/`no`, `true`/`false`, `1`/`0`, `y`/`n`; `papers_uploaded` integer ≥ 0 (papers, num_papers) |
+| `refcheck` | pid | `pid`\* (as above); `total_refs` integer ≥ 0 (refs, references); `hallucinated_refs`\* integer ≥ 0 (hallucinated, unresolved_refs); `in_field_refs`\* integer ≥ 0 (in_field); a 0 here is the "no in-field references" flag; `note` text (notes, comment) |
+| `do-not-invite` | email | `email`\*; `reason` text (note); `source` text (e.g. the conference the entry came from) |
+
+*Atomic.* The whole file is parsed and validated before anything is written. Any problem rejects the file and imports **nothing**. The report lists every problem as `line N, column C: problem`, where N is the 1-based file line and the header is line 1. Problems can be a cell that fails validation, a row with more fields than the header, a duplicate key, a missing required column, a column given twice, a CSV syntax error (reported at the line where the bad quote opened), an empty file, or non-UTF-8 bytes. A row that fails validation doesn't claim its key. The report never echoes a cell value. The run and its rows are written in one transaction.
+
+*Versioning.* Every import, including a re-import of an identical file, adds one `import_run` row: `id`, `kind`, `file_sha256` (of the raw bytes), `file_name` (basename), `imported_at` (app clock, so `PCS_NOW` applies; epoch seconds), and `row_count`. The rows go in a per-kind table (`import_invite`, `import_tpms_assignment`, `import_tpms_registration`, `import_refcheck`, `import_do_not_invite`) under that `run_id`, in typed columns named after the canonical CSV columns, with the source `line`. Nothing is updated or deleted. Queries (`imports/store.ts`):
+- `runAsOf(kind, t)` returns the latest run with `imported_at ≤ t`, breaking ties by the highest id. `rowsAsOf(kind, t)` returns "what the sheet said at t".
+- `diffRuns(kind, a, b)` and `diffWithPrevious(run)` return added, removed, and changed rows (same key, different values) plus an unchanged count.
+
+*Confidentiality.* The do-not-invite list, like every import, lives only in its table inside the SQLCipher-encrypted store (`PCS_DB_KEY`). That is what "stored encrypted alongside the DB" means here. `pcs wipe` removes it with everything else. Don't keep the source CSV around.
+
+*CLI.* `pcs import <kind> <file>` prints the run id, the row count, the +added/−removed/~changed counts against the previous version, and a hash prefix. On errors it prints the report (the first 50 problems), exits 1, and writes nothing. `pcs import --list [kind]` prints the history: run id, kind, time, row count, diff counts, and hash prefix. It shows counts only, never content. `pcs import --help` lists the columns. Synthetic fixtures for every kind, including malformed variants, are in `seed/fixtures/imports/`.
 
 ### 10.4 Modules
 

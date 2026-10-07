@@ -178,6 +178,14 @@ Observe at `PCS_NOW=2030-02-26T12:00`.
   9,600 review rows, 6,594 comments, 1,068 responses. Seeds in about 2 min on a
   9-core dev machine (35 s of it is savepapers.php); `verify scale` takes about 70 s.
 
+## Import fixtures (`fixtures/imports/`, PLAN M9)
+
+These are synthetic CSVs for `pcs import` (spec §10.3). They are plain files, not harness seeding, and are used by `server/test/unit/imports.test.ts` and `cli-import.test.ts`. All names are invented, at `example.org`.
+
+- `<kind>.csv` for each of `invites`, `tpms-assignments`, `tpms-registrations`, `refcheck`, and `do-not-invite`. These are valid files that exercise the tolerant header matching: shuffled column order, Title Case headers, aliases (`Paper ID`, `Reviewer Email`, `Affinity`), an extra column, uppercase emails, quoted commas, and date-only and date-time values.
+- `invites.v2.csv` is a later version of the sheet. Against `invites.csv` it has 1 row added, 1 removed, and 1 changed (pid 2 goes from pending to approved and invited), for the versioning and diff tests.
+- `<kind>.malformed.csv`, plus `invites.bad-quote.csv`, are deliberately broken files. Each must import nothing and give the row-level report asserted in the tests.
+
 ## Reading user tags back (for M3)
 
 `/pc` has no per-user tags, and pages (`/users?…getfn=pcinfo`) don't accept

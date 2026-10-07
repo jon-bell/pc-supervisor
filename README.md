@@ -44,6 +44,8 @@ The repo is an npm workspace (`server/`, `web/`, `seed/`, `e2e/`; `e2e/argos-can
 4. Run `pcs sync --watch` and open `http://127.0.0.1:5317`.
 5. When the PC is over, run `pcs wipe`.
 
+**Local CSV imports (large-conference modules, spec §10.3).** Run `pcs import <kind> <file.csv>` to load the reserve-invitation sheet (`invites`), the TPMS output (`tpms-assignments`, `tpms-registrations`), a reference checker's output (`refcheck`), or the do-not-invite list (`do-not-invite`) into the encrypted store. Each import is a new version, so earlier versions stay queryable. A file with any bad row is rejected whole, with a `line N, column C: problem` report. `pcs import --list` shows the history with counts only. `pcs import --help` lists the expected columns.
+
 The local database holds every review and comment. Keep it off synced folders and backups that leave the machine, and never share screenshots of the real data.
 
 ## CI
