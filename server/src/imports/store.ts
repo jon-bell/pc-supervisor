@@ -1,18 +1,22 @@
 // Versioned storage of imports (spec §10.3, PLAN M9). Tables: migration 2 in
 // ../store/migrations.ts.
 //
-// - importCsv(): parse + validate the whole file, then write one import_run
-//   and all its rows in ONE transaction. Any problem -> nothing is written.
+// - importCsv() / importFile(): stream the file through the validator and
+//   write one import_run and all its rows in ONE transaction, rolled back on
+//   any problem: nothing is written. Memory is bounded by the longest row.
 // - runAsOf(kind, t): the version in force at t (latest imported_at <= t).
 // - diffRuns(kind, a, b): added / removed / changed rows by the kind's key.
 //
 // imported_at comes from the app clock (clock.ts, PCS_NOW), in epoch seconds.
 
 import { createHash } from "node:crypto";
+import { closeSync, openSync, readSync } from "node:fs";
 import type { Clock } from "../clock.js";
+import { CsvError } from "../hotcrp/csv.js";
 import type { Db } from "../store/db.js";
+import { CsvStreamParser } from "./csv-stream.js";
 import { KINDS, rowKey, type ImportKind, type ImportRowMap, type ParseContext } from "./kinds.js";
-import { parseImport, type ImportProblem } from "./parse.js";
+import { csvProblem, ImportRowReader, type ImportProblem, type ParseOptions } from "./parse.js";
 
 export interface ImportRun<K extends ImportKind = ImportKind> {
   id: number;
@@ -29,12 +33,19 @@ export type ImportResult<K extends ImportKind = ImportKind> =
       ok: true;
       run: ImportRun<K>;
       ignoredColumns: string[];
+      /** The file had no header row (--no-header, or a sniffed plain list). */
+      headerless: boolean;
       /** An earlier run of this kind with the same file hash, if any. */
       sameAsRunId: number | null;
     }
-  | { ok: false; problems: ImportProblem[] };
+  | {
+      ok: false;
+      /** The first MAX_PROBLEMS_KEPT problems. */
+      problems: ImportProblem[];
+      problemCount: number;
+    };
 
-export interface ImportOptions extends ParseContext {
+export interface ImportOptions extends ParseContext, ParseOptions {
   clock: Clock;
   /** Recorded for `pcs import --list`; pass a basename, not a full path. */
   fileName?: string;
@@ -66,6 +77,29 @@ function sqlValue(v: unknown): unknown {
   return typeof v === "boolean" ? (v ? 1 : 0) : v;
 }
 
+/** Bytes read per chunk when streaming a file. */
+const CHUNK_BYTES = 1 << 20;
+
+class Rollback extends Error {}
+
+function* bufferChunks(buf: Uint8Array): Generator<Uint8Array> {
+  for (let i = 0; i < buf.length; i += CHUNK_BYTES) yield buf.subarray(i, i + CHUNK_BYTES);
+}
+
+function* fileChunks(path: string): Generator<Uint8Array> {
+  const fd = openSync(path, "r");
+  try {
+    const buf = Buffer.allocUnsafe(CHUNK_BYTES);
+    for (;;) {
+      const n = readSync(fd, buf, 0, CHUNK_BYTES, null);
+      if (n === 0) return;
+      yield buf.subarray(0, n);
+    }
+  } finally {
+    closeSync(fd);
+  }
+}
+
 /** Import `bytes` (a CSV file's contents) as a new version of `kind`. */
 export function importCsv<K extends ImportKind>(
   db: Db,
@@ -73,39 +107,90 @@ export function importCsv<K extends ImportKind>(
   bytes: Uint8Array | string,
   opts: ImportOptions,
 ): ImportResult<K> {
-  const buf = typeof bytes === "string" ? Buffer.from(bytes, "utf8") : Buffer.from(bytes);
-  let text: string;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
-  } catch {
-    return { ok: false, problems: [{ line: null, column: null, message: "not UTF-8 text (export the sheet as CSV UTF-8)" }] };
-  }
-  const parsed = parseImport(kind, text, { tz: opts.tz });
-  if (!parsed.ok) return parsed;
+  const buf = typeof bytes === "string" ? Buffer.from(bytes, "utf8") : bytes;
+  return importChunks(db, kind, bufferChunks(buf), opts);
+}
 
+/** Import a CSV file by streaming it (memory stays bounded, whatever the file size). */
+export function importFile<K extends ImportKind>(db: Db, kind: K, path: string, opts: ImportOptions): ImportResult<K> {
+  return importChunks(db, kind, fileChunks(path), opts);
+}
+
+/**
+ * The streaming import: decode, parse, validate, and insert row by row inside
+ * one transaction, which is rolled back if any problem turns up. Duplicate
+ * keys are caught by the table's primary key (no in-memory key set).
+ */
+export function importChunks<K extends ImportKind>(
+  db: Db,
+  kind: K,
+  chunks: Iterable<Uint8Array>,
+  opts: ImportOptions,
+): ImportResult<K> {
   const spec = KINDS[kind];
-  const sha = createHash("sha256").update(buf).digest("hex");
   const cols = spec.columns.map((c) => c.name);
   const insertRow = db.prepare(
-    `insert into ${spec.table} (run_id, line, ${cols.join(", ")}) values (?, ?, ${cols.map(() => "?").join(", ")})`,
+    `insert into ${spec.table} (run_id, line, ${cols.join(", ")}) values (?, ?, ${cols.map(() => "?").join(", ")}) on conflict do nothing`,
   );
-  const same = db
-    .prepare("select max(id) as id from import_run where kind = ? and file_sha256 = ?")
-    .get(kind, sha) as { id: number | null };
+  const firstLine = db.prepare(`select line from ${spec.table} where run_id = ? and ${spec.key.map((k) => `${k} = ?`).join(" and ")}`);
+  const reader = new ImportRowReader(kind, { tz: opts.tz }, { map: opts.map, header: opts.header });
+  const hash = createHash("sha256");
+  const decoder = new TextDecoder("utf-8", { fatal: true });
 
-  const run = db.transaction((): ImportRun<K> => {
-    const importedAt = sec(opts.clock.now());
-    const info = db
-      .prepare("insert into import_run (kind, file_sha256, file_name, imported_at, row_count) values (?, ?, ?, ?, ?)")
-      .run(kind, sha, opts.fileName ?? null, importedAt, parsed.rows.length);
-    const id = Number(info.lastInsertRowid);
-    for (const { line, row } of parsed.rows) {
-      const r = row as unknown as Record<string, unknown>;
-      insertRow.run(id, line, ...cols.map((c) => sqlValue(r[c])));
-    }
-    return { id, kind, fileSha256: sha, fileName: opts.fileName ?? null, importedAt, rowCount: parsed.rows.length };
-  })();
-  return { ok: true, run, ignoredColumns: parsed.ignoredColumns, sameAsRunId: same.id };
+  let result: { run: ImportRun<K>; ignoredColumns: string[] } | undefined;
+  try {
+    result = db.transaction(() => {
+      const importedAt = sec(opts.clock.now());
+      const info = db
+        .prepare("insert into import_run (kind, file_sha256, file_name, imported_at, row_count) values (?, '', ?, ?, 0)")
+        .run(kind, opts.fileName ?? null, importedAt);
+      const id = Number(info.lastInsertRowid);
+      let count = 0;
+      const parser = new CsvStreamParser((l) => {
+        const p = reader.next(l);
+        if (!p) return;
+        const r = p.row as unknown as Record<string, unknown>;
+        if (insertRow.run(id, p.line, ...cols.map((c) => sqlValue(r[c]))).changes === 0) {
+          const first = firstLine.get(id, ...spec.key.map((k) => r[k])) as { line: number };
+          reader.problems.add({ line: p.line, column: spec.key.join("+"), message: `duplicate key (first at line ${first.line})` });
+        } else {
+          count++;
+        }
+      });
+      try {
+        for (const chunk of chunks) {
+          hash.update(chunk);
+          parser.push(decoder.decode(chunk, { stream: true }));
+          if (reader.dead) break;
+        }
+        if (!reader.dead) {
+          parser.push(decoder.decode());
+          parser.end();
+        }
+      } catch (e) {
+        if (e instanceof CsvError) reader.problems.add(csvProblem(e));
+        else if (e instanceof TypeError && (e as { code?: string }).code === "ERR_ENCODING_INVALID_ENCODED_DATA") {
+          reader.problems.add({ line: null, column: null, message: "not UTF-8 text (export the sheet as CSV UTF-8)" });
+        } else throw e;
+        reader.dead = true;
+      }
+      reader.finish();
+      if (reader.problems.count > 0) throw new Rollback();
+      const sha = hash.digest("hex");
+      db.prepare("update import_run set file_sha256 = ?, row_count = ? where id = ?").run(sha, count, id);
+      return {
+        run: { id, kind, fileSha256: sha, fileName: opts.fileName ?? null, importedAt, rowCount: count },
+        ignoredColumns: reader.ignoredColumns,
+      };
+    })();
+  } catch (e) {
+    if (!(e instanceof Rollback)) throw e;
+  }
+  if (!result) return { ok: false, problems: reader.problems.items, problemCount: reader.problems.count };
+  const same = db
+    .prepare("select max(id) as id from import_run where kind = ? and file_sha256 = ? and id < ?")
+    .get(kind, result.run.fileSha256, result.run.id) as { id: number | null };
+  return { ok: true, ...result, headerless: reader.headerless, sameAsRunId: same.id };
 }
 
 /** Import history, oldest first; optionally one kind. */
@@ -203,6 +288,39 @@ export function diffRuns<K extends ImportKind>(
   }
   out.removed = [...before.values()];
   return out;
+}
+
+export interface DiffCounts {
+  added: number;
+  removed: number;
+  changed: number;
+  unchanged: number;
+}
+
+/**
+ * The counts of diffRuns, computed in SQL over the (run_id, key) primary key:
+ * no rows are loaded, so it suits the 1.44M-row affinity kinds too.
+ */
+export function diffCounts(db: Db, kind: ImportKind, fromRunId: number | null, toRunId: number): DiffCounts {
+  const spec = KINDS[kind];
+  const t = spec.table;
+  const total = (id: number) => (db.prepare(`select count(*) as n from ${t} where run_id = ?`).get(id) as { n: number }).n;
+  const to = total(toRunId);
+  if (fromRunId === null) return { added: to, removed: 0, changed: 0, unchanged: 0 };
+  const from = total(fromRunId);
+  const on = spec.key.map((k) => `a.${k} = b.${k}`).join(" and ");
+  const values = spec.columns.map((c) => c.name).filter((c) => !spec.key.includes(c));
+  const differs = values.length > 0 ? values.map((c) => `a.${c} is not b.${c}`).join(" or ") : "0";
+  const m = db
+    .prepare(`select count(*) as matched, coalesce(sum(${differs}), 0) as changed from ${t} a join ${t} b on ${on} where a.run_id = ? and b.run_id = ?`)
+    .get(fromRunId, toRunId) as { matched: number; changed: number };
+  return { added: to - m.matched, removed: from - m.matched, changed: m.changed, unchanged: m.matched - m.changed };
+}
+
+/** diffCounts against the previous run of the same kind. */
+export function diffCountsWithPrevious(db: Db, run: ImportRun): DiffCounts & { previousRunId: number | null } {
+  const prev = previousRun(db, run)?.id ?? null;
+  return { ...diffCounts(db, run.kind, prev, run.id), previousRunId: prev };
 }
 
 /** Diff a run against the previous run of its kind. */

@@ -5,10 +5,10 @@
 // Four indexed scans, whatever the number of papers.
 
 import type { ReservePolicy } from "../../config.js";
-import { rowsAsOf } from "../../imports/store.js";
+import { diffRuns, previousRun, rowsAsOf, type ImportRun } from "../../imports/store.js";
 import type { Store } from "../../store/store.js";
 import { paperAuthors, submissionFields } from "../../store/submissions.js";
-import type { InputPaper, ReserveInput } from "./types.js";
+import type { InputPaper, ReserveInput, TpmsRegistrationChange } from "./types.js";
 
 export function loadReserveInput(store: Store, policy: ReservePolicy, at: Date): ReserveInput {
   const db = store.db;
@@ -51,6 +51,21 @@ export function loadReserveInput(store: Store, policy: ReservePolicy, at: Date):
     fields: { designee: fieldType(policy.designeeField), exemption: fieldType(policy.exemptionField), seniority: fieldType(policy.seniorityField) },
     pc,
     names: known,
-    tpms: t.run ? { runId: t.run.id, rows: t.rows } : undefined,
+    tpms: t.run ? { runId: t.run.id, rows: t.rows, change: registrationChange(db, t.run) } : undefined,
+  };
+}
+
+/** Diff the registrations in force against the previous import (a small table: rows in memory). */
+function registrationChange(db: Store["db"], run: ImportRun): TpmsRegistrationChange | undefined {
+  const prev = previousRun(db, run);
+  if (!prev) return undefined;
+  const d = diffRuns(db, "tpms-registrations", prev.id, run.id);
+  return {
+    previousRunId: prev.id,
+    added: d.added.length,
+    removed: d.removed.length,
+    changed: d.changed.length,
+    nowRegistered: d.added.filter((r) => r.registered).length + d.changed.filter((c) => c.after.registered && !c.before.registered).length,
+    noLongerRegistered: d.removed.filter((r) => r.registered).length + d.changed.filter((c) => !c.after.registered && c.before.registered).length,
   };
 }

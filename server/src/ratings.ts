@@ -62,7 +62,7 @@ export function ratingsJson(c: RatingCounts): string {
 
 /**
  * Parse a stored ratings column. Accepts the counts object and, for safety,
- * a flag list (the pre-migration-5 form). Unknown keys and bad counts are dropped.
+ * a flag list (the pre-migration-6 form). Unknown keys and bad counts are dropped.
  */
 export function parseRatings(s: unknown): RatingCounts {
   if (typeof s !== "string" || s === "") return {};

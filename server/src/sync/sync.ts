@@ -782,7 +782,7 @@ function applyReviews(st: ReturnType<typeof reviewStatements>, rs: Review[], ctx
     }
 
     // Compare canonical forms, so a row migrated from the flag-list form
-    // (migration 5) doesn't count as a change.
+    // (migration 6) doesn't count as a change.
     const prevRatings = ratingsJson(parseRatings(prev.ratings));
     if (prevRatings !== ratings) {
       st.ratingChange.run(r.rid, ctx.now, prevRatings, ratings, ctx.runId);

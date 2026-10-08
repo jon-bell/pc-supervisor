@@ -98,6 +98,27 @@ describe("pcs import", { timeout: 60_000 }, () => {
     expect(missing.stderr).toMatch(/cannot read .*nope\.csv: ENOENT/);
   });
 
+  it("TPMS kinds: --map, header-less files, scores, and diffed registrations in --list", () => {
+    const map = ["--map", "paper=Submission #,email=Assigned Reviewer,score=Match Quality,round=Phase"];
+    const bad = pcs(["import", "tpms-assignments", join(FIX, "tpms-assignments.mapped.csv"), "--map", "paper=Nope,email=Assigned Reviewer"], env);
+    expect(bad.code).toBe(1);
+    expect(bad.stderr).toContain('line 1, column pid: --map: no header cell is named "Nope"');
+    const a = pcs(["import", "tpms-assignments", join(FIX, "tpms-assignments.mapped.csv"), ...map], env);
+    expect(a.stderr).toBe("");
+    expect(a.stdout).toMatch(/^import #1 tpms-assignments: 3 row\(s\); vs previous \+3 -0 ~0 /);
+    expect(a.stdout).toContain("ignored 1 unrecognized column(s)");
+    const l = pcs(["import", "affinity-local", join(FIX, "affinity-local.csv")], env);
+    expect(l.stdout).toContain("note: no header row; columns read by position");
+    const s = pcs(["import", "tpms-scores", join(FIX, "tpms-scores.csv"), "--no-header"], env);
+    expect(s.code).toBe(1); // the header row read as data
+    expect(pcs(["import", "tpms-registrations", join(FIX, "tpms-registrations.csv")], env).code).toBe(0);
+    const r2 = pcs(["import", "tpms-registrations", join(FIX, "tpms-registrations.list.csv")], { ...env, PCS_NOW: "2030-01-26T09:00" });
+    expect(r2.stdout).toMatch(/^import #4 tpms-registrations: 3 row\(s\); vs previous \+1 -2 ~2 /);
+    const list = pcs(["import", "--list", "tpms-registrations"], env).stdout.trim().split("\n");
+    expect(list[2]).toMatch(/^ {2}4 {2}tpms-registrations +2030-01-26T09:00:00-05:00 +3 {2}\+1 -2 ~2 /);
+    expect(pcs(["import", "tpms-scores", join(FIX, "tpms-scores.csv"), "--bogus"], env).code).toBe(2);
+  });
+
   it("reports a wrong DB key without the key", () => {
     openDb(env.PCS_DB_PATH!, { key: "the-real-key" }).close();
     const r = pcs(["import", "refcheck", join(FIX, "refcheck.csv")], env);

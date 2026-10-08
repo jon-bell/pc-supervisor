@@ -98,17 +98,32 @@ const EXPECTED: { [K in ImportKind]: ImportRowMap[K][] } = {
     },
   ],
   "tpms-assignments": [
+    { pid: 1, email: "rosa.quill@example.org", score: 0.91, round: "R1" },
+    { pid: 1, email: "tomas.vey@example.org", score: 0.88, round: "R1" },
+    { pid: 2, email: "ines.marlow@example.org", score: 0.75, round: "R1" },
+    { pid: 2, email: "kenji.arlo@example.org", score: null, round: "R1" },
+    { pid: 3, email: "olu.brandt@example.org", score: 0.69, round: "R1" },
+  ],
+  "tpms-scores": [
     { pid: 1, email: "rosa.quill@example.org", score: 0.91 },
-    { pid: 1, email: "tomas.vey@example.org", score: 0.88 },
-    { pid: 2, email: "ines.marlow@example.org", score: 0.75 },
-    { pid: 2, email: "kenji.arlo@example.org", score: null },
-    { pid: 3, email: "olu.brandt@example.org", score: 0.69 },
+    { pid: 1, email: "tomas.vey@example.org", score: 0.4 },
+    { pid: 1, email: "ines.marlow@example.org", score: 0 },
+    { pid: 2, email: "rosa.quill@example.org", score: 0.25 },
+    { pid: 2, email: "ines.marlow@example.org", score: 1 },
+    { pid: 2, email: "kenji.arlo@example.org", score: 0.775 },
+    { pid: 3, email: "olu.brandt@example.org", score: 0.6 },
+  ],
+  "affinity-local": [
+    { pid: 1, email: "kenji.arlo@example.org", score: 0.52 },
+    { pid: 1, email: "tomas.vey@example.org", score: 0.33 },
+    { pid: 2, email: "olu.brandt@example.org", score: 0.47 },
+    { pid: 3, email: "olu.brandt@example.org", score: 0.81 },
   ],
   "tpms-registrations": [
-    { email: "rosa.quill@example.org", registered: true, papers_uploaded: 9 },
-    { email: "tomas.vey@example.org", registered: false, papers_uploaded: 0 },
-    { email: "ines.marlow@example.org", registered: true, papers_uploaded: null },
-    { email: "kenji.arlo@example.org", registered: false, papers_uploaded: 3 },
+    { email: "rosa.quill@example.org", registered: true, papers_uploaded: 9, last_updated: null },
+    { email: "tomas.vey@example.org", registered: false, papers_uploaded: 0, last_updated: null },
+    { email: "ines.marlow@example.org", registered: true, papers_uploaded: null, last_updated: null },
+    { email: "kenji.arlo@example.org", registered: false, papers_uploaded: 3, last_updated: null },
   ],
   refcheck: [
     { pid: 1, total_refs: 42, hallucinated_refs: 0, in_field_refs: 17, note: null },
@@ -140,7 +155,7 @@ describe("every kind round-trips from its fixture CSV", () => {
     const r = imp("invites", "invites.csv");
     expect(r.ok && r.ignoredColumns).toEqual(["Sheet Row Color"]);
     const t = imp("tpms-assignments", "tpms-assignments.csv");
-    expect(t.ok && t.ignoredColumns).toEqual(["Round"]);
+    expect(t.ok && t.ignoredColumns).toEqual([]);
   });
 
   it("lowercases every email", () => {
@@ -149,6 +164,7 @@ describe("every kind round-trips from its fixture CSV", () => {
       ...(db.prepare("select candidate_email as e from import_invite union all select ac_email from import_invite").all() as { e: string | null }[]),
       ...(db.prepare("select email as e from import_tpms_assignment union all select email from import_tpms_registration").all() as { e: string }[]),
       ...(db.prepare("select email as e from import_do_not_invite").all() as { e: string }[]),
+      ...(db.prepare("select email as e from import_score").all() as { e: string }[]),
     ].map((r) => r.e).filter((e): e is string => e !== null);
     expect(emails.length).toBeGreaterThan(15);
     for (const e of emails) expect(e).toBe(e.toLowerCase());

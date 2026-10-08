@@ -1,0 +1,10 @@
+paper,email,score
+1,rosa.quill@example.org,1.5
+1,tomas.vey@example.org,-0.1
+2,ines.marlow@example.org,high
+2,kenji.arlo@example.org,
+x,olu.brandt@example.org,0.5
+1,ROSA.QUILL@example.org,0.2
+3,not-an-email,0.3
+3,olu.brandt@example.org,0.5
+3,OLU.Brandt@example.org,0.4

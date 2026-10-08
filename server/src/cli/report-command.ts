@@ -22,6 +22,7 @@ import {
 import { StoreError } from "../store/errors.js";
 import { openStore, type Store } from "../store/store.js";
 import type { Command } from "./main.js";
+import { runTpmsExport, TPMS_EXPORT_USAGE } from "./tpms-command.js";
 
 const out = (s: string) => process.stdout.write(`${s}\n`);
 const err = (s: string) => process.stderr.write(`${s}\n`);
@@ -127,9 +128,11 @@ export const REPORT_COMMANDS: Record<string, Command> = {
     },
   },
   export: {
-    summary: "Pseudonymous per-review and per-reviewer CSVs (HMAC with PCS_PSEUDONYM_KEY; no emails, names, titles, or text)",
-    usage: EXPORT_USAGE,
+    summary:
+      "Pseudonymous per-review and per-reviewer CSVs (HMAC with PCS_PSEUDONYM_KEY; no emails, names, titles, or text); `export tpms <dir>`: the TPMS operator's bundle",
+    usage: `${EXPORT_USAGE}\n${TPMS_EXPORT_USAGE}`,
     run(args) {
+      if (args[0] === "tpms") return runTpmsExport(args.slice(1));
       const p = parseArgs(args, { "--out": "value", "--zip": "bool" });
       if (p.help) return (out(EXPORT_USAGE), 0);
       if (p.error) return (err(`pcs export: ${p.error}\n${EXPORT_USAGE}`), 2);

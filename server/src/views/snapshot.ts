@@ -16,7 +16,7 @@
 // - ACs: Store.areaChairs(PCS_AC_ROLE), the same query the store exposes.
 // - Reviews: live rows. merit/expertise = scores[PCS_FIELD_MERIT] /
 //   scores[PCS_FIELD_EXPERTISE], numeric or null. ratings = the ratings JSON
-//   (raters per flag, migration 5), or {} when ratings are off. versions = review_version rows, oldest first by
+//   (raters per flag, migration 6), or {} when ratings are off. versions = review_version rows, oldest first by
 //   coalesce(modified_at, seen_at): HotCRP's own edit time when known, else
 //   when the sync first saw it. A history row with neither time sorts first
 //   and gets seenAt 0 ("long ago"), so it never counts as discussion-time

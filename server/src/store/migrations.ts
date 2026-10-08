@@ -327,7 +327,42 @@ export const MIGRATIONS: readonly string[] = [
   create index paper_option_name on paper_option(name, pid);
   `,
 
-  // 5: review ratings (spec §1, §3; server/src/ratings.ts). review.ratings
+  // 5 (TPMS file exchange, spec §10.3).
+  // Adds the review round of a TPMS assignment
+  // row, the profile date of a registration row, and the affinity matrix.
+  // import_score holds both tpms-scores and affinity-local rows (import_run.kind
+  // tells them apart): up to 2,400 x 600 rows per version.
+  `
+  -- pcs:rebuild (foreign keys off; see migrate())
+  -- import_run.kind's check gains the two score kinds: rebuild the table.
+  create table import_run_new (
+    id integer primary key,
+    kind text not null check (kind in ('invites','tpms-assignments','tpms-scores','affinity-local','tpms-registrations','refcheck','do-not-invite')),
+    file_sha256 text not null,
+    file_name text,
+    imported_at integer not null,
+    row_count integer not null
+  ) strict;
+  insert into import_run_new (id, kind, file_sha256, file_name, imported_at, row_count)
+    select id, kind, file_sha256, file_name, imported_at, row_count from import_run;
+  drop table import_run;
+  alter table import_run_new rename to import_run;
+  create index import_run_kind on import_run(kind, imported_at, id);
+
+  alter table import_tpms_assignment add column round text;
+  alter table import_tpms_registration add column last_updated integer;
+
+  create table import_score (
+    run_id integer not null references import_run(id),
+    line integer not null,
+    pid integer not null,
+    email text not null,
+    score real not null check (score >= 0 and score <= 1),
+    primary key (run_id, pid, email)
+  ) strict, without rowid;
+  `,
+
+  // 6: review ratings (spec §1, §3; server/src/ratings.ts). review.ratings
   // becomes counts per flag ({"short":2,"vague":1}) instead of HotCRP's flag
   // list. Ratings change with no vtag change and no timestamp, so the sync
   // diffs them and logs each observed change here. before = null: the
@@ -354,6 +389,9 @@ export const MIGRATIONS: readonly string[] = [
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
+/** A migration containing this line rebuilds a table; migrate() runs it with foreign keys off. */
+const REBUILD_MARKER = "-- pcs:rebuild";
+
 /** Apply pending migrations, each in its own transaction. */
 export function migrate(db: Db): number {
   const current = db.pragma("user_version", { simple: true }) as number;
@@ -364,10 +402,24 @@ export function migrate(db: Db): number {
     );
   }
   for (let v = current; v < MIGRATIONS.length; v++) {
-    db.transaction(() => {
-      db.exec(MIGRATIONS[v]!);
-      db.pragma(`user_version = ${v + 1}`);
-    })();
+    const sql = MIGRATIONS[v]!;
+    // A table rebuild (SQLite's 12-step ALTER procedure) needs foreign keys
+    // off, which only takes effect outside a transaction; the result is
+    // checked with foreign_key_check before commit.
+    const rebuild = sql.includes(REBUILD_MARKER);
+    const fk = db.pragma("foreign_keys", { simple: true }) as number;
+    if (rebuild) db.pragma("foreign_keys = OFF");
+    try {
+      db.transaction(() => {
+        db.exec(sql);
+        if (rebuild && (db.pragma("foreign_key_check") as unknown[]).length > 0) {
+          throw new Error(`migration ${v + 1} left foreign-key violations`);
+        }
+        db.pragma(`user_version = ${v + 1}`);
+      })();
+    } finally {
+      if (rebuild) db.pragma(`foreign_keys = ${fk ? "ON" : "OFF"}`);
+    }
   }
   return MIGRATIONS.length - current;
 }

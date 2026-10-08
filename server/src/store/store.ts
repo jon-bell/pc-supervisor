@@ -87,7 +87,7 @@ export interface ReviewRow {
   deletedSeenAt: number | null;
 }
 
-/** One observed change of a review's ratings (migration 5). */
+/** One observed change of a review's ratings (migration 6). */
 export interface RatingChangeRow {
   rid: number;
   /** Sync clock time; ratings carry no HotCRP timestamp. */

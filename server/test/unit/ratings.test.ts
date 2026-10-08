@@ -1,5 +1,5 @@
 // Review ratings (spec §1): HotCRP's multiset encoding, the stored counts,
-// the Zod schema, and migration 5's conversion of the old flag-list column.
+// the Zod schema, and migration 6's conversion of the old flag-list column.
 import Database from "better-sqlite3-multiple-ciphers";
 import { describe, expect, it } from "vitest";
 import { RatingValueSchema, ReviewSchema, RatingSettingsSchema } from "../../src/hotcrp/schemas.js";
@@ -49,15 +49,15 @@ describe("schemas", () => {
   });
 });
 
-describe("migration 5", () => {
+describe("migration 6 (ratings)", () => {
   it("converts flag lists to counts and adds rating_change", () => {
     const db = new Database(":memory:");
-    for (const m of MIGRATIONS.slice(0, 4)) db.exec(m);
+    for (const m of MIGRATIONS.slice(0, 5)) db.exec(m);
     const ins = db.prepare("insert into review (rid, pid, email, status, first_seen_at, ratings) values (?, 1, 'a@example.org', 'complete', 0, ?)");
     ins.run(1, '["short","short","vague"]');
     ins.run(2, "[]");
     ins.run(3, "garbage");
-    db.exec(MIGRATIONS[4]!);
+    db.exec(MIGRATIONS[5]!);
     const rows = db.prepare("select rid, ratings from review order by rid").all() as { rid: number; ratings: string }[];
     expect(rows.map((r) => [r.rid, parseRatings(r.ratings)])).toEqual([
       [1, { short: 2, vague: 1 }],

@@ -321,6 +321,7 @@ These are synthetic CSVs for `pcs import` (spec §10.3). They are plain files, n
 - `<kind>.csv` for each of `invites`, `tpms-assignments`, `tpms-registrations`, `refcheck`, and `do-not-invite`. These are valid files that exercise the tolerant header matching: shuffled column order, Title Case headers, aliases (`Paper ID`, `Reviewer Email`, `Affinity`), an extra column, uppercase emails, quoted commas, and date-only and date-time values.
 - `invites.v2.csv` is a later version of the sheet. Against `invites.csv` it has 1 row added, 1 removed, and 1 changed (pid 2 goes from pending to approved and invited), for the versioning and diff tests.
 - `<kind>.malformed.csv`, plus `invites.bad-quote.csv`, are deliberately broken files. Each must import nothing and give the row-level report asserted in the tests.
+- TPMS file exchange (`server/test/unit/tpms.test.ts`): `tpms-scores.csv` (a small `paper,email,score` matrix) and `affinity-local.csv` (header-less, like openreview-expertise output); `tpms-assignments.mapped.csv`, an "unpublished" layout that needs `--map paper=Submission #,email=Assigned Reviewer,score=Match Quality,round=Phase`, and its `.mapped.malformed.csv`; `tpms-registrations.full.csv` (`email,registered,n_papers,last_updated`), `.list.csv` (a plain list of emails, no header), `.email-only.csv` (one email column), and `.list.malformed.csv`. The malformed score files cover out-of-range, non-numeric, and blank scores, bad pids and emails, duplicate keys, and long rows.
 
 ## Reading user tags back (for M3)
 

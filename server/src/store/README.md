@@ -11,7 +11,9 @@ reads it through `openStore()`.
   message that names neither key. Only `NODE_ENV=test` may run unencrypted.
 - **Schema:** `migrations.ts`, forward-only and numbered by `PRAGMA user_version`. A DB
   from a newer build is refused (`kind: "newer_schema"`). Never edit a shipped migration;
-  append one.
+  append one. A migration containing the line `-- pcs:rebuild` rebuilds a table
+  (SQLite's 12-step procedure, e.g. to widen a `check`); `migrate()` runs it with
+  foreign keys off and fails it if `foreign_key_check` finds violations.
 
 ## Tables
 
@@ -26,9 +28,9 @@ existed at the first successful sync take HotCRP's `modified_at` (or the sync ti
 | `person` | email | PC roster (`is_pc`, `roles` JSON: `pc`, `chair`), plus any reviewer/commenter seen. `tags` is the queried user tags this person holds (tier tags and a `tag:` AC tag only); `tier` is the first `PCS_TIER_TAGS` tier whose tag they hold, else `senior`. `removed_seen_at`: left the PC. |
 | `paper` | pid | `/search` t=all: title, status, decision (`null` = Unspecified), `decision_seen_at` (+`_approx`: when the sync first saw the current decision; migration 3), tags JSON. `lead`/`shepherd` emails from `get/lead`/`get/shepherd`. `manager` is resolved from `/search`'s display name against the roster, and left `null` with a sync warning if the name is ambiguous. |
 | `assignment` | (pid, email, role) | role ∈ `meta primary secondary pc external` (from `get/pcassignments`) and `lead shepherd manager`. `removed_seen_at` marks an unassignment. |
-| `review` | rid | Latest state: `rtype`, `status`, `vtag` (opaque; compare with `!==`), `modified_at` (null when HotCRP hides it), `scores` JSON (non-text fields by UID), `word_count` (local, over text fields), `ratings` JSON (raters per flag, `{"short":2}`; migration 5 converted HotCRP's flag list), `first_seen_at`, `first_complete_seen_at` (status `complete`/`approved`). |
+| `review` | rid | Latest state: `rtype`, `status`, `vtag` (opaque; compare with `!==`), `modified_at` (null when HotCRP hides it), `scores` JSON (non-text fields by UID), `word_count` (local, over text fields), `ratings` JSON (raters per flag, `{"short":2}`; migration 6 converted HotCRP's flag list), `first_seen_at`, `first_complete_seen_at` (status `complete`/`approved`). |
 | `review_version` | (rid, vtag) | `source` = `snapshot` (first seen by a sync; `seen_at` = sync time) or `history` (`pcs backfill`; `seen_at` = that version's `modified_at`, approximate, maybe null). `sync_run_id` = the run that wrote it. |
-| `rating_change` | observed change | Review ratings change with no vtag and no timestamp, so each sync diffs them: `rid`, `seen_at` (sync clock), `before` (null = first sight of the review), `after` (counts JSON), `sync_run_id`. Unchanged ratings write nothing. Migration 5. `Store.ratingChanges()`. |
+| `rating_change` | observed change | Review ratings change with no vtag and no timestamp, so each sync diffs them: `rid`, `seen_at` (sync clock), `before` (null = first sight of the review), `after` (counts JSON), `sync_run_id`. Unchanged ratings write nothing. Migration 6. `Store.ratingChanges()`. |
 | `meta` | key | `review_rating` / `review_rating_visibility`: HotCRP's rating settings as last synced (`Store.ratingSettings()`; `no` = ratings off, so rating signals are hidden). |
 | `review_text` | (rid, vtag, field) | Text of each non-empty text field for each vtag. |
 | `review_field` | field UID | The review form from `get/jsonrqc`: name, type, `is_text`, order, score labels. |
@@ -37,7 +39,7 @@ existed at the first successful sync take HotCRP's `modified_at` (or the sync ti
 | `comment_mention` | (cid, email) | Mentions, for SQL joins (indexed on email). |
 | `sync_run` | run | `kind` `sync`/`backfill`, `now_used` (clock), `ok`, `counts` JSON, `errors` JSON (messages only, no content). |
 | `history_backfill` | rid | Backfill progress (resumable). |
-| `import_run` | `pcs import` | Imported local CSVs (spec §10.3, M9): `kind`, `file_sha256`, `file_name`, `imported_at` (clock), `row_count`. Rows go in `import_invite`, `import_tpms_assignment`, `import_tpms_registration`, `import_refcheck`, and `import_do_not_invite`, keyed by `run_id`, and are never updated. API: `server/src/imports/store.ts` (`runAsOf`, `rowsAsOf`, `diffRuns`). |
+| `import_run` | `pcs import` | Imported local CSVs (spec §10.3, M9): `kind`, `file_sha256`, `file_name`, `imported_at` (clock), `row_count`. Rows go in `import_invite`, `import_tpms_assignment`, `import_tpms_registration`, `import_refcheck`, and `import_do_not_invite`, keyed by `run_id`, and are never updated. API: `server/src/imports/store.ts` (`runAsOf`, `rowsAsOf`, `diffRuns`, `diffCounts`). Migration 5 (TPMS): `import_run` rebuilt so `kind` also allows `tpms-scores` and `affinity-local`, whose rows share `import_score` (`pid, email, score` in 0–1; PK `run_id, pid, email`; up to 1.44M rows per version, read through `imports/scores.ts`); `import_tpms_assignment.round`; `import_tpms_registration.last_updated`. |
 | `submission_field` | option name | Configured submission options from `GET /settings?filter=sf` (numeric ids only; document types skipped): `sf_id`, `type`, `values_json` (choice names). M10, migration 4. |
 | `paper_author` | (pid, author_key) | Authors from `GET /papers` (needs `PCS_FORCE_SHOW=true` for blind submissions): `ord`, `email` (lowercased; null if absent), `name`, `affiliation`. `author_key` = email or `name:<name>`. Hidden authors are kept, with a sync warning; vanished ones get `removed_seen_at`. |
 | `paper_option` | (pid, name) | Submission-option values from `GET /papers`, keyed by option name (e.g. `Reserve designee`). `value` is JSON. `changed_seen_at` is when the current value was first seen. Empty values count as removed. Abstracts and documents are never stored. |
