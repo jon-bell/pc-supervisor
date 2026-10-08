@@ -808,3 +808,23 @@ pre.csv {
   overflow: auto;
   max-width: 900px;
 }
+
+/* The in-app paper filter (components/PaperFilter.tsx) */
+.paper-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #fdfdfd;
+}
+.paper-filter input {
+  font: inherit;
+  width: 22em;
+  max-width: 60vw;
+  padding: 2px 6px;
+}
+.paper-scope code {
+  font-size: 12px;
+}

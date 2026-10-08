@@ -7,6 +7,7 @@ import type { AcMetrics } from "../../rules/ac-metrics.js";
 import type { PersonView } from "../../rules/model.js";
 import type { AcRow, AcsResponse } from "../api-types.js";
 import { personOf, type RouteDeps } from "../app.js";
+import { filteredView } from "../paper-filter.js";
 
 export function acRow(m: AcMetrics, people: ReadonlyMap<string, PersonView>): AcRow {
   const byStatus: Record<string, number> = {};
@@ -32,8 +33,10 @@ export const byName = (a: { person: { name: string; email: string } }, b: { pers
   a.person.name.localeCompare(b.person.name) || a.person.email.localeCompare(b.person.email);
 
 export function registerAcs(app: FastifyInstance, deps: RouteDeps): void {
-  app.get("/api/acs", async (): Promise<AcsResponse> => {
-    const view = deps.analysis.get();
+  // ?search=<HotCRP search>: rows over the matching papers only (paper-filter.ts).
+  app.get("/api/acs", async (req, reply): Promise<AcsResponse | typeof reply> => {
+    const view = await filteredView(req, reply, deps);
+    if (!view) return reply;
     const acs = view.analysis.acs.map((m) => acRow(m, view.people)).sort(byName);
     return { now: view.ctx.now, maxLoad: acs.reduce((n, a) => Math.max(n, a.load), 0), acs };
   });

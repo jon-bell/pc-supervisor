@@ -16,6 +16,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { formatInZone, isValidTimeZone, parseIsoLocal, zonedTimeToInstant, type LocalDateTime } from "./tz.js";
+import { searchProblem } from "./hotcrp/scope.js";
 
 // ---------------------------------------------------------------------------
 // Rules and thresholds (spec §5c). Weights: PCS_RULE_<NAME>_WEIGHT.
@@ -220,6 +221,13 @@ function paperTag(v: string, ctx: z.RefinementCtx): string {
   return s;
 }
 
+/** PCS_PAPER_SEARCH: a HotCRP search that can be parenthesized safely (hotcrp/scope.ts). */
+function paperSearch(v: string, ctx: z.RefinementCtx): string {
+  const s = v.trim();
+  const problem = searchProblem(s);
+  return problem ? fail(ctx, `expected a HotCRP search like "#shadow" or "1-200"; this one ${problem}`) : s;
+}
+
 function fieldUid(v: string, ctx: z.RefinementCtx): string {
   const s = v.trim();
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(s)) {
@@ -408,6 +416,8 @@ export const FIELDS = {
   PCS_HOTCRP_URL: required("conference base URL, e.g. https://conf.hotcrp.com", hotcrpUrl),
   PCS_HOTCRP_TOKEN: required("chair API token: HotCRP > Account settings > Developer", secret),
   PCS_FORCE_SHOW: withDefault(true, bool),
+  // Pin every sync, view and module to the papers matching this HotCRP search (empty = all papers).
+  PCS_PAPER_SEARCH: withDefault("", paperSearch),
   PCS_TZ: withDefault("America/New_York", timeZone),
   // Extended phase model (spec §10.1, PLAN M9). All optional; the MVP runs without them.
   PCS_PHASE_REGISTRATION_DUE: optional(localDateTime),
@@ -575,6 +585,11 @@ export interface HotcrpConfig {
   url: string;
   token: string;
   forceShow: boolean;
+  /**
+   * PCS_PAPER_SEARCH: the HotCRP search every paper read is ANDed with
+   * (hotcrp/scope.ts); "" = all papers.
+   */
+  paperSearch: string;
   sync: { chunk: number; concurrency: number; historyRps: number };
 }
 
@@ -901,6 +916,7 @@ const HOTCRP_FIELDS = [
   "PCS_HOTCRP_URL",
   "PCS_HOTCRP_TOKEN",
   "PCS_FORCE_SHOW",
+  "PCS_PAPER_SEARCH",
   "PCS_SYNC_CHUNK",
   "PCS_SYNC_CONCURRENCY",
   "PCS_HISTORY_RPS",
@@ -917,6 +933,7 @@ function buildHotcrp(v: Pick<FieldValues, (typeof HOTCRP_FIELDS)[number]>): Hotc
     url: v.PCS_HOTCRP_URL,
     token: v.PCS_HOTCRP_TOKEN,
     forceShow: v.PCS_FORCE_SHOW,
+    paperSearch: v.PCS_PAPER_SEARCH,
     sync: { chunk: v.PCS_SYNC_CHUNK, concurrency: v.PCS_SYNC_CONCURRENCY, historyRps: v.PCS_HISTORY_RPS },
   };
 }
@@ -1209,6 +1226,7 @@ export function describeConfig(c: Config): string[] {
     `HotCRP URL        ${c.hotcrp.url}`,
     `HotCRP token      (set, ${c.hotcrp.token.length} chars; not shown)`,
     `Force show        ${c.hotcrp.forceShow}`,
+    `Paper search      ${c.hotcrp.paperSearch === "" ? "(all papers)" : JSON.stringify(c.hotcrp.paperSearch)}`,
     `Time zone         ${c.tz}`,
     ...extended,
     `Review due        ${when(c.phases.reviewDue)}`,

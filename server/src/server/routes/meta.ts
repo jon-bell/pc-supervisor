@@ -24,6 +24,7 @@ export function registerMeta(app: FastifyInstance, deps: RouteDeps): void {
       tiers: ["senior", ...Object.keys(cfg.tierTags)],
       fields: cfg.fields,
       ratings: { ...deps.store.ratingSettings(), flags: [...RATING_FLAGS] },
+      paperSearch: cfg.hotcrp.paperSearch,
     };
   });
 }
