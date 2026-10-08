@@ -12,6 +12,7 @@ import type { Cell, ProcessReport } from "@pcs/server/modules/report/types";
 import { getJson, type MetaResponse } from "../api";
 import { Histogram } from "../components/Charts";
 import { formatDate, formatTime, PHASE_LABELS, percent, tierLabel } from "../format";
+import { useTiersConfigured } from "../tiers";
 
 export function useReport() {
   return useQuery({ queryKey: ["report"], queryFn: () => getJson<ProcessReport>("/api/report") });
@@ -19,10 +20,14 @@ export function useReport() {
 
 const num = (v: number | null | undefined, digits = 0) => (v === null || v === undefined ? "–" : digits ? v.toFixed(digits) : String(v));
 
+/** The row label when PCS_TIER_TAGS is empty (one "senior" group: everyone). */
+const ALL_REVIEWERS = "All reviewers";
+
 function Row({ cell, tier, minCell, children, testId }: { cell: Cell; tier: string; minCell: number; children: ReactNode; testId: string }) {
+  const tiers = useTiersConfigured();
   return (
     <tr data-testid={testId} data-tier={tier} data-suppressed={cell.suppressed ? "1" : "0"}>
-      <th scope="row">{tierLabel(tier)}</th>
+      <th scope="row">{tiers ? tierLabel(tier) : ALL_REVIEWERS}</th>
       {cell.suppressed ? (
         <td colSpan={99} className="muted" data-testid="suppressed" title={`Numbers withheld: fewer than PCS_REPORT_MIN_CELL=${minCell} people`}>
           fewer than {minCell} people; withheld
@@ -68,6 +73,10 @@ export function Report({ meta }: { meta: MetaResponse }) {
   if (q.error) return <p className="error page">Could not load the report: {q.error.message}</p>;
   if (!r) return <p className="muted page">Loading…</p>;
   const m = r.minCell;
+  // No PCS_TIER_TAGS: one group, so no tier wording anywhere.
+  const tiers = meta.tiersConfigured;
+  const byTier = tiers ? " by tier" : "";
+  const label = (t: string) => (tiers ? tierLabel(t) : ALL_REVIEWERS);
   const t = r.totals;
   const rs = r.reserve;
   const er = r.earlyReject;
@@ -113,11 +122,11 @@ export function Report({ meta }: { meta: MetaResponse }) {
         </div>
       </section>
 
-      <Section title="Review depth by tier" testId="report-depth" intro={`Words in submitted reviewer reviews. The floor is PCS_THRESH_MIN_WORDS=${r.depth.minWords}.`}>
+      <Section title={`Review depth${byTier}`} testId="report-depth" intro={`Words in submitted reviewer reviews. The floor is PCS_THRESH_MIN_WORDS=${r.depth.minWords}.`}>
         <table className="mini">
           <thead>
             <tr>
-              <th>Tier</th>
+              <th>{tiers ? "Tier" : "Reviewers"}</th>
               <th>Reviewers</th>
               <th>Reviews</th>
               <th>Median</th>
@@ -145,10 +154,10 @@ export function Report({ meta }: { meta: MetaResponse }) {
             .filter((d) => d.bins)
             .map((d) => (
               <figure key={d.tier} className="small-multiple">
-                <figcaption>{tierLabel(d.tier)}: words per review</figcaption>
+                <figcaption>{label(d.tier)}: words per review</figcaption>
                 <Histogram
                   testId={`depth-histogram-${d.tier}`}
-                  ariaLabel={`${tierLabel(d.tier)}: submitted reviews by word count`}
+                  ariaLabel={`${label(d.tier)}: submitted reviews by word count`}
                   bins={d.bins!.map((b) => ({ label: b.label, value: b.count, highlight: b.from < r.depth.minWords, title: `${b.label} words: ${b.count} reviews` }))}
                 />
               </figure>
@@ -156,11 +165,11 @@ export function Report({ meta }: { meta: MetaResponse }) {
         </div>
       </Section>
 
-      <Section title="Timeliness by tier" testId="report-timeliness" intro={`First submission vs the review deadline (${formatDate(r.timeliness.reviewDue, meta.tz)}). Replacements assigned after the deadline are never late.`}>
+      <Section title={`Timeliness${byTier}`} testId="report-timeliness" intro={`First submission vs the review deadline (${formatDate(r.timeliness.reviewDue, meta.tz)}). Replacements assigned after the deadline are never late.`}>
         <table className="mini">
           <thead>
             <tr>
-              <th>Tier</th>
+              <th>{tiers ? "Tier" : "Reviewers"}</th>
               <th>Reviewers</th>
               <th>Assigned</th>
               <th>On time</th>
@@ -187,23 +196,23 @@ export function Report({ meta }: { meta: MetaResponse }) {
         </table>
       </Section>
 
-      <Section title="Merit distribution by tier" testId="report-merits" intro={`Submitted reviewer merits (${r.merits.field}); accept side from ${r.merits.acceptMin}.`}>
+      <Section title={`Merit distribution${byTier}`} testId="report-merits" intro={`Submitted reviewer merits (${r.merits.field}); accept side from ${r.merits.acceptMin}.`}>
         <div className="ov-grid">
           {r.merits.rows.map((d) =>
             d.bins ? (
               <figure key={d.tier} className="small-multiple" data-testid="merit-row" data-tier={d.tier}>
                 <figcaption>
-                  {tierLabel(d.tier)}: {d.reviews} merits, mean {num(d.mean, 2)}
+                  {label(d.tier)}: {d.reviews} merits, mean {num(d.mean, 2)}
                 </figcaption>
                 <Histogram
                   testId={`merit-histogram-${d.tier}`}
-                  ariaLabel={`${tierLabel(d.tier)}: merit distribution`}
+                  ariaLabel={`${label(d.tier)}: merit distribution`}
                   bins={d.bins.map((b) => ({ label: b.label, value: b.count, highlight: b.from >= r.merits.acceptMin, title: `merit ${b.label}: ${b.count}` }))}
                 />
               </figure>
             ) : (
               <p key={d.tier} className="muted" data-testid="merit-row" data-tier={d.tier} data-suppressed="1">
-                {tierLabel(d.tier)}: fewer than {m} people; withheld
+                {label(d.tier)}: fewer than {m} people; withheld
               </p>
             ),
           )}
@@ -211,7 +220,7 @@ export function Report({ meta }: { meta: MetaResponse }) {
       </Section>
 
       <Section
-        title="Review-rating flags by tier"
+        title={`Review-rating flags${byTier}`}
         testId="report-ratings"
         intro="HotCRP review-rating flags received by submitted reviews: flags in all (each rater's flag counts once), and per review."
       >
@@ -223,7 +232,7 @@ export function Report({ meta }: { meta: MetaResponse }) {
         <table className="mini">
           <thead>
             <tr>
-              <th>Tier</th>
+              <th>{tiers ? "Tier" : "Reviewers"}</th>
               <th>Reviewers</th>
               <th>Reviews</th>
               <th>Rated</th>
@@ -250,11 +259,11 @@ export function Report({ meta }: { meta: MetaResponse }) {
         )}
       </Section>
 
-      <Section title="Score agreement by tier" testId="report-agreement" intro="Mean absolute deviation of a merit from its paper's mean (papers with 2+ merits), and how often merits sit on the final decision's side.">
+      <Section title={`Score agreement${byTier}`} testId="report-agreement" intro="Mean absolute deviation of a merit from its paper's mean (papers with 2+ merits), and how often merits sit on the final decision's side.">
         <table className="mini">
           <thead>
             <tr>
-              <th>Tier</th>
+              <th>{tiers ? "Tier" : "Reviewers"}</th>
               <th>Reviewers</th>
               <th>Merits</th>
               <th>Mean |dev|</th>
@@ -278,7 +287,7 @@ export function Report({ meta }: { meta: MetaResponse }) {
       </Section>
 
       <div className="ov-grid">
-        <Section title="Reserve activation and dropout" testId="report-reserve" intro={`Tiers: ${rs.tiers.join(", ") || "none"}.`}>
+        <Section title="Reserve activation and dropout" testId="report-reserve" intro={tiers ? `Tiers: ${rs.tiers.join(", ") || "none"}.` : ""}>
           {rs.suppressed ? (
             <p className="muted" data-testid="suppressed">
               Fewer than {m} reserve reviewers; withheld.

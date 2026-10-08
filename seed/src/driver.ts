@@ -321,6 +321,14 @@ class StageRunner {
     await h.batch("assign.php", ["/tmp/pcs-seed/assign.csv"]);
     lap(`${scenario.assignments.length} assignments made`);
 
+    // Discussion leads: batch/assign.php `lead` lines (the /leads view).
+    const leadLines = scenario.papers.flatMap((p) => (p.lead ? [`${p.pid},lead,${p.lead}`] : []));
+    if (leadLines.length > 0) {
+      await h.writeFile("/tmp/pcs-seed/leads.csv", `paper,action,user\n${leadLines.join("\n")}\n`);
+      await h.batch("assign.php", ["/tmp/pcs-seed/leads.csv"]);
+      lap(`${leadLines.length} discussion leads set`);
+    }
+
     // Paper tags (PLAN M11): batch/assign.php `tag` lines, as the chair would set them.
     const tagLines = scenario.papers.flatMap((p) => (p.tags ?? []).map((t) => `${p.pid},tag,${csvCell(t)}`));
     if (tagLines.length > 0) {

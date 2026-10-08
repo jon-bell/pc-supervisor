@@ -32,6 +32,7 @@ import { registerActions } from "./routes/actions.js";
 import { registerAssignment } from "./routes/assignment.js";
 import type { SolverHotcrp } from "../modules/solver/load.js";
 import { registerAcs } from "./routes/acs.js";
+import { registerLeads } from "./routes/leads.js";
 import { registerMeta, registerSync } from "./routes/meta.js";
 import { registerModules } from "./routes/modules.js";
 import { registerOverview } from "./routes/overview.js";
@@ -69,6 +70,8 @@ export const ROUTES: readonly RegisterRoutes[] = [
   registerTriage,
   registerPapers,
   registerAcs,
+  // Discussion leads (chair feedback): /api/leads, /api/leads/:email.
+  registerLeads,
   registerReviewers,
   registerPeople,
   registerOverview,

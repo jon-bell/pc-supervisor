@@ -9,6 +9,7 @@ export * from "./evaluate.js";
 export * from "./ac-metrics.js";
 export * from "./reviewer-metrics.js";
 export * from "./burndown.js";
+export * from "./lead-metrics.js";
 
 import type { RuleContext } from "./context.js";
 import { computeAcMetrics, type AcMetrics } from "./ac-metrics.js";

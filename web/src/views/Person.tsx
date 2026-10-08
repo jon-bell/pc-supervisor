@@ -88,7 +88,7 @@ function Summary({ d }: { d: PersonResponse }) {
         <>
           <dt>As AC</dt>
           <dd data-testid="sum-ac">
-            {plural(a.load, "paper")} · {a.flagged} flagged · {a.discussionComments} comments since discussion opened ·{" "}
+            {plural(a.load, "paper")} · {a.flagged} flagged · {plural(a.comments, "comment")} ({a.discussionComments} since discussion opened) ·{" "}
             <Link to={triageForAc(d.person.email)}>see in triage</Link>
           </dd>
         </>
@@ -178,7 +178,12 @@ export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
       <div className="page-head">
         <h1 data-testid="person-name">{d.person.name}</h1>
         <p className="muted">
-          <span data-testid="person-tier">{tierLabel(d.person.tier)}</span> · {d.person.email}
+          {meta.tiersConfigured ? (
+            <>
+              <span data-testid="person-tier">{tierLabel(d.person.tier)}</span> ·{" "}
+            </>
+          ) : null}
+          {d.person.email}
           {d.ac ? " · area chair" : ""}
         </p>
         {d.outliers.length ? (

@@ -16,6 +16,8 @@ export const scenario = generateScenario({
   seniorPerPaper: 2,
   commentRate: 1,
   now: at("discussionOpen", 14, "12:00"),
+  // Three in four papers get a discussion lead (the /leads view).
+  leadEvery: 4,
 });
 
 export default scenario;

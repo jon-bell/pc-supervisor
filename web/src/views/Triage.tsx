@@ -145,17 +145,19 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
               ))}
             </select>
           </label>
-          <label>
-            Tier{" "}
-            <select data-testid="filter-tier" value={filters.tier ?? ""} onChange={(e) => setFilter("tier", e.target.value)}>
-              <option value="">Any tier</option>
-              {data?.facets.tiers.map((t) => (
-                <option key={t.tier} value={t.tier}>
-                  {t.tier} ({t.papers})
-                </option>
-              ))}
-            </select>
-          </label>
+          {meta.tiersConfigured ? (
+            <label>
+              Tier{" "}
+              <select data-testid="filter-tier" value={filters.tier ?? ""} onChange={(e) => setFilter("tier", e.target.value)}>
+                <option value="">Any tier</option>
+                {data?.facets.tiers.map((t) => (
+                  <option key={t.tier} value={t.tier}>
+                    {t.tier} ({t.papers})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <span className="count" data-testid="triage-count">
             {data ? `${data.papers.length} of ${plural(data.total, "paper")}` : "Loading…"}
           </span>

@@ -143,6 +143,11 @@ export function replay(scenario: Scenario, ctx: PhaseContext, upToStage = scenar
     }
   }
   const authorsOf = new Map(scenario.papers.map((p) => [p.pid, new Set(p.authors.map((a) => a.email.toLowerCase()))]));
+  for (const p of scenario.papers) {
+    if (p.lead === undefined) continue;
+    if (!people.get(p.lead.toLowerCase())?.roles.includes("pc")) fail(`paper ${p.pid}: lead ${p.lead} is not on the PC`);
+    if (authorsOf.get(p.pid)?.has(p.lead.toLowerCase())) fail(`paper ${p.pid}: lead ${p.lead} is one of its authors`);
+  }
   const scoreFields = scenario.scoreFields ?? ["OveMer", "RevExp"];
 
   const state: ExpectedState = { reviews: new Map(), comments: new Map(), decisions: new Map() };

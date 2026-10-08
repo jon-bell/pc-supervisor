@@ -168,7 +168,7 @@ test.describe("person page", () => {
 
   test("AC-idle: two papers as AC, no comments", async ({ page }) => {
     await page.goto(`/people/${encodeURIComponent(P.acIdle)}`);
-    await expect(page.getByTestId("sum-ac")).toContainText("2 papers · 2 flagged · 0 comments since discussion opened");
+    await expect(page.getByTestId("sum-ac")).toContainText("2 papers · 2 flagged · 0 comments (0 since discussion opened)");
     await expect(page.getByTestId("paper-role")).toHaveText(["AC", "AC"]);
   });
 

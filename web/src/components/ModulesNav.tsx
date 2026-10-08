@@ -13,11 +13,14 @@ export const MODULE_NAV: { to: string; label: string }[] = [
   { to: "/modules/report", label: "Report" },
 ];
 
-export function ModulesNav({ path }: { path: string }) {
+/** Module entries that only make sense with reviewer tiers (PCS_TIER_TAGS). */
+const NEEDS_TIERS: ReadonlySet<string> = new Set(["/modules/tier-progress"]);
+
+export function ModulesNav({ path, tiers = true }: { path: string; tiers?: boolean }) {
   return (
     <nav className="nav nav-group" data-testid="nav-modules" aria-label="Modules">
       <span className="nav-group-label">Modules:</span>
-      {MODULE_NAV.map((n) => (
+      {MODULE_NAV.filter((n) => tiers || !NEEDS_TIERS.has(n.to)).map((n) => (
         <Link key={n.to} to={n.to} className={path === n.to ? "active" : undefined}>
           {n.label}
         </Link>

@@ -60,11 +60,20 @@ export function Acs({ meta }: { meta: MetaResponse }) {
         id: "comments",
         header: "Comments",
         size: 104,
-        cell: (c) => (
-          <span className="num" data-testid="ac-comments" title="their comments since discussion opened">
-            {c.row.original.discussionComments}
-          </span>
-        ),
+        cell: (c) => {
+          const r = c.row.original;
+          return (
+            <span
+              className="num"
+              data-testid="ac-comments"
+              data-discussion={r.discussionComments}
+              title={`their published comments on their papers: ${r.comments} in all, ${r.discussionComments} since discussion opened`}
+            >
+              {r.comments}
+              {r.comments !== r.discussionComments ? <span className="muted"> ({r.discussionComments} since open)</span> : null}
+            </span>
+          );
+        },
       }),
       col.display({
         id: "coverage",
@@ -154,7 +163,7 @@ export function Acs({ meta }: { meta: MetaResponse }) {
       <div className="page-head">
         <h1>Area chairs</h1>
         <p className="muted">
-          One row per AC, alphabetical. Counts are from HotCRP activity since discussion opened. Nudges are a proxy: AC comments that @mention
+          One row per AC, alphabetical. Comments counts every published comment by the AC on their papers (and, if different, how many came since discussion opened); coverage, first post and nudges count from discussion opening. Nudges are a proxy: AC comments that @mention
           a reviewer, or that were posted while a reviewer had no comment yet. Click a row to see that AC's papers in triage.
         </p>
       </div>

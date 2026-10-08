@@ -1,6 +1,7 @@
 // The app shell: header (title, phase, now, nav, sync status) and the routed
 // view. Views register in ROUTES and, if they belong in the nav, in NAV:
-// triage (/, /papers/:pid), the AC table (/acs), reviewer outliers
+// triage (/, /papers/:pid), the AC table (/acs), discussion leads (/leads,
+// /leads/:email), reviewer outliers
 // (/reviewers), the person page (/people/:email) and the overview (/overview).
 
 import type { ReactNode } from "react";
@@ -10,8 +11,10 @@ import { SyncIndicator } from "./components/SyncIndicator";
 import { Volatile } from "./components/Time";
 import { formatTime, PHASE_LABELS } from "./format";
 import { Link, match, useLocation } from "./router";
+import { TiersContext } from "./tiers";
 import { Acs } from "./views/Acs";
 import { Assignment } from "./views/Assignment";
+import { LeadDetail, Leads } from "./views/Leads";
 import { Solver } from "./views/Solver";
 import { EarlyReject } from "./views/EarlyReject";
 import { Overview } from "./views/Overview";
@@ -32,6 +35,8 @@ const ROUTES: Route[] = [
   { path: "/", render: (meta) => <Triage meta={meta} pid={null} /> },
   { path: "/papers/:pid", render: (meta, p) => <Triage meta={meta} pid={/^\d+$/.test(p.pid ?? "") ? Number(p.pid) : null} /> },
   { path: "/acs", render: (meta) => <Acs meta={meta} /> },
+  { path: "/leads", render: (meta) => <Leads meta={meta} /> },
+  { path: "/leads/:email", render: (meta, p) => <LeadDetail key={p.email} meta={meta} email={p.email ?? ""} /> },
   { path: "/reviewers", render: () => <Reviewers /> },
   { path: "/people/:email", render: (meta, p) => <Person key={p.email} meta={meta} email={p.email ?? ""} /> },
   { path: "/overview", render: (meta) => <Overview meta={meta} /> },
@@ -40,7 +45,17 @@ const ROUTES: Route[] = [
   { path: "/modules/quickreject", render: (meta) => <QuickReject meta={meta} /> },
   { path: "/modules/assignment", render: (meta) => <Assignment meta={meta} /> },
   { path: "/modules/solver", render: (meta) => <Solver meta={meta} /> },
-  { path: "/modules/tier-progress", render: (meta) => <TierProgress meta={meta} /> },
+  {
+    path: "/modules/tier-progress",
+    render: (meta) =>
+      meta.tiersConfigured ? (
+        <TierProgress meta={meta} />
+      ) : (
+        <p className="muted page" data-testid="no-tiers">
+          No reviewer tiers are configured (PCS_TIER_TAGS is empty), so there is no per-tier view. <Link to="/">Back to triage</Link>
+        </p>
+      ),
+  },
   { path: "/modules/early-reject", render: (meta) => <EarlyReject meta={meta} /> },
   { path: "/modules/report", render: (meta) => <Report meta={meta} /> },
 ];
@@ -49,6 +64,7 @@ const ROUTES: Route[] = [
 const NAV: { to: string; label: string; active: (path: string) => boolean }[] = [
   { to: "/", label: "Triage", active: (p) => p === "/" || p.startsWith("/papers/") },
   { to: "/acs", label: "ACs", active: (p) => p === "/acs" },
+  { to: "/leads", label: "Leads", active: (p) => p === "/leads" || p.startsWith("/leads/") },
   { to: "/reviewers", label: "Reviewers", active: (p) => p === "/reviewers" || p.startsWith("/people/") },
   { to: "/overview", label: "Overview", active: (p) => p === "/overview" },
 ];
@@ -85,7 +101,7 @@ export function App() {
             </Link>
           ))}
         </nav>
-        <ModulesNav path={loc.path} />
+        <ModulesNav path={loc.path} tiers={m?.tiersConfigured ?? true} />
         {m ? (
           <div className="phase" data-testid="phase">
             {PHASE_LABELS[m.phase] ?? m.phase} ·{" "}
@@ -100,7 +116,9 @@ export function App() {
         {m ? <SyncIndicator tz={m.tz} /> : null}
       </header>
       <main className="main">
-        {meta.error ? <p className="error">Could not reach the local server: {meta.error.message}</p> : view}
+        <TiersContext.Provider value={m?.tiersConfigured ?? true}>
+          {meta.error ? <p className="error">Could not reach the local server: {meta.error.message}</p> : view}
+        </TiersContext.Provider>
       </main>
     </div>
   );

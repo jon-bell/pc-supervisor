@@ -4,6 +4,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AcsResponse,
+  LeadDetailResponse,
+  LeadsResponse,
   MetaResponse,
   OverviewResponse,
   PaperDetail,
@@ -64,6 +66,8 @@ export const keys = {
   paper: (pid: number) => ["paper", pid] as const,
   sync: ["sync"] as const,
   acs: ["acs"] as const,
+  leads: ["leads"] as const,
+  lead: (email: string) => ["lead", email] as const,
   reviewers: ["reviewers"] as const,
   person: (email: string) => ["person", email] as const,
   overview: ["overview"] as const,
@@ -98,6 +102,16 @@ export function usePaper(pid: number | null) {
 export function useAcs() {
   return useQuery({ queryKey: keys.acs, queryFn: () => getJson<AcsResponse>("/api/acs") });
 }
+
+export function useLeads() {
+  return useQuery({ queryKey: keys.leads, queryFn: () => getJson<LeadsResponse>("/api/leads") });
+}
+
+export function useLead(email: string) {
+  return useQuery({ queryKey: keys.lead(email), queryFn: () => getJson<LeadDetailResponse>(`/api/leads/${encodeURIComponent(email)}`), retry: false });
+}
+
+export const leadPath = (email: string) => `/leads/${encodeURIComponent(email)}`;
 
 export function useReviewers() {
   return useQuery({ queryKey: keys.reviewers, queryFn: () => getJson<ReviewersResponse>("/api/reviewers") });

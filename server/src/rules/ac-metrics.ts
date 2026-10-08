@@ -18,6 +18,13 @@
 //                    reviewer had no discussion comment yet (`proxy`, a
 //                    labeled proxy: we can't see email nudges). `total` counts
 //                    each comment once.
+// - comments:        all published non-response comments by the AC on their
+//                    papers, up to now, whenever posted. HotCRP allows
+//                    discussion as soon as reviews are visible, so on a real
+//                    PC many AC comments predate DISCUSSION_OPEN; counting
+//                    only `discussionComments` showed 0 while the drawer
+//                    listed them (chair feedback).
+// - discussionComments: the subset at or after DISCUSSION_OPEN.
 // - stale:           undecided papers where the GONE_QUIET condition holds
 //                    (regardless of that rule's weight).
 // - metareview:      their own AC reviews (rtype 5, or any review they hold
@@ -47,6 +54,8 @@ export interface AcMetrics {
   nudges: { total: number; mentions: number; proxy: number };
   stale: number;
   stalePids: readonly number[];
+  /** Published comments by this AC on their papers, any time up to now. */
+  comments: number;
   /** Comments by this AC since DISCUSSION_OPEN, across their papers. */
   discussionComments: number;
   metareview: { byStatus: Partial<Record<ReviewStatus, number>>; submitted: number; of: number; due: Millis };
@@ -75,6 +84,7 @@ interface Acc {
   waiting: number;
   nudges: { total: number; mentions: number; proxy: number };
   stalePids: number[];
+  comments: number;
   discussionComments: number;
   byStatus: Partial<Record<ReviewStatus, number>>;
   metaSubmitted: number;
@@ -112,6 +122,7 @@ export function computeAcMetrics(ev: Evaluation, ctx: RuleContext): AcMetrics[] 
           waiting: 0,
           nudges: { total: 0, mentions: 0, proxy: 0 },
           stalePids: [],
+          comments: 0,
           discussionComments: 0,
           byStatus: {},
           metaSubmitted: 0,
@@ -149,7 +160,9 @@ export function computeAcMetrics(ev: Evaluation, ctx: RuleContext): AcMetrics[] 
         a.waiting++;
       }
       for (const c of f.pcComments) {
-        if (c.email !== ac || c.time < open || c.time > ctx.now) continue;
+        if (c.email !== ac || c.time > ctx.now) continue;
+        a.comments++;
+        if (c.time < open) continue;
         const i = Math.floor((c.time - open) / DAY_MS);
         if (i >= 0 && i < buckets) a.daily[i]!++;
       }
@@ -178,6 +191,7 @@ export function computeAcMetrics(ev: Evaluation, ctx: RuleContext): AcMetrics[] 
       nudges: a.nudges,
       stale: a.stalePids.length,
       stalePids: a.stalePids,
+      comments: a.comments,
       discussionComments: a.discussionComments,
       metareview: { byStatus: a.byStatus, submitted: a.metaSubmitted, of: a.metaOf, due: ctx.phases.decisionsDue },
       activity: { start: open, daily: a.daily },

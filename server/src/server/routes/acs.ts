@@ -22,6 +22,7 @@ export function acRow(m: AcMetrics, people: ReadonlyMap<string, PersonView>): Ac
     nudges: { ...m.nudges },
     stale: m.stale,
     stalePids: [...m.stalePids].sort((a, b) => a - b),
+    comments: m.comments,
     discussionComments: m.discussionComments,
     metareview: { byStatus, submitted: m.metareview.submitted, of: m.metareview.of, due: m.metareview.due },
     activity: { start: m.activity.start, daily: [...m.activity.daily] },

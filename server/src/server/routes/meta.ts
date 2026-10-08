@@ -22,6 +22,7 @@ export function registerMeta(app: FastifyInstance, deps: RouteDeps): void {
       phases: ctx.phases,
       rules: deps.ruleNames.map((name) => ({ name, weight: ctx.weights[name] })),
       tiers: ["senior", ...Object.keys(cfg.tierTags)],
+      tiersConfigured: Object.keys(cfg.tierTags).length > 0,
       fields: cfg.fields,
       ratings: { ...deps.store.ratingSettings(), flags: [...RATING_FLAGS] },
     };

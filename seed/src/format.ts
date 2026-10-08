@@ -69,6 +69,8 @@ export interface Paper {
   options?: Readonly<Record<string, string>>;
   /** Paper tags (no leading #), set in stage 1 through batch/assign.php (PLAN M11), e.g. ["qr-flag"]. */
   tags?: readonly string[];
+  /** Discussion lead (a PC member, not an author), set in stage 1 through batch/assign.php `lead`. */
+  lead?: string;
 }
 
 /** HotCRP assignment actions (batch/assign.php). metareview = area chair. */

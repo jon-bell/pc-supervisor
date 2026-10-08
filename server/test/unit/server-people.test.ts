@@ -58,8 +58,10 @@ describe("GET /api/acs", () => {
       person: { name: "Ben Area", tier: "senior" },
       pids: [1, 2],
       load: 2,
-      // Both his comments predate discussion: no coverage, no discussion comments.
+      // Both his comments predate discussion: no coverage, no discussion
+      // comments, but the Comments count still shows them (chair feedback).
       coverage: { covered: 0, of: 2, share: 0 },
+      comments: 2,
       discussionComments: 0,
       nudges: { total: 0, mentions: 0, proxy: 0 },
       metareview: { byStatus: { empty: 2 }, submitted: 0, of: 2, due: cfg.phases.decisionsDue.getTime() },

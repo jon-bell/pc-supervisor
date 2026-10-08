@@ -10,6 +10,7 @@ import { useRunSolve, useSolve, type MetaResponse } from "../api";
 import { Chip } from "../components/Chip";
 import { CsvBlock } from "../components/CsvBlock";
 import { formatTime, plural } from "../format";
+import { useTiersConfigured } from "../tiers";
 import { ModuleWindow, Notes } from "./ModuleParts";
 
 const LIST_MAX = 100;
@@ -25,6 +26,7 @@ function Capped<T>({ items, render, testId, empty }: { items: readonly T[]; rend
 }
 
 export function Solver({ meta: _meta }: { meta: MetaResponse }) {
+  const tiers = useTiersConfigured();
   const q = useSolve();
   const run = useRunSolve();
   const d = run.data ?? q.data;
@@ -78,11 +80,11 @@ export function Solver({ meta: _meta }: { meta: MetaResponse }) {
           </section>
 
           <section className="ov-section">
-            <h2>Load by tier</h2>
+            <h2>{tiers ? "Load by tier" : "Load"}</h2>
             <table className="mini" data-testid="solver-load">
               <thead>
                 <tr>
-                  <th>Tier</th>
+                  {tiers ? <th>Tier</th> : null}
                   <th>Band</th>
                   <th>Reviewers</th>
                   <th>Reviewers per load</th>
@@ -93,7 +95,7 @@ export function Solver({ meta: _meta }: { meta: MetaResponse }) {
               <tbody>
                 {r.load.map((t) => (
                   <tr key={t.tier} data-tier={t.tier}>
-                    <td>{t.tier}</td>
+                    {tiers ? <td>{t.tier}</td> : null}
                     <td>{t.band ? `${t.band.min}–${t.band.max}` : "none"}</td>
                     <td>{t.reviewers}</td>
                     <td>{t.histogram.map((h) => `${h.load}: ${h.reviewers}`).join(" · ")}</td>
