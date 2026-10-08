@@ -17,7 +17,7 @@
 // The in-app paper filter (paper-filter.ts): paper-centric routes take
 // ?search=<HotCRP search> and read deps.analysis over the matching papers
 // only (filteredView); GET /api/paper-search resolves a search for the
-// filter box.
+// filter box, GET /api/search-completions its autocomplete.
 
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -50,6 +50,8 @@ import type { QuickRejectProvider } from "../modules/report/quick-reject.js";
 import type { SyncRunner } from "./sync-runner.js";
 import { PaperFilter, type PaperSearcher } from "./paper-filter.js";
 import { registerPaperSearch } from "./routes/paper-search.js";
+import { registerSearchCompletions } from "./routes/search-completions.js";
+import { SearchCompletions, type SearchCompleter } from "./search-completions.js";
 
 export interface RouteDeps {
   cfg: Config;
@@ -67,6 +69,8 @@ export interface RouteDeps {
   solverHotcrp?: SolverHotcrp | undefined;
   /** Resolves ?search= to papers (HotCRP /search, cached); without a searcher it answers 503. */
   paperFilter: PaperFilter;
+  /** The filter box's autocomplete data (store + HotCRP /searchcompletion, cached). */
+  searchCompletions: SearchCompletions;
 }
 
 export type RegisterRoutes = (app: FastifyInstance, deps: RouteDeps) => void;
@@ -91,8 +95,9 @@ export const ROUTES: readonly RegisterRoutes[] = [
   registerReport,
   // Assignment validator + solver (PLAN M10/M10b): /api/assignment, /api/assignment/solve.
   registerAssignment,
-  // The in-app paper filter: GET /api/paper-search.
+  // The in-app paper filter: GET /api/paper-search, GET /api/search-completions.
   registerPaperSearch,
+  registerSearchCompletions,
 ];
 
 export interface RouteInfo {
@@ -111,7 +116,17 @@ export async function listRoutes(o: Pick<AppOptions, "cfg" | "store" | "clock">)
   app.addHook("onRoute", (r) => {
     for (const method of [r.method].flat()) if (method !== "HEAD") out.push({ method, url: r.url });
   });
-  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis: new AnalysisSource(o.store, o.cfg, o.clock), sync: undefined, ruleNames: RULE_NAMES, paperFilter: new PaperFilter(undefined) };
+  const paperFilter = new PaperFilter(undefined);
+  const deps: RouteDeps = {
+    cfg: o.cfg,
+    store: o.store,
+    clock: o.clock,
+    analysis: new AnalysisSource(o.store, o.cfg, o.clock),
+    sync: undefined,
+    ruleNames: RULE_NAMES,
+    paperFilter,
+    searchCompletions: new SearchCompletions(o.store, o.cfg, paperFilter, undefined),
+  };
   for (const register of ROUTES) register(app, deps);
   await app.ready();
   await app.close();
@@ -162,6 +177,8 @@ export interface AppOptions {
   solverHotcrp?: SolverHotcrp;
   /** HotCRP /search for the in-app ?search= filter; absent = filtering answers 503. */
   paperSearcher?: PaperSearcher;
+  /** HotCRP /searchcompletion + /alltags for the filter box; absent = completions from the store only. */
+  searchCompleter?: SearchCompleter;
   /** Built web app; null = API only. Default: defaultWebDir(). */
   webDir?: string | null;
   /** Fastify request logging (off by default: logs could carry paths, never bodies). */
@@ -214,7 +231,20 @@ export async function buildApp(o: AppOptions): Promise<App> {
     return reply.code(code).send({ error: message });
   });
 
-  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis, sync: o.sync, ruleNames: RULE_NAMES, tagFlow: o.tagFlow, quickReject: o.quickReject, solverHotcrp: o.solverHotcrp, paperFilter: new PaperFilter(o.paperSearcher, [token]) };
+  const paperFilter = new PaperFilter(o.paperSearcher, [token]);
+  const deps: RouteDeps = {
+    cfg: o.cfg,
+    store: o.store,
+    clock: o.clock,
+    analysis,
+    sync: o.sync,
+    ruleNames: RULE_NAMES,
+    tagFlow: o.tagFlow,
+    quickReject: o.quickReject,
+    solverHotcrp: o.solverHotcrp,
+    paperFilter,
+    searchCompletions: new SearchCompletions(o.store, o.cfg, paperFilter, o.searchCompleter),
+  };
   for (const register of ROUTES) register(app, deps);
 
   const webDir = o.webDir === undefined ? defaultWebDir() : o.webDir;

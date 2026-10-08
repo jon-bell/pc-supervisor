@@ -16,7 +16,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { formatInZone, isValidTimeZone, parseIsoLocal, zonedTimeToInstant, type LocalDateTime } from "./tz.js";
-import { searchProblem } from "./hotcrp/scope.js";
+import { strictSearchProblem } from "./hotcrp/scope.js";
 
 // ---------------------------------------------------------------------------
 // Rules and thresholds (spec §5c). Weights: PCS_RULE_<NAME>_WEIGHT.
@@ -224,7 +224,7 @@ function paperTag(v: string, ctx: z.RefinementCtx): string {
 /** PCS_PAPER_SEARCH: a HotCRP search that can be parenthesized safely (hotcrp/scope.ts). */
 function paperSearch(v: string, ctx: z.RefinementCtx): string {
   const s = v.trim();
-  const problem = searchProblem(s);
+  const problem = strictSearchProblem(s);
   return problem ? fail(ctx, `expected a HotCRP search like "#shadow" or "1-200"; this one ${problem}`) : s;
 }
 

@@ -99,6 +99,31 @@ test("tag the split papers: dry run changes nothing, confirmation sets the tags,
   await expect(page.getByTestId("drawer-tags")).toHaveText(`#${TAG}`);
 });
 
+test("the filter box completes #chair-attention, ranked by papers, and applies it", async ({ page }) => {
+  await page.goto("/");
+  const box = page.getByTestId("paper-filter-input");
+  const items = page.getByTestId("paper-filter-suggestion");
+  await box.click();
+  await box.pressSequentially("5 OR #");
+  await expect(items.first()).toHaveAttribute("data-insert", `#${TAG}`);
+  await expect(items.first().locator(".combo-count")).toHaveText("3");
+  await box.pressSequentially("ch");
+  await expect(items).toHaveCount(1);
+  await box.press("Enter");
+  await expect(box).toHaveValue(`5 OR #${TAG} `);
+  await box.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`search=5\\+OR\\+%23${TAG}`));
+  await expect
+    .poll(() => page.getByTestId("triage-row").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-pid"))).sort((a, b) => a - b)))
+    .toEqual([3, 4, 5, 12]);
+  // After NOT, mid-query: -#ch completes the same tag.
+  await box.fill("1-13 -#ch");
+  await box.press("ArrowDown");
+  await box.press("Tab");
+  await box.press("Enter");
+  await expect.poll(async () => page.getByTestId("triage-row").count()).toBe(10);
+});
+
 test("removing the tag from one paper in the drawer goes through the same dry run and confirmation", async ({ page, request }) => {
   await page.goto("/papers/12");
   const drawer = page.getByTestId("paper-drawer");

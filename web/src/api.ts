@@ -16,6 +16,7 @@ import type {
   SyncStatus,
   TriageResponse,
   PaperSearchResponse,
+  SearchCompletionsResponse,
 } from "@pcs/server/server/api-types";
 import { useLocation } from "./router";
 
@@ -63,24 +64,37 @@ export function triageUrl(f: TriageFilters): string {
 }
 
 /**
- * The in-app paper filter (?search=, a HotCRP search; router STICKY_PARAMS).
- * Paper-centric hooks pass it to the server, which evaluates only the
- * matching papers. "" = no filter.
+ * The in-app paper filter (?search=, a HotCRP search, and ?t=, its "Search
+ * in" collection; router STICKY_PARAMS). Paper-centric hooks pass it to the
+ * server, which evaluates only the matching papers. Both "" = no filter;
+ * t "" = HotCRP's default collection.
  */
-export function usePaperSearch(): string {
-  return (useLocation().query.get("search") ?? "").trim();
+export interface PaperFilterState {
+  search: string;
+  t: string;
 }
 
-/** `url` with ?search= added when a filter is set. */
-export function withSearch(url: string, search: string): string {
-  if (!search) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}${new URLSearchParams({ search }).toString()}`;
+export function usePaperSearch(): PaperFilterState {
+  const q = useLocation().query;
+  return { search: (q.get("search") ?? "").trim(), t: (q.get("t") ?? "").trim() };
+}
+
+export const isFilterOn = (f: PaperFilterState) => f.search !== "" || f.t !== "";
+
+/** `url` with ?search= and ?t= added when set. */
+export function withSearch(url: string, f: PaperFilterState): string {
+  const q = new URLSearchParams();
+  if (f.search) q.set("search", f.search);
+  if (f.t) q.set("t", f.t);
+  const s = q.toString();
+  return s ? `${url}${url.includes("?") ? "&" : "?"}${s}` : url;
 }
 
 export const keys = {
   meta: ["meta"] as const,
-  triage: (f: TriageFilters, search = "") => ["triage", f.ac ?? "", f.rule ?? "", f.tier ?? "", search] as const,
-  paperSearch: (search: string) => ["paper-search", search] as const,
+  triage: (f: TriageFilters, search: PaperFilterState = { search: "", t: "" }) => ["triage", f.ac ?? "", f.rule ?? "", f.tier ?? "", search.search, search.t] as const,
+  paperSearch: (f: PaperFilterState) => ["paper-search", f.search, f.t] as const,
+  searchCompletions: ["search-completions"] as const,
   paper: (pid: number) => ["paper", pid] as const,
   sync: ["sync"] as const,
   acs: ["acs"] as const,
@@ -120,18 +134,18 @@ export function usePaper(pid: number | null) {
 
 export function useAcs() {
   const search = usePaperSearch();
-  return useQuery({ queryKey: [...keys.acs, search], queryFn: () => getJson<AcsResponse>(withSearch("/api/acs", search)) });
+  return useQuery({ queryKey: [...keys.acs, search.search, search.t], queryFn: () => getJson<AcsResponse>(withSearch("/api/acs", search)) });
 }
 
 export function useLeads() {
   const search = usePaperSearch();
-  return useQuery({ queryKey: [...keys.leads, search], queryFn: () => getJson<LeadsResponse>(withSearch("/api/leads", search)) });
+  return useQuery({ queryKey: [...keys.leads, search.search, search.t], queryFn: () => getJson<LeadsResponse>(withSearch("/api/leads", search)) });
 }
 
 export function useLead(email: string) {
   const search = usePaperSearch();
   return useQuery({
-    queryKey: [...keys.lead(email), search],
+    queryKey: [...keys.lead(email), search.search, search.t],
     queryFn: () => getJson<LeadDetailResponse>(withSearch(`/api/leads/${encodeURIComponent(email)}`, search)),
     retry: false,
   });
@@ -141,28 +155,39 @@ export const leadPath = (email: string) => `/leads/${encodeURIComponent(email)}`
 
 export function useReviewers() {
   const search = usePaperSearch();
-  return useQuery({ queryKey: [...keys.reviewers, search], queryFn: () => getJson<ReviewersResponse>(withSearch("/api/reviewers", search)) });
+  return useQuery({ queryKey: [...keys.reviewers, search.search, search.t], queryFn: () => getJson<ReviewersResponse>(withSearch("/api/reviewers", search)) });
 }
 
 export function usePerson(email: string) {
   const search = usePaperSearch();
   return useQuery({
-    queryKey: [...keys.person(email), search],
+    queryKey: [...keys.person(email), search.search, search.t],
     queryFn: () => getJson<PersonResponse>(withSearch(`/api/people/${encodeURIComponent(email)}`, search)),
   });
 }
 
 export function useOverview() {
   const search = usePaperSearch();
-  return useQuery({ queryKey: [...keys.overview, search], queryFn: () => getJson<OverviewResponse>(withSearch("/api/overview", search)) });
+  return useQuery({ queryKey: [...keys.overview, search.search, search.t], queryFn: () => getJson<OverviewResponse>(withSearch("/api/overview", search)) });
 }
 
-/** The filter box's status line: what a search matches (no request without one). */
-export function usePaperSearchInfo(search: string) {
+/** The filter box's status line: what a search matches (no request without a filter). */
+export function usePaperSearchInfo(f: PaperFilterState) {
   return useQuery({
-    queryKey: keys.paperSearch(search),
-    queryFn: () => getJson<PaperSearchResponse>(`/api/paper-search?${new URLSearchParams({ search }).toString()}`),
-    enabled: search !== "",
+    queryKey: keys.paperSearch(f),
+    queryFn: () => getJson<PaperSearchResponse>(withSearch("/api/paper-search", f)),
+    enabled: isFilterOn(f),
+    retry: false,
+  });
+}
+
+/** The filter box's autocomplete data and "Search in" collections (one cached request, kept a minute). */
+export function useSearchCompletions(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.searchCompletions,
+    queryFn: () => getJson<SearchCompletionsResponse>("/api/search-completions"),
+    enabled,
+    staleTime: 60_000,
     retry: false,
   });
 }

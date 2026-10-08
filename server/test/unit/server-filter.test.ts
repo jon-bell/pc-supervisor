@@ -28,12 +28,24 @@ let cfg: Config;
 let store: Store;
 let api: App;
 let asked: string[] = [];
+let askedT: (string | undefined)[] = [];
 
-/** A fake HotCRP /search: "#one" = paper 1, "#two" = 2, "#gone" = 99 (not in the store). */
+/**
+ * A fake HotCRP /search: "#one" = paper 1, "#two" = 2, "#gone" = 99 (not in
+ * the store); "warn:x" warns and still answers paper 2; it echoes t, and
+ * with no t (HotCRP's default) searches "s".
+ */
 const searcher: PaperSearcher = {
-  search: (async (opts: { q?: string }) => {
+  search: (async (opts: { q?: string; t?: string; keepWarnings?: boolean }) => {
     const q = opts.q ?? "";
     asked.push(q);
+    askedT.push(opts.t);
+    const echoT = opts.t === "default" || opts.t === undefined ? "s" : opts.t;
+    if (q === "warn:x") {
+      expect(opts.keepWarnings).toBe(true);
+      return { ok: true, ids: [2], search_params: `q=warn%3Ax&t=${echoT}`, message_list: [{ status: 1, message: `<0>Unknown search keyword <b>warn</b> (${TOKEN})` }] };
+    }
+    if (q === "") return { ok: true, ids: opts.t === "accepted" ? [1] : [1, 2, 3], search_params: `t=${echoT}` };
     if (q === "bad:x") {
       throw new HotcrpError("api", "GET /search", "warnings", {
         messages: [{ status: 1, message: `<5>Unknown search keyword <b>bad</b> (${TOKEN})` }],
@@ -41,7 +53,7 @@ const searcher: PaperSearcher = {
     }
     if (q === "#down") throw new HotcrpError("network", "GET /search", `fetch failed for http://127.0.0.1:1/api/search?q=x with ${TOKEN}`);
     const ids = q === "#one" ? [1] : q === "#two" ? [2] : q === "#gone" ? [99, 1] : [];
-    return { ok: true, ids, search_params: "t=all" };
+    return { ok: true, ids, search_params: `t=${echoT}` };
   }) as unknown as PaperSearcher["search"],
 };
 
@@ -61,6 +73,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   asked = [];
+  askedT = [];
 });
 
 afterAll(async () => {
@@ -147,12 +160,33 @@ describe("?search= on the paper-centric routes", () => {
 describe("GET /api/paper-search", () => {
   it("resolves a search and says how many matches the store holds", async () => {
     const r = await json<PaperSearchResponse>(`/api/paper-search?${s("#gone")}`);
-    expect(r).toEqual({ search: "#gone", scope: "#shadow", pids: [1, 99], inStore: 1 });
+    expect(r).toEqual({ search: "#gone", t: "", collection: "s", scope: "#shadow", pids: [1, 99], inStore: 1, warnings: [] });
+    // No ?t=: HotCRP's own default collection (no t sent).
+    expect(askedT).toEqual(["default"]);
   });
 
   it("an empty search is no filter", async () => {
-    expect(await json<PaperSearchResponse>("/api/paper-search")).toEqual({ search: "", scope: "#shadow", pids: null, inStore: null });
+    expect(await json<PaperSearchResponse>("/api/paper-search")).toEqual({ search: "", t: "", collection: null, scope: "#shadow", pids: null, inStore: null, warnings: [] });
     expect(asked).toEqual([]);
+  });
+
+  it("?t= picks HotCRP's collection, alone or with a search", async () => {
+    const r = await json<PaperSearchResponse>(`/api/paper-search?${s("#one")}&t=accepted`);
+    expect(r).toMatchObject({ search: "#one", t: "accepted", collection: "accepted", pids: [1] });
+    expect(askedT).toEqual(["accepted"]);
+    // A collection without a search filters too (HotCRP: q="" in t).
+    const t = await json<TriageResponse>("/api/triage?t=accepted");
+    expect(t.papers.map((p) => p.pid)).toEqual([1]);
+    expect(asked.at(-1)).toBe("");
+  });
+
+  it("HotCRP's warnings come back with its answer, cleaned, as HotCRP shows them", async () => {
+    const r = await json<PaperSearchResponse>(`/api/paper-search?${s("warn:x")}`);
+    expect(r.pids).toEqual([2]);
+    expect(r.warnings).toEqual(["Unknown search keyword warn ([REDACTED])"]);
+    expect(JSON.stringify(r)).not.toContain(TOKEN);
+    // Views filter by what HotCRP matched.
+    expect((await json<TriageResponse>(`/api/triage?${s("warn:x")}`)).papers.map((p) => p.pid)).toEqual([2]);
   });
 
   it("meta reports the pinned scope", async () => {
@@ -173,10 +207,18 @@ describe("filter errors are clean", () => {
     }
   });
 
-  it("an unbalanced search is refused before asking HotCRP", async () => {
-    const r = await get(`/api/triage?${s("#a) OR (#b")}`);
+  it("unbalanced brackets and quotes go to HotCRP as typed (it accepts them)", async () => {
+    for (const q of ["#a) OR (#b", "(#one", 'ti:"open']) expect((await get(`/api/triage?${s(q)}`)).statusCode).toBe(200);
+    expect(asked).toEqual(["#a) OR (#b", "(#one", 'ti:"open']);
+  });
+
+  it("what HotCRP can't take is refused before asking it: control characters, an unknown collection", async () => {
+    const r = await get(`/api/triage?${s("#a\u0001")}`);
     expect(r.statusCode).toBe(400);
-    expect(r.json()).toEqual({ error: "That search has a ) without a matching (." });
+    expect(r.json()).toEqual({ error: "That search contains a control character." });
+    const t = await get(`/api/triage?${s("#one")}&t=nosuch`);
+    expect(t.statusCode).toBe(400);
+    expect(t.json<{ error: string }>().error).toMatch(/^"Search in" must be one of HotCRP's collections/);
     expect(asked).toEqual([]);
   });
 
