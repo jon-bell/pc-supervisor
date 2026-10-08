@@ -124,11 +124,17 @@ export function useAcs() {
 }
 
 export function useLeads() {
-  return useQuery({ queryKey: keys.leads, queryFn: () => getJson<LeadsResponse>("/api/leads") });
+  const search = usePaperSearch();
+  return useQuery({ queryKey: [...keys.leads, search], queryFn: () => getJson<LeadsResponse>(withSearch("/api/leads", search)) });
 }
 
 export function useLead(email: string) {
-  return useQuery({ queryKey: keys.lead(email), queryFn: () => getJson<LeadDetailResponse>(`/api/leads/${encodeURIComponent(email)}`), retry: false });
+  const search = usePaperSearch();
+  return useQuery({
+    queryKey: [...keys.lead(email), search],
+    queryFn: () => getJson<LeadDetailResponse>(withSearch(`/api/leads/${encodeURIComponent(email)}`, search)),
+    retry: false,
+  });
 }
 
 export const leadPath = (email: string) => `/leads/${encodeURIComponent(email)}`;

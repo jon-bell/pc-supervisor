@@ -225,17 +225,17 @@ test.describe("triage polish", () => {
   });
 });
 
-test("nav links to Triage, ACs, Reviewers and Overview", async ({ page }) => {
+test("nav links to Triage, ACs, Leads, Reviewers and Overview", async ({ page }) => {
   await page.goto("/");
   const nav = page.getByTestId("nav");
-  await expect(nav.getByRole("link")).toHaveText(["Triage", "ACs", "Reviewers", "Overview"]);
+  await expect(nav.getByRole("link")).toHaveText(["Triage", "ACs", "Leads", "Reviewers", "Overview"]);
   await nav.getByRole("link", { name: "ACs" }).click();
   await expect(page).toHaveURL(/\/acs$/);
   await nav.getByRole("link", { name: "Overview" }).click();
   await expect(page.getByTestId("overview")).toBeVisible();
   await nav.getByRole("link", { name: "Reviewers" }).click();
   await expect(page.getByTestId("outlier-list")).toHaveCount(5);
-  for (const path of ["/acs", "/reviewers", "/overview", `/people/${encodeURIComponent(P.silent)}`]) {
+  for (const path of ["/acs", "/leads", `/leads/${encodeURIComponent(P.ben)}`, "/reviewers", "/overview", `/people/${encodeURIComponent(P.silent)}`]) {
     await page.goto(path);
     const text = (await page.locator("main").innerText()).toLowerCase();
     for (const word of ["disengaged", "absent", "lazy"]) expect(text, path).not.toContain(word);

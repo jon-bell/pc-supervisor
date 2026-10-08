@@ -175,6 +175,8 @@ describe("the token never reaches the client (M6 routes)", () => {
     const leaky = await buildApp({ cfg, store, clock: fixedClock(cfg.now!), sync: new SyncRunner(async () => ({ runId: 0, ok: false, counts: {}, errors: [`x ${TOKEN}`], durationMs: 0 })), webDir: null });
     const urls = [
       "/api/acs",
+      "/api/leads",
+      "/api/leads/ben%40example.org",
       "/api/reviewers",
       "/api/overview",
       "/api/people/ben%40example.org",

@@ -818,6 +818,7 @@ pre.csv {
 }
 .empty-state p {
   margin: 4px 0;
+}
 
 /* The in-app paper filter (components/PaperFilter.tsx) */
 .paper-filter {

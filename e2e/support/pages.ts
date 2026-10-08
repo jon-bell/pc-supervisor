@@ -6,6 +6,8 @@ export const PAGES: readonly string[] = [
   "/",
   "/papers/4",
   "/acs",
+  "/leads",
+  `/leads/${encodeURIComponent(P.ben)}`,
   "/reviewers",
   `/people/${encodeURIComponent(P.silent)}`,
   "/overview",
