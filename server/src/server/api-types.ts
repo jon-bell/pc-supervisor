@@ -58,12 +58,18 @@ export interface MetaResponse {
 export interface PaperSearchResponse {
   /** The filter as given (trimmed); "" = no filter. */
   search: string;
+  /** The "Search in" collection as given (?t=); "" = HotCRP's default. */
+  t: string;
+  /** The collection HotCRP searched (its echo of t), e.g. "s"; null = no filter. */
+  collection: string | null;
   /** PCS_PAPER_SEARCH, which every filter is ANDed with. */
   scope: string;
   /** Matching pids per HotCRP (within the scope), sorted; null = no filter. */
   pids: number[] | null;
   /** How many of those the local store holds (as of the last sync); null = no filter. */
   inStore: number | null;
+  /** HotCRP's warnings about the search (shown, not fatal: HotCRP still answers). */
+  warnings: string[];
 }
 
 export interface TriageRow {
@@ -570,4 +576,30 @@ export interface LeadDetailResponse {
   reviewsRequired: number;
   lead: LeadRow;
   papers: LeadPaper[];
+}
+
+/** GET /api/search-completions: what the filter box completes (search-completions.ts). */
+export interface SearchCompletionsResponse {
+  /** Paper tags in the store (live papers), most papers first. `tag` has no leading #. */
+  tags: { tag: string; count: number; values: string[] }[];
+  /** PC members (email + name), for re:, lead:, pri:, … */
+  pc: { email: string; name: string | null }[];
+  /** HotCRP keywords (catalog plus this instance's review fields and options). */
+  keywords: CompletionKeyword[];
+  operators: { text: string; hint: string }[];
+  /** Complete `keyword:value` searches, e.g. "dec:Accepted", "OveMer:>=4", "has:lead". */
+  values: { text: string; hint?: string; count?: number }[];
+  /** HotCRP's "Search in" collections, and which one it uses without ?t= ("" if unknown). */
+  collections: { t: string; label: string }[];
+  defaultCollection: string;
+  /** Whether HotCRP's own /searchcompletion and /alltags answered (else store-only). */
+  hotcrp: boolean;
+}
+
+export interface CompletionKeyword {
+  text: string;
+  hint: string;
+  aliases?: readonly string[];
+  values?: "pc" | "tag" | "dec" | "round" | "opt" | "has" | "show" | "status";
+  fixed?: readonly string[];
 }

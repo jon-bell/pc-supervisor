@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HotcrpClient } from "../../src/hotcrp/client.js";
-import { MAX_SEARCH_LENGTH, scopedQuery, searchProblem } from "../../src/hotcrp/scope.js";
+import { MAX_SEARCH_LENGTH, scopedQuery, searchProblem, strictSearchProblem } from "../../src/hotcrp/scope.js";
+import { safeParenthesize } from "../../src/hotcrp/search-parens.js";
 
 describe("scopedQuery", () => {
   it("leaves queries alone without a scope", () => {
@@ -24,17 +25,71 @@ describe("scopedQuery", () => {
   });
 });
 
-describe("searchProblem", () => {
-  it("accepts balanced searches, parens inside quotes included", () => {
-    for (const q of ["#shadow", "(#a OR #b) -#c", 'ti:"x (y"', "1-20 OR re:any", ""]) expect(searchProblem(q)).toBeNull();
+describe("scopedQuery keeps HotCRP's meaning of the query", () => {
+  it("THEN, HIGHLIGHT, NOT, quotes, ranges and modifiers are wrapped whole", () => {
+    expect(scopedQuery("#s", "1-3 THEN 5-6")).toBe("(#s) AND (1-3 THEN 5-6)");
+    expect(scopedQuery("#s", "#a HIGHLIGHT #b")).toBe("(#s) AND (#a HIGHLIGHT #b)");
+    expect(scopedQuery("#s", '-ti:"x (y" sort:-status')).toBe('(#s) AND (-ti:"x (y" sort:-status)');
+    expect(scopedQuery("#s", "(#a OR #b)")).toBe("(#s) AND (#a OR #b)");
   });
 
-  it("names what's wrong", () => {
-    expect(searchProblem("#a) OR (#b")).toMatch(/\) without a matching \(/);
-    expect(searchProblem("((#a)")).toMatch(/\( without a matching \)/);
-    expect(searchProblem('ti:"x')).toMatch(/unclosed double quote/);
-    expect(searchProblem("a\nb")).toMatch(/control character/);
+  it("an unbalanced query means what it means to HotCRP alone", () => {
+    // HotCRP ignores a stray ), and closes an unclosed ( or ".
+    expect(scopedQuery("#s", "5) OR 7")).toBe("(#s) AND (5 OR 7)");
+    expect(scopedQuery("#s", "(5 OR 7")).toBe("(#s) AND (5 OR 7)");
+    expect(scopedQuery("#s", 'ti:"open')).toBe('(#s) AND (ti:"open")');
+    expect(scopedQuery("#s", "sort:[OveMer variance")).toBe("(#s) AND (sort:[OveMer variance])");
+  });
+});
+
+describe("safeParenthesize (port of SearchParser::safe_parenthesize)", () => {
+  it("wraps, or keeps one top-level group as is", () => {
+    expect(safeParenthesize("#a")).toBe("(#a)");
+    expect(safeParenthesize("(#a OR #b)")).toBe("(#a OR #b)");
+    expect(safeParenthesize("(#a) OR (#b)")).toBe("((#a) OR (#b))");
+    expect(safeParenthesize("")).toBe("(*)");
+  });
+
+  it("drops unmatched closers, closes unclosed brackets innermost first", () => {
+    expect(safeParenthesize(")#a")).toBe("(#a)");
+    expect(safeParenthesize("#a ] b")).toBe("(#a  b)");
+    expect(safeParenthesize("f:([x")).toBe("(f:([x]))");
+    expect(safeParenthesize("show:max(OveMer")).toBe("(show:max(OveMer))");
+    expect(safeParenthesize("(a [b) c")).toBe("((a [b]) c)");
+  });
+
+  it("quotes: brackets inside don't count, backslash escapes, curly quotes count", () => {
+    expect(safeParenthesize('ti:"a ) b"')).toBe('(ti:"a ) b")');
+    // The escaped quote keeps the string open, so its ) stays.
+    expect(safeParenthesize('ti:"a \\" ) b"')).toBe('(ti:"a \\" ) b")');
+    expect(safeParenthesize('ti:"a \\" b')).toBe('(ti:"a \\" b")');
+    expect(safeParenthesize("ti:\u201ca ) b\u201d")).toBe("(ti:\u201ca ) b\u201d)");
+    expect(safeParenthesize('ti:"x\\')).toBe('(ti:"x\\\\")');
+  });
+
+  it("unicode, &, +, % and # pass through untouched", () => {
+    expect(safeParenthesize("ti:caf\u00e9 & au:m\u00fcller + 100% #t#2")).toBe("(ti:caf\u00e9 & au:m\u00fcller + 100% #t#2)");
+  });
+});
+
+describe("searchProblem", () => {
+  it("accepts whatever HotCRP accepts, unbalanced brackets and quotes included", () => {
+    for (const q of ["#shadow", "(#a OR #b) -#c", 'ti:"x (y"', "1-20 OR re:any", "", "#a) OR (#b", "((#a)", 'ti:"x', "a\tb"]) {
+      expect(searchProblem(q)).toBeNull();
+    }
+  });
+
+  it("names what HotCRP can't take", () => {
+    expect(searchProblem("a\u0001b")).toMatch(/control character/);
     expect(searchProblem("x".repeat(MAX_SEARCH_LENGTH + 1))).toMatch(/longer than/);
+  });
+
+  it("strictSearchProblem (PCS_PAPER_SEARCH) also refuses unbalanced searches", () => {
+    expect(strictSearchProblem("#a) OR (#b")).toMatch(/\) without a matching \(/);
+    expect(strictSearchProblem("((#a)")).toMatch(/\( without a matching \)/);
+    expect(strictSearchProblem('ti:"x')).toMatch(/unclosed double quote/);
+    expect(strictSearchProblem('ti:"a \\" (b"')).toBeNull();
+    expect(strictSearchProblem("a\nb")).toBeNull();
   });
 });
 

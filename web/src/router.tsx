@@ -3,7 +3,8 @@
 // ROUTES in App.tsx; nothing here needs to change.
 //
 // Sticky query parameters: the in-app paper filter (?search=, a HotCRP
-// search) follows the chair from view to view. navigate() and <Link> carry the
+// search, and ?t=, its "Search in" collection) follows the chair from view
+// to view. navigate() and <Link> carry the
 // current value onto any in-app target that doesn't set it itself; pass
 // { sticky: false } (navigate) to drop it, e.g. when clearing the filter.
 
@@ -34,7 +35,7 @@ export function useLocation(): Location {
 }
 
 /** Query parameters that survive in-app navigation. */
-export const STICKY_PARAMS: readonly string[] = ["search"];
+export const STICKY_PARAMS: readonly string[] = ["search", "t"];
 
 /** `to` with the current sticky parameters added (when it is an in-app path that doesn't set them). */
 export function withSticky(to: string, current: string = window.location.search): string {

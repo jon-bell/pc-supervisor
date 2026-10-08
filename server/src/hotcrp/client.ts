@@ -20,6 +20,7 @@ import { systemClock, type Clock } from "../clock.js";
 import type { HotcrpConfig } from "../config.js";
 import { redact } from "../redact.js";
 import { pidChunks } from "./chunk.js";
+import type { SearchCollectionName } from "./collections.js";
 import { scopedQuery } from "./scope.js";
 import { Limiter } from "./concurrency.js";
 import { CsvError, parseCsvRecords } from "./csv.js";
@@ -39,6 +40,8 @@ import {
   ReviewsSchema,
   RqcSchema,
   SearchSchema,
+  SearchCompletionSchema,
+  AllTagsSchema,
   SettingsRfSchema,
   WhoamiSchema,
   AssignResultSchema,
@@ -57,11 +60,12 @@ import {
 import { AssignTagsResultSchema, tagAssignmentBody, tagDiffOf, type TagChange, type TagDiff } from "./tag-assign.js";
 
 /**
- * Paper-set scopes (`t=`). HotCRP silently treats an unknown scope as "none",
- * so only these are accepted. `s` = submitted (the /search default), `all`
- * includes drafts and withdrawn, `viewable` = the /reviews and /comments default.
+ * Paper-set scopes (`t=`, collections.ts). HotCRP silently treats an unknown
+ * scope as "none", so only canonical names are accepted. `s` = submitted,
+ * `all` includes drafts and withdrawn, `viewable` = the /reviews and
+ * /comments default.
  */
-export type SearchScope = "s" | "all" | "viewable";
+export type SearchScope = SearchCollectionName;
 
 export type Params = Record<string, string | number | boolean | undefined>;
 
@@ -209,26 +213,50 @@ export class HotcrpClient {
    * GET /search with display fields, e.g. fields: ["title", "status",
    * "decision", "tags", "lead", "shepherd", "manager", "reviewers", "revstat"].
    * Field values come back as plain text; empty fields are omitted.
+   *
+   * t: "default" sends no `t`, so HotCRP picks its own default collection for
+   * this account (what the chair's quicksearch box searches), and a limit
+   * keyword in the query (`in:all`) may widen it, as in HotCRP's own search
+   * box. Any other `t` must come back unchanged in search_params.
+   *
+   * keepWarnings: return HotCRP's warnings (in message_list, with the ids it
+   * matched anyway) instead of throwing, as HotCRP's own search page shows
+   * them above its results.
    */
-  async search(opts: { q?: string; t?: SearchScope; fields?: readonly string[] } = {}) {
+  async search(opts: { q?: string; t?: SearchScope | "default"; fields?: readonly string[]; keepWarnings?: boolean } = {}) {
     const t = opts.t ?? "s";
     const fields = opts.fields ?? [];
     const res = await this.call({
       path: "search",
       params: {
         q: this.scoped(opts.q),
-        t,
+        t: t === "default" ? undefined : t,
         ...(fields.length > 0 ? { f: fields.join(" "), format: "csv" } : {}),
         forceShow: this.forceShow ? 1 : 0,
       },
       schema: SearchSchema,
+      rejectWarnings: !opts.keepWarnings,
     });
     // Guard against HotCRP silently narrowing the scope.
     const echoed = new URLSearchParams(res.search_params).get("t");
-    if (echoed !== t) {
+    if (t !== "default" && echoed !== t) {
       throw new HotcrpError("api", "GET /search", `asked for t=${t} but HotCRP searched t=${echoed ?? "(none)"}`);
     }
     return res;
+  }
+
+  /**
+   * GET /searchcompletion: what HotCRP's own search box completes after a
+   * `keyword:` (has:, dec:, round:, topic:, show:, submission fields, ...).
+   * Read-only; no paper content.
+   */
+  searchCompletion() {
+    return this.call({ path: "searchcompletion", schema: SearchCompletionSchema });
+  }
+
+  /** GET /alltags: tag names on papers the token can see (no counts). */
+  allTags() {
+    return this.call({ path: "alltags", schema: AllTagsSchema });
   }
 
   /** GET /searchaction?action=get/pcassignments: review assignments as CSV rows. */

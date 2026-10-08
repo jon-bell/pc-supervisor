@@ -6,7 +6,7 @@
 //       one untagged leaves every live read
 //   (d) a scope HotCRP warns about fails the sync, changing nothing
 //   (e) the filter endpoint and a filtered view, ANDed with the scope; a bad
-//       search is a clean 400
+//       search comes back with HotCRP's warning (as HotCRP shows it), cleaned
 // Isolation: MiniSeed (fresh pids, run-unique users and tags). Temp DB.
 
 import { mkdtempSync, rmSync } from "node:fs";
@@ -170,7 +170,7 @@ describe("the in-app filter against the harness", () => {
     // #hot is on P and R; both are in scope after (c).
     const r = await get(`/api/paper-search?${q(`#${hotTag()}`)}`);
     expect(r.statusCode, r.body).toBe(200);
-    expect(r.json()).toEqual({ search: `#${hotTag()}`, scope: `#${scopeTag()}`, pids: [P, R], inStore: 2 });
+    expect(r.json()).toMatchObject({ search: `#${hotTag()}`, t: "", scope: `#${scopeTag()}`, pids: [P, R], inStore: 2, warnings: [] });
     // Q matches the pid but is out of scope: nothing.
     expect((await get(`/api/paper-search?${q(String(Q))}`)).json<PaperSearchResponse>().pids).toEqual([]);
   });
@@ -183,12 +183,16 @@ describe("the in-app filter against the harness", () => {
     expect(r.json<TriageResponse>().papers.map((p) => p.pid)).toEqual([P]);
   });
 
-  it("a search HotCRP rejects is a clean 400", async () => {
-    const r = await get(`/api/triage?${q(`nosuchkeyword${seed.run}:x`)}`);
-    expect(r.statusCode).toBe(400);
-    expect(r.json<{ error: string }>().error).toMatch(/^HotCRP could not use that search/);
+  it("a search HotCRP warns about: its (empty) answer, with the warning, cleaned", async () => {
+    const r = await get(`/api/paper-search?${q(`nosuchkeyword${seed.run}:x`)}`);
+    expect(r.statusCode, r.body).toBe(200);
+    const body = r.json<PaperSearchResponse>();
+    expect(body.pids).toEqual([]);
+    expect(body.warnings.join(" ")).toMatch(/Unknown search keyword/);
     expect(r.body).not.toContain(process.env.PCS_HOTCRP_TOKEN!);
     expect(r.body).not.toContain("hct_");
     expect(r.body).not.toContain(cfg.hotcrp.url);
+    expect(r.body).not.toContain("<");
+    expect((await get(`/api/triage?${q(`nosuchkeyword${seed.run}:x`)}`)).json<TriageResponse>().papers).toEqual([]);
   });
 });

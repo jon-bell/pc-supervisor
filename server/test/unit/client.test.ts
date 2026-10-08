@@ -121,6 +121,33 @@ describe("requests", () => {
     expect(err.message).toMatch(/asked for t=all but HotCRP searched t=none/);
   });
 
+  it("t: default sends no t (HotCRP picks); keepWarnings returns warnings with the ids", async () => {
+    const warn = { status: 1, message: "<0>Unknown search keyword" };
+    const { client, seen } = fake([
+      json({ ok: true, ids: [2], search_params: "q=x&t=s" }),
+      json({ ok: true, ids: [3], search_params: "q=y&t=accepted", message_list: [warn] }),
+      json({ ok: true, ids: [3], search_params: "q=y&t=accepted", message_list: [warn] }),
+    ]);
+    expect((await client.search({ q: "x", t: "default" })).ids).toEqual([2]);
+    expect(seen[0]!.url.searchParams.has("t")).toBe(false);
+    const res = await client.search({ q: "y", t: "accepted", keepWarnings: true });
+    expect(res.message_list).toEqual([warn]);
+    expect(seen[1]!.url.searchParams.get("t")).toBe("accepted");
+    expect((await caught(client.search({ q: "y", t: "accepted" }))).kind).toBe("api");
+  });
+
+  it("reads HotCRP's search completions and tag names", async () => {
+    const { client, seen } = fake([
+      json({ ok: true, searchcompletion: ["has:lead", { pri: -1, nosort: true, i: ["dec:any"] }] }),
+      json({ ok: true, tags: ["discuss"] }),
+      json({ ok: true, searchcompletion: [{ pri: -1 }] }),
+    ]);
+    expect((await client.searchCompletion()).searchcompletion).toHaveLength(2);
+    expect((await client.allTags()).tags).toEqual(["discuss"]);
+    expect(seen.map((s) => s.url.pathname)).toEqual(["/api/searchcompletion", "/api/alltags"]);
+    expect((await caught(client.searchCompletion())).kind).toBe("schema");
+  });
+
   it("parses pcassignments CSV into typed rows", async () => {
     const csv = 'paper,action,email,title\n1,clearreview,"#pc",Smoke Paper\n1,metareview,ac1@example.org\n';
     const { client } = fake([new Response(csv, { headers: { "content-type": "text/csv" } })]);

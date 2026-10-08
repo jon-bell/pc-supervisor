@@ -89,6 +89,22 @@ export const SearchSchema = z.looseObject({
 });
 export type SearchResponse = z.infer<typeof SearchSchema>;
 
+// --- /searchcompletion, /alltags (what HotCRP's own search box suggests) ----
+// hotcrp@60f693f src/api/api_completion.php: a list of completion strings
+// ("has:lead", "dec:Accepted", "show:OveMer", "abstract:{text}", ...) and
+// priority groups {pri, nosort, i}. No tags, users or keywords: HotCRP's
+// script.js gets tags from /alltags and hard-codes nothing else.
+// /alltags: tag names on papers the token can see (no counts, no values).
+
+export const SearchCompletionItemSchema = z.union([
+  z.string(),
+  z.looseObject({ pri: z.number().optional(), nosort: z.boolean().optional(), i: z.union([z.string(), z.array(z.string())]) }),
+]);
+export const SearchCompletionSchema = z.looseObject({ ...ok, searchcompletion: z.array(SearchCompletionItemSchema) });
+export type SearchCompletionResponse = z.infer<typeof SearchCompletionSchema>;
+
+export const AllTagsSchema = z.looseObject({ ...ok, tags: z.array(z.string()) });
+
 // --- /searchaction?action=get/pcassignments (CSV) ---------------------------
 // Header: paper,action,email[,round][,review_token],title[,message]. The
 // first row per paper is `clearreview` with email "#pc" and the title; later

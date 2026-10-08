@@ -830,11 +830,82 @@ pre.csv {
   border-bottom: 1px solid var(--line);
   background: #fdfdfd;
 }
-.paper-filter input {
+.paper-filter input,
+.paper-filter select {
   font: inherit;
-  width: 22em;
-  max-width: 60vw;
   padding: 2px 6px;
+}
+.paper-filter input {
+  width: 26em;
+  max-width: 60vw;
+}
+.paper-filter .warning {
+  color: #8a5a00;
+}
+
+/* Search autocomplete (SearchCombobox): a listbox under the input. */
+.combo {
+  position: relative;
+  display: inline-block;
+}
+.combo-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 20;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(36em, 90vw);
+  max-height: 22em;
+  overflow-y: auto;
+  margin: 0;
+  padding: 3px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #c8c8c8;
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+.combo-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.combo-item[aria-selected="true"] {
+  background: var(--row-selected);
+}
+.combo-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+.combo-label b {
+  color: var(--accent);
+}
+.combo-hint {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.combo-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.combo-item.kind-operator .combo-label {
+  font-weight: 600;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .paper-scope code {
   font-size: 12px;
