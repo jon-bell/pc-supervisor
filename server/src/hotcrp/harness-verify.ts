@@ -29,8 +29,17 @@ export interface HarnessProbe {
  * harness tooling, which seeds in bursts; the app's client has its own retries.
  */
 export async function fetchRetrying429(input: string | URL, init: RequestInit, tries = 8): Promise<Response> {
-  for (let attempt = 0; ; attempt++) {
-    const res = await fetch(input, init);
+  for (let attempt = 0, netFailures = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(input, init);
+    } catch (err) {
+      // Harness only: a stale keep-alive socket ("other side closed") fails
+      // before HotCRP sees the request, so one or two retries are safe here.
+      if (!(err instanceof TypeError) || ++netFailures > 2) throw err;
+      await new Promise((r) => setTimeout(r, 250 * netFailures));
+      continue;
+    }
     if (res.status !== 429 || attempt >= tries) return res;
     await res.body?.cancel();
     const ra = Number(res.headers.get("retry-after") ?? "");
