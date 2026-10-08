@@ -37,22 +37,26 @@ function pidClause(pids: readonly number[] | undefined, col: string): { sql: str
   return { sql: ` and ${col} in (select value from json_each(?))`, args: [JSON.stringify(pids)] as unknown as number[] };
 }
 
-/** Current authors, by pid then author order. */
+// Live papers only: a paper that is gone (deleted, or out of PCS_PAPER_SEARCH)
+// keeps its rows but no longer shows its authors or options.
+const LIVE_PAPER = " and pid in (select pid from paper where deleted_seen_at is null)";
+
+/** Current authors of live papers, by pid then author order. */
 export function paperAuthors(db: Db, o: { pids?: readonly number[] } = {}): PaperAuthorRow[] {
   const f = pidClause(o.pids, "pid");
   return db
-    .prepare(`select pid, ord, email, name, affiliation from paper_author where removed_seen_at is null${f.sql} order by pid, ord`)
+    .prepare(`select pid, ord, email, name, affiliation from paper_author where removed_seen_at is null${LIVE_PAPER}${f.sql} order by pid, ord`)
     .all(...f.args) as PaperAuthorRow[];
 }
 
-/** Current option values, optionally for one option name. */
+/** Current option values of live papers, optionally for one option name. */
 export function paperOptions(db: Db, o: { name?: string; pids?: readonly number[] } = {}): PaperOptionRow[] {
   const f = pidClause(o.pids, "pid");
   const nameSql = o.name !== undefined ? " and name = ?" : "";
   const args: unknown[] = o.name !== undefined ? [o.name, ...f.args] : [...f.args];
   const rows = db
     .prepare(
-      `select pid, name, value, first_seen_at, changed_seen_at from paper_option where removed_seen_at is null${nameSql}${f.sql} order by pid, name`,
+      `select pid, name, value, first_seen_at, changed_seen_at from paper_option where removed_seen_at is null${LIVE_PAPER}${nameSql}${f.sql} order by pid, name`,
     )
     .all(...args) as { pid: number; name: string; value: string; first_seen_at: number; changed_seen_at: number }[];
   return rows.map((r) => ({

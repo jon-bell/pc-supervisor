@@ -27,6 +27,17 @@
 // Times: `now` comes from the injected Clock (PCS_NOW). Items new after the
 // first successful sync get first_seen_at = now; items present at the first
 // sync get HotCRP's modified_at (or now) with *_approx = 1.
+//
+// Paper scope (PCS_PAPER_SEARCH): the client ANDs the search into every `q`
+// (hotcrp/scope.ts), so /search, the searchaction downloads, /reviews,
+// /comments and /papers only return in-scope papers. A paper that leaves the
+// scope is absent like a deleted one: it and its reviews, comments and
+// assignments get deleted_seen_at / removed_seen_at, so every view and module
+// (which read live rows only) drops it, and nothing is lost if it returns.
+// When a scoped sync sees a paper that was not live before (entered the
+// scope, or came back), its reviews, comments and assignments are timed as
+// at a first sync (HotCRP's modified_at, *_approx = 1): they may be old. The
+// scope used is kept in meta `paper_search`.
 
 import { systemClock, type Clock } from "../clock.js";
 import type { AcRole, TierTags } from "../config.js";
@@ -290,6 +301,14 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
     const firstSync =
       db.prepare("select 1 from sync_run where kind = 'sync' and ok = 1 limit 1").get() === undefined;
     const approx = firstSync ? 1 : 0;
+    // Papers live before this sync; with a scope, others may bring old items.
+    const paperSearch = (source.paperSearch ?? "").trim();
+    const scoped = paperSearch !== "";
+    const liveBefore = new Set(
+      (db.prepare("select pid from paper where deleted_seen_at is null").all() as { pid: number }[]).map((r) => r.pid),
+    );
+    const asFirstSync = (pid: number) => firstSync || (scoped && !liveBefore.has(pid));
+    db.prepare("insert into meta (key, value) values ('paper_search', ?) on conflict(key) do update set value = excluded.value").run(paperSearch);
 
     if (ratingSettings) {
       const setMeta = db.prepare("insert into meta (key, value) values (?, ?) on conflict(key) do update set value = excluded.value");
@@ -304,7 +323,7 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
 
     const nameToEmails = syncPeople(db, pc.pc, holders, opts.tierTags, now, counts);
     const managerByPid = syncPapers(db, search.papers ?? [], leads, shepherds, nameToEmails, now, approx, counts, warnings);
-    syncAssignments(db, assignRows, leads, shepherds, managerByPid, now, approx, counts);
+    syncAssignments(db, assignRows, leads, shepherds, managerByPid, now, (pid) => (asFirstSync(pid) ? 1 : 0), counts);
 
     // ---- 3. reviews and comments -------------------------------------------
     db.exec("create temp table if not exists seen_rid (rid integer primary key)");
@@ -315,7 +334,7 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
     const onCover = new Set<string>(); // reviewers with a review on a covering paper
     const elsewhere = new Map<string, number>(); // the others: email -> one of their pids
     for await (const rs of ahead(chunks, (c) => source.reviews(c.q), opts.concurrency)) {
-      applyReviews(rv, rs, { now, firstSync, runId, textUids, scoreUids }, counts);
+      applyReviews(rv, rs, { now, firstSync: asFirstSync, runId, textUids, scoreUids }, counts);
       counts.add("reviews_fetched", rs.length);
       if (tags.length === 0) continue;
       for (const r of rs) {
@@ -347,7 +366,7 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
     );
     const cm = commentStatements(db);
     for await (const cs of ahead(chunks, (c) => source.comments(c.q), opts.concurrency)) {
-      applyComments(db, cm, cs, { now, firstSync, runId, roster }, counts);
+      applyComments(db, cm, cs, { now, firstSync: asFirstSync, runId, roster }, counts);
       counts.add("comments_fetched", cs.length);
     }
     log(`comments: ${counts.c.comments_fetched ?? 0} fetched`);
@@ -616,7 +635,7 @@ function syncAssignments(
   shepherds: { pid: number; email: string }[],
   managers: ReadonlyMap<number, string>,
   now: number,
-  approx: number,
+  approx: (pid: number) => number,
   counts: Counter,
 ) {
   const want = new Map<string, { pid: number; email: string; role: string; round: string | null }>();
@@ -650,7 +669,7 @@ function syncAssignments(
   for (const [k, a] of want) {
     const old = have.get(k);
     if (!old) {
-      ins.run(a.pid, a.email, a.role, a.round, now, approx);
+      ins.run(a.pid, a.email, a.role, a.round, now, approx(a.pid));
       counts.add("assignments_new");
     } else if (old.removed_seen_at !== null || old.round !== a.round) {
       upd.run(a.round, a.pid, a.email, a.role);
@@ -701,7 +720,8 @@ function reviewStatements(db: Db) {
 
 interface ReviewCtx {
   now: number;
-  firstSync: boolean;
+  /** Time new items on this paper as at a first sync (see the header). */
+  firstSync: (pid: number) => boolean;
   runId: number;
   textUids: readonly string[];
   scoreUids: readonly string[];
@@ -757,8 +777,9 @@ function applyReviews(st: ReturnType<typeof reviewStatements>, rs: Review[], ctx
     };
 
     if (!prev) {
-      const firstSeen = ctx.firstSync ? (mod ?? ctx.now) : ctx.now;
-      const approx = ctx.firstSync ? 1 : 0;
+      const first = ctx.firstSync(r.pid);
+      const firstSeen = first ? (mod ?? ctx.now) : ctx.now;
+      const approx = first ? 1 : 0;
       st.ins.run(
         r.rid,
         r.pid,
@@ -849,7 +870,8 @@ function commentStatements(db: Db) {
 
 interface CommentCtx {
   now: number;
-  firstSync: boolean;
+  /** Time new items on this paper as at a first sync (see the header). */
+  firstSync: (pid: number) => boolean;
   runId: number;
   roster: MentionRoster;
 }
@@ -895,7 +917,7 @@ function applyComments(db: Db, st: ReturnType<typeof commentStatements>, cs: Com
       st.ins.run(
         c.cid, c.pid, email, v.topic, v.visibility, v.is_response, v.response_round, v.draft, v.by_author, v.by_shepherd,
         v.tags, wordCount(text), json(mentions), hash, mod,
-        ctx.firstSync ? (mod ?? ctx.now) : ctx.now, ctx.firstSync ? 1 : 0,
+        ctx.firstSync(c.pid) ? (mod ?? ctx.now) : ctx.now, ctx.firstSync(c.pid) ? 1 : 0,
       );
       st.text.run(c.cid, mod, ctx.now, text, ctx.runId);
       writeMentions(mentions);

@@ -8,6 +8,7 @@ import type { ThresholdName } from "../../config.js";
 import { OUTLIER_LISTS, type OutlierList as RuleList } from "../../rules/reviewer-metrics.js";
 import type { OutlierList, OutlierListId, ReviewersResponse } from "../api-types.js";
 import { personOf, type RouteDeps } from "../app.js";
+import { filteredView } from "../paper-filter.js";
 
 type Thresholds = Readonly<Record<ThresholdName, number>>;
 
@@ -33,8 +34,10 @@ export function tierOrder(configured: readonly string[], seen: Iterable<string>)
 }
 
 export function registerReviewers(app: FastifyInstance, deps: RouteDeps): void {
-  app.get("/api/reviewers", async (): Promise<ReviewersResponse> => {
-    const view = deps.analysis.get();
+  // ?search=<HotCRP search>: lists over the matching papers only (paper-filter.ts).
+  app.get("/api/reviewers", async (req, reply): Promise<ReviewersResponse | typeof reply> => {
+    const view = await filteredView(req, reply, deps);
+    if (!view) return reply;
     const { outliers, reviewers } = view.analysis;
     const tiers = tierOrder(["senior", ...Object.keys(deps.cfg.tierTags)], reviewers.map((r) => r.tier));
     const ids = OUTLIER_LISTS.filter((id) => id !== "flagged" || view.analysis.evaluation.index.ratingsEnabled);

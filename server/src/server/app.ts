@@ -14,6 +14,10 @@
 // /api/reviewers, /api/people/:email and /api/overview. M8 added the v1
 // actions (routes/actions.ts): /api/actions, nudge drafts, tag preview/commit.
 // M13 added the process report and its downloads (routes/report.ts).
+// The in-app paper filter (paper-filter.ts): paper-centric routes take
+// ?search=<HotCRP search> and read deps.analysis over the matching papers
+// only (filteredView); GET /api/paper-search resolves a search for the
+// filter box.
 
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -43,6 +47,8 @@ import { registerEarlyReject, registerTierProgress } from "./routes/progress.js"
 import { registerReport } from "./routes/report.js";
 import type { QuickRejectProvider } from "../modules/report/quick-reject.js";
 import type { SyncRunner } from "./sync-runner.js";
+import { PaperFilter, type PaperSearcher } from "./paper-filter.js";
+import { registerPaperSearch } from "./routes/paper-search.js";
 
 export interface RouteDeps {
   cfg: Config;
@@ -58,6 +64,8 @@ export interface RouteDeps {
   quickReject?: QuickRejectProvider | undefined;
   /** HotCRP reads the assignment solver needs (M10b); absent = POST /api/assignment/solve answers 503. */
   solverHotcrp?: SolverHotcrp | undefined;
+  /** Resolves ?search= to papers (HotCRP /search, cached); without a searcher it answers 503. */
+  paperFilter: PaperFilter;
 }
 
 export type RegisterRoutes = (app: FastifyInstance, deps: RouteDeps) => void;
@@ -80,6 +88,8 @@ export const ROUTES: readonly RegisterRoutes[] = [
   registerReport,
   // Assignment validator + solver (PLAN M10/M10b): /api/assignment, /api/assignment/solve.
   registerAssignment,
+  // The in-app paper filter: GET /api/paper-search.
+  registerPaperSearch,
 ];
 
 export interface RouteInfo {
@@ -98,7 +108,7 @@ export async function listRoutes(o: Pick<AppOptions, "cfg" | "store" | "clock">)
   app.addHook("onRoute", (r) => {
     for (const method of [r.method].flat()) if (method !== "HEAD") out.push({ method, url: r.url });
   });
-  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis: new AnalysisSource(o.store, o.cfg, o.clock), sync: undefined, ruleNames: RULE_NAMES };
+  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis: new AnalysisSource(o.store, o.cfg, o.clock), sync: undefined, ruleNames: RULE_NAMES, paperFilter: new PaperFilter(undefined) };
   for (const register of ROUTES) register(app, deps);
   await app.ready();
   await app.close();
@@ -147,6 +157,8 @@ export interface AppOptions {
   quickReject?: QuickRejectProvider;
   /** HotCRP reads for the assignment solver (M10b); absent = the solver is unavailable. */
   solverHotcrp?: SolverHotcrp;
+  /** HotCRP /search for the in-app ?search= filter; absent = filtering answers 503. */
+  paperSearcher?: PaperSearcher;
   /** Built web app; null = API only. Default: defaultWebDir(). */
   webDir?: string | null;
   /** Fastify request logging (off by default: logs could carry paths, never bodies). */
@@ -199,7 +211,7 @@ export async function buildApp(o: AppOptions): Promise<App> {
     return reply.code(code).send({ error: message });
   });
 
-  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis, sync: o.sync, ruleNames: RULE_NAMES, tagFlow: o.tagFlow, quickReject: o.quickReject, solverHotcrp: o.solverHotcrp };
+  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis, sync: o.sync, ruleNames: RULE_NAMES, tagFlow: o.tagFlow, quickReject: o.quickReject, solverHotcrp: o.solverHotcrp, paperFilter: new PaperFilter(o.paperSearcher, [token]) };
   for (const register of ROUTES) register(app, deps);
 
   const webDir = o.webDir === undefined ? defaultWebDir() : o.webDir;

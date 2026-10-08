@@ -16,6 +16,7 @@ import type { FastifyInstance } from "fastify";
 import { splitOf } from "../../rules/rules.js";
 import type { OverviewResponse } from "../api-types.js";
 import { personOf, type RouteDeps } from "../app.js";
+import { filteredView } from "../paper-filter.js";
 
 const PHASE_DATES: readonly [key: string, label: string][] = [
   ["registrationDue", "Registration due"],
@@ -33,8 +34,10 @@ const PHASE_DATES: readonly [key: string, label: string][] = [
 ];
 
 export function registerOverview(app: FastifyInstance, deps: RouteDeps): void {
-  app.get("/api/overview", async (): Promise<OverviewResponse> => {
-    const view = deps.analysis.get();
+  // ?search=<HotCRP search>: counts and charts over the matching papers only (paper-filter.ts).
+  app.get("/api/overview", async (req, reply): Promise<OverviewResponse | typeof reply> => {
+    const view = await filteredView(req, reply, deps);
+    if (!view) return reply;
     const { analysis, ctx, people } = view;
     const ev = analysis.evaluation;
 

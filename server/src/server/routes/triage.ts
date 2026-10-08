@@ -4,12 +4,15 @@
 //   ?ac=<email>     papers where that person is an area chair
 //   ?rule=<NAME>    papers firing that rule
 //   ?tier=<tier>    papers with a reviewer of that tier
+//   ?search=<q>     papers matching that HotCRP search (paper-filter.ts);
+//                   unlike the others it narrows the facets and `total` too
 // Facets count over the unfiltered list, so the UI's filter menus stay put.
 
 import type { FastifyInstance } from "fastify";
 import type { TriageResponse, TriageRow } from "../api-types.js";
 import type { AnalysisView } from "../analysis.js";
 import { personOf, type RouteDeps } from "../app.js";
+import { filteredView } from "../paper-filter.js";
 
 function list(v: unknown): string[] | null {
   if (typeof v !== "string" || v.trim() === "") return null;
@@ -46,8 +49,9 @@ export function triageRows(view: AnalysisView): TriageRow[] {
 }
 
 export function registerTriage(app: FastifyInstance, deps: RouteDeps): void {
-  app.get("/api/triage", async (req): Promise<TriageResponse> => {
-    const view = deps.analysis.get();
+  app.get("/api/triage", async (req, reply): Promise<TriageResponse | typeof reply> => {
+    const view = await filteredView(req, reply, deps);
+    if (!view) return reply;
     const q = req.query as Record<string, unknown>;
     const acs = list(q.ac)?.map((x) => x.toLowerCase()) ?? null;
     const rules = list(q.rule);

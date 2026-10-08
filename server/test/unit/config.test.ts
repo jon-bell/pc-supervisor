@@ -247,8 +247,23 @@ describe("loadHotcrpConfig", () => {
       url: "http://localhost:8080",
       token: "hct_x1234",
       forceShow: true,
+      paperSearch: "",
       sync: { chunk: 200, concurrency: 2, historyRps: 1 },
     });
+  });
+
+  it("reads PCS_PAPER_SEARCH (trimmed; empty = every paper)", () => {
+    const env = { PCS_HOTCRP_URL: "http://localhost:8080/", PCS_HOTCRP_TOKEN: "hct_x1234" };
+    expect(loadHotcrpConfig({ ...env, PCS_PAPER_SEARCH: "  #shadow OR 1-20 " }).paperSearch).toBe("#shadow OR 1-20");
+    expect(loadHotcrpConfig({ ...env, PCS_PAPER_SEARCH: "" }).paperSearch).toBe("");
+    expect(loadHotcrpConfig({ ...env, PCS_PAPER_SEARCH: '"a (b" (c)' }).paperSearch).toBe('"a (b" (c)');
+  });
+
+  it("rejects a PCS_PAPER_SEARCH that can't be parenthesized safely", () => {
+    const env = { PCS_HOTCRP_URL: "http://localhost:8080/", PCS_HOTCRP_TOKEN: "hct_x1234" };
+    expect(() => loadHotcrpConfig({ ...env, PCS_PAPER_SEARCH: "#a) OR (all" })).toThrow(/PCS_PAPER_SEARCH: .*\) without a matching \(/);
+    expect(() => loadHotcrpConfig({ ...env, PCS_PAPER_SEARCH: "(#a" })).toThrow(/PCS_PAPER_SEARCH: .*\( without a matching \)/);
+    expect(() => loadHotcrpConfig({ ...env, PCS_PAPER_SEARCH: 'ti:"open' })).toThrow(/unclosed double quote/);
   });
 
   it("still reports all of its problems together", () => {
