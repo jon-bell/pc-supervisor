@@ -57,7 +57,7 @@ npm run dev                                   # or: hot reload at http://127.0.0
 ## Using it on a real conference
 
 1. Get a chair API token: HotCRP → Account settings → Developer.
-2. Copy `.env.example` to `.env` and fill in the instance URL, the token, the phase dates, and a DB key. **Every setting is an environment variable**; `.env.example` documents them all.
+2. Copy `.env.example` to `.env` and fill in the instance URL, the token, the phase dates, and a DB key. **Every setting is an environment variable**; `.env.example` documents them all. When `PCS_HOTCRP_URL` is not already set, `pcs` loads `./.env` (from the directory you run `npm`/`npx` in) and prints that it did; variables already in the environment win. If you export `PCS_HOTCRP_URL` yourself (as with `.env.test`), `.env` is ignored entirely.
 3. Run `npx pcs probe` (or `npm run pcs -- probe`) once to confirm the instance's review-form field UIDs and score scales. It needs only `PCS_HOTCRP_URL` and `PCS_HOTCRP_TOKEN`, sends GET requests only, and prints a shape report with no titles, names, emails, or text: keys and types, counts, form fields with declared and observed score ranges, user-tag names, schema pass/fail per endpoint, rate-limit headers, and a suggested `PCS_FIELD_*` / `PCS_MERIT_ACCEPT_MIN` / `PCS_TIER_TAGS` block. Use `--markdown` for a version to paste into an issue, or `--json`. It exits nonzero if any endpoint is unreachable; schema drift is reported, not fatal.
 4. Run `pcs sync`, then `pcs backfill` once (score history from before the first sync), then `pcs serve --watch` and open `http://127.0.0.1:5317`.
 5. When the PC is over, run `pcs wipe`.

@@ -16,6 +16,7 @@ These instructions are for anyone working in this repo, human or coding agent. R
 - **Config is environment variables only.**
   - Every new setting gets a `PCS_*` name, a Zod entry in `server/src/config.ts`, and a documented line in `.env.example`, all in the same PR.
   - Don't add config files or hard-code dates, URLs, or field UIDs.
+  - The `pcs` CLI loads `./.env` only when `PCS_HOTCRP_URL` is unset (`server/src/env-file.ts`). Tests that spawn the CLI must set `PCS_HOTCRP_URL` or run outside the repo, so a developer's `.env` never leaks in.
 - **Time:** never call `Date.now()` / `new Date()` directly in logic. Use `server/src/clock.ts`, which honors `PCS_NOW`. Phase logic must be testable at any instant.
 - **HotCRP access goes through `server/src/hotcrp/`.** Every response is parsed with its Zod schema. When HotCRP surprises you, fix the schema and add a contract test; don't add a `try/catch` that hides it.
 - **Rules (spec §5c):**

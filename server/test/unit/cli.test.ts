@@ -1,14 +1,15 @@
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { BASE_ENV } from "./env.js";
 
 const CLI = fileURLToPath(new URL("../../src/cli.ts", import.meta.url));
 
-/** Run `pcs` in a subprocess with exactly `env` (plus PATH). No network. */
+/** Run `pcs` in a subprocess with exactly `env` (plus PATH), INIT_CWD outside the repo so no .env loads. No network. */
 function pcs(args: string[], env: Record<string, string>) {
   const r = spawnSync(process.execPath, ["--import", "tsx", CLI, ...args], {
-    env: { PATH: process.env.PATH ?? "", ...env },
+    env: { PATH: process.env.PATH ?? "", INIT_CWD: tmpdir(), ...env },
     encoding: "utf8",
   });
   return { code: r.status, stdout: r.stdout, stderr: r.stderr };
