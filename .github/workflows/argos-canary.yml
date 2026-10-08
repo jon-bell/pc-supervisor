@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write   # Argos GitHub Actions OIDC auth
 
 env:
   COMPOSE_PROJECT_NAME: pcs-argos-${{ github.run_id }}-${{ github.run_attempt }}

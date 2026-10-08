@@ -46,6 +46,11 @@ env:
 jobs:
   ci:
     runs-on: ripley-cloud
+    # id-token: write lets the Argos reporter authenticate with GitHub Actions
+    # OIDC (no stored secret); tokenless exchange is disabled for this project.
+    permissions:
+      contents: read
+      id-token: write
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -98,6 +103,9 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           set -a && . ./.env.test && set +a && npm run test:e2e
+        env:
+          # Optional fallback; when the secret is absent this is empty and OIDC is used.
+          ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
 
       - name: Collect harness logs
         if: failure()

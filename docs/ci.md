@@ -23,7 +23,7 @@ GitHub ──► ARC listener (arc-runners-jon-bell) ──► ephemeral runner 
 
 ## Visual testing (Argos)
 
-The Playwright suite takes `argosScreenshot`s, and the reporter uploads them to Argos **only when `CI` is set**. Auth is tokenless: the Argos GitHub App is installed on the repo, and the SDK proves the job from the GitHub Actions run and job IDs. If an `ARGOS_TOKEN` secret exists, it's used instead.
+The Playwright suite takes `argosScreenshot`s, and the reporter uploads them to Argos **only when `CI` is set**. Auth is **GitHub Actions OIDC**: the `ci` job has `id-token: write`, and the Argos SDK exchanges the job's OIDC token for a short-lived Argos token, so no secret is stored. (The older tokenless exchange, based on run and job IDs, is disabled for this Argos project and fails with *Tokenless authentication is disabled*.) If an `ARGOS_TOKEN` repository secret exists, it takes priority.
 
 Tokenless auth also requires an **Argos project linked to this repository** (app.argos-ci.com → new project → import the repo). Without one, the upload fails with `No project found`. `.github/workflows/argos-canary.yml`, which runs on manual dispatch only, screenshots the harness home page to check this setup end to end.
 
