@@ -3,6 +3,7 @@
 // once; list queries take an optional pid filter so callers can page by paper.
 
 import type { AcRole, Config } from "../config.js";
+import { parseRatings, ratingsEnabledFor, type RatingCounts } from "../ratings.js";
 import { MEMORY, openDb, type Db } from "./db.js";
 
 export type Score = number | string | null;
@@ -81,8 +82,29 @@ export interface ReviewRow {
   firstCompleteApprox: boolean;
   scores: Record<string, Score>;
   wordCount: number;
-  ratings: string[];
+  /** Raters per flag (spec §1, ratings.ts). */
+  ratings: RatingCounts;
   deletedSeenAt: number | null;
+}
+
+/** One observed change of a review's ratings (migration 6). */
+export interface RatingChangeRow {
+  rid: number;
+  /** Sync clock time; ratings carry no HotCRP timestamp. */
+  seenAt: number;
+  /** null: the ratings at first sight of the review. */
+  before: RatingCounts | null;
+  after: RatingCounts;
+}
+
+/** HotCRP's review-rating settings as last synced (null: never synced). */
+export interface RatingSettingsRow {
+  /** `pc` | `all` | `no`. */
+  setting: string | null;
+  /** `limited` | `yes` | `no`. */
+  visibility: string | null;
+  /** False only when the instance has ratings off (`no`): rating signals are then hidden, not zero. */
+  enabled: boolean;
 }
 
 export interface ReviewWithHistory extends ReviewRow {
@@ -175,6 +197,10 @@ export interface Store {
   reviewFields(): ReviewFieldRow[];
   lastSync(kind?: "sync" | "backfill"): SyncRunRow | undefined;
   lastSuccessfulSync(): SyncRunRow | undefined;
+  /** Observed rating changes, oldest first (optionally for some reviews). */
+  ratingChanges(o?: { rids?: readonly number[] }): RatingChangeRow[];
+  /** The synced review-rating settings. */
+  ratingSettings(): RatingSettingsRow;
   /** FTS5 search over review and comment text (latest and older versions). */
   searchText(query: string, limit?: number): TextHit[];
   close(): void;
@@ -244,7 +270,7 @@ function reviewRow(r: Raw): ReviewRow {
     firstCompleteApprox: bool(r.first_complete_approx),
     scores: parse(r.scores, {}),
     wordCount: r.word_count as number,
-    ratings: parse(r.ratings, []),
+    ratings: parseRatings(r.ratings),
     deletedSeenAt: r.deleted_seen_at as number | null,
   };
 }
@@ -461,6 +487,25 @@ export function storeFromDb(db: Db): Store {
         }
       }
       return hits;
+    },
+    ratingChanges(o) {
+      const f = o?.rids ? { sql: " where rid in (select value from json_each(?))", args: [JSON.stringify(o.rids)] } : { sql: "", args: [] };
+      return all(`select rid, seen_at, before, after from rating_change${f.sql} order by seen_at, id`, ...f.args).map((r) => ({
+        rid: r.rid as number,
+        seenAt: r.seen_at as number,
+        before: r.before === null ? null : parseRatings(r.before),
+        after: parseRatings(r.after),
+      }));
+    },
+    ratingSettings() {
+      const m = new Map(
+        (all("select key, value from meta where key in ('review_rating', 'review_rating_visibility')") as { key: string; value: string }[]).map((r) => [
+          r.key,
+          r.value,
+        ]),
+      );
+      const setting = m.get("review_rating") ?? null;
+      return { setting, visibility: m.get("review_rating_visibility") ?? null, enabled: ratingsEnabledFor(setting) };
     },
     close() {
       db.close();

@@ -1,5 +1,5 @@
 // The golden scenario: PLAN.md "Golden scenario" table, the contract between
-// M2 (seeder), M3 (sync), and M4 (rules). 12 papers, each built to fire an
+// M2 (seeder), M3 (sync), and M4 (rules). 13 papers, each built to fire an
 // exact set of rules at PCS_NOW = discussionOpen +14d 12:00 (2030-02-26T12:00
 // with the ci.yml dates). The rule oracle is ./expected.ts.
 //
@@ -10,8 +10,14 @@
 // - reviewer comments on discussion days +3/+8/+13 by slot, at 12:00;
 // - AC comments at 09:00; the decided paper's metareview at day +10 09:00.
 // Slot 0 is a primary review (rtype 4), slots 1-2 secondary (rtype 3).
+// Review ratings (rate events) on discussion day +2: pid 10's 35-word review
+// is rated `short` by both co-reviewers; pid 13's slot-1 review (Hal, 250
+// words) is rated `disrespectful` by the AC and `short` by one co-reviewer, so
+// pid 13 fires exactly REVIEW_FLAGGED, and Hal has negative flags on two
+// papers (the "repeatedly flagged" reviewer list).
 // All people are invented.
 
+import type { RatingFlag } from "@pcs/server/ratings";
 import { at, type Assignment, type Paper, type Person, type Scenario, type ScenarioEvent, type When } from "../../src/format.js";
 
 // --- People -------------------------------------------------------------------
@@ -77,8 +83,9 @@ const TITLES = [
   "Fuzzing Stateful Network Daemons with Grammars",
   "Traceability Links from Issue Discussions",
   "Static Detection of Resource Leaks in Async Code",
+  "Quarantine Policies for Flaky Integration Tests",
 ];
-const AUTHOR_LAST = ["Arden", "Bellamy", "Corvell", "Dunsmore", "Elsworth", "Fairbank", "Galloway", "Hartwell", "Ingram", "Jessop", "Kirkland", "Lowther"];
+const AUTHOR_LAST = ["Arden", "Bellamy", "Corvell", "Dunsmore", "Elsworth", "Fairbank", "Galloway", "Hartwell", "Ingram", "Jessop", "Kirkland", "Lowther", "Merrow"];
 
 export const papers: Paper[] = TITLES.map((title, i) => ({
   pid: i + 1,
@@ -100,6 +107,8 @@ interface Slot {
   move?: { day: number; to: number };
   /** Comment days; default by slot (+3, +8, +13). [] = never. */
   comments?: number[];
+  /** Ratings of this slot's review, on discussion day +2: rater -> flags. */
+  ratedBy?: readonly { rater: string; flags: readonly RatingFlag[] }[];
 }
 
 interface PaperSpec {
@@ -150,7 +159,16 @@ export const SPECS: readonly PaperSpec[] = [
     slots: [{ email: P.cal, expertise: 2 }, { email: P.eli, expertise: 2 }, { email: P.fay, merit: 4, expertise: 1 }],
     acComments: [{ day: 1 }],
   },
-  { pid: 10, ac: P.acBusy, slots: [{ email: P.gus }, { email: P.hal, words: 35 }, { email: P.ana, merit: 4 }], acComments: [{ day: 1 }] },
+  {
+    pid: 10,
+    ac: P.acBusy,
+    slots: [
+      { email: P.gus },
+      { email: P.hal, words: 35, ratedBy: [{ rater: P.gus, flags: ["short"] }, { rater: P.ana, flags: ["short"] }] },
+      { email: P.ana, merit: 4 },
+    ],
+    acComments: [{ day: 1 }],
+  },
   // PLAN row changed to 2/2/2 (with silent reviewers, a top merit >= 3 is CHAMPION_MISSING).
   {
     pid: 11,
@@ -163,6 +181,17 @@ export const SPECS: readonly PaperSpec[] = [
     pid: 12,
     ac: P.acNormal,
     slots: [{ email: P.silent, merit: 1, move: { day: 5, to: 2 }, comments: [] }, { email: P.eli, merit: 4 }, { email: P.hal, merit: 4 }],
+    acComments: [{ day: 1 }],
+  },
+  // Otherwise healthy: merits 3/3/4, default comments through day +13, the AC on day +1.
+  {
+    pid: 13,
+    ac: P.acNormal,
+    slots: [
+      { email: P.fay },
+      { email: P.hal, ratedBy: [{ rater: P.acNormal, flags: ["disrespectful"] }, { rater: P.fay, flags: ["short"] }] },
+      { email: P.ben, merit: 4 },
+    ],
     acComments: [{ day: 1 }],
   },
 ];
@@ -191,6 +220,9 @@ for (const s of SPECS) {
         words: slot.words ?? 250,
       });
     }
+    (slot.ratedBy ?? []).forEach((r, k) => {
+      events.push({ type: "rate", at: day(2, 10 + k), pid: s.pid, email: slot.email, rater: r.rater, flags: r.flags });
+    });
     if (slot.move) {
       events.push({ type: "scoreChange", at: day(slot.move.day), pid: s.pid, email: slot.email, scores: { OveMer: slot.move.to } });
     }
@@ -226,7 +258,7 @@ export const NOW_SECOND: When = at("decisionsDue", -2, "12:00");
 
 export const scenario: Scenario = {
   name: "golden",
-  description: "PLAN.md golden table: 12 papers, each firing an exact rule set at discussion day +14",
+  description: "PLAN.md golden table: 13 papers, each firing an exact rule set at discussion day +14",
   people,
   papers,
   assignments,

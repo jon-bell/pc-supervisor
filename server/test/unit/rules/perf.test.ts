@@ -58,7 +58,7 @@ function scaleSnapshot(nPapers = 2400, nAcs = 40, nReviewers = 400, nComments = 
           status: r() < 0.03 ? "draft" : "complete",
           submittedAt: subStart + Math.floor(r() * 16 * DAY_MS),
           moves: moved ? [{ at: DISCUSSION_OPEN + Math.floor(r() * 12 * DAY_MS), merit: Math.max(1, merit - 1) }] : [],
-          ratedShort: r() < 0.02,
+          ratings: r() < 0.02 ? { short: 2 } : {},
         }),
       );
     }

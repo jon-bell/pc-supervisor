@@ -39,6 +39,8 @@ export function registerPeople(app: FastifyInstance, deps: RouteDeps): void {
     const outstanding = new Set(rm?.outstanding ?? []);
     const thin = new Set(rm?.depth.flaggedPids ?? []);
     const unanswered = new Set(rm?.responsiveness.unanswered.map((u) => u.pid) ?? []);
+    const ratingFlagged = new Set(rm?.ratings?.negativePids ?? []);
+    const ratingsEnabled = ev.index.ratingsEnabled;
 
     const papers: PersonPaper[] = [];
     for (const f of ev.facts.values()) {
@@ -64,6 +66,7 @@ export function registerPeople(app: FastifyInstance, deps: RouteDeps): void {
               merit: r.merit,
               expertise: r.expertise,
               wordCount: r.wordCount,
+              ratings: ratingsEnabled ? { ...r.ratings } : null,
             }
           : null,
         merits: [...f.merits],
@@ -79,6 +82,7 @@ export function registerPeople(app: FastifyInstance, deps: RouteDeps): void {
           outstanding: outstanding.has(f.pid),
           thin: thin.has(f.pid),
           unansweredPing: unanswered.has(f.pid),
+          ratingFlagged: ratingFlagged.has(f.pid),
         },
       });
     }
@@ -113,9 +117,17 @@ export function registerPeople(app: FastifyInstance, deps: RouteDeps): void {
               pcMedianWords: rm.depth.pcMedianWords,
               thin: rm.depth.thin,
               bottomDecile: rm.depth.bottomDecile,
-              ratedShort: rm.depth.ratedShort,
-              ratedVague: rm.depth.ratedVague,
+              ratedThin: rm.depth.ratedThin,
             },
+            ratings: rm.ratings
+              ? {
+                  received: { ...rm.ratings.received },
+                  negative: rm.ratings.negative,
+                  good: rm.ratings.good,
+                  negativePids: [...rm.ratings.negativePids],
+                  repeated: rm.ratings.repeated,
+                }
+              : null,
             participation: { ...rm.participation },
             responsiveness: { medianDays: rm.responsiveness.medianDays, answered: rm.responsiveness.answered },
             movement: { reviews: rm.movement.reviews, pids: [...rm.movement.pids] },

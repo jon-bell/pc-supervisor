@@ -10,6 +10,7 @@ import { useActions, useNudge, usePaper } from "../api";
 import { CopyButton, TagDialog } from "../components/Actions";
 import { Chip, ReasonChips } from "../components/Chip";
 import { AbsTime } from "../components/Time";
+import { formatRatings } from "@pcs/server/ratings";
 import { hotcrp, plural } from "../format";
 
 function Who({ name, tier, role }: { name: string; tier: string; role?: string }) {
@@ -35,7 +36,12 @@ function ReviewEvent({ r, base, pid }: { r: ReviewDetail; base: string; pid: num
       <div className="ev-meta">
         {r.merit !== null ? `merit ${r.merit}` : null}
         {r.expertise !== null ? ` · expertise ${r.expertise}` : null} · {plural(r.wordCount, "word")}
-        {r.ratings.length ? ` · rated ${r.ratings.join(", ")}` : null}
+        {r.ratings && formatRatings(r.ratings) ? (
+          <span data-testid="review-ratings" title="HotCRP review ratings: raters per flag">
+            {" · rated "}
+            {formatRatings(r.ratings)}
+          </span>
+        ) : null}
       </div>
       {r.text.length ? (
         <details className="ev-text">

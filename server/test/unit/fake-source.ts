@@ -118,6 +118,16 @@ export class FakeHotcrp implements SyncSource {
     return FORM;
   }
 
+  /** HotCRP's review-rating settings (GET /settings). */
+  ratingConfig: { review_rating: "pc" | "all" | "no"; review_rating_visibility: "limited" | "yes" | "no" } = {
+    review_rating: "pc",
+    review_rating_visibility: "limited",
+  };
+  async ratingSettings() {
+    this.hit("settings");
+    return { ok: true as const, settings: { ...this.ratingConfig } };
+  }
+
   async reviews(q: string, rq?: string): Promise<Review[]> {
     this.hit(rq ? "reviews-rq" : "reviews");
     const inQ = range(q);

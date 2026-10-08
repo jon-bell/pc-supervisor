@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { seedScenario } from "@pcs/seed/driver";
 import { resolveWhen } from "@pcs/seed/time";
 import { scenario as golden } from "@pcs/seed/scenarios/golden/scenario";
-import { AT_SECOND, FIRES_AT_PRIMARY, MERITS, NOW_PRIMARY, NOW_SECOND, PEOPLE, SCORE_CHANGES } from "@pcs/seed/scenarios/golden/expected";
+import { AT_SECOND, FIRES_AT_PRIMARY, MERITS, NOW_PRIMARY, NOW_SECOND, PEOPLE, RATINGS, SCORE_CHANGES } from "@pcs/seed/scenarios/golden/expected";
 import { fixedClock } from "../../src/clock.js";
 import { loadConfig, type Config } from "../../src/config.js";
 import { clientFromConfig } from "../../src/hotcrp/client.js";
@@ -82,7 +82,7 @@ afterAll(() => {
 const fired = (a: Analysis, pid: number) => a.evaluation.byPid.get(pid)!.fired.map((f) => f.rule).sort();
 
 describe("golden -> sync -> rules at the primary instant (2030-02-26T12:00)", () => {
-  it("is mid-discussion and has exactly the 12 golden papers", () => {
+  it("is mid-discussion and has exactly the 13 golden papers", () => {
     expect(primary.phase).toBe("discussion");
     expect(snap.papers.map((p) => p.pid)).toEqual(Object.keys(FIRES_AT_PRIMARY).map(Number));
   });
@@ -118,6 +118,7 @@ describe("golden -> sync -> rules at the primary instant (2030-02-26T12:00)", ()
     expect(primary.evaluation.results.map((r) => [r.pid, r.severity])).toEqual([
       [5, 7],
       [4, 5],
+      [13, 4],
       [2, 3],
       [3, 3],
       [12, 3],
@@ -129,6 +130,46 @@ describe("golden -> sync -> rules at the primary instant (2030-02-26T12:00)", ()
       [10, 1],
       [1, 0],
     ]);
+  });
+});
+
+describe("review ratings (multiset counts, synced with no vtag or timestamp)", () => {
+  it("each review carries exactly the expected counts; the rest are unrated", () => {
+    const want = new Map<string, unknown>(RATINGS.map((x) => [`${x.pid}:${x.email}`, x.ratings]));
+    for (const r of snap.reviews) expect(r.ratings, `${r.pid}:${r.email}`).toEqual(want.get(`${r.pid}:${r.email}`) ?? {});
+    for (const x of RATINGS) expect(snap.reviews.find((r) => r.pid === x.pid && r.email === x.email)!.ordinal).toBe(x.ordinal);
+    expect(snap.ratingsEnabled).toBe(true);
+    expect(store.ratingSettings()).toMatchObject({ setting: "pc", enabled: true });
+  });
+
+  it("reasons quote the counts", () => {
+    const reason = (pid: number, rule: string) => primary.evaluation.byPid.get(pid)!.fired.find((f) => f.rule === rule)!.reason;
+    expect(reason(10, "THIN_REVIEWS")).toBe("1 of 3 reviews thin (min 150 words, or short/vague from 2+ raters): review B: 35 words, 2× short");
+    expect(reason(13, "REVIEW_FLAGGED")).toBe("1 review rated disrespectful or wrong: review B: 1× short, 1× disrespectful");
+  });
+
+  it("the first sync logs each rated review once in rating_change; a re-sync is idempotent", async () => {
+    const rids = RATINGS.map((x) => snap.reviews.find((r) => r.pid === x.pid && r.email === x.email)!.rid);
+    expect(store.ratingChanges().map((c) => [c.rid, c.before, c.after])).toEqual(
+      RATINGS.map((x, i) => [rids[i], null, x.ratings]).sort((a, b) => (a[0] as number) - (b[0] as number)),
+    );
+    const source = clientSource(clientFromConfig(cfg.hotcrp));
+    const again = await runSync(store.db, source, {
+      clock: fixedClock(new Date(tPrimary.getTime() + 60_000)),
+      chunkSize: cfg.sync.chunk,
+      concurrency: cfg.sync.concurrency,
+      tierTags: cfg.tierTags,
+      acRole: cfg.acRole,
+    });
+    expect(again.ok, again.errors.join("; ")).toBe(true);
+    expect(again.counts.rating_changes).toBeUndefined();
+    expect(store.ratingChanges()).toHaveLength(RATINGS.length);
+  }, 60_000);
+
+  it("Hal is repeatedly flagged, on 10 and 13", () => {
+    const hal = primary.reviewers.find((r) => r.email === PEOPLE.repeatedlyFlagged.email)!;
+    expect(hal.ratings).toMatchObject({ negativePids: PEOPLE.repeatedlyFlagged.pids, repeated: true });
+    expect(Object.values(primary.outliers.flagged).flat().map((e) => e.email)).toEqual([PEOPLE.repeatedlyFlagged.email]);
   });
 });
 

@@ -130,7 +130,7 @@ describe("reviewer metrics", () => {
 
   it("depth vs PC median, bottom decile, ratings; movement incl. expertise", () => {
     const rs = [
-      review({ rid: 1, pid: 1, email: A, words: 100, ratedVague: true, moves: [{ at: day(2), expertise: 4 }] }),
+      review({ rid: 1, pid: 1, email: A, words: 100, ratings: { vague: 2, good: 1 }, moves: [{ at: day(2), expertise: 4 }] }),
       review({ rid: 2, pid: 1, email: B, words: 300 }),
       ...Array.from({ length: 10 }, (_, i) => review({ rid: 10 + i, pid: 2, email: `rx${i}@example.org`, words: 200 + i })),
     ];
@@ -142,16 +142,42 @@ describe("reviewer metrics", () => {
       pcMedianWords: 204.5,
       bottomDecile: 1,
       thin: 1,
-      ratedShort: 0,
-      ratedVague: 1,
+      ratedThin: 1,
       flaggedPids: [1],
     });
+    expect(a.ratings).toMatchObject({ received: { good: 1, vague: 2 }, negative: 2, good: 1, negativePids: [1], repeated: false });
     expect(a.movement).toEqual({ reviews: 1, pids: [1] });
     const out = computeOutliers(ms);
     expect(out.thin).toEqual({ junior: [expect.objectContaining({ email: A, count: 1, pids: [1] })] });
     expect(out.thin.junior![0]!.detail).toBe(
-      "1 under the word minimum, 1 in the PC's bottom decile, 1 rated vague; median 100 words vs PC 204.5",
+      "1 under the word minimum, 1 in the PC's bottom decile, 1 flagged short/vague; median 100 words vs PC 204.5",
     );
+    expect(out.flagged).toEqual({});
+  });
+
+  it("repeatedly flagged: negative rating flags on >= PCS_THRESH_FLAGGED_PAPERS papers", () => {
+    const rs = [
+      review({ rid: 1, pid: 1, email: A, ratings: { short: 1 } }),
+      review({ rid: 2, pid: 2, email: A, ratings: { disrespectful: 1, good: 1 } }),
+      review({ rid: 3, pid: 3, email: A, ratings: { good: 2 } }),
+      review({ rid: 4, pid: 1, email: B, ratings: { short: 1, vague: 1 } }),
+    ];
+    const s = snap({ papers: [paper(1), paper(2), paper(3)], reviews: rs });
+    const ms = computeReviewerMetrics(evaluateAll(s, MID), MID);
+    const a = ms.find((m) => m.email === A)!;
+    expect(a.ratings).toMatchObject({ received: { good: 3, short: 1, disrespectful: 1 }, negative: 2, good: 3, negativePids: [1, 2], repeated: true });
+    // B: two flags, one paper; under the bar.
+    expect(ms.find((m) => m.email === B)!.ratings).toMatchObject({ negative: 2, negativePids: [1], repeated: false });
+    const out = computeOutliers(ms);
+    expect(out.flagged).toEqual({ junior: [expect.objectContaining({ email: A, count: 2, pids: [1, 2] })] });
+    expect(out.flagged.junior![0]!.detail).toBe("negative rating flags on 2 papers: 1× short, 1× disrespectful; 3× good");
+    // Boundary: the bar at 3 papers drops A.
+    const ctx3 = contextAt(MID.now, { PCS_THRESH_FLAGGED_PAPERS: "3" });
+    expect(computeOutliers(computeReviewerMetrics(evaluateAll(s, ctx3), ctx3)).flagged).toEqual({});
+    // Ratings off: no rating summary, nobody listed.
+    const off = computeReviewerMetrics(evaluateAll({ ...s, ratingsEnabled: false }, MID), MID);
+    expect(off.every((m) => m.ratings === null)).toBe(true);
+    expect(computeOutliers(off).flagged).toEqual({});
   });
 
   it("participation share and late reviews", () => {
@@ -185,9 +211,9 @@ describe("burndown", () => {
     const ev = evaluateAll(goldenSnapshot(), MID);
     const pts = computeBurndown(ev.facts.values(), MID, { start: DISCUSSION_OPEN });
     expect(pts).toHaveLength(16); // days 0..14 + now
-    expect(pts[0]).toEqual({ t: DISCUSSION_OPEN, undecided: 12, noConsensus: 3 });
-    expect(pts[11]!.undecided).toBe(11); // decision seen day +10 12:00
-    expect(pts.at(-1)).toEqual({ t: MID.now, undecided: 11, noConsensus: 3 });
+    expect(pts[0]).toEqual({ t: DISCUSSION_OPEN, undecided: 13, noConsensus: 3 });
+    expect(pts[11]!.undecided).toBe(12); // decision seen day +10 12:00
+    expect(pts.at(-1)).toEqual({ t: MID.now, undecided: 12, noConsensus: 3 });
   });
 
   it("reconstructs merits from version history", () => {

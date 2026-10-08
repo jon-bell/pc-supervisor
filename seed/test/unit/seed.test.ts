@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { loadPhaseConfig } from "@pcs/server/config";
 import { formatInZone } from "@pcs/server/tz";
 import { at, type Scenario } from "../../src/format.js";
-import { planWaves, replay, ScenarioError, timedEvents } from "../../src/model.js";
+import { planWaves, ratingCounts, replay, ScenarioError, timedEvents } from "../../src/model.js";
 import { countWords, fillerWords, reviewText } from "../../src/text.js";
 import { mulberry32 } from "../../src/rng.js";
 import { resolveWhen } from "../../src/time.js";
-import { FIRES_AT_PRIMARY, MERITS } from "../../scenarios/golden/expected.js";
+import { FIRES_AT_PRIMARY, MERITS, RATINGS } from "../../scenarios/golden/expected.js";
 import { NOW_PRIMARY, NOW_SECOND, P, scenario as golden } from "../../scenarios/golden/scenario.js";
 import { scenario as multistage, STAGE1_NOW, STAGE2_NOW } from "../../scenarios/multistage/scenario.js";
 import { scenario as shadow } from "../../scenarios/shadow/scenario.js";
@@ -93,6 +93,23 @@ describe("replay validation", () => {
     expect(() => replay(withEvents([r, { type: "scoreChange", at: at("reviewDue", -1), pid: 1, email: "a@example.org", scores: { OveMer: 2 } }]), ctx)).toThrow(/strictly later/);
     expect(() => replay(withEvents([{ type: "commentEdit", at: at("reviewDue", 0), key: "x" }]), ctx)).toThrow(/unknown comment/);
   });
+  it("rejects ratings HotCRP would refuse: own review, unsubmitted, rater without a submitted review, bad flags", () => {
+    const two: Scenario = {
+      ...base,
+      people: [...base.people, { email: "b@example.org", first: "B", last: "C", roles: ["pc"] }, { email: "m@example.org", first: "M", last: "N", roles: ["pc"] }],
+      assignments: [...base.assignments, { pid: 1, email: "b@example.org", role: "secondary" }, { pid: 1, email: "m@example.org", role: "metareview" }],
+    };
+    const rev = (email: string, day: number) => ({ type: "review" as const, at: at("reviewDue", day), pid: 1, email, scores: { OveMer: 1, RevExp: 1 }, words: 10 });
+    const rate = (rater: string, day: number, flags: string[] = ["short"]) => ({ type: "rate" as const, at: at("reviewDue", day), pid: 1, email: "a@example.org", rater, flags: flags as never });
+    const ev = (events: Scenario["stages"][number]["events"]) => ({ ...two, stages: [{ name: "s", events }] });
+    expect(() => replay(ev([rev("a@example.org", -2), rate("a@example.org", -1)]), ctx)).toThrow(/own review/);
+    expect(() => replay(ev([rate("m@example.org", -1)]), ctx)).toThrow(/not submitted/);
+    expect(() => replay(ev([rev("a@example.org", -3), rate("b@example.org", -2), rev("b@example.org", -1)]), ctx)).toThrow(/must submit their own review/);
+    expect(() => replay(ev([rev("a@example.org", -3), rate("m@example.org", -2, ["sloppy"])]), ctx)).toThrow(/unknown rating flag/);
+    // The metareviewer may rate without a review of their own; a re-rating replaces.
+    const st = replay(ev([rev("a@example.org", -3), rev("b@example.org", -2), rate("m@example.org", -1, ["disrespectful"]), rate("b@example.org", -1), rate("b@example.org", 0, ["short", "vague"])]), ctx);
+    expect(ratingCounts(st.reviews.get("1:a@example.org")!)).toEqual({ short: 1, vague: 1, disrespectful: 1 });
+  });
   it("rejects responses by non-authors", () => {
     expect(() => replay(withEvents([{ type: "response", key: "r", at: at("reviewDue", 1), pid: 1, email: "a@example.org" }]), ctx)).toThrow(/not an author/);
   });
@@ -102,8 +119,8 @@ describe("golden scenario", () => {
   const state = replay(golden, ctx);
   const nonAc = [...state.reviews.values()].filter((r) => r.role !== "metareview");
 
-  it("has 12 papers with merits as in expected.ts", () => {
-    expect(golden.papers.length).toBe(12);
+  it("has 13 papers with merits as in expected.ts", () => {
+    expect(golden.papers.length).toBe(13);
     for (const pid of Object.keys(FIRES_AT_PRIMARY).map(Number)) {
       const merits = nonAc
         .filter((r) => r.pid === pid && r.status === "complete")
@@ -119,7 +136,7 @@ describe("golden scenario", () => {
       const ts = comments.filter((c) => c.pid === pid && !c.response && !c.email.startsWith("ac-")).map((c) => c.createdAt.getTime());
       return ts.length ? local(new Date(Math.max(...ts))) : null;
     };
-    for (const pid of [2, 3, 4, 7, 8, 9, 10, 12]) expect(lastReviewerDay(pid), `pid ${pid}`).toBe("2030-02-25T12:00");
+    for (const pid of [2, 3, 4, 7, 8, 9, 10, 12, 13]) expect(lastReviewerDay(pid), `pid ${pid}`).toBe("2030-02-25T12:00");
     expect(lastReviewerDay(5)).toBeNull();
     expect(lastReviewerDay(11)).toBeNull();
     expect(lastReviewerDay(6)).toBe("2030-02-14T12:00");
@@ -147,6 +164,16 @@ describe("golden scenario", () => {
     expect(state.reviews.get(`2:${P.recip}`)!.status).toBe("empty");
     expect(state.reviews.get(`10:${P.hal}`)!.words).toBe(35);
     expect(nonAc.filter((r) => r.words !== undefined && r.words < 200).length).toBe(1);
+  });
+
+  it("rates exactly the reviews in expected.ts RATINGS; pid 13's flagged review is long", () => {
+    const rated = [...state.reviews.values()].filter((r) => r.ratings.size > 0);
+    expect(rated.map((r) => ({ pid: r.pid, email: r.email, ratings: ratingCounts(r) }))).toEqual(
+      RATINGS.map((x) => ({ pid: x.pid, email: x.email, ratings: x.ratings })),
+    );
+    expect(state.reviews.get(`13:${P.hal}`)!.words).toBeGreaterThanOrEqual(200);
+    // The AC rates as metareviewer; the co-reviewers after their own reviews.
+    expect([...state.reviews.get(`13:${P.hal}`)!.ratings.keys()].sort()).toEqual([P.acNormal, P.fay].sort());
   });
 
   it("tags R-silent junior and the laggard reciprocal; nobody else", () => {

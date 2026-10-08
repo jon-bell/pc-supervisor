@@ -11,7 +11,8 @@ import { assertHarnessUrl } from "@pcs/server/hotcrp/harness-guard";
 import { parseTagField } from "@pcs/server/sync/sync";
 import { reviewField, ReviewsSchema, submissionOptionValue, type Review } from "@pcs/server/hotcrp/schemas";
 import { REVIEW_TEXT_FIELDS, type AssignRole, type Scenario } from "./format.js";
-import { replay, reviewKey, type ExpectedState } from "./model.js";
+import { ratingCounts, replay, reviewKey, type ExpectedState } from "./model.js";
+import { countRatings, ratingsJson } from "@pcs/server/ratings";
 import { epochSeconds, type PhaseContext } from "./time.js";
 
 export const TOLERANCE_S = 60;
@@ -154,6 +155,10 @@ export async function verifyScenario(
     check(r !== undefined, () => `review ${k} missing`);
     if (!r) continue;
     check(r.rtype === RTYPE[w.role], () => `review ${k}: rtype ${r.rtype}, expected ${RTYPE[w.role]}`);
+    // Ratings: /reviews aggregates every rater's flags as a multiset.
+    const gotRatings = ratingsJson(countRatings(r.ratings));
+    const wantRatings = ratingsJson(ratingCounts(w));
+    check(gotRatings === wantRatings, () => `review ${k}: ratings ${gotRatings}, expected ${wantRatings}`);
     check(r.status === w.status, () => `review ${k}: status ${r.status}, expected ${w.status}`);
     if (w.status === "complete") {
       for (const f of scoreFields.filter((x) => w.scores![x] !== undefined)) {

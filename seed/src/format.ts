@@ -6,6 +6,8 @@
 //
 // All names and emails are invented; emails are @example.org (AGENTS.md).
 
+import type { RatingFlag } from "@pcs/server/ratings";
+
 /** Phase dates a `When` can be relative to (config.ts Phases). */
 export const PHASE_NAMES = [
   "reviewDue",
@@ -175,8 +177,30 @@ export interface AssignEvent {
   role: Exclude<AssignRole, "metareview">;
 }
 
+/**
+ * A PC member rates a submitted review (HotCRP review ratings, spec §1):
+ * POST /{p}/reviewrating?r=<rid>&actas=<rater>, form-encoded
+ * `user_rating=<flags>`. The rater must be the paper's metareviewer or a
+ * co-reviewer whose own review is already submitted, and never the review's
+ * author. A later rate event by the same rater on the same review replaces
+ * their flags. HotCRP keeps no rating timestamp: `at` only orders the event
+ * (after the rater's submission), and the driver applies a stage's ratings
+ * after its other events.
+ */
+export interface RateEvent {
+  type: "rate";
+  at: When;
+  pid: number;
+  /** The rated review's reviewer. */
+  email: string;
+  rater: string;
+  /** One or more of RATING_FLAGS ("short", "vague", "disrespectful", ...). */
+  flags: readonly RatingFlag[];
+}
+
 export type ScenarioEvent =
   | AssignEvent
+  | RateEvent
   | ReviewEvent
   | ScoreChangeEvent
   | CommentEvent
@@ -273,5 +297,7 @@ export function objectKey(e: ScenarioEvent): string {
       return `comment:${e.key}`;
     case "decision":
       return `decision:${e.pid}`;
+    case "rate":
+      return `rating:${e.pid}:${e.email.toLowerCase()}:${e.rater.toLowerCase()}`;
   }
 }

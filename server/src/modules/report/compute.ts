@@ -23,6 +23,7 @@
 // (early reject, quick reject, totals) describe papers, not people, and are
 // not suppressed.
 
+import { addRatings, RATING_FLAGS, ratingTotal, type RatingCounts, type RatingFlag } from "../../ratings.js";
 import type { RuleContext } from "../../rules/context.js";
 import { isSubmitted, median, percentile, type SnapshotIndex } from "../../rules/facts.js";
 import { DEFAULT_TIER, type Millis } from "../../rules/model.js";
@@ -55,9 +56,8 @@ export interface ReviewFact {
   merit: number | null;
   expertise: number | null;
   words: number;
-  ratedShort: boolean;
-  ratedVague: boolean;
-  ratings: readonly string[];
+  /** Raters per rating flag (ratings.ts); {} when unrated or ratings are off. */
+  ratings: RatingCounts;
   /** First submitted version time, or null. */
   submittedAt: Millis | null;
   assignedAfterDue: boolean;
@@ -75,7 +75,6 @@ export interface ReviewFact {
 
 export interface FactOptions {
   approxRids: ReadonlySet<number>;
-  ratings: ReadonlyMap<number, readonly string[]>;
   acceptDecisions: readonly string[];
 }
 
@@ -116,9 +115,7 @@ export function reviewFacts(index: SnapshotIndex, ctx: RuleContext, o: FactOptio
         merit,
         expertise: submitted ? r.expertise : null,
         words: submitted ? r.wordCount : 0,
-        ratedShort: r.ratedShort,
-        ratedVague: r.ratedVague,
-        ratings: o.ratings.get(r.rid) ?? [],
+        ratings: r.ratings,
         submittedAt: at,
         assignedAfterDue,
         daysVsDue: at === null ? null : (at - due) / DAY_MS,
@@ -269,26 +266,43 @@ export function meritsByTier(facts: readonly ReviewFact[], tiers: readonly strin
   });
 }
 
-/** Review-quality ratings on submitted reviewer reviews, per tier. */
-export function ratingsByTier(facts: readonly ReviewFact[], tiers: readonly string[], minCell: number): { names: string[]; rows: RatingRow[] } {
-  const names = [...new Set(facts.filter((f) => f.submitted).flatMap((f) => f.ratings))].sort();
+/**
+ * Rating-flag distributions on submitted reviewer reviews, per tier (spec
+ * §10.4 G): flags received (raters per flag, summed), and flags per review.
+ * `names` = the flags seen anywhere, in HotCRP's order. Ratings off: no rows.
+ */
+export function ratingsByTier(
+  facts: readonly ReviewFact[],
+  tiers: readonly string[],
+  minCell: number,
+  enabled = true,
+): { enabled: boolean; names: string[]; rows: RatingRow[] } {
+  if (!enabled) return { enabled, names: [], rows: [] };
+  const seen: Partial<Record<RatingFlag, number>> = {};
+  for (const f of facts) if (f.submitted) addRatings(seen, f.ratings);
+  const names = RATING_FLAGS.filter((n) => (seen[n] ?? 0) > 0);
   const rows = [...groupByTier(facts, tiers)].map(([tier, fs]): RatingRow => {
     const sub = fs.filter((f) => f.submitted);
     const c = cellOf(peopleIn(sub), minCell);
-    if (c.suppressed) return { tier, ...c, reviews: null, rated: null, counts: null, reason: suppressedReason(minCell) };
-    const counts: Record<string, number> = Object.fromEntries(names.map((n) => [n, 0]));
-    for (const f of sub) for (const n of new Set(f.ratings)) counts[n] = (counts[n] ?? 0) + 1;
-    const rated = sub.filter((f) => f.ratings.length > 0).length;
+    if (c.suppressed) return { tier, ...c, reviews: null, rated: null, counts: null, perReview: null, reason: suppressedReason(minCell) };
+    const sum: Partial<Record<RatingFlag, number>> = {};
+    for (const f of sub) addRatings(sum, f.ratings);
+    const counts: Record<string, number> = Object.fromEntries(names.map((n) => [n, sum[n] ?? 0]));
+    const perReview: Record<string, number> = Object.fromEntries(names.map((n) => [n, sub.length ? round((sum[n] ?? 0) / sub.length) : 0]));
+    const rated = sub.filter((f) => ratingTotal(f.ratings) > 0).length;
     return {
       tier,
       ...c,
       reviews: sub.length,
       rated,
       counts,
-      reason: `${rated} of ${plural(sub.length, "submitted review")} rated${names.length ? `: ${names.map((n) => `${n} ${counts[n]}`).join(", ")}` : ""}`,
+      perReview,
+      reason:
+        `${rated} of ${plural(sub.length, "submitted review")} rated` +
+        (names.length ? `; flags received: ${names.map((n) => `${counts[n]}× ${n} (${perReview[n]}/review)`).join(", ")}` : ""),
     };
   });
-  return { names, rows };
+  return { enabled, names, rows };
 }
 
 /** Score agreement: deviation from the paper's mean merit, and the decision side, per tier. */

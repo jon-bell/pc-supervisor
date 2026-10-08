@@ -22,7 +22,7 @@ test("reserve view: phase window, counts, and the paper table", async ({ page })
   await expect(w).toHaveAttribute("data-active", "0");
   await expect(w).toContainText("Module A");
   await expect(w).toContainText("no window");
-  await expect(page.getByTestId("reserve-counts")).toContainText("12 papers");
+  await expect(page.getByTestId("reserve-counts")).toContainText("13 papers");
   await expect(page.getByTestId("reserve-papers")).toBeVisible();
 });
 

@@ -27,7 +27,7 @@ test.describe("AC table", () => {
     expect(PEOPLE.acs[P.acBusy].flagged).toHaveLength(5);
     await expect(busy.getByTestId("ac-load")).toHaveText("6 papers · 5 flagged");
     await expect(idle.getByTestId("ac-load")).toHaveText("2 papers · 2 flagged");
-    await expect(acRow(page, P.acNormal).getByTestId("ac-load")).toHaveText("4 papers · 4 flagged");
+    await expect(acRow(page, P.acNormal).getByTestId("ac-load")).toHaveText("5 papers · 5 flagged");
     // The load bar: AC-busy's is three times AC-idle's, and AC-idle's is all flagged.
     const width = (row: Locator, cls: string) => row.locator(`.loadbar .${cls}`).evaluate((e) => Number(e.getAttribute("width")));
     expect(await width(busy, "load-total")).toBeCloseTo(3 * (await width(idle, "load-total")), 5);
@@ -46,7 +46,7 @@ test.describe("AC table", () => {
   test("clicking an AC row filters triage to that AC's papers", async ({ page }) => {
     await acRow(page, P.acNormal).click();
     await expect(page).toHaveURL(/\/\?ac=ac-normal%40example\.org$/);
-    await expect.poll(() => triagePids(page)).toEqual([2, 6, 11, 12]);
+    await expect.poll(() => triagePids(page)).toEqual([...PEOPLE.acs[P.acNormal].pids]);
     await expect(page.getByTestId("filter-ac")).toHaveValue(P.acNormal);
     await page.goto("/acs");
     await acRow(page, P.acBusy).click();
@@ -65,7 +65,16 @@ test.describe("AC table", () => {
 test.describe("reviewer outliers", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/reviewers");
-    await expect(page.getByTestId("outlier-list")).toHaveCount(4);
+    await expect(page.getByTestId("outlier-list")).toHaveCount(5);
+  });
+
+  test("Hal is the one repeatedly flagged reviewer, with the flag counts", async ({ page }) => {
+    const rows = page.locator('[data-testid="tier-group"][data-list="flagged"] [data-testid="outlier-row"]');
+    await expect(rows).toHaveCount(1);
+    const hal = outlier(group(page, "flagged", "senior"), PEOPLE.repeatedlyFlagged.email);
+    await expect(hal.getByTestId("outlier-count")).toHaveText("2");
+    await expect(hal.getByTestId("outlier-pids")).toHaveText("#10 #13");
+    await expect(hal.getByTestId("outlier-detail")).toHaveText("negative rating flags on 2 papers: 3× short, 1× disrespectful");
   });
 
   test("R-silent is on silent-on-split with 3, under junior", async ({ page }) => {
@@ -148,6 +157,15 @@ test.describe("person page", () => {
     await expect(page.locator('[data-testid="person-paper"][data-pid="4"]').getByTestId("flag-ping")).toBeVisible();
   });
 
+  test("Hal: rating flags received, and the flagged reviews marked per paper", async ({ page }) => {
+    await page.goto(`/people/${encodeURIComponent(PEOPLE.repeatedlyFlagged.email)}`);
+    await expect(page.getByTestId("sum-ratings")).toHaveText("3× short, 1× disrespectful received · flags other than good on 2 papers");
+    await expect(page.getByTestId("person-outlier")).toContainText(["Repeatedly flagged reviews"]);
+    await expect(page.locator('[data-testid="person-paper"][data-pid="13"]').getByTestId("flag-rated")).toHaveText("rated 1× short, 1× disrespectful");
+    await expect(page.locator('[data-testid="person-paper"][data-pid="10"]').getByTestId("flag-rated")).toHaveText("rated 2× short");
+    await expect(page.locator('[data-testid="person-paper"][data-pid="6"]').getByTestId("flag-rated")).toHaveCount(0);
+  });
+
   test("AC-idle: two papers as AC, no comments", async ({ page }) => {
     await page.goto(`/people/${encodeURIComponent(P.acIdle)}`);
     await expect(page.getByTestId("sum-ac")).toContainText("2 papers · 2 flagged · 0 comments since discussion opened");
@@ -165,23 +183,23 @@ test.describe("overview", () => {
     // Tall enough to hold the whole page (it scrolls inside <main>, so fullPage can't).
     await page.setViewportSize({ width: 1280, height: 1100 });
     await page.goto("/overview");
-    await expect(page.getByTestId("count-papers").locator(".stat-value")).toHaveText("12");
+    await expect(page.getByTestId("count-papers").locator(".stat-value")).toHaveText("13");
     await expect(page.getByTestId("count-decided").locator(".stat-value")).toHaveText("1");
     await expect(page.getByTestId("count-reviewing").locator(".stat-value")).toHaveText("1");
     await expect(page.getByTestId("count-no-consensus").locator(".stat-value")).toHaveText("3");
-    await expect(page.getByTestId("count-flagged").locator(".stat-value")).toHaveText("11");
-    // Merit ranges: 0 (5, 6, 11), 1 (1, 2, 7, 8, 9, 10), 2 (3, 4, 12).
+    await expect(page.getByTestId("count-flagged").locator(".stat-value")).toHaveText("12");
+    // Merit ranges: 0 (5, 6, 11), 1 (1, 2, 7, 8, 9, 10, 13), 2 (3, 4, 12).
     const bins = await page.getByTestId("bin").evaluateAll((els) => els.map((e) => [e.getAttribute("data-label"), Number(e.getAttribute("data-value"))]));
     expect(bins).toEqual([
       ["0", 3],
-      ["1", 6],
+      ["1", 7],
       ["2", 3],
     ]);
     await expect(page.locator(`[data-testid="ov-ac"][data-email="${P.acBusy}"]`).getByTestId("ov-ac-load")).toHaveText("6 papers · 5 flagged");
     await expect(page.locator(`[data-testid="ov-ac"][data-email="${P.acIdle}"]`).getByTestId("ov-ac-load")).toHaveText("2 papers · 2 flagged");
     // The burndown ends at now with the three split papers, against the phase dates.
     await expect(page.getByTestId("end-noConsensus")).toHaveText("3 no consensus");
-    await expect(page.getByTestId("end-undecided")).toHaveText("11 undecided");
+    await expect(page.getByTestId("end-undecided")).toHaveText("12 undecided");
     const markers = await page.getByTestId("marker").evaluateAll((els) => els.map((e) => e.getAttribute("data-label")));
     expect(markers).toEqual(["Reviews due", "Response opens", "Response closes", "Discussion opens", "Now", "Discussion closes", "Decisions due"]);
     await ready(page);
@@ -192,7 +210,7 @@ test.describe("overview", () => {
 test.describe("triage polish", () => {
   test("every reason chip is fully visible, even with three on a row", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByTestId("triage-row")).toHaveCount(12);
+    await expect(page.getByTestId("triage-row")).toHaveCount(13);
     const clipped = await page.getByTestId("chip").evaluateAll((chips) =>
       chips
         .filter((c) => {
@@ -216,7 +234,7 @@ test("nav links to Triage, ACs, Reviewers and Overview", async ({ page }) => {
   await nav.getByRole("link", { name: "Overview" }).click();
   await expect(page.getByTestId("overview")).toBeVisible();
   await nav.getByRole("link", { name: "Reviewers" }).click();
-  await expect(page.getByTestId("outlier-list")).toHaveCount(4);
+  await expect(page.getByTestId("outlier-list")).toHaveCount(5);
   for (const path of ["/acs", "/reviewers", "/overview", `/people/${encodeURIComponent(P.silent)}`]) {
     await page.goto(path);
     const text = (await page.locator("main").innerText()).toLowerCase();

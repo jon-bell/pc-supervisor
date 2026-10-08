@@ -2,6 +2,7 @@
 // weights, tiers. GET /api/sync/status and POST /api/sync ("sync now").
 
 import type { FastifyInstance } from "fastify";
+import { RATING_FLAGS } from "../../ratings.js";
 import { phaseAt } from "../../rules/phase.js";
 import { redact } from "../../redact.js";
 import type { SyncRunRow } from "../../store/store.js";
@@ -22,6 +23,7 @@ export function registerMeta(app: FastifyInstance, deps: RouteDeps): void {
       rules: deps.ruleNames.map((name) => ({ name, weight: ctx.weights[name] })),
       tiers: ["senior", ...Object.keys(cfg.tierTags)],
       fields: cfg.fields,
+      ratings: { ...deps.store.ratingSettings(), flags: [...RATING_FLAGS] },
     };
   });
 }

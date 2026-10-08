@@ -17,6 +17,8 @@ import {
   ReviewRatingSchema,
   ReviewSchema,
   ReviewsSchema,
+  RATING_SETTINGS_FILTER,
+  RatingSettingsSchema,
   RqcSchema,
   SearchSchema,
   SettingsRfSchema,
@@ -232,6 +234,23 @@ export async function collect(reader: ProbeReader, opts: ProbeOptions): Promise<
       e.fail(err);
     }
   }
+  // Review ratings (spec §1): who may rate and who sees ratings. Values are
+  // HotCRP's enum names, never content.
+  {
+    const e = ep("GET /settings (review ratings)");
+    try {
+      const body = await e.read(reader, { path: "settings", params: { filter: RATING_SETTINGS_FILTER } });
+      e.check(RatingSettingsSchema, body);
+      const st = isObj(body) && isObj(body.settings) ? body.settings : {};
+      report.ratings = {
+        ...report.ratings,
+        setting: ident(str(st.review_rating) ?? "(none)"),
+        visibility: ident(str(st.review_rating_visibility) ?? "(none)"),
+      };
+    } catch (err) {
+      e.fail(err);
+    }
+  }
 
   // --- /search ------------------------------------------------------------------
   let pids: number[] | undefined;
@@ -332,6 +351,8 @@ export async function collect(reader: ProbeReader, opts: ProbeOptions): Promise<
     for (const uid of form.keys()) obs.set(uid, { present: 0, nulls: 0, numeric: 0, symbols: new Tally(), otherStrings: 0 });
     let sampleComplete = false;
     let total = 0;
+    let rated = 0;
+    const flags = new Tally();
     try {
       await readBulk(e, "reviews", (body) => {
         e.check(ReviewsSchema, body);
@@ -345,6 +366,11 @@ export async function collect(reader: ProbeReader, opts: ProbeOptions): Promise<
           byStatus.add(status);
           cells.add(`${tname} x ${status}` as Safe);
           for (const [uid, o] of obs) if (uid in rv) observe(o, rv[uid]);
+          if ("ratings" in rv) {
+            rated++;
+            const rs = Array.isArray(rv.ratings) ? rv.ratings : [rv.ratings];
+            for (const f of rs) flags.add(ident(typeof f === "string" ? f : "?"));
+          }
           const pid = num(rv.pid);
           const rid = num(rv.rid);
           if (pid !== undefined && rid !== undefined && !sampleComplete) {
@@ -372,6 +398,7 @@ export async function collect(reader: ProbeReader, opts: ProbeOptions): Promise<
       extraKeys: shp.keys.map((k) => k.key).filter((k) => !REVIEW_SCHEMA_KEYS.has(k) && !form.has(k)),
     };
     report.shapes.push({ name: label("reviews[]"), shape: shp });
+    report.ratings = { setting: report.ratings?.setting, visibility: report.ratings?.visibility, reviewsRated: rated, flags: flags.result() };
   })();
 
   const commentsTask = (async () => {

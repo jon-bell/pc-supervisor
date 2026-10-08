@@ -7,7 +7,7 @@ test("sync now runs one sync and the list stays the same", async ({ page, reques
   const before = (await (await request.get("/api/sync/status")).json()) as SyncStatus;
   await page.goto("/");
   const pids = () => page.getByTestId("triage-row").evaluateAll((els) => els.map((e) => e.getAttribute("data-pid")));
-  await expect(page.getByTestId("triage-row")).toHaveCount(12);
+  await expect(page.getByTestId("triage-row")).toHaveCount(13);
   const order = await pids();
   await page.getByTestId("sync-now").click();
   await expect.poll(async () => ((await (await request.get("/api/sync/status")).json()) as SyncStatus).last?.id, { timeout: 60_000 }).toBeGreaterThan(before.last!.id);

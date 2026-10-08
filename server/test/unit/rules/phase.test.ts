@@ -48,12 +48,12 @@ describe("golden rules by phase", () => {
     return { phase: a.phase, m };
   };
 
-  it("before review-due: only phase-free rules (SPLIT, THIN_REVIEWS)", () => {
+  it("before review-due: only phase-free rules (SPLIT, THIN_REVIEWS, REVIEW_FLAGGED)", () => {
     const { phase, m } = firing("2030-01-31T12:00");
     expect(phase).toBe("before-review-due");
     const rules = new Set([...m.values()].flat());
-    expect([...rules].sort()).toEqual(["SPLIT", "THIN_REVIEWS"]);
-    expect([...m.keys()].sort((x, y) => x - y)).toEqual([3, 4, 10, 12]);
+    expect([...rules].sort()).toEqual(["REVIEW_FLAGGED", "SPLIT", "THIN_REVIEWS"]);
+    expect([...m.keys()].sort((x, y) => x - y)).toEqual([3, 4, 10, 12, 13]);
   });
 
   it("after review-due, before discussion: MISSING_REVIEWS and LOW_EXPERTISE switch on", () => {

@@ -25,6 +25,7 @@ export const FIRES_AT_PRIMARY: Readonly<Record<number, readonly RuleName[]>> = {
   10: ["THIN_REVIEWS"],
   11: ["RESPONSE_UNADDRESSED"],
   12: ["SPLIT"],
+  13: ["REVIEW_FLAGGED"],
 };
 
 /** At NOW_SECOND only these are asserted; other rows drift with time. */
@@ -49,7 +50,14 @@ export const MERITS: Readonly<Record<number, readonly number[]>> = {
   10: [3, 3, 4],
   11: [2, 2, 2],
   12: [2, 4, 4],
+  13: [3, 3, 4],
 };
+
+/** Review ratings (raters per flag) by pid and reviewer; every other review is unrated. */
+export const RATINGS = [
+  { pid: 10, email: P.hal, ordinal: "B", ratings: { short: 2 } },
+  { pid: 13, email: P.hal, ordinal: "B", ratings: { short: 1, disrespectful: 1 } },
+] as const;
 
 /** Score movement after discussion opened (review_version history). */
 export const SCORE_CHANGES = [
@@ -61,7 +69,7 @@ export const PEOPLE = {
   acs: {
     [P.acBusy]: { label: "AC-busy", pids: [1, 3, 4, 8, 9, 10], flagged: [3, 4, 8, 9, 10], commentsOnAll: true },
     [P.acIdle]: { label: "AC-idle", pids: [5, 7], flagged: [5, 7], comments: 0 },
-    [P.acNormal]: { label: "AC-normal", pids: [2, 6, 11, 12], flagged: [2, 6, 11, 12] },
+    [P.acNormal]: { label: "AC-normal", pids: [2, 6, 11, 12, 13], flagged: [2, 6, 11, 12, 13] },
   },
   tiers: {
     junior: [P.silent],
@@ -78,6 +86,8 @@ export const PEOPLE = {
   championMissing: { email: P.champ, pid: 8 },
   /** Response on pid 11, by its contact author, 2030-02-09T12:00. */
   response: { email: P.author11, pid: 11 },
+  /** Hal: negative rating flags on two papers (10: 2× short; 13: 1× short, 1× disrespectful). */
+  repeatedlyFlagged: { email: P.hal, pids: [10, 13] },
   /** pid 1: decision "Accepted" and the AC's metareview (complete, no scores) on day +10. */
   decided: { pid: 1, decision: "Accepted", day: 10 },
 } as const;

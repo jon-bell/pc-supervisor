@@ -20,6 +20,7 @@ const TABLES = [
   "comment_text",
   "comment_mention",
   "review_field",
+  "rating_change",
 ];
 
 function opts(at: Date, extra: Partial<SyncOptions> = {}): SyncOptions {
@@ -87,7 +88,10 @@ describe("first sync", () => {
     expect(r.scores).toEqual({ OveMer: 2, RevExp: 3 });
     expect(r.wordCount).toBe(3 + 4);
     expect(store.reviewText(12)).toEqual({ PapSum: "Short summary here.", ComAut: "Needs more evaluation work." });
-    expect(store.reviews().find((x) => x.rid === 13)!.ratings).toEqual(["short"]);
+    expect(store.reviews().find((x) => x.rid === 13)!.ratings).toEqual({ short: 1 });
+    // First sight of a rated review: before = null.
+    expect(store.ratingChanges()).toEqual([{ rid: 13, seenAt: s(T1), before: null, after: { short: 1 } }]);
+    expect(store.ratingSettings()).toEqual({ setting: "pc", visibility: "limited", enabled: true });
     // Null scores are kept as null; empty text is not stored.
     expect(store.reviews().find((x) => x.rid === 22)!.scores).toEqual({ OveMer: null, RevExp: null });
     expect(store.reviewText(22)).toEqual({});
@@ -187,7 +191,32 @@ describe("second sync diffs", () => {
     Object.assign(hc.reviewList.find((x) => x.rid === 12)!, { ratings: ["short", "vague"] });
     const res = await runSync(store.db, hc, opts(T2));
     expect(res.counts.review_versions_new).toBeUndefined();
-    expect(store.reviews().find((x) => x.rid === 12)!.ratings).toEqual(["short", "vague"]);
+    expect(store.reviews().find((x) => x.rid === 12)!.ratings).toEqual({ short: 1, vague: 1 });
+  });
+
+  it("ratings change with no vtag change: each sync diffs them into rating_change, once", async () => {
+    const r12 = hc.reviewList.find((x) => x.rid === 12)!;
+    const r13 = hc.reviewList.find((x) => x.rid === 13)!;
+    Object.assign(r12, { ratings: ["short", "short", "vague"] }); // a multiset: two raters said short
+    delete r13.ratings; // the rating was withdrawn
+    const res = await runSync(store.db, hc, opts(T2));
+    expect(res.counts.rating_changes).toBe(2);
+    expect(res.counts.review_versions_new).toBeUndefined();
+    expect(store.ratingChanges({ rids: [12, 13] })).toEqual([
+      { rid: 13, seenAt: s(T1), before: null, after: { short: 1 } },
+      { rid: 12, seenAt: s(T2), before: {}, after: { short: 2, vague: 1 } },
+      { rid: 13, seenAt: s(T2), before: { short: 1 }, after: {} },
+    ]);
+    // Idempotent: the same ratings again change nothing.
+    const again = await runSync(store.db, hc, opts(new Date(T2.getTime() + 3_600_000)));
+    expect(again.counts.rating_changes).toBeUndefined();
+    expect(store.ratingChanges()).toHaveLength(3);
+  });
+
+  it("stores the rating settings; ratings off is remembered", async () => {
+    hc.ratingConfig = { review_rating: "no", review_rating_visibility: "no" };
+    await runSync(store.db, hc, opts(T2));
+    expect(store.ratingSettings()).toEqual({ setting: "no", visibility: "no", enabled: false });
   });
 
   it("new comment -> first_seen_at = t2, not approximate", async () => {

@@ -13,6 +13,7 @@ import {
 } from "./format.js";
 import { commentText, reviewText } from "./text.js";
 import { describeWhen, resolveWhen, type PhaseContext } from "./time.js";
+import { countRatings, isRatingFlag, type RatingCounts, type RatingFlag } from "@pcs/server/ratings";
 
 export interface ReviewVersion {
   scores: Scores;
@@ -37,6 +38,13 @@ export interface ExpectedReview {
   versions: ReviewVersion[];
   /** Unassigned (clearreview) by the end of the replayed stages. */
   removed: boolean;
+  /** Review ratings: rater email -> their flags (rate events; a later one replaces). */
+  ratings: Map<string, readonly RatingFlag[]>;
+}
+
+/** A review's ratings as HotCRP's /reviews aggregates them: raters per flag. */
+export function ratingCounts(r: Pick<ExpectedReview, "ratings">): RatingCounts {
+  return countRatings([...r.ratings.values()].flat());
 }
 
 export interface ExpectedComment {
@@ -154,6 +162,7 @@ export function replay(scenario: Scenario, ctx: PhaseContext, upToStage = scenar
       status: "empty",
       versions: [],
       removed: false,
+      ratings: new Map(),
     });
   }
 
@@ -190,7 +199,7 @@ export function replay(scenario: Scenario, ctx: PhaseContext, upToStage = scenar
         if (authorsOf.get(e.pid)?.has(e.email.toLowerCase())) fail(`${where}: ${e.email} is an author of paper ${e.pid} and can't review it`);
         const k = reviewKey(e.pid, e.email);
         if (state.reviews.has(k)) fail(`${where}: ${e.email} is already assigned to paper ${e.pid}`);
-        state.reviews.set(k, { pid: e.pid, email: e.email.toLowerCase(), role: e.role, requestedAt: t, status: "empty", versions: [], removed: false });
+        state.reviews.set(k, { pid: e.pid, email: e.email.toLowerCase(), role: e.role, requestedAt: t, status: "empty", versions: [], removed: false, ratings: new Map() });
         return;
       }
       case "review": {
@@ -276,6 +285,25 @@ export function replay(scenario: Scenario, ctx: PhaseContext, upToStage = scenar
         if (!papers.has(e.pid)) fail(`${where}: unknown paper ${e.pid}`);
         state.decisions.set(e.pid, e.decision);
         return;
+      case "rate": {
+        const r = state.reviews.get(reviewKey(e.pid, e.email)) ?? fail(`${where}: ${e.email} is not assigned to ${e.pid}`);
+        if (r.removed || r.status !== "complete") fail(`${where}: ${e.email}'s review on ${e.pid} is not submitted`);
+        const rater = e.rater.toLowerCase();
+        if (rater === r.email) fail(`${where}: nobody can rate their own review`);
+        const p = people.get(rater);
+        if (!p || !p.roles.includes("pc")) fail(`${where}: rater ${e.rater} is not on the PC`);
+        const noReview = `${where}: rater ${e.rater} has no review on paper ${e.pid} (raters are co-reviewers or the metareviewer)`;
+        const own = state.reviews.get(reviewKey(e.pid, rater)) ?? fail(noReview);
+        if (own.removed) fail(noReview);
+        if (own.role !== "metareview" && (own.status !== "complete" || own.submittedAt! >= t)) {
+          fail(`${where}: rater ${e.rater} must submit their own review on ${e.pid} first`);
+        }
+        if (e.flags.length === 0) fail(`${where}: no flags`);
+        for (const f of e.flags) if (!isRatingFlag(f)) fail(`${where}: unknown rating flag ${JSON.stringify(f)}`);
+        if (new Set(e.flags).size !== e.flags.length) fail(`${where}: duplicate flag`);
+        r.ratings.set(rater, [...e.flags]);
+        return;
+      }
     }
   }
 }

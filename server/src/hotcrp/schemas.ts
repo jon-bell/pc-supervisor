@@ -11,6 +11,7 @@
 //   src/commentinfo.php, src/listaction.php, src/api/*) and the harness.
 
 import { z } from "zod";
+import { RATING_FLAGS } from "../ratings.js";
 
 const int = z.number().int();
 const pid = int.positive();
@@ -195,6 +196,11 @@ export const ReviewStatusSchema = z.enum(REVIEW_STATUSES);
 export const ReviewFieldValueSchema = z.union([z.number(), z.string(), z.null()]);
 export type ReviewFieldValue = z.infer<typeof ReviewFieldValueSchema>;
 
+/** One HotCRP rating flag (ReviewInfo::$rating_bits). An unknown flag fails the parse: fix the vocabulary, don't hide it. */
+export const RatingFlagSchema = z.enum(RATING_FLAGS);
+/** /reviews `ratings`: one flag, or a sorted multiset of flags. */
+export const RatingsFieldSchema = z.union([RatingFlagSchema, z.array(RatingFlagSchema)]);
+
 /**
  * One review. Review-form fields appear as extra keys named by field UID
  * (e.g. OveMer, RevExp, PapSum); read them with reviewField().
@@ -221,10 +227,13 @@ export const ReviewSchema = z.looseObject({
   modified_at: int.optional(),
   user_rating: z.union([z.string(), z.array(z.string())]).optional(),
   /**
-   * Ratings of this review by PC members ("short", "vague", ...): one name or
-   * a sorted list. Omitted when the review has none (src/paperexport.php).
+   * Ratings of this review (spec §1, server/src/ratings.ts): a sorted
+   * MULTISET of flags, one entry per (rater, flag), e.g.
+   * ["short","short","vague"]; a bare flag when there is one; omitted when the
+   * review is unrated or ratings are off (src/paperexport.php). No rater
+   * identity, no timestamp.
    */
-  ratings: z.union([z.string(), z.array(z.string())]).optional(),
+  ratings: RatingsFieldSchema.optional(),
 });
 export type Review = z.infer<typeof ReviewSchema>;
 
@@ -257,8 +266,8 @@ export type ReviewHistory = z.infer<typeof ReviewHistorySchema>;
 
 // --- /{p}/reviewrating -------------------------------------------------------
 
-/** "none", one rating name, or a sorted list ("short", "vague", "disrespectful", ...). */
-export const RatingValueSchema = z.union([z.string(), z.array(z.string())]);
+/** "none", one rating flag, or a sorted multiset of flags ("short", "vague", "disrespectful", ...). */
+export const RatingValueSchema = z.union([z.literal("none"), RatingsFieldSchema]);
 
 export const ReviewRatingSchema = z.looseObject({
   ...ok,
@@ -353,6 +362,22 @@ export const SettingsRfSchema = z.looseObject({
   settings: z.looseObject({ rf: z.array(SettingsRfFieldSchema) }),
 });
 export type SettingsRfResponse = z.infer<typeof SettingsRfSchema>;
+
+// --- /settings?filter=review_rating OR review_rating_visibility ----------------
+// Who may rate reviews (`pc` | `all` | `no`) and who sees ratings (`limited` |
+// `yes` | `no`) (etc/settinginfo.json). With `review_rating: "no"`, /reviews
+// carries no ratings at all, so rating-based signals are hidden, not zero.
+
+export const RATING_SETTINGS_FILTER = "review_rating OR review_rating_visibility";
+
+export const RatingSettingsSchema = z.looseObject({
+  ...ok,
+  settings: z.looseObject({
+    review_rating: z.enum(["pc", "all", "no"]),
+    review_rating_visibility: z.enum(["limited", "yes", "no"]),
+  }),
+});
+export type RatingSettings = z.infer<typeof RatingSettingsSchema>;
 
 // --- /papers (PLAN M10: authors and submission-option values) -----------------
 // One `paper` object per paper (src/paperexport.php). Authors carry email and

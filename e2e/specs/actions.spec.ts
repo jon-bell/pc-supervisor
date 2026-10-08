@@ -29,8 +29,8 @@ async function expectSearch(page: Page, q: string, pids: number[]) {
 
 test("copy search: the whole list, an AC filter, a reviewer-tier filter, a rule filter", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByTestId("triage-row")).toHaveCount(12);
-  await expectSearch(page, "1-12", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  await expect(page.getByTestId("triage-row")).toHaveCount(13);
+  await expectSearch(page, "1-13", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
 
   await page.getByTestId("filter-ac").selectOption({ label: "Avery Busyfield (6)" });
   await expect.poll(async () => (await rowPids(page)).sort((a, b) => a - b)).toEqual([1, 3, 4, 8, 9, 10]);

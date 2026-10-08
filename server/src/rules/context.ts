@@ -17,6 +17,12 @@ export interface RuleContext {
   expertiseOkMin: number;
   /** PCS_REVIEWS_REQUIRED. */
   reviewsRequired: number;
+  /**
+   * From the synced HotCRP settings, not config: false when the instance has
+   * review ratings off, so rating clauses are skipped (spec §1). Absent =
+   * enabled. evaluateAll() sets it from the snapshot.
+   */
+  ratingsEnabled?: boolean;
 }
 
 type ContextConfig = Pick<Config, "phases" | "rules" | "meritAcceptMin" | "expertiseOkMin" | "reviewsRequired">;
@@ -33,6 +39,9 @@ export function ruleContextFromConfig(cfg: ContextConfig, clock: Clock): RuleCon
     reviewsRequired: cfg.reviewsRequired,
   };
 }
+
+/** True unless the snapshot said ratings are off. */
+export const ratingsOn = (ctx: Pick<RuleContext, "ratingsEnabled">): boolean => ctx.ratingsEnabled !== false;
 
 /** The same context at a different instant (burndown, tests). */
 export function atInstant(ctx: RuleContext, now: Millis): RuleContext {

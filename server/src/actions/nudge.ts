@@ -51,6 +51,7 @@ const LINE_LABEL: Readonly<Record<RuleName, string>> = {
   LOW_EXPERTISE: "Expertise",
   THIN_REVIEWS: "Short reviews",
   RESPONSE_UNADDRESSED: "Author response not yet discussed",
+  REVIEW_FLAGGED: "A review was flagged by a rating",
   DEADLINE_NO_CONSENSUS: "Decision deadline",
 };
 

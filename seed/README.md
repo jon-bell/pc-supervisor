@@ -108,6 +108,7 @@ Events:
 | `decision` | `batch/assign.php` CSV `paper,action,decision` |
 | `unassign` | `batch/assign.php` CSV `paper,clearreview,user` (unsubmitted reviews only) |
 | `assign` | `batch/assign.php` CSV `paper,action,user` mid-scenario (M12), e.g. a replacement reviewer; `timeRequested` is warped to the event time. Checked like a stage-1 assignment (PC member, not an author, not already assigned) |
+| `rate` | `POST /{p}/reviewrating?r=<rid>&actas=<rater>`, form-encoded `user_rating=<flags>` (`{ pid, email: the rated review's reviewer, rater, flags }`). The rater must be the paper's metareviewer, or a co-reviewer whose own review was submitted before the event, and never the review's author; flags come from HotCRP's vocabulary (`good needswork short vague narrow disrespectful wrong`). A later `rate` by the same rater replaces their flags. Ratings have no HotCRP timestamp, so nothing is warped: the driver applies a stage's `rate` events after all its waves, in time order, and checks HotCRP recorded the rater's flags. `verify` compares every review's `ratings` multiset |
 
 Review and comment text is invented filler (`src/text.ts`) with exact word
 counts as HotCRP counts them; it is deterministic, so `verify` recomputes it.
@@ -164,9 +165,13 @@ schedule match M4's fixture `server/test/fixtures/golden.ts`.
 | 7 | ac-idle | ana 3/3 (+3) | gus 3/4 (+8) | hal 4/3 (+13) | no AC comment |
 | 8 | ac-busy | champ 5/3 (never) | ben 4/4 (+8) | dee 4/3 (+13) | AC +1 |
 | 9 | ac-busy | cal 3/2 (+3) | eli 3/2 (+8) | fay 4/1 (+13) | AC +1 |
-| 10 | ac-busy | gus 3/3 (+3) | hal 3/4, **35 words** (+8) | ana 4/3 (+13) | AC +1 |
+| 10 | ac-busy | gus 3/3 (+3) | hal 3/4, **35 words**, rated `short` by gus and ana (+8) | ana 4/3 (+13) | AC +1 |
 | 11 | ac-normal | ben 2/3 | cal 2/4 | dee 2/3 | reviewers never; AC +1, +12; response by author11 2030-02-09 12:00 |
 | 12 | ac-normal | silent 1→2 day +5 12:00 (never) | eli 4/4 (+8) | hal 4/3 (+13) | AC +1 |
+| 13 | ac-normal | fay 3/3 (+3) | hal 3/4, rated `disrespectful` by ac-normal and `short` by fay (+8) | ben 4/3 (+13) | AC +1 |
+
+Ratings are `rate` events on discussion day +2 (10:00, 11:00). Expected
+counts are in `expected.ts` `RATINGS`.
 
 Scores are merit/expertise (`OveMer`/`RevExp`). Names: `r-<name>@example.org`
 (`r-silent` is tagged `junior`, `r-recip` `reciprocal`), ACs

@@ -210,7 +210,16 @@ export function Report({ meta }: { meta: MetaResponse }) {
         </div>
       </Section>
 
-      <Section title="Review ratings by tier" testId="report-ratings" intro="Reviews carrying each HotCRP review rating (a review counts once per rating).">
+      <Section
+        title="Review-rating flags by tier"
+        testId="report-ratings"
+        intro="HotCRP review-rating flags received by submitted reviews: flags in all (each rater's flag counts once), and per review."
+      >
+        {!r.ratings.enabled ? (
+          <p className="muted" data-testid="ratings-off">
+            Review ratings are off in HotCRP, so there is nothing to show.
+          </p>
+        ) : (
         <table className="mini">
           <thead>
             <tr>
@@ -229,14 +238,16 @@ export function Report({ meta }: { meta: MetaResponse }) {
                 <td className="num">{num(d.reviews)}</td>
                 <td className="num">{num(d.rated)}</td>
                 {r.ratings.names.map((n) => (
-                  <td key={n} className="num">
+                  <td key={n} className="num" title={d.perReview ? `${d.perReview[n]} per review` : undefined}>
                     {num(d.counts?.[n])}
+                    {d.perReview ? <span className="muted"> ({d.perReview[n]}/review)</span> : null}
                   </td>
                 ))}
               </Row>
             ))}
           </tbody>
         </table>
+        )}
       </Section>
 
       <Section title="Score agreement by tier" testId="report-agreement" intro="Mean absolute deviation of a merit from its paper's mean (papers with 2+ merits), and how often merits sit on the final decision's side.">

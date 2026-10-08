@@ -22,10 +22,11 @@ test.beforeEach(async ({ page }) => {
 
 test("the triage list is ordered by severity computed from the golden table, ties by pid", async ({ page }) => {
   const want = expectedTriage(meta);
-  // The top rows exactly, with their severities: 5 (7), 4 (5), then the 3s by pid.
-  expect(want.slice(0, 5).map((r) => [r.pid, r.severity])).toEqual([
+  // The top rows exactly, with their severities: 5 (7), 4 (5), 13 (4: REVIEW_FLAGGED), then the 3s by pid.
+  expect(want.slice(0, 6).map((r) => [r.pid, r.severity])).toEqual([
     [5, 7],
     [4, 5],
+    [13, 4],
     [2, 3],
     [3, 3],
     [12, 3],
@@ -47,6 +48,11 @@ test("each row shows exactly its golden reason chips, with the reason on hover; 
   const unresolved = row(page, 4).locator('[data-rule="UNRESOLVED_SPLIT"]');
   await expect(unresolved).toHaveAttribute("title", /^scores 2\/4\/4; no movement since discussion opened 14\.5 days ago/);
   await expect(row(page, 1).getByTestId("scores")).toHaveText("3/3/4");
+  // Rating-based reasons quote the counts.
+  const flagged = row(page, 13).locator('[data-rule="REVIEW_FLAGGED"]');
+  await expect(flagged).toHaveText("Flagged review");
+  await expect(flagged).toHaveAttribute("title", "1 review rated disrespectful or wrong: review B: 1× short, 1× disrespectful");
+  await expect(row(page, 10).locator('[data-rule="THIN_REVIEWS"]')).toHaveAttribute("title", /review B: 35 words, 2× short$/);
   await expect(row(page, 2).getByTestId("scores")).toContainText("(2/3)");
 });
 
@@ -70,7 +76,7 @@ test("filters by AC, rule and tier", async ({ page }) => {
   await page.getByTestId("filter-rule").selectOption("");
   await page.getByTestId("filter-tier").selectOption("reciprocal");
   await expect.poll(() => rowPids(page)).toEqual([2]);
-  await expect(page.getByTestId("triage-count")).toHaveText("1 of 12 papers");
+  await expect(page.getByTestId("triage-count")).toHaveText("1 of 13 papers");
   // Filters live in the URL, so a filtered view deep-links.
   await page.goto("/?rule=AC_ABSENT");
   await expect.poll(() => rowPids(page)).toEqual([5, 7]);

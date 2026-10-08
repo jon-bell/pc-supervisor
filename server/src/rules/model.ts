@@ -15,8 +15,11 @@
 //   PersonView   <- person
 //   AcView       <- the paper's area chairs per PCS_AC_ROLE (default `meta`:
 //                   holders of an rtype 5 review on that paper)
-//   ReviewView   <- review (+ review_version rows as `versions`, + ratings)
+//   ReviewView   <- review (+ review_version rows as `versions`, + ratings
+//                   as counts per flag)
 //   CommentView  <- comment (deleted comments are left out by the adapter)
+
+import type { RatingCounts } from "../ratings.js";
 
 /** Epoch milliseconds. */
 export type Millis = number;
@@ -84,9 +87,12 @@ export interface ReviewView {
   expertise: number | null;
   /** Words across the review's text fields (current version). */
   wordCount: number;
-  /** From /reviewrating: true if any rating marks the review short / vague. */
-  ratedShort: boolean;
-  ratedVague: boolean;
+  /**
+   * HotCRP review ratings as raters per flag ({short: 2, vague: 1}; spec §1,
+   * ratings.ts). Empty when unrated, and when ratings are off (then
+   * SnapshotView.ratingsEnabled is false).
+   */
+  ratings: RatingCounts;
   /** HotCRP modified_at, or null when HotCRP omits it (spec §1). */
   modifiedAt: Millis | null;
   firstSeenAt: Millis;
@@ -125,4 +131,11 @@ export interface SnapshotView {
   acs: readonly AcView[];
   reviews: readonly ReviewView[];
   comments: readonly CommentView[];
+  /**
+   * False when the instance has review ratings off (HotCRP `review_rating:
+   * no`): the rating-based signals (THIN_REVIEWS' rating clause,
+   * REVIEW_FLAGGED, reviewer rating flags) are then hidden, not zero.
+   * Absent = enabled (HotCRP's default).
+   */
+  ratingsEnabled?: boolean;
 }
