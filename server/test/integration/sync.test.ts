@@ -146,7 +146,7 @@ describe("M3 store + sync against the harness", () => {
       complete: true,
       scores: expect.objectContaining({ OveMer: 2, RevExp: 3 }),
       wordCount: 4 + 5,
-      ratings: ["short"],
+      ratings: { short: 1 },
       firstSeenApprox: true,
     });
     // Present at the first sync: first_seen_at is HotCRP's modified_at.

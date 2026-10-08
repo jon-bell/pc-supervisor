@@ -42,8 +42,8 @@ function world(over: Partial<SnapshotView> = {}): SnapshotView {
       review({ rid: 11, pid: 1, email: P.s1 }),
       review({ rid: 12, pid: 1, email: P.j1, words: 90, ordinal: "B" }),
       empty(13, 1, P.r1),
-      review({ rid: 21, pid: 2, email: P.s2, ratedVague: true }),
-      review({ rid: 22, pid: 2, email: P.j1, ratedShort: true, ordinal: "C" }),
+      review({ rid: 21, pid: 2, email: P.s2, ratings: { vague: 1 } }),
+      review({ rid: 22, pid: 2, email: P.j1, ratings: { short: 1 }, ordinal: "C" }),
       empty(23, 2, P.r2),
       review({ rid: 31, pid: 3, email: P.s1 }),
       review({ rid: 32, pid: 3, email: P.r1, words: 60, submittedAt: DUE + DAY_MS }),
@@ -169,7 +169,7 @@ describe("reserve accountability, coaching, withholding", () => {
     const r = report(world(), "2030-02-03T12:00");
     expect(r.coaching.rows.map((c) => [c.pid, c.person.email, c.reason, c.hotcrpPath])).toEqual([
       [1, P.j1, "90 words, under the coaching floor of 150", "/review/1B"],
-      [2, P.j1, "250 words; rated short", "/review/2C"],
+      [2, P.j1, "250 words; rated 1× short", "/review/2C"],
     ]);
     expect(report(world(), "2030-02-03T12:00", { coachMinWords: 80 }).coaching.rows.map((c) => c.pid)).toEqual([2]);
     expect(hotcrpReviewPath({ pid: 4, rid: 77, ordinal: null })).toBe("/review?p=4&r=77");

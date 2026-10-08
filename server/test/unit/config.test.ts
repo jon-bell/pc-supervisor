@@ -54,6 +54,7 @@ describe("loadConfig defaults", () => {
       LOW_EXPERTISE: 2,
       THIN_REVIEWS: 1,
       RESPONSE_UNADDRESSED: 2,
+      REVIEW_FLAGGED: 4,
       DEADLINE_NO_CONSENSUS: 3,
     });
     expect(c.rules.thresholds).toEqual({
@@ -63,6 +64,8 @@ describe("loadConfig defaults", () => {
       PING_DAYS: 3,
       MIN_WORDS: 150,
       DEADLINE_DAYS: 3,
+      RATING_RATERS: 2,
+      FLAGGED_PAPERS: 2,
     });
   });
 

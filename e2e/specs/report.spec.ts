@@ -24,7 +24,11 @@ test.describe("Process report", () => {
     for (const id of ["report-totals", "report-depth", "report-timeliness", "report-merits", "report-ratings", "report-agreement", "report-reserve", "report-early-reject", "report-quick-reject", "report-dni", "report-export"]) {
       await expect(page.getByTestId(id)).toBeVisible();
     }
-    await expect(page.getByTestId("total-papers").locator(".stat-value")).toHaveText("12");
+    await expect(page.getByTestId("total-papers").locator(".stat-value")).toHaveText("13");
+    // Rating-flag distribution: the senior tier received golden's 3× short and 1× disrespectful.
+    const ratings = page.locator('[data-testid="rating-row"][data-tier="senior"]');
+    await expect(ratings).toContainText("3 (");
+    await expect(page.getByTestId("report-ratings").locator("th")).toContainText(["short", "disrespectful"]);
     const depth = (tier: string) => page.locator(`[data-testid="depth-row"][data-tier="${tier}"]`);
     await expect(depth("senior")).toHaveAttribute("data-suppressed", "0");
     await expect(depth("junior")).toHaveAttribute("data-suppressed", "1");

@@ -130,6 +130,7 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 - **AC-busy** holds pids 1, 3, 4, 8, 9, and 10: 6 papers, 5 flagged, commenting on all of them.
 - **AC-idle** holds pids 5 and 7: 2 papers, 0 comments, both flagged.
 - **AC-normal** holds pids 2, 6, 11, 12, and 13.
+- **R-hal** wrote the flagged reviews on 10 and 13 (negative rating flags on two papers), so Hal is the one entry in the "repeatedly flagged" reviewer list.
 - The pid 2 laggard is tagged `reciprocal`. R-silent is tagged `junior`. Everyone else is senior.
 
 Changing this table means changing the M3 and M4 tests in the same PR.
@@ -174,7 +175,7 @@ Changing this table means changing the M3 and M4 tests in the same PR.
 
 - **Scope:**
   - The AC table (coverage, time to first post, nudges, stale, metareview status, load vs. flagged, sparkline).
-  - Reviewer outlier lists (silent on split papers, unanswered pings, late, thin), split by tier.
+  - Reviewer outlier lists (silent on split papers, unanswered pings, late, thin, repeatedly rating-flagged), split by tier.
   - The person page.
   - The overview with the no-consensus burndown.
   - The wording rules from spec §7, enforced by a test that greps the UI strings for "disengaged", "absent", and "lazy".

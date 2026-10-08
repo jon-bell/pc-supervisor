@@ -83,7 +83,7 @@ describe("buildSnapshot", () => {
       merit: 3,
       expertise: 3,
       wordCount: 3 + 4,
-      ratedShort: false,
+      ratings: {},
       modifiedAt: (s(T2) - 3600) * 1000,
       firstSeenAt: 1_890_000_012_000,
     });
@@ -91,7 +91,14 @@ describe("buildSnapshot", () => {
       { seenAt: 1_890_000_012_000, merit: 2, expertise: 3, status: "complete" },
       { seenAt: (s(T2) - 3600) * 1000, merit: 3, expertise: 3, status: "complete" },
     ]);
-    expect(v.reviews.find((r) => r.rid === 13)).toMatchObject({ ratedShort: true, ratedVague: false });
+    expect(v.reviews.find((r) => r.rid === 13)).toMatchObject({ ratings: { short: 1 } });
+    expect(v.ratingsEnabled).toBe(true);
+    // Ratings off in HotCRP (synced settings): hidden, not zero.
+    store.db.prepare("insert into meta (key, value) values ('review_rating', 'no') on conflict(key) do update set value = 'no'").run();
+    const off = buildSnapshot(store, { fields: FIELDS, acRole: { kind: "meta" } });
+    expect(off.ratingsEnabled).toBe(false);
+    expect(off.reviews.find((r) => r.rid === 13)!.ratings).toEqual({});
+    store.db.prepare("delete from meta where key = 'review_rating'").run();
     // Draft with null scores; metareview with no ordinal.
     expect(v.reviews.find((r) => r.rid === 22)).toMatchObject({ status: "draft", merit: null, expertise: null, firstCompleteSeenAt: null });
     expect(v.reviews.find((r) => r.rid === 11)).toMatchObject({ rtype: 5, status: "empty", merit: null, modifiedAt: null });
@@ -187,7 +194,8 @@ describe("buildSnapshot at scale", () => {
     expect(full.v.reviews.filter((r) => r.versions.length === 2).length).toBeGreaterThan(PAPERS / 3);
     const one = count([5]);
     expect(full.n).toBe(one.n);
-    expect(full.n).toBeLessThanOrEqual(6);
+    // One per view array, plus the rating setting (meta).
+    expect(full.n).toBeLessThanOrEqual(7);
     console.log(`buildSnapshot: ${PAPERS} papers, ${full.v.reviews.length} reviews, ${full.v.comments.length} comments in ${full.ms.toFixed(0)} ms (${full.n} statements)`);
     // Generous bound (CI machines vary).
     expect(full.ms).toBeLessThan(5000);

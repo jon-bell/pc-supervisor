@@ -21,7 +21,7 @@ export const OUTLIER_LABELS: Readonly<Record<OutlierListId, { label: string; bar
   },
   flagged: {
     label: "Repeatedly flagged reviews",
-    bar: (t) => `review-rating flags other than "good" on their reviews of at least ${t.FLAGGED_PAPERS} different papers`,
+    bar: (t) => `at least ${t.FLAGGED_PAPERS} different papers where a review of theirs drew a review-rating flag other than "good"`,
   },
 };
 

@@ -377,9 +377,14 @@ class StageRunner {
   }
 
   async stage(s: number): Promise<void> {
-    const events = timedEvents(this.scenario, this.sc.ctx, s);
+    const all = timedEvents(this.scenario, this.sc.ctx, s);
+    // Ratings carry no HotCRP timestamp, so nothing is warped for them: they
+    // go last, one at a time in time order, once every review of the stage
+    // (theirs and their raters') is submitted.
+    const events = all.filter((te) => te.event.type !== "rate");
+    const rates = all.flatMap((te) => (te.event.type === "rate" ? [te.event] : []));
     const waves = planWaves(events);
-    this.log(`stage ${s}: ${events.length} events in ${waves.length} wave(s)`);
+    this.log(`stage ${s}: ${all.length} events in ${waves.length} wave(s)${rates.length ? ` + ${rates.length} rating(s)` : ""}`);
     // Replay up to the previous stage so comment edits know their mentions.
     const state = s > 1 ? replay(this.scenario, this.sc.ctx, s - 1) : undefined;
     const mentionsOf = new Map<string, string[]>();
@@ -394,6 +399,7 @@ class StageRunner {
       await this.wave(wave, mentionsOf, editCount, commentAuthor);
       this.log(`  wave ${i + 1}: ${wave.length} events (${((performance.now() - t0) / 1000).toFixed(1)} s)`);
     }
+    for (const e of rates) await this.writer.rate(e.pid, this.rid(e.pid, e.email), e.rater.toLowerCase(), e.flags);
   }
 
   private async wave(
@@ -491,6 +497,8 @@ class StageRunner {
         case "unassign":
           unassigns.push(`${e.pid},clearreview,${e.email}`);
           break;
+        case "rate":
+          throw new Error("seed: rate events are applied after the waves");
       }
     }
 

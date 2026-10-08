@@ -37,9 +37,7 @@ function fact(o: Partial<ReviewFact> & { email: string; tier: string }): ReviewF
     merit: 3,
     expertise: 3,
     words: 300,
-    ratedShort: false,
-    ratedVague: false,
-    ratings: [],
+    ratings: {},
     submittedAt: DUE - DAY_MS,
     assignedAfterDue: false,
     daysVsDue: -1,
@@ -95,7 +93,7 @@ describe("review facts", () => {
       review({ rid: 10, pid: 1, email: "ac@example.org", rtype: 5 }),
       review({ rid: 11, pid: 1, email: "s1@example.org", merit: 4, words: 400, rtype: 4 }),
       review({ rid: 12, pid: 1, email: "s2@example.org", merit: 2, words: 120, submittedAt: DUE + 2 * DAY_MS }),
-      review({ rid: 13, pid: 1, email: "j1@example.org", merit: 3, words: 90, ratedShort: true }),
+      review({ rid: 13, pid: 1, email: "j1@example.org", merit: 3, words: 90, ratings: { short: 2, vague: 1 } }),
       review({ rid: 21, pid: 2, email: "s1@example.org", merit: 1 }),
       review({ rid: 22, pid: 2, email: "j1@example.org", merit: 4 }),
       review({ rid: 31, pid: 3, email: "s2@example.org", merit: 2 }),
@@ -104,13 +102,13 @@ describe("review facts", () => {
     comments: [],
   };
   const ctx = contextAt("2030-03-10T12:00");
-  const facts = reviewFacts(indexSnapshot(s), ctx, { approxRids: new Set(), ratings: new Map([[13, ["short", "vague"]]]), acceptDecisions: ["accept"] });
+  const facts = reviewFacts(indexSnapshot(s), ctx, { approxRids: new Set(), acceptDecisions: ["accept"] });
   const f = (rid: number) => facts.find((x) => x.rid === rid)!;
 
   it("leaves out metareviews and the AC's own reviews; tiers from people", () => {
     expect(facts.map((x) => x.rid)).toEqual([11, 12, 13, 21, 22, 31, 32]);
     expect(f(13).tier).toBe("junior");
-    expect(f(13).ratings).toEqual(["short", "vague"]);
+    expect(f(13).ratings).toEqual({ short: 2, vague: 1 });
   });
 
   it("paper mean and deviation over the paper's submitted reviewer merits (2+)", () => {
@@ -140,9 +138,9 @@ describe("review facts", () => {
 
   it("a review first seen after the deadline is a replacement, never late; one from the first sync is", () => {
     const late = { ...s, reviews: [...s.reviews, { ...review({ rid: 40, pid: 3, email: "s1@example.org", submittedAt: DUE + DAY_MS }), firstSeenAt: DUE + 1000 }] };
-    const r = reviewFacts(indexSnapshot(late), ctx, { approxRids: new Set(), ratings: new Map(), acceptDecisions: ["accept"] }).find((x) => x.rid === 40)!;
+    const r = reviewFacts(indexSnapshot(late), ctx, { approxRids: new Set(), acceptDecisions: ["accept"] }).find((x) => x.rid === 40)!;
     expect(r).toMatchObject({ assignedAfterDue: true, late: false });
-    const r2 = reviewFacts(indexSnapshot(late), ctx, { approxRids: new Set([40]), ratings: new Map(), acceptDecisions: ["accept"] }).find((x) => x.rid === 40)!;
+    const r2 = reviewFacts(indexSnapshot(late), ctx, { approxRids: new Set([40]), acceptDecisions: ["accept"] }).find((x) => x.rid === 40)!;
     expect(r2).toMatchObject({ assignedAfterDue: false, late: true });
   });
 
@@ -209,18 +207,22 @@ describe("merit distribution", () => {
   });
 });
 
-describe("review ratings", () => {
-  it("counts reviews per rating name (a name twice on one review counts once)", () => {
-    const facts = [
-      fact({ email: "s1@example.org", tier: "senior", ratings: ["short", "short"], rid: 1 }),
-      fact({ email: "s2@example.org", tier: "senior", ratings: ["vague", "short"], rid: 2 }),
-      ...[3, 4, 5].map((i) => fact({ email: `s${i}@example.org`, tier: "senior", rid: i })),
-      fact({ email: "s5@example.org", tier: "senior", ratings: ["disrespectful"], submitted: false, rid: 6 }),
-    ];
-    const { names, rows } = ratingsByTier(facts, ["senior"], 5);
+describe("review-rating flags", () => {
+  const facts = [
+    fact({ email: "s1@example.org", tier: "senior", ratings: { short: 2 }, rid: 1 }),
+    fact({ email: "s2@example.org", tier: "senior", ratings: { short: 1, vague: 1 }, rid: 2 }),
+    ...[3, 4, 5].map((i) => fact({ email: `s${i}@example.org`, tier: "senior", rid: i })),
+    fact({ email: "s5@example.org", tier: "senior", ratings: { disrespectful: 1 }, submitted: false, rid: 6 }),
+  ];
+  it("sums flags received (the multiset counts) per tier, and per review", () => {
+    const { enabled, names, rows } = ratingsByTier(facts, ["senior"], 5);
+    expect(enabled).toBe(true);
     expect(names).toEqual(["short", "vague"]);
-    expect(rows[0]).toMatchObject({ reviews: 5, rated: 2, counts: { short: 2, vague: 1 } });
-    expect(rows[0]!.reason).toBe("2 of 5 submitted reviews rated: short 2, vague 1");
+    expect(rows[0]).toMatchObject({ reviews: 5, rated: 2, counts: { short: 3, vague: 1 }, perReview: { short: 0.6, vague: 0.2 } });
+    expect(rows[0]!.reason).toBe("2 of 5 submitted reviews rated; flags received: 3× short (0.6/review), 1× vague (0.2/review)");
+  });
+  it("shows nothing when ratings are off", () => {
+    expect(ratingsByTier(facts, ["senior"], 5, false)).toEqual({ enabled: false, names: [], rows: [] });
   });
 });
 

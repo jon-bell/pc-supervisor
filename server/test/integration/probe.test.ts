@@ -50,7 +50,7 @@ beforeAll(async () => {
 
 describe("pcs probe against the harness", () => {
   it("reaches every endpoint and every schema passes", () => {
-    expect(rep.endpoints.length).toBe(11);
+    expect(rep.endpoints.length).toBe(12);
     for (const e of rep.endpoints) {
       expect(e, e.name).toMatchObject({ reachable: true, schema: "pass", schemaIssues: [] });
     }
@@ -65,6 +65,9 @@ describe("pcs probe against the harness", () => {
     expect(rep.comments?.total).toBeGreaterThanOrEqual(1);
     expect(rep.assignments?.byAction.map(([a]) => a)).toContain("metareview");
     expect(rep.history.sampled).toBe(true);
+    // Review ratings: the settings, and how many reviews carry ratings (counts only).
+    expect(rep.ratings).toMatchObject({ setting: "pc", visibility: "limited" });
+    expect(rep.ratings?.reviewsRated).toBeGreaterThanOrEqual(0);
   });
 
   it("finds the default review form and its scales", () => {
@@ -91,7 +94,7 @@ describe("pcs probe against the harness", () => {
     });
     expect(r.stderr).toBe("");
     expect(r.status).toBe(0);
-    expect(r.stdout).toMatch(/Endpoints reachable: 11\/11/);
+    expect(r.stdout).toMatch(/Endpoints reachable: 12\/12/);
     expectNoContent(r.stdout);
   });
 });

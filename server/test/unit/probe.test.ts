@@ -95,6 +95,7 @@ function sentinelApi(override: Handler = () => undefined): Handler {
           headers: { "content-type": "text/csv" },
         });
       case "settings":
+        if (p.get("filter") !== "rf") return json({ ok: true, settings: { review_rating: "pc", review_rating_visibility: "limited" } });
         return json({ ok: true, settings: { rf: [{ id: "s01", name: "Overall merit", type: "radio", order: 1, values: [1, 2, 3, 4, 5].map((i) => ({ id: i, symbol: i, name: `L${i}` })) }] } });
       case "search":
         if (!p.has("f")) return json({ ok: true, ids: [1, 2], search_params: `q=all&t=${p.get("t")}` });
@@ -114,7 +115,7 @@ function sentinelApi(override: Handler = () => undefined): Handler {
           reviews: [
             review(11, { modified_at: 1890000000, [S.oddKey]: S.reviewText }),
             review(12, { rtype: 2, status: "draft", OveMer: 1, PapSum: S.reviewWord }),
-            review(13, { rtype: 1, OveMer: S.pseudoScore }),
+            review(13, { rtype: 1, OveMer: S.pseudoScore, ratings: ["short", "short", "wrong"] }),
           ],
         });
       case "comments":
@@ -194,6 +195,7 @@ describe("pcs probe: no content", () => {
     const merit = rep.form.find((f) => f.uid === "OveMer")!;
     expect(merit.observed).toMatchObject({ present: 3, numeric: 2, min: 1, max: 4, otherStrings: 1 });
     expect(merit.settingsId).toBe("s01");
+    expect(rep.ratings).toEqual({ setting: "pc", visibility: "limited", reviewsRated: 1, flags: [["short", 2], ["wrong", 1]] });
     expect(rep.history).toMatchObject({ sampled: true, versions: 2, objects: [["review", 1], ["review_delta", 1]] });
     const reviewShape = rep.shapes.find((s) => s.name === "reviews[]")!.shape;
     expect(reviewShape.otherKeys).toBe(1);
@@ -225,7 +227,7 @@ describe("pcs probe: no content", () => {
 describe("pcs probe: GET only", () => {
   it("sends only GET or POST-as-GET requests, to the configured host", async () => {
     const r = await run([]);
-    expect(r.seen.length).toBe(11);
+    expect(r.seen.length).toBe(12);
     for (const s of r.seen) {
       expect(isReadRequest(s.method, s.url)).toBe(true);
       expect(s.url.origin).toBe("http://127.0.0.1:8080");
@@ -269,7 +271,7 @@ describe("pcs probe: drift and failures", () => {
     const api = sentinelApi((path) => (path === "settings" ? new Response("{}", { status: 404 }) : undefined));
     const r = await run(["--json"], api);
     expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/1 of 11 endpoints failed: GET \/settings\?filter=rf/);
+    expect(r.stderr).toMatch(/2 of 12 endpoints failed: GET \/settings\?filter=rf, GET \/settings \(review ratings\)/);
     expect(JSON.parse(r.stdout).endpoints.find((e: { name: string }) => e.name.startsWith("GET /settings")).status).toBe(404);
   });
 

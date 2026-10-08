@@ -191,7 +191,7 @@ describe("the export", () => {
   it("a tier name that isn't a plain token never reaches a file", () => {
     const ps = pseudonymizer(KEY);
     const fact = (email: string, tier: string): ReviewFact => ({
-      pid: 1, rid: 1, email, tier, rtype: 2, submitted: true, merit: 3, expertise: 3, words: 200, ratedShort: false, ratedVague: false, ratings: [],
+      pid: 1, rid: 1, email, tier, rtype: 2, submitted: true, merit: 3, expertise: 3, words: 200, ratings: {},
       submittedAt: 0, assignedAfterDue: false, daysVsDue: -1, late: false, paperMean: null, absDev: null, side: null, onSide: null,
     });
     const facts = ["a", "b"].map((x) => fact(`${x}@example.org`, "Eve Senior's tier"));

@@ -226,20 +226,66 @@ describe("LOW_EXPERTISE", () => {
 describe("THIN_REVIEWS", () => {
   it("fires below PCS_THRESH_MIN_WORDS", () => {
     expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{}, { words: 35 }]) }))).toBe(
-      "1 of 3 reviews thin (min 150 words): B: 35 words",
+      "1 of 3 reviews thin (min 150 words, or short/vague from 2+ raters): review B: 35 words",
     );
   });
   it("boundary: 149 words fires, 150 doesn't", () => {
     expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ words: 149 }]) }))).not.toBeNull();
     expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ words: 150 }]) }))).toBeNull();
   });
-  it("fires on short/vague ratings regardless of length", () => {
-    expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ ratedVague: true }, { ratedShort: true }]) }))).toBe(
-      "2 of 3 reviews thin (min 150 words): A: rated vague; B: rated short",
+  it("fires on short or vague from >= PCS_THRESH_RATING_RATERS raters, regardless of length, quoting the counts", () => {
+    expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ ratings: { vague: 2 } }, { ratings: { short: 3, vague: 1 } }]) }))).toBe(
+      "2 of 3 reviews thin (min 150 words, or short/vague from 2+ raters): review A: 2× vague; review B: 3× short",
+    );
+    expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{}, { words: 35, ratings: { short: 2 } }]) }))).toBe(
+      "1 of 3 reviews thin (min 150 words, or short/vague from 2+ raters): review B: 35 words, 2× short",
+    );
+  });
+  it("boundary: one rater is not enough, and flags don't add up across short and vague", () => {
+    expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ ratings: { short: 1 } }]) }))).toBeNull();
+    expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ ratings: { short: 1, vague: 1 } }]) }))).toBeNull();
+    expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ ratings: { needswork: 5, disrespectful: 2 } }]) }))).toBeNull();
+    const one = contextAt(MID.now, { PCS_THRESH_RATING_RATERS: "1" });
+    expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ ratings: { short: 1 } }]) }), one)).toMatch(/review A: 1× short$/);
+  });
+  it("with ratings off, only word count counts", () => {
+    const off = { ...MID, ratingsEnabled: false };
+    expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ ratings: { short: 3 } }]) }), off)).toBeNull();
+    expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ words: 35, ratings: { short: 3 } }]) }), off)).toBe(
+      "1 of 3 reviews thin (min 150 words): review A: 35 words",
     );
   });
   it("ignores unsubmitted reviews", () => {
     expect(run(R.thinReviews, bundle({ reviews: three([3, 3, 4], [{ status: "draft", words: 10 }]) }))).toBeNull();
+  });
+});
+
+describe("REVIEW_FLAGGED", () => {
+  it("fires on a disrespectful or wrong rating, quoting the review's counts", () => {
+    expect(run(R.reviewFlagged, bundle({ reviews: three([3, 3, 4], [{}, { ratings: { short: 1, disrespectful: 1 } }]) }))).toBe(
+      "1 review rated disrespectful or wrong: review B: 1× short, 1× disrespectful",
+    );
+    expect(run(R.reviewFlagged, bundle({ reviews: three([3, 3, 4], [{ ratings: { wrong: 2 } }, {}, { ratings: { disrespectful: 1 } }]) }))).toBe(
+      "2 reviews rated disrespectful or wrong: review A: 2× wrong; review C: 1× disrespectful",
+    );
+  });
+  it("does not fire on other flags, however many", () => {
+    expect(run(R.reviewFlagged, bundle({ reviews: three([3, 3, 4], [{ ratings: { short: 3, vague: 2, needswork: 2, narrow: 1, good: 4 } }]) }))).toBeNull();
+    expect(run(R.reviewFlagged, bundle())).toBeNull();
+  });
+  it("boundary: a single rater is enough", () => {
+    expect(run(R.reviewFlagged, bundle({ reviews: three([3, 3, 4], [{ ratings: { wrong: 1 } }]) }))).not.toBeNull();
+  });
+  it("counts the AC's metareview too", () => {
+    const rs = [...three(), review({ rid: 9, pid: 1, email: AC, rtype: 5, merit: null, ordinal: "D", ratings: { disrespectful: 1 } })];
+    expect(run(R.reviewFlagged, bundle({ reviews: rs }))).toBe("1 review rated disrespectful or wrong: review D (AC): 1× disrespectful");
+  });
+  it("fires in any phase (before discussion opens)", () => {
+    const early = contextAt("2030-01-28T12:00");
+    expect(run(R.reviewFlagged, bundle({ reviews: three([3, 3, 4], [{ ratings: { disrespectful: 1 } }]) }), early)).not.toBeNull();
+  });
+  it("is hidden when ratings are off", () => {
+    expect(run(R.reviewFlagged, bundle({ reviews: three([3, 3, 4], [{ ratings: { wrong: 1 } }]) }), { ...MID, ratingsEnabled: false })).toBeNull();
   });
 });
 
@@ -314,5 +360,12 @@ describe("evaluator", () => {
   it("a decided paper fires nothing", () => {
     const r = evaluatePaper({ ...messy(), paper: paper(1, { decision: "Reject", decisionSeenAt: day(1) }) }, MID);
     expect(r).toMatchObject({ severity: 0, fired: [] });
+  });
+  it("except REVIEW_FLAGGED: a decided paper with a disrespectful review still needs the chair", () => {
+    const reviews = three([2, 3, 5], [{ words: 35, ratings: { short: 2 } }, { ratings: { disrespectful: 1 } }]);
+    const r = evaluatePaper({ ...messy(), reviews, paper: paper(1, { decision: "Reject", decisionSeenAt: day(1) }) }, MID);
+    expect(r.fired.map((f) => f.rule)).toEqual(["REVIEW_FLAGGED"]);
+    expect(r.severity).toBe(4);
+    expect(contextAt(MID.now, { PCS_RULE_REVIEW_FLAGGED_WEIGHT: "7" }).weights.REVIEW_FLAGGED).toBe(7);
   });
 });

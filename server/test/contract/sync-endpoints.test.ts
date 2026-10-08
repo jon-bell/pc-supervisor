@@ -27,12 +27,14 @@ beforeAll(async () => {
     { key: "shep", first: "Sam", last: `Shep${seed.run}` },
     { key: "t1", first: "Tia", last: `Tagged${seed.run}`, tags: [tag] },
     { key: "u1", first: "Uma", last: `Untagged${seed.run}` },
+    { key: "v1", first: "Vic", last: `Voter${seed.run}` },
   ]);
   pid = await seed.nextPid();
   seed.savePapers([{ pid, title: `Contract paper ${seed.run}` }]);
   seed.assign([
     [pid, "primary", "t1"],
     [pid, "primary", "u1"],
+    [pid, "secondary", "v1"],
     [pid, "lead", "lead"],
     [pid, "shepherd", "shep"],
   ]);
@@ -42,6 +44,7 @@ beforeAll(async () => {
   // A PC reviewer sees (and can rate) others' reviews once theirs is in.
   await seed.submitReview(pid, "u1", { OveMer: 3, RevExp: 3, PapSum: "u", ComAut: "u" });
   await seed.rate(pid, rid1, "u1", "vague");
+  await seed.submitReview(pid, "v1", { OveMer: 3, RevExp: 3, PapSum: "v", ComAut: "v" });
 }, 120_000);
 
 describe("get/lead, get/shepherd", () => {
@@ -81,7 +84,24 @@ describe("/reviews ratings", () => {
     const rs = await client.reviews({ q: String(pid), t: "all" });
     const r = rs.find((x) => x.rid === rid1)!;
     expect(r.ratings).toBe("vague");
-    expect(rs.find((x) => x.rid !== rid1)!.ratings).toBeUndefined();
+    expect(rs.filter((x) => x.rid !== rid1).every((x) => x.ratings === undefined)).toBe(true);
+  });
+
+  it("are a sorted multiset over raters, with no vtag or timestamp change", async () => {
+    const before = (await client.reviews({ q: String(pid), t: "all" })).find((x) => x.rid === rid1)!;
+    await seed.rate(pid, rid1, "v1", "vague short");
+    const after = (await client.reviews({ q: String(pid), t: "all" })).find((x) => x.rid === rid1)!;
+    expect(after.ratings).toEqual(["short", "vague", "vague"]);
+    expect(after.version).toBe(before.version);
+    expect(after.modified_at).toBe(before.modified_at);
+    // The per-review endpoint agrees (chairs see the aggregate, no rater identity).
+    expect((await client.reviewRating(pid, rid1)).ratings).toEqual(["short", "vague", "vague"]);
+  });
+
+  it("the rating settings come from GET /settings", async () => {
+    const s = await client.ratingSettings();
+    expect(s.settings.review_rating).toMatch(/^(pc|all|no)$/);
+    expect(s.settings.review_rating_visibility).toMatch(/^(limited|yes|no)$/);
   });
 });
 

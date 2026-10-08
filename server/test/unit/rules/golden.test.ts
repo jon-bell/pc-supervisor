@@ -36,15 +36,17 @@ describe(`golden at ${GOLDEN_NOW}`, () => {
       "top merit 5 (1 reviewer); no comment from that reviewer since discussion opened",
     );
     expect(reason(9, "LOW_EXPERTISE")).toBe("expertise 2/2/1; none >= 3");
-    expect(reason(10, "THIN_REVIEWS")).toBe("1 of 3 reviews thin (min 150 words): B: 35 words");
+    expect(reason(10, "THIN_REVIEWS")).toBe("1 of 3 reviews thin (min 150 words, or short/vague from 2+ raters): review B: 35 words, 2× short");
+    expect(reason(13, "REVIEW_FLAGGED")).toBe("1 review rated disrespectful or wrong: review B: 1× short, 1× disrespectful");
     expect(reason(11, "RESPONSE_UNADDRESSED")).toBe("author response posted 17 days ago; 0 reviewer comments since");
   });
 
   it("orders triage by severity, then pid", () => {
-    const top = a.evaluation.results.slice(0, 4).map((r) => [r.pid, r.severity]);
+    const top = a.evaluation.results.slice(0, 5).map((r) => [r.pid, r.severity]);
     expect(top).toEqual([
       [5, 7],
       [4, 5],
+      [13, 4],
       [2, 3],
       [3, 3],
     ]);
@@ -114,8 +116,16 @@ describe("golden people facts", () => {
     expect(i.load).toBeLessThan(ac(E.acBusy).load);
   });
 
-  it("AC-normal holds 2, 6, 11, 12", () => {
-    expect(ac(E.acNormal).pids).toEqual([2, 6, 11, 12]);
+  it("AC-normal holds 2, 6, 11, 12, 13", () => {
+    expect(ac(E.acNormal).pids).toEqual([2, 6, 11, 12, 13]);
+    expect(ac(E.acNormal).flaggedPids).toEqual([2, 6, 11, 12, 13]);
+  });
+
+  it("Hal is repeatedly flagged (10: 2x short; 13: short + disrespectful); nobody else is", () => {
+    expect(rev(E.hal).ratings).toMatchObject({ received: { short: 3, disrespectful: 1 }, negative: 4, good: 0, negativePids: [10, 13], repeated: true });
+    expect(a.outliers.flagged).toEqual({ senior: [expect.objectContaining({ email: E.hal, count: 2, pids: [10, 13] })] });
+    // Only the 35-word, 2x-short review is thin; pid 13's single short flag is under the bar.
+    expect(rev(E.hal).depth).toMatchObject({ thin: 1, ratedThin: 1, flaggedPids: [10] });
   });
 
   it("the pid 2 laggard is reciprocal and late", () => {
@@ -134,7 +144,7 @@ describe("golden people facts", () => {
   it("burndown: papers without consensus are 3, 4, 12 now", () => {
     const last = a.burndown.at(-1)!;
     expect(last.t).toBe(ctx.now);
-    expect(last.undecided).toBe(11);
+    expect(last.undecided).toBe(12);
     expect(last.noConsensus).toBe(3);
   });
 });

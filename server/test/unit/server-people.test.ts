@@ -74,14 +74,14 @@ describe("GET /api/acs", () => {
 });
 
 describe("GET /api/reviewers", () => {
-  it("returns the four outlier lists, each split by every configured tier", async () => {
+  it("returns the five outlier lists, each split by every configured tier", async () => {
     const r = await json<ReviewersResponse>("/api/reviewers");
     expect(r.tiers).toEqual(["senior", "junior", "reciprocal"]);
-    expect(r.lists.map((l) => l.id)).toEqual(["silentOnSplit", "unansweredPings", "late", "thin"]);
+    expect(r.lists.map((l) => l.id)).toEqual(["silentOnSplit", "unansweredPings", "late", "thin", "flagged"]);
     for (const l of r.lists) {
       expect(l.byTier.map((g) => g.tier)).toEqual(r.tiers);
       expect(l.total).toBe(l.byTier.reduce((n, g) => n + g.entries.length, 0));
-      expect(l.bar).toMatch(/^at least 1 /);
+      expect(l.bar).toMatch(/^at least \d+ /);
     }
     const list = (id: string) => Object.fromEntries(r.lists.find((l) => l.id === id)!.byTier.map((g) => [g.tier, g.entries.map((e) => e.person.email)]));
     // Pid 1 is split; neither reviewer has commented since discussion opened.

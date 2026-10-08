@@ -292,8 +292,9 @@ export function replay(scenario: Scenario, ctx: PhaseContext, upToStage = scenar
         if (rater === r.email) fail(`${where}: nobody can rate their own review`);
         const p = people.get(rater);
         if (!p || !p.roles.includes("pc")) fail(`${where}: rater ${e.rater} is not on the PC`);
-        const own = state.reviews.get(reviewKey(e.pid, rater));
-        if (!own || own.removed) fail(`${where}: rater ${e.rater} has no review on paper ${e.pid} (raters are co-reviewers or the metareviewer)`);
+        const noReview = `${where}: rater ${e.rater} has no review on paper ${e.pid} (raters are co-reviewers or the metareviewer)`;
+        const own = state.reviews.get(reviewKey(e.pid, rater)) ?? fail(noReview);
+        if (own.removed) fail(noReview);
         if (own.role !== "metareview" && (own.status !== "complete" || own.submittedAt! >= t)) {
           fail(`${where}: rater ${e.rater} must submit their own review on ${e.pid} first`);
         }

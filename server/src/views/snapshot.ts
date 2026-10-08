@@ -1,8 +1,8 @@
 // Store -> rules adapter (PLAN M5): builds the rules engine's SnapshotView
 // (rules/model.ts) from the local store (store/README.md).
 //
-// Six statements, one per view array (papers, people, ACs, reviews, review
-// versions, comments). Each is a single indexed scan or join, whatever the
+// Seven statements: one per view array (papers, people, ACs, reviews, review
+// versions, comments), plus the rating setting. Each is a single indexed scan or join, whatever the
 // number of papers, so there is no per-paper or per-review query (no N+1).
 // Scores are pulled out of the JSON column in SQL (json_extract), and no
 // review or comment text is read: the view carries only counts and flags.

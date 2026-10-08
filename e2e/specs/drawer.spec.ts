@@ -39,6 +39,15 @@ test("paper 4's drawer shows the day +3 AC comment that @mentions R-pinged", asy
   await argosScreenshot(page, "paper-4-drawer");
 });
 
+test("paper 13's drawer shows the flagged review's rating counts and the REVIEW_FLAGGED reason", async ({ page }) => {
+  await page.goto("/papers/13");
+  const drawer = page.getByTestId("paper-drawer");
+  await expect(drawer.getByTestId("drawer-reasons").locator('[data-rule="REVIEW_FLAGGED"]')).toHaveText("Flagged review");
+  await expect(drawer.getByTestId("review-ratings")).toHaveText([" · rated 1× short, 1× disrespectful"]);
+  await page.goto("/papers/10");
+  await expect(page.getByTestId("paper-drawer").getByTestId("review-ratings")).toHaveText([" · rated 2× short"]);
+});
+
 test("drawers deep-link and show score changes, the response, and the decision", async ({ page }) => {
   await page.goto("/papers/3");
   const d3 = page.getByTestId("paper-drawer");

@@ -1,6 +1,7 @@
 // Small builders for rules-engine fixtures (synthetic data only).
 
 import { fixedClock } from "../../src/clock.js";
+import type { RatingCounts } from "../../src/ratings.js";
 import { loadConfig } from "../../src/config.js";
 import { ruleContextFromConfig, type RuleContext } from "../../src/rules/context.js";
 import type {
@@ -72,8 +73,8 @@ export interface ReviewOpts {
   submittedAt?: Millis;
   /** Merit changes after submission: [{at, to}]. */
   moves?: { at: Millis; merit?: number; expertise?: number }[];
-  ratedShort?: boolean;
-  ratedVague?: boolean;
+  /** Raters per rating flag. */
+  ratings?: RatingCounts;
   modifiedAt?: Millis | null;
 }
 
@@ -106,8 +107,7 @@ export function review(o: ReviewOpts): ReviewView {
     merit: submitted ? curMerit : null,
     expertise: submitted ? curExp : null,
     wordCount: submitted ? (o.words ?? 250) : 0,
-    ratedShort: o.ratedShort ?? false,
-    ratedVague: o.ratedVague ?? false,
+    ratings: o.ratings ?? {},
     modifiedAt: o.modifiedAt === undefined ? lastMod : o.modifiedAt,
     firstSeenAt: assignedAt,
     firstCompleteSeenAt: submitted ? subAt : null,

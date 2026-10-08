@@ -28,6 +28,13 @@ export const CommentsPostSchema = z.looseObject({
   status_list: z.array(ItemStatus.extend({ cid: z.number().optional() })),
 });
 
+export const RatingPostSchema = z.looseObject({
+  ok: z.boolean(),
+  ratings: z.union([z.string(), z.array(z.string())]).optional(),
+  user_rating: z.union([z.string(), z.array(z.string())]).optional(),
+  message_list: z.array(Message).optional(),
+});
+
 export class SeedApiError extends Error {
   constructor(message: string) {
     super(message);
@@ -107,6 +114,36 @@ export class SeedWriter {
     if (items.length === 0) return;
     const res = await this.post("reviews", { notify: "0" }, items, ReviewsPostSchema);
     if (res.status_list.length !== items.length) throw new SeedApiError(`POST /reviews: ${res.status_list.length} statuses for ${items.length} items`);
+  }
+
+  /**
+   * POST /{pid}/reviewrating?r=<rid>&actas=<rater>: the rater's flags on one
+   * review, form-encoded (`user_rating=short vague`), as harness-smoke.sh
+   * does. Checks that HotCRP recorded exactly those flags for the rater.
+   */
+  async rate(pid: number, rid: number, actas: string, flags: readonly string[]): Promise<void> {
+    const url = new URL(`${this.#base}/api/${pid}/reviewrating`);
+    for (const [k, v] of Object.entries({ r: String(rid), actas, pretty: "0" })) url.searchParams.set(k, v);
+    this.requests++;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.#token}`, Accept: "application/json" },
+      body: new URLSearchParams({ user_rating: flags.join(" ") }),
+      redirect: "manual",
+    });
+    const text = await res.text();
+    const clean = (s: string) => redact(s, [this.#token]);
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new SeedApiError(`POST /${pid}/reviewrating: HTTP ${res.status}, not JSON: ${clean(text.slice(0, 300))}`);
+    }
+    const p = RatingPostSchema.safeParse(data);
+    if (!p.success || !p.data.ok) throw new SeedApiError(`POST /${pid}/reviewrating rejected (rid ${rid}, as ${actas}): ${clean(JSON.stringify(data).slice(0, 600))}`);
+    const got = [p.data.user_rating ?? []].flat().sort().join(" ");
+    const want = [...flags].sort().join(" ");
+    if (got !== want) throw new SeedApiError(`POST /${pid}/reviewrating: recorded "${got}" for ${actas}, expected "${want}"`);
   }
 
   /** POST /comments (array) acting as `actas`. Returns the cid of each item (undefined for deletions). */

@@ -15,7 +15,6 @@ import type { Clock } from "../../clock.js";
 import { DEFAULT_REPORT_SETTINGS, DEFAULT_TIER_PROGRESS_POLICY, type Config } from "../../config.js";
 import { rowsAsOf, runAsOf } from "../../imports/store.js";
 import { activeModules, analyze, extendedPhaseAt, ruleContextFromConfig, type Analysis, type RuleContext, type SnapshotIndex } from "../../rules/index.js";
-import type { Db } from "../../store/db.js";
 import type { Store } from "../../store/store.js";
 import { buildSnapshot } from "../../views/snapshot.js";
 import { earlyRejectFrom } from "../early-reject/index.js";

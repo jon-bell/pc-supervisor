@@ -9,7 +9,7 @@
 // People (tier):
 //   ac-busy@example.org     AC of 1, 3, 4, 8, 9, 10 (comments on all, day +1)
 //   ac-idle@example.org     AC of 5, 7 (never comments)
-//   ac-normal@example.org   AC of 2, 6, 11, 12
+//   ac-normal@example.org   AC of 2, 6, 11, 12, 13
 //   r-silent@example.org    junior; low scorer on 3, 4, 12; never comments
 //   r-pinged@example.org    senior; a 4 on pid 4; @mentioned by AC day +3; never replies
 //   r-recip@example.org     reciprocal; pid 2 laggard (review still empty)
@@ -28,12 +28,15 @@
 //   7  ana 3 (3), gus 3 (8), hal 4 (13); no AC comment
 //   8  champ 5 (-), ben 4 (8), dee 4 (13); AC +1
 //   9  cal 3/exp 2 (3), eli 3/exp 2 (8), fay 4/exp 1 (13); AC +1
-//  10  gus 3 (3), hal 3 with 35 words (8), ana 4 (13); AC +1
+//  10  gus 3 (3), hal 3 with 35 words, rated 2x short (8), ana 4 (13); AC +1
 //  11  ben 2, cal 2, dee 2 (all -); AC +1, +12; response 2030-02-09T12:00
 //  12  silent 1->2 day +5 (-), eli 4 (8), hal 4 (13); AC +1
+//  13  fay 3 (3), hal 3 rated 1x disrespectful (by the AC) + 1x short (8),
+//      ben 4 (13); AC +1
 // Default expertise is 3/4/3; default length 250 words.
 
 import type { AcView, CommentView, PersonView, ReviewView, SnapshotView } from "../../src/rules/model.js";
+import type { RatingCounts } from "../../src/ratings.js";
 import { at, comment, day, paper, review } from "./builder.js";
 
 export const GOLDEN_NOW = "2030-02-26T12:00";
@@ -72,6 +75,7 @@ export const GOLDEN_EXPECTED: Readonly<Record<number, readonly string[]>> = {
   10: ["THIN_REVIEWS"],
   11: ["RESPONSE_UNADDRESSED"],
   12: ["SPLIT"],
+  13: ["REVIEW_FLAGGED"],
 };
 
 const NAMES: Record<string, [string, string]> = {
@@ -101,6 +105,7 @@ interface Slot {
   move?: { day: number; to: number };
   /** Comment days; default by slot index (+3, +8, +13). [] = never. */
   comments?: number[];
+  ratings?: RatingCounts;
 }
 
 interface PaperSpec {
@@ -194,7 +199,7 @@ const SPECS: PaperSpec[] = [
   {
     pid: 10,
     ac: E.acBusy,
-    slots: [{ email: E.gus }, { email: E.hal, words: 35 }, { email: E.ana, merit: 4 }],
+    slots: [{ email: E.gus }, { email: E.hal, words: 35, ratings: { short: 2 } }, { email: E.ana, merit: 4 }],
     acComments: [{ day: 1 }],
   },
   {
@@ -216,6 +221,12 @@ const SPECS: PaperSpec[] = [
       { email: E.eli, merit: 4 },
       { email: E.hal, merit: 4 },
     ],
+    acComments: [{ day: 1 }],
+  },
+  {
+    pid: 13,
+    ac: E.acNormal,
+    slots: [{ email: E.fay }, { email: E.hal, ratings: { short: 1, disrespectful: 1 } }, { email: E.ben, merit: 4 }],
     acComments: [{ day: 1 }],
   },
 ];
@@ -261,6 +272,7 @@ export function goldenSnapshot(): SnapshotView {
           ordinal: slot.empty ? null : String.fromCharCode(65 + i),
           submittedAt,
           moves: slot.move ? [{ at: day(slot.move.day), merit: slot.move.to }] : [],
+          ...(slot.ratings ? { ratings: slot.ratings } : {}),
         }),
       );
       for (const d of slot.comments ?? [DEFAULT_COMMENT_DAYS[i]!]) {
