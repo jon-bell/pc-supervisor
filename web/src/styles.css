@@ -796,3 +796,15 @@ pre.draft {
 .export-links .btn {
   margin-right: 6px;
 }
+
+/* Assignment validator + solver (PLAN M10/M10b) */
+pre.csv {
+  background: #f7f7f7;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+  max-height: 360px;
+  overflow: auto;
+  max-width: 900px;
+}

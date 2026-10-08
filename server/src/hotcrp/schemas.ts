@@ -185,6 +185,62 @@ export const PcConflictsSchema = z.array(
     ),
 );
 
+// --- /searchaction?action=get/allrevpref (CSV) ------------------------------
+// "PC review preferences" download (src/listactions/la_getallrevpref.php,
+// GetAllRevpref_ListAction; managers only, and a scoped token needs
+// preference:read). Header: paper,title,given_name,family_name,email,
+// conflict,preference[,expertise][,topic_score]. `expertise` appears only if
+// some preference carries one, `topic_score` only if some PC member declared a
+// topic interest. One row per (paper, PC member) with a nonzero preference, an
+// expertise, a nonzero topic score, or a conflict; other pairs have no row.
+// conflict is "conflict" or empty; preference an integer (empty = 0);
+// expertise X (expert), Y, or Z (unfamiliar), empty = none; topic_score a
+// number (empty = 0).
+
+export interface RevPrefRow {
+  pid: number;
+  email: string;
+  conflict: boolean;
+  preference: number;
+  expertise: "X" | "Y" | "Z" | null;
+  topicScore: number;
+}
+
+const csvNumber = z
+  .string()
+  .optional()
+  .transform((v, ctx) => {
+    if (v === undefined || v.trim() === "") return 0;
+    const n = Number(v);
+    if (!Number.isFinite(n)) {
+      ctx.addIssue({ code: "custom", message: `expected a number, got ${JSON.stringify(v.slice(0, 20))}` });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+export const AllRevPrefSchema = z.array(
+  z
+    .looseObject({
+      paper: csvPid,
+      email: z.string().min(1),
+      conflict: z.enum(["", "conflict"]).optional(),
+      preference: csvNumber,
+      expertise: z.enum(["", "X", "Y", "Z"]).optional(),
+      topic_score: csvNumber,
+    })
+    .transform(
+      (r): RevPrefRow => ({
+        pid: r.paper,
+        email: r.email.toLowerCase(),
+        conflict: r.conflict === "conflict",
+        preference: r.preference,
+        expertise: r.expertise === undefined || r.expertise === "" ? null : r.expertise,
+        topicScore: r.topic_score,
+      }),
+    ),
+);
+
 // --- /reviews, /{p}/reviewhistory -------------------------------------------
 
 /** rtype: 1 external, 2 PC, 3 secondary, 4 primary, 5 metareview. */

@@ -8,7 +8,8 @@ import type { DoNotInviteRow, InviteRow } from "../../imports/kinds.js";
 import type { CoauthorshipSource } from "./dblp.js";
 
 /** Which assignment is being validated. */
-export type AssignmentSource = "hotcrp" | "tpms";
+/** "solver": the assignment-solver output being cross-checked (spec §10.5); judged like "hotcrp". */
+export type AssignmentSource = "hotcrp" | "tpms" | "solver";
 
 export type Check = "composition" | "load" | "conflict" | "cycle" | "reserve" | "input";
 

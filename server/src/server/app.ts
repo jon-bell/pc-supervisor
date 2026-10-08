@@ -29,6 +29,8 @@ import type { Person } from "./api-types.js";
 import { AnalysisSource } from "./analysis.js";
 import type { TagFlow } from "../actions/tagging.js";
 import { registerActions } from "./routes/actions.js";
+import { registerAssignment } from "./routes/assignment.js";
+import type { SolverHotcrp } from "../modules/solver/load.js";
 import { registerAcs } from "./routes/acs.js";
 import { registerMeta, registerSync } from "./routes/meta.js";
 import { registerModules } from "./routes/modules.js";
@@ -54,6 +56,8 @@ export interface RouteDeps {
   tagFlow?: TagFlow | undefined;
   /** Quick-reject counts for the process report (M11); absent = unavailable. */
   quickReject?: QuickRejectProvider | undefined;
+  /** HotCRP reads the assignment solver needs (M10b); absent = POST /api/assignment/solve answers 503. */
+  solverHotcrp?: SolverHotcrp | undefined;
 }
 
 export type RegisterRoutes = (app: FastifyInstance, deps: RouteDeps) => void;
@@ -74,6 +78,8 @@ export const ROUTES: readonly RegisterRoutes[] = [
   registerTierProgress,
   registerEarlyReject,
   registerReport,
+  // Assignment validator + solver (PLAN M10/M10b): /api/assignment, /api/assignment/solve.
+  registerAssignment,
 ];
 
 export interface RouteInfo {
@@ -139,6 +145,8 @@ export interface AppOptions {
   tagFlow?: TagFlow;
   /** Quick-reject counts for the process report (M11); absent = unavailable. */
   quickReject?: QuickRejectProvider;
+  /** HotCRP reads for the assignment solver (M10b); absent = the solver is unavailable. */
+  solverHotcrp?: SolverHotcrp;
   /** Built web app; null = API only. Default: defaultWebDir(). */
   webDir?: string | null;
   /** Fastify request logging (off by default: logs could carry paths, never bodies). */
@@ -191,7 +199,7 @@ export async function buildApp(o: AppOptions): Promise<App> {
     return reply.code(code).send({ error: message });
   });
 
-  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis, sync: o.sync, ruleNames: RULE_NAMES, tagFlow: o.tagFlow, quickReject: o.quickReject };
+  const deps: RouteDeps = { cfg: o.cfg, store: o.store, clock: o.clock, analysis, sync: o.sync, ruleNames: RULE_NAMES, tagFlow: o.tagFlow, quickReject: o.quickReject, solverHotcrp: o.solverHotcrp };
   for (const register of ROUTES) register(app, deps);
 
   const webDir = o.webDir === undefined ? defaultWebDir() : o.webDir;

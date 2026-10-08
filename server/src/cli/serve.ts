@@ -65,7 +65,7 @@ export const SERVE_COMMAND: Command = {
       [cfg.hotcrp.token],
     );
     const webDir = defaultWebDir();
-    const { app } = await buildApp({ cfg, store, clock, sync, tagFlow, webDir });
+    const { app } = await buildApp({ cfg, store, clock, sync, tagFlow, webDir, solverHotcrp: client });
     if (!webDir) err("pcs serve: web/dist not found; serving the API only (run `npm run build -w @pcs/web`)");
     if (!store.lastSuccessfulSync()) err("pcs serve: the local store is empty; run `pcs sync` or press \"Sync now\"");
 

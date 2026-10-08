@@ -9,6 +9,7 @@ import { MODULE_COMMANDS } from "./modules-command.js";
 import { PROGRESS_COMMANDS } from "./progress-command.js";
 import { REPORT_COMMANDS } from "./report-command.js";
 import { SERVE_COMMAND } from "./serve.js";
+import { SOLVER_COMMANDS } from "./solver-command.js";
 import { STORE_COMMANDS } from "./store-commands.js";
 
 export interface Command {
@@ -21,6 +22,7 @@ export const COMMANDS: Record<string, Command> = {
   ...STORE_COMMANDS,
   ...IMPORT_COMMANDS,
   ...ASSIGNMENT_COMMANDS,
+  ...SOLVER_COMMANDS,
   ...MODULE_COMMANDS,
   ...PROGRESS_COMMANDS,
   ...REPORT_COMMANDS,

@@ -26,6 +26,8 @@ import type {
 
 export type * from "@pcs/server/server/api-types";
 export type * from "@pcs/server/server/action-types";
+export type * from "@pcs/server/server/assignment-types";
+import type { AssignmentResponse, SolveResponse } from "@pcs/server/server/assignment-types";
 
 export class ApiError extends Error {
   constructor(
@@ -67,6 +69,8 @@ export const keys = {
   overview: ["overview"] as const,
   reserve: ["reserve"] as const,
   quickreject: ["quickreject"] as const,
+  assignment: (source: "hotcrp" | "tpms") => ["assignment", source] as const,
+  solve: ["solve"] as const,
   actions: ["actions"] as const,
   nudge: (pid: number) => ["nudge", pid] as const,
 };
@@ -122,6 +126,26 @@ export function useReserve() {
 
 export function useQuickReject() {
   return useQuery({ queryKey: keys.quickreject, queryFn: () => getJson<QuickRejectResponse>("/api/quickreject") });
+}
+
+// Assignment validator and solver (PLAN M10/M10b).
+export function useAssignment(source: "hotcrp" | "tpms") {
+  return useQuery({ queryKey: keys.assignment(source), queryFn: () => getJson<AssignmentResponse>(`/api/assignment${source === "tpms" ? "?source=tpms" : ""}`), retry: false });
+}
+
+/** The last cached solve (null report until one has run). */
+export function useSolve() {
+  return useQuery({ queryKey: keys.solve, queryFn: () => getJson<SolveResponse>("/api/assignment/solve") });
+}
+
+/** Run the solver (HotCRP reads only); the response replaces the cached report. */
+export function useRunSolve() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: { hard: boolean }) =>
+      getJson<SolveResponse>("/api/assignment/solve", { method: "POST", headers: { accept: "application/json", "content-type": "application/json" }, body: JSON.stringify(req) }),
+    onSuccess: (d) => qc.setQueryData(keys.solve, d),
+  });
 }
 
 /** In-app path of a person page. */

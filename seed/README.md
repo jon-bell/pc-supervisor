@@ -228,7 +228,10 @@ An assignment-phase state with 8 papers, 2 ACs, 8 seniors, 3 juniors, and 3
 reserve-active reviewers. Observe at `reviewDue −21 d` (`PCS_NOW=2030-01-11T12:00`).
 It needs `ASSIGNMENT_ENV` (tiers, plus load bands sized for 8 papers: senior 1–3,
 junior 1–3, reserve-active 1–1). `fixtures/` holds `invites.csv`,
-`do-not-invite.csv`, and `tpms-assignments.csv` for `pcs import`. Planted in
+`do-not-invite.csv`, and `tpms-assignments.csv` for `pcs import`, plus
+`tpms-scores.csv` for M10b's solver (every PC reviewer × every paper; the
+current panel scores 0.90, so the planted cycles are what the solver would
+pick without its repair pass). Planted in
 the HotCRP assignment:
 
 - #5 is an all-junior panel (3 juniors);
