@@ -4,6 +4,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AcsResponse,
+  LeadDetailResponse,
+  LeadsResponse,
   MetaResponse,
   OverviewResponse,
   PaperDetail,
@@ -82,6 +84,8 @@ export const keys = {
   paper: (pid: number) => ["paper", pid] as const,
   sync: ["sync"] as const,
   acs: ["acs"] as const,
+  leads: ["leads"] as const,
+  lead: (email: string) => ["lead", email] as const,
   reviewers: ["reviewers"] as const,
   person: (email: string) => ["person", email] as const,
   overview: ["overview"] as const,
@@ -118,6 +122,22 @@ export function useAcs() {
   const search = usePaperSearch();
   return useQuery({ queryKey: [...keys.acs, search], queryFn: () => getJson<AcsResponse>(withSearch("/api/acs", search)) });
 }
+
+export function useLeads() {
+  const search = usePaperSearch();
+  return useQuery({ queryKey: [...keys.leads, search], queryFn: () => getJson<LeadsResponse>(withSearch("/api/leads", search)) });
+}
+
+export function useLead(email: string) {
+  const search = usePaperSearch();
+  return useQuery({
+    queryKey: [...keys.lead(email), search],
+    queryFn: () => getJson<LeadDetailResponse>(withSearch(`/api/leads/${encodeURIComponent(email)}`, search)),
+    retry: false,
+  });
+}
+
+export const leadPath = (email: string) => `/leads/${encodeURIComponent(email)}`;
 
 export function useReviewers() {
   const search = usePaperSearch();

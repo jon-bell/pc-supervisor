@@ -20,7 +20,7 @@ import { AT_SECOND, FIRES_AT_PRIMARY, MERITS, NOW_PRIMARY, NOW_SECOND, PEOPLE, R
 import { fixedClock } from "../../src/clock.js";
 import { loadConfig, type Config } from "../../src/config.js";
 import { clientFromConfig } from "../../src/hotcrp/client.js";
-import { analyze, ruleContextFromConfig, type Analysis, type SnapshotView } from "../../src/rules/index.js";
+import { analyze, computeLeadMetrics, ruleContextFromConfig, type Analysis, type SnapshotView } from "../../src/rules/index.js";
 import { openStore, type Store } from "../../src/store/store.js";
 import { runBackfill } from "../../src/sync/backfill.js";
 import { clientSource } from "../../src/sync/source.js";
@@ -220,10 +220,18 @@ describe("golden people facts", () => {
       if ("commentsOnAll" in want) expect(m.coverage).toEqual({ covered: want.pids.length, of: want.pids.length, share: 1 });
       if ("comments" in want) {
         expect(m.discussionComments).toBe(want.comments);
+        expect(m.comments).toBe(want.comments);
         expect(snap.comments.filter((c) => c.email === email)).toHaveLength(0);
       }
     }
     expect(ac(Object.keys(PEOPLE.acs)[1]!).load).toBeLessThan(ac(Object.keys(PEOPLE.acs)[0]!).load);
+  });
+
+  it("discussion leads: synced from get/lead, with their papers and whether they commented", () => {
+    const leads = computeLeadMetrics(primary.evaluation, ruleContextFromConfig(cfg, fixedClock(tPrimary)), store.areaChairs({ kind: "lead" }));
+    expect(Object.fromEntries(leads.map((l) => [l.email, { pids: l.pids, commented: l.commentedPids }]))).toEqual(PEOPLE.leads);
+    // Leads change no rule (PCS_AC_ROLE=meta): the papers' AC sets are the metareviewers.
+    for (const l of leads) for (const pid of l.pids) expect(primary.evaluation.facts.get(pid)!.acSet.has(l.email)).toBe(false);
   });
 
   it("the reciprocal laggard on pid 2 is late, with the review outstanding", () => {

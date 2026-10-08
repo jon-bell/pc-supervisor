@@ -90,4 +90,13 @@ export const PEOPLE = {
   repeatedlyFlagged: { email: P.hal, pids: [10, 13] },
   /** pid 1: decision "Accepted" and the AC's metareview (complete, no scores) on day +10. */
   decided: { pid: 1, decision: "Accepted", day: 10 },
+  /**
+   * Discussion leads (scenario LEADS): their papers, and those where the lead
+   * has a published comment (any time). Seven papers have no lead.
+   */
+  leads: {
+    [P.ben]: { pids: [1, 3, 11], commented: [1, 3] },
+    [P.champ]: { pids: [8], commented: [] },
+    [P.eli]: { pids: [6, 12], commented: [6, 12] },
+  },
 } as const;

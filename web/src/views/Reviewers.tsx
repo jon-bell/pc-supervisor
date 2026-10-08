@@ -10,6 +10,7 @@ import { personPath, useReviewers, type OutlierEntry, type OutlierList } from ".
 import { DataTable } from "../components/DataTable";
 import { plural, tierLabel } from "../format";
 import { Link, navigate, useLocation } from "../router";
+import { useTiersConfigured } from "../tiers";
 
 const col = createColumnHelper<OutlierEntry>();
 const ROW = 36;
@@ -74,13 +75,17 @@ function TierGroup({ list, tier, entries, sort }: { list: OutlierList; tier: str
     [],
   );
   const rows = sortEntries(entries, sort);
+  // Without PCS_TIER_TAGS there is one group (everyone): no tier heading.
+  const tiers = useTiersConfigured();
   return (
     <div className="tier-group" data-testid="tier-group" data-list={list.id} data-tier={tier}>
-      <h3>
-        {tierLabel(tier)} <span className="muted">({rows.length})</span>
-      </h3>
+      {tiers ? (
+        <h3>
+          {tierLabel(tier)} <span className="muted">({rows.length})</span>
+        </h3>
+      ) : null}
       {rows.length === 0 ? (
-        <p className="muted none">No one in this tier is over the bar.</p>
+        <p className="muted none">{tiers ? "No one in this tier is over the bar." : "No one is over the bar."}</p>
       ) : (
         <div className="tier-table" style={{ height: 36 + Math.min(rows.length, MAX_ROWS) * ROW }}>
           <DataTable
@@ -98,6 +103,7 @@ function TierGroup({ list, tier, entries, sort }: { list: OutlierList; tier: str
 }
 
 export function Reviewers() {
+  const tiers = useTiersConfigured();
   const loc = useLocation();
   const sort: SortKey = loc.query.get("sort") === "count" ? "count" : "name";
   const q = useReviewers();
@@ -109,7 +115,7 @@ export function Reviewers() {
       <div className="page-head">
         <h1>Reviewers</h1>
         <p className="muted">
-          Outlier lists, not a ranking: each list shows only people over its bar, split by tier.
+          Outlier lists, not a ranking: each list shows only people over its bar{tiers ? ", split by tier" : ""}.
           {data ? ` ${plural(data.reviewers, "reviewer")} in the local store.` : null}
         </p>
         <div className="sort" role="group" aria-label="Sort">

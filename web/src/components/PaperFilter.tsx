@@ -13,6 +13,7 @@ import { navigate, useLocation } from "../router";
 export const FILTERED_PATHS: readonly ((path: string) => boolean)[] = [
   (p) => p === "/" || p.startsWith("/papers/"),
   (p) => p === "/acs",
+  (p) => p === "/leads" || p.startsWith("/leads/"),
   (p) => p === "/reviewers",
   (p) => p.startsWith("/people/"),
   (p) => p === "/overview",

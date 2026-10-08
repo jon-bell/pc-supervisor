@@ -134,6 +134,12 @@ export async function verifyScenario(
   const wantAssign = new Set([...expected.reviews.values()].filter((r) => !r.removed).map((r) => `${r.pid}:${r.email}:${ACTION[r.role]}`));
   for (const a of wantAssign) check(gotAssign.has(a), () => `assignment ${a} missing`);
   for (const a of gotAssign) check(wantAssign.has(a), () => `unexpected assignment ${a}`);
+  // Discussion leads (get/lead; /pcassignments has no lead rows).
+  const gotLead = new Map((await client.paperRoles("lead", { t: "all" })).map((r) => [r.pid, r.email.toLowerCase()]));
+  for (const sp of scenario.papers) {
+    const want = sp.lead?.toLowerCase();
+    check(gotLead.get(sp.pid) === want, () => `paper ${sp.pid}: lead ${gotLead.get(sp.pid) ?? "(none)"}, expected ${want ?? "(none)"}`);
+  }
   // Review rounds (phase 2): HotCRP reports the round only for named rounds.
   const roundOf = new Map(rows.map((r) => [`${r.paper}:${(r.email ?? "").toLowerCase()}`, r.round ?? ""]));
   for (const a of scenario.assignments) {

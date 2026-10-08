@@ -39,6 +39,11 @@ export interface MetaResponse {
   rules: { name: string; weight: number }[];
   /** Tier names in use: "senior" plus PCS_TIER_TAGS tiers. */
   tiers: string[];
+  /**
+   * False when PCS_TIER_TAGS is empty (everyone is "senior"): the UI then
+   * hides every tier field, column, chip, filter and the tier-progress view.
+   */
+  tiersConfigured: boolean;
   fields: { merit: string; expertise: string };
   /**
    * HotCRP review ratings (spec §1) as last synced. When `enabled` is false
@@ -205,7 +210,9 @@ export interface AcRow {
   nudges: { total: number; mentions: number; proxy: number };
   stale: number;
   stalePids: number[];
-  /** Their comments since DISCUSSION_OPEN, across their papers. */
+  /** Their published comments on their papers, whenever posted (up to now). */
+  comments: number;
+  /** The subset since DISCUSSION_OPEN. */
   discussionComments: number;
   metareview: { byStatus: Record<string, number>; submitted: number; of: number; due: number };
   /** Comments per 24 h from `start` (DISCUSSION_OPEN) to now. */
@@ -501,4 +508,66 @@ export interface QuickRejectResponse extends ModuleResponseBase {
   overdueReviews: { pid: number; rid: number; email: string; status: string; daysOverdue: number; reason: string }[];
   mailDrafts: MailDraftInfo[];
   notes: string[];
+}
+
+// --- /api/leads (discussion leads, chair feedback) --------------------------
+
+export interface CommentCounts {
+  total: number;
+  /** Since DISCUSSION_OPEN. */
+  discussion: number;
+}
+
+export interface LeadRow {
+  person: Person;
+  pids: number[];
+  load: number;
+  flagged: number;
+  flaggedPids: number[];
+  /** Reviewer reviews submitted vs assigned on their papers; `complete` = papers with PCS_REVIEWS_REQUIRED submitted. */
+  reviews: { submitted: number; assigned: number; complete: number };
+  /** Everyone's published comments on their papers. */
+  comments: CommentCounts;
+  /** The lead's own comments there. */
+  leadComments: CommentCounts;
+  commentedPids: number[];
+  /** Their papers with no comment from them yet. */
+  notYetPids: number[];
+  stale: number;
+  stalePids: number[];
+  /** Comments by anyone on their papers per 24 h from `start` (DISCUSSION_OPEN) to now. */
+  activity: { start: number; daily: number[] };
+}
+
+export interface LeadsResponse {
+  now: number;
+  maxLoad: number;
+  /** Papers in the store, and how many have a discussion lead. */
+  papers: number;
+  papersWithLead: number;
+  /** Alphabetical by name (not ranked). */
+  leads: LeadRow[];
+}
+
+export interface LeadPaper {
+  pid: number;
+  title: string;
+  decision: string | null;
+  acs: Person[];
+  merits: number[];
+  reviews: { submitted: number; assigned: number };
+  comments: CommentCounts;
+  leadComments: CommentCounts;
+  leadLastComment: number | null;
+  lastActivity: number | null;
+  stale: boolean;
+  severity: number;
+  reasons: Reason[];
+}
+
+export interface LeadDetailResponse {
+  now: number;
+  reviewsRequired: number;
+  lead: LeadRow;
+  papers: LeadPaper[];
 }

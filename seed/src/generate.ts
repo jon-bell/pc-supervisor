@@ -32,6 +32,12 @@ export interface GenerateOptions {
   commentRate: number;
   /** When the stage is observed. */
   now: When;
+  /**
+   * Give papers a discussion lead (their primary senior reviewer), except
+   * every `leadEvery`-th pid, which stays unled. Omit for no leads. Uses no
+   * randomness, so it never shifts the rest of the generated scenario.
+   */
+  leadEvery?: number;
 }
 
 const FIRST = [
@@ -126,6 +132,7 @@ export function generateScenario(o: GenerateOptions): Scenario {
     const third = rng() < 0.5 ? nextJunior(used) : nextRecip(used);
     reviewers.push(third);
     assignments.push({ pid, email: third, role: "pcreview" });
+    if (o.leadEvery && pid % o.leadEvery !== 0) papers[papers.length - 1]!.lead = reviewers[0]!;
 
     // Reviews.
     const quality = weighted(rng, [[1, 1], [2, 4], [3, 3], [4, 2], [5, 1]]);

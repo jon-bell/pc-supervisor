@@ -87,8 +87,15 @@ Phase-2 additions (PLAN Phase 2 intro, M10; all optional, additive):
 - **Paper tags** (M11). `Paper.tags` (no leading `#`) are set in stage 1 through
   `batch/assign.php` `paper,tag,<tag>` lines, as a chair would set them.
 
+- **Discussion leads**. `Paper.lead` (a PC member, not an author) is set in
+  stage 1 through `batch/assign.php` `paper,lead,<email>` lines. `golden` leads
+  six papers (`LEADS` in its scenario; the oracle is `PEOPLE.leads`), `shadow`
+  three in four (`leadEvery: 4`, the primary senior reviewer). Leads change no
+  rule while `PCS_AC_ROLE` is `meta`.
+
 `verify` also checks authors (email and affiliation, in order), option values,
-named rounds, and paper tags (when a scenario has any).
+named rounds, paper tags (when a scenario has any), and discussion leads
+(`get/lead`).
 
 Every time is a `When` = `{ phase, day, time? }`: the phase date's local
 calendar date (in `PCS_TZ`) plus `day` days, at local `time` "HH:MM" (default:
@@ -217,7 +224,8 @@ reviewers and ACs have varied comment rates and occasionally `@mention`;
 ~45% of papers get a response; ~20% of unsplit papers get early decisions.
 Observe at `PCS_NOW=2030-02-26T12:00`.
 
-- `shadow`: 150 papers, 10 ACs, 45 senior + 15 junior + 10 reciprocal.
+- `shadow`: 150 papers, 10 ACs, 45 senior + 15 junior + 10 reciprocal; a
+  discussion lead on every paper whose pid is not a multiple of 4.
 - `scale`: 2,400 papers, 40 ACs, 400 senior + 120 junior + 120 reciprocal;
   9,600 review rows, 6,594 comments, 1,068 responses. Seeds in about 2 min on a
   9-core dev machine (35 s of it is savepapers.php); `verify scale` takes about 70 s.

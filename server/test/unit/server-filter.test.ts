@@ -7,6 +7,8 @@ import { loadConfig, type Config } from "../../src/config.js";
 import { HotcrpError } from "../../src/hotcrp/errors.js";
 import type {
   AcsResponse,
+  LeadDetailResponse,
+  LeadsResponse,
   MetaResponse,
   OverviewResponse,
   PaperSearchResponse,
@@ -90,6 +92,18 @@ describe("?search= on the paper-centric routes", () => {
     const a = await json<AcsResponse>(`/api/acs?${s("#two")}`);
     expect(a.acs.map((x) => [x.person.email, x.pids, x.load])).toEqual([["ben@example.org", [2], 1]]);
     expect(a.maxLoad).toBe(1);
+  });
+
+  it("discussion-lead rows and the lead drill-down use the matching papers", async () => {
+    // smallWorld: Ben leads pid 1 only.
+    const one = await json<LeadsResponse>(`/api/leads?${s("#one")}`);
+    expect(one).toMatchObject({ papers: 1, papersWithLead: 1 });
+    expect(one.leads.map((x) => [x.person.email, x.pids])).toEqual([["ben@example.org", [1]]]);
+    const two = await json<LeadsResponse>(`/api/leads?${s("#two")}`);
+    expect(two).toMatchObject({ papers: 1, papersWithLead: 0, leads: [] });
+    expect((await json<LeadDetailResponse>(`/api/leads/ben%40example.org?${s("#one")}`)).papers.map((p) => p.pid)).toEqual([1]);
+    expect((await get(`/api/leads/ben%40example.org?${s("#two")}`)).statusCode).toBe(404);
+    expect((await get(`/api/leads?${s("bad:x")}`)).statusCode).toBe(400);
   });
 
   it("overview counts only the matching papers", async () => {

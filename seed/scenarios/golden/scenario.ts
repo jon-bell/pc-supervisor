@@ -87,10 +87,19 @@ const TITLES = [
 ];
 const AUTHOR_LAST = ["Arden", "Bellamy", "Corvell", "Dunsmore", "Elsworth", "Fairbank", "Galloway", "Hartwell", "Ingram", "Jessop", "Kirkland", "Lowther", "Merrow"];
 
+/**
+ * Discussion leads (HotCRP `lead`, the /leads view), each a reviewer on the
+ * paper. Leads don't change any rule (PCS_AC_ROLE is meta): Ben commented on
+ * 1 and 3 but not 11; R-champ never comments on 8; Eli commented on 6 and 12.
+ * The other papers have no lead.
+ */
+export const LEADS: Readonly<Record<number, string>> = { 1: P.ben, 3: P.ben, 11: P.ben, 8: P.champ, 6: P.eli, 12: P.eli };
+
 export const papers: Paper[] = TITLES.map((title, i) => ({
   pid: i + 1,
   title,
   authors: [{ email: `author${i + 1}@example.org`, first: "Ari", last: AUTHOR_LAST[i]!, affiliation: "Example University" }],
+  ...(LEADS[i + 1] ? { lead: LEADS[i + 1] } : {}),
 }));
 
 // --- Per-paper spec (M4 fixture) ------------------------------------------------------

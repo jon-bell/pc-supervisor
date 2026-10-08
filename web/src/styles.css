@@ -809,6 +809,17 @@ pre.csv {
   max-width: 900px;
 }
 
+/* Discussion leads (chair feedback) */
+.empty-state {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 12px 16px;
+  max-width: 720px;
+}
+.empty-state p {
+  margin: 4px 0;
+}
+
 /* The in-app paper filter (components/PaperFilter.tsx) */
 .paper-filter {
   display: flex;

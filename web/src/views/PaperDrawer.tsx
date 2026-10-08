@@ -12,13 +12,15 @@ import { Chip, ReasonChips } from "../components/Chip";
 import { AbsTime } from "../components/Time";
 import { formatRatings } from "@pcs/server/ratings";
 import { hotcrp, plural } from "../format";
+import { useTiersConfigured } from "../tiers";
 
 function Who({ name, tier, role }: { name: string; tier: string; role?: string }) {
+  const tiers = useTiersConfigured();
   return (
     <span className="who">
       <strong>{name}</strong>
       {role && role !== "other" ? <span className="role"> {role}</span> : null}
-      {tier !== "senior" ? <span className="tier"> · {tier}</span> : null}
+      {tiers && tier !== "senior" ? <span className="tier"> · {tier}</span> : null}
     </span>
   );
 }
