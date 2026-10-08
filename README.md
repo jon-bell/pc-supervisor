@@ -19,7 +19,7 @@ It syncs from the HotCRP API into an encrypted local SQLite file every 15 minute
 
 ## Development
 
-You need Docker (with Compose v2) and Node 22.
+You need Docker (with Compose v2) and Node 22. No C toolchain is needed: `.npmrc` sets `ignore-scripts=true`, and the SQLCipher driver loads its bundled prebuilt binary.
 
 ```bash
 scripts/hotcrp-up.sh        # throwaway HotCRP + MariaDB at http://127.0.0.1:8080
