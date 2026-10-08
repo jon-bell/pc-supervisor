@@ -20,6 +20,7 @@ import { systemClock, type Clock } from "../clock.js";
 import type { HotcrpConfig } from "../config.js";
 import { redact } from "../redact.js";
 import { pidChunks } from "./chunk.js";
+import { scopedQuery } from "./scope.js";
 import { Limiter } from "./concurrency.js";
 import { CsvError, parseCsvRecords } from "./csv.js";
 import { describeMessages, HotcrpError } from "./errors.js";
@@ -87,6 +88,12 @@ export interface HotcrpClientOptions {
   concurrency?: number;
   /** Papers per chunk for bulk reads (PCS_SYNC_CHUNK). Default 200. */
   chunkSize?: number;
+  /**
+   * PCS_PAPER_SEARCH: every paper-search `q` this client sends (search,
+   * searchaction downloads, reviews, comments, papers) becomes
+   * `(<paperSearch>) AND (<q>)` (scope.ts). Default "" = unscoped.
+   */
+  paperSearch?: string;
   /** Per-attempt timeout. Default 120 s. */
   timeoutMs?: number;
   /** Retries after the first attempt, for reads. Default 5. */
@@ -140,9 +147,11 @@ export class HotcrpClient {
   readonly baseUrl: string;
   readonly forceShow: boolean;
   readonly chunkSize: number;
+  /** PCS_PAPER_SEARCH ("" = every paper). */
+  readonly paperSearch: string;
   readonly #token: string;
   readonly #limiter: Limiter;
-  readonly #o: Required<Omit<HotcrpClientOptions, "baseUrl" | "token" | "onEvent" | "forceShow" | "chunkSize" | "concurrency">> & {
+  readonly #o: Required<Omit<HotcrpClientOptions, "baseUrl" | "token" | "onEvent" | "forceShow" | "chunkSize" | "concurrency" | "paperSearch">> & {
     onEvent: HotcrpClientOptions["onEvent"];
   };
 
@@ -153,6 +162,7 @@ export class HotcrpClient {
     this.#token = opts.token;
     this.forceShow = opts.forceShow ?? true;
     this.chunkSize = opts.chunkSize ?? 200;
+    this.paperSearch = (opts.paperSearch ?? "").trim();
     this.#limiter = new Limiter(opts.concurrency ?? 2);
     this.#o = {
       timeoutMs: opts.timeoutMs ?? 120_000,
@@ -167,6 +177,11 @@ export class HotcrpClient {
       wallClock: opts.wallClock ?? systemClock,
       onEvent: opts.onEvent,
     };
+  }
+
+  /** A paper search restricted to PCS_PAPER_SEARCH (unchanged when that is empty). */
+  scoped(q: string | undefined): string {
+    return scopedQuery(this.paperSearch, q);
   }
 
   /** Never reveal the token through util.inspect / console.log / JSON. */
@@ -201,7 +216,7 @@ export class HotcrpClient {
     const res = await this.call({
       path: "search",
       params: {
-        q: opts.q ?? "all",
+        q: this.scoped(opts.q),
         t,
         ...(fields.length > 0 ? { f: fields.join(" "), format: "csv" } : {}),
         forceShow: this.forceShow ? 1 : 0,
@@ -220,7 +235,7 @@ export class HotcrpClient {
   pcAssignments(opts: { q?: string; t?: SearchScope } = {}): Promise<PcAssignmentRow[]> {
     return this.call({
       path: "searchaction",
-      params: { action: "get/pcassignments", q: opts.q ?? "all", t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      params: { action: "get/pcassignments", q: this.scoped(opts.q), t: opts.t, forceShow: this.forceShow ? 1 : 0 },
       format: "csv",
       schema: PcAssignmentsSchema,
     });
@@ -233,7 +248,7 @@ export class HotcrpClient {
   paperRoles(kind: "lead" | "shepherd", opts: { q?: string; t?: SearchScope } = {}): Promise<PaperRoleRow[]> {
     return this.call({
       path: "searchaction",
-      params: { action: `get/${kind}`, q: opts.q ?? "all", t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      params: { action: `get/${kind}`, q: this.scoped(opts.q), t: opts.t, forceShow: this.forceShow ? 1 : 0 },
       format: "csv",
       schema: paperRoleRowsSchema(kind),
     });
@@ -247,7 +262,7 @@ export class HotcrpClient {
   pcConflicts(opts: { q?: string; t?: SearchScope } = {}): Promise<PcConflictRow[]> {
     return this.call({
       path: "searchaction",
-      params: { action: "get/pcconf", q: opts.q ?? "all", t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      params: { action: "get/pcconf", q: this.scoped(opts.q), t: opts.t, forceShow: this.forceShow ? 1 : 0 },
       format: "csv",
       schema: PcConflictsSchema,
     });
@@ -262,7 +277,7 @@ export class HotcrpClient {
   allRevPrefs(opts: { q?: string; t?: SearchScope } = {}): Promise<RevPrefRow[]> {
     return this.call({
       path: "searchaction",
-      params: { action: "get/allrevpref", q: opts.q ?? "all", t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      params: { action: "get/allrevpref", q: this.scoped(opts.q), t: opts.t, forceShow: this.forceShow ? 1 : 0 },
       format: "csv",
       schema: AllRevPrefSchema,
     });
@@ -277,7 +292,7 @@ export class HotcrpClient {
   async reviews(opts: { q: string; t?: SearchScope; rq?: string }): Promise<Review[]> {
     const res = await this.call({
       path: "reviews",
-      params: { q: opts.q, t: opts.t, rq: opts.rq, forceShow: this.forceShow ? 1 : 0 },
+      params: { q: this.scoped(opts.q), t: opts.t, rq: opts.rq, forceShow: this.forceShow ? 1 : 0 },
       postAsGet: true,
       schema: ReviewsSchema,
     });
@@ -288,7 +303,7 @@ export class HotcrpClient {
   async comments(opts: { q: string; t?: SearchScope }): Promise<Comment[]> {
     const res = await this.call({
       path: "comments",
-      params: { q: opts.q, t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      params: { q: this.scoped(opts.q), t: opts.t, forceShow: this.forceShow ? 1 : 0 },
       postAsGet: true,
       schema: CommentsSchema,
     });
@@ -350,7 +365,7 @@ export class HotcrpClient {
   async papers(opts: { q: string; t?: SearchScope }): Promise<Paper[]> {
     const res = await this.call({
       path: "papers",
-      params: { q: opts.q, t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      params: { q: this.scoped(opts.q), t: opts.t, forceShow: this.forceShow ? 1 : 0 },
       postAsGet: true,
       schema: PapersSchema,
     });
@@ -672,6 +687,7 @@ export function clientFromConfig(
     forceShow: cfg.forceShow,
     concurrency: cfg.sync.concurrency,
     chunkSize: cfg.sync.chunk,
+    paperSearch: cfg.paperSearch,
     ...overrides,
   });
 }

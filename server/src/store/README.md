@@ -22,6 +22,9 @@ All times are integer epoch seconds. `*_seen_at` comes from the app clock (`PCS_
 existed at the first successful sync take HotCRP's `modified_at` (or the sync time) as
 `first_seen_at`. The sync never deletes rows. Disappearances set `deleted_seen_at` or
 `removed_seen_at`, and a reappearance clears it. Emails are lowercased.
+With `PCS_PAPER_SEARCH` set, a paper that stops matching is a disappearance like any other: it
+and its reviews, comments and assignments get `deleted_seen_at` / `removed_seen_at`, so every
+live read drops it (`paperAuthors` / `paperOptions` also skip gone papers). See `sync/sync.ts`.
 
 | Table | One row per | Notes |
 |---|---|---|
@@ -31,7 +34,7 @@ existed at the first successful sync take HotCRP's `modified_at` (or the sync ti
 | `review` | rid | Latest state: `rtype`, `status`, `vtag` (opaque; compare with `!==`), `modified_at` (null when HotCRP hides it), `scores` JSON (non-text fields by UID), `word_count` (local, over text fields), `ratings` JSON (raters per flag, `{"short":2}`; migration 6 converted HotCRP's flag list), `first_seen_at`, `first_complete_seen_at` (status `complete`/`approved`). |
 | `review_version` | (rid, vtag) | `source` = `snapshot` (first seen by a sync; `seen_at` = sync time) or `history` (`pcs backfill`; `seen_at` = that version's `modified_at`, approximate, maybe null). `sync_run_id` = the run that wrote it. |
 | `rating_change` | observed change | Review ratings change with no vtag and no timestamp, so each sync diffs them: `rid`, `seen_at` (sync clock), `before` (null = first sight of the review), `after` (counts JSON), `sync_run_id`. Unchanged ratings write nothing. Migration 6. `Store.ratingChanges()`. |
-| `meta` | key | `review_rating` / `review_rating_visibility`: HotCRP's rating settings as last synced (`Store.ratingSettings()`; `no` = ratings off, so rating signals are hidden). |
+| `meta` | key | `review_rating` / `review_rating_visibility`: HotCRP's rating settings as last synced (`Store.ratingSettings()`; `no` = ratings off, so rating signals are hidden). `paper_search`: the `PCS_PAPER_SEARCH` the last sync used ("" = every paper). |
 | `review_text` | (rid, vtag, field) | Text of each non-empty text field for each vtag. |
 | `review_field` | field UID | The review form from `get/jsonrqc`: name, type, `is_text`, order, score labels. |
 | `comment` | cid | Latest state plus `mentions` JSON, `word_count`, `text_hash`, `first_seen_at`, `deleted_seen_at`. `is_response` = author response. |

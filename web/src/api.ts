@@ -15,7 +15,9 @@ import type {
   ReviewersResponse,
   SyncStatus,
   TriageResponse,
+  PaperSearchResponse,
 } from "@pcs/server/server/api-types";
+import { useLocation } from "./router";
 
 import type {
   ActionsInfo,
@@ -60,9 +62,25 @@ export function triageUrl(f: TriageFilters): string {
   return `/api/triage${s ? `?${s}` : ""}`;
 }
 
+/**
+ * The in-app paper filter (?search=, a HotCRP search; router STICKY_PARAMS).
+ * Paper-centric hooks pass it to the server, which evaluates only the
+ * matching papers. "" = no filter.
+ */
+export function usePaperSearch(): string {
+  return (useLocation().query.get("search") ?? "").trim();
+}
+
+/** `url` with ?search= added when a filter is set. */
+export function withSearch(url: string, search: string): string {
+  if (!search) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}${new URLSearchParams({ search }).toString()}`;
+}
+
 export const keys = {
   meta: ["meta"] as const,
-  triage: (f: TriageFilters) => ["triage", f.ac ?? "", f.rule ?? "", f.tier ?? ""] as const,
+  triage: (f: TriageFilters, search = "") => ["triage", f.ac ?? "", f.rule ?? "", f.tier ?? "", search] as const,
+  paperSearch: (search: string) => ["paper-search", search] as const,
   paper: (pid: number) => ["paper", pid] as const,
   sync: ["sync"] as const,
   acs: ["acs"] as const,
@@ -84,9 +102,10 @@ export function useMeta() {
 }
 
 export function useTriage(f: TriageFilters) {
+  const search = usePaperSearch();
   return useQuery({
-    queryKey: keys.triage(f),
-    queryFn: () => getJson<TriageResponse>(triageUrl(f)),
+    queryKey: keys.triage(f, search),
+    queryFn: () => getJson<TriageResponse>(withSearch(triageUrl(f), search)),
     placeholderData: (prev) => prev,
   });
 }
@@ -100,7 +119,8 @@ export function usePaper(pid: number | null) {
 }
 
 export function useAcs() {
-  return useQuery({ queryKey: keys.acs, queryFn: () => getJson<AcsResponse>("/api/acs") });
+  const search = usePaperSearch();
+  return useQuery({ queryKey: [...keys.acs, search], queryFn: () => getJson<AcsResponse>(withSearch("/api/acs", search)) });
 }
 
 export function useLeads() {
@@ -114,18 +134,31 @@ export function useLead(email: string) {
 export const leadPath = (email: string) => `/leads/${encodeURIComponent(email)}`;
 
 export function useReviewers() {
-  return useQuery({ queryKey: keys.reviewers, queryFn: () => getJson<ReviewersResponse>("/api/reviewers") });
+  const search = usePaperSearch();
+  return useQuery({ queryKey: [...keys.reviewers, search], queryFn: () => getJson<ReviewersResponse>(withSearch("/api/reviewers", search)) });
 }
 
 export function usePerson(email: string) {
+  const search = usePaperSearch();
   return useQuery({
-    queryKey: keys.person(email),
-    queryFn: () => getJson<PersonResponse>(`/api/people/${encodeURIComponent(email)}`),
+    queryKey: [...keys.person(email), search],
+    queryFn: () => getJson<PersonResponse>(withSearch(`/api/people/${encodeURIComponent(email)}`, search)),
   });
 }
 
 export function useOverview() {
-  return useQuery({ queryKey: keys.overview, queryFn: () => getJson<OverviewResponse>("/api/overview") });
+  const search = usePaperSearch();
+  return useQuery({ queryKey: [...keys.overview, search], queryFn: () => getJson<OverviewResponse>(withSearch("/api/overview", search)) });
+}
+
+/** The filter box's status line: what a search matches (no request without one). */
+export function usePaperSearchInfo(search: string) {
+  return useQuery({
+    queryKey: keys.paperSearch(search),
+    queryFn: () => getJson<PaperSearchResponse>(`/api/paper-search?${new URLSearchParams({ search }).toString()}`),
+    enabled: search !== "",
+    retry: false,
+  });
 }
 
 // Phase-2 modules (PLAN M11). /api/reserve may fill in DBLP hints in the

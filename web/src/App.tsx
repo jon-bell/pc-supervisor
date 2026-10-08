@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import { useMeta, type MetaResponse } from "./api";
 import { ModulesNav } from "./components/ModulesNav";
+import { PaperFilterBar } from "./components/PaperFilter";
 import { SyncIndicator } from "./components/SyncIndicator";
 import { Volatile } from "./components/Time";
 import { formatTime, PHASE_LABELS } from "./format";
@@ -115,6 +116,7 @@ export function App() {
         <div className="spacer" />
         {m ? <SyncIndicator tz={m.tz} /> : null}
       </header>
+      {m ? <PaperFilterBar meta={m} /> : null}
       <main className="main">
         <TiersContext.Provider value={m?.tiersConfigured ?? true}>
           {meta.error ? <p className="error">Could not reach the local server: {meta.error.message}</p> : view}

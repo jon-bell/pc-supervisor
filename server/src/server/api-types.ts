@@ -50,6 +50,20 @@ export interface MetaResponse {
    * the instance has ratings off: rating signals are hidden, not zero.
    */
   ratings: { enabled: boolean; setting: string | null; visibility: string | null; flags: string[] };
+  /** PCS_PAPER_SEARCH: the HotCRP search the whole app is pinned to ("" = every paper). */
+  paperSearch: string;
+}
+
+/** GET /api/paper-search?search=: the in-app filter, resolved. */
+export interface PaperSearchResponse {
+  /** The filter as given (trimmed); "" = no filter. */
+  search: string;
+  /** PCS_PAPER_SEARCH, which every filter is ANDed with. */
+  scope: string;
+  /** Matching pids per HotCRP (within the scope), sorted; null = no filter. */
+  pids: number[] | null;
+  /** How many of those the local store holds (as of the last sync); null = no filter. */
+  inStore: number | null;
 }
 
 export interface TriageRow {

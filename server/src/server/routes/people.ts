@@ -12,6 +12,7 @@ import { OUTLIER_LISTS } from "../../rules/reviewer-metrics.js";
 import type { OpenPing, OutlierListId, PersonPaper, PersonResponse } from "../api-types.js";
 import { personOf, type RouteDeps } from "../app.js";
 import { acRow } from "./acs.js";
+import { filteredView } from "../paper-filter.js";
 
 const EXCERPT_CHARS = 200;
 const EMAIL = /^[^\s@/]{1,128}@[^\s@/]{1,255}$/;
@@ -27,7 +28,9 @@ export function registerPeople(app: FastifyInstance, deps: RouteDeps): void {
   app.get<{ Params: { email: string } }>("/api/people/:email", async (req, reply) => {
     const email = req.params.email.trim().toLowerCase();
     if (!EMAIL.test(email)) return reply.code(400).send({ error: "expected an email address" });
-    const view = deps.analysis.get();
+    // ?search=<HotCRP search>: their papers and summaries over the matching papers only.
+    const view = await filteredView(req, reply, deps);
+    if (!view) return reply;
     const { analysis, people, ctx } = view;
     const ev = analysis.evaluation;
     const rm = analysis.reviewers.find((r) => r.email === email) ?? null;

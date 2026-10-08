@@ -67,6 +67,11 @@ export class FakeHotcrp implements SyncSource {
   calls: string[] = [];
   /** Make the n-th call to an endpoint throw (e.g. {"comments": 1}). */
   failOn: Record<string, number> = {};
+  /** PCS_PAPER_SEARCH as a real client would report it. */
+  paperSearch = "";
+  /** The papers that search matches: every paper read keeps only these (undefined = all). */
+  scopePids: ReadonlySet<number> | undefined;
+  private inScope = (pid: number) => !this.scopePids || this.scopePids.has(pid);
 
   private hit(name: string) {
     this.calls.push(name);
@@ -87,11 +92,12 @@ export class FakeHotcrp implements SyncSource {
 
   async papers(): Promise<SearchResponse> {
     this.hit("search");
+    const papers = this.papersList.filter((p) => this.inScope(p.pid));
     return {
       ok: true,
-      ids: this.papersList.map((p) => p.pid).sort((a, b) => a - b),
+      ids: papers.map((p) => p.pid).sort((a, b) => a - b),
       search_params: "q=all&t=all",
-      papers: this.papersList.map((p) => {
+      papers: papers.map((p) => {
         // SearchPaper is {pid: number} plus string fields; TS can't express that literally.
         const row = { pid: p.pid } as SearchPaper;
         row.title = p.title;
@@ -106,12 +112,12 @@ export class FakeHotcrp implements SyncSource {
 
   async pcAssignments(): Promise<PcAssignmentRow[]> {
     this.hit("pcassignments");
-    return this.assignmentRows;
+    return this.assignmentRows.filter((r) => this.inScope(r.paper));
   }
 
   async paperRoles(kind: "lead" | "shepherd"): Promise<PaperRoleRow[]> {
     this.hit(kind);
-    return kind === "lead" ? this.leads : this.shepherds;
+    return (kind === "lead" ? this.leads : this.shepherds).filter((r) => this.inScope(r.pid));
   }
 
   async reviewForm(): Promise<RqcResponse> {
@@ -132,7 +138,7 @@ export class FakeHotcrp implements SyncSource {
   async reviews(q: string, rq?: string): Promise<Review[]> {
     this.hit(rq ? "reviews-rq" : "reviews");
     const inQ = range(q);
-    let rs = this.reviewList.filter((r) => inQ(r.pid));
+    let rs = this.reviewList.filter((r) => inQ(r.pid) && this.inScope(r.pid));
     if (rq) {
       const m = /^re:#(.+)$/.exec(rq);
       if (!m) throw new Error(`fake source: unsupported rq=${rq}`);
@@ -145,7 +151,7 @@ export class FakeHotcrp implements SyncSource {
   async comments(q: string): Promise<Comment[]> {
     this.hit("comments");
     const inQ = range(q);
-    return structuredClone(this.commentList.filter((c) => inQ(c.pid)));
+    return structuredClone(this.commentList.filter((c) => inQ(c.pid) && this.inScope(c.pid)));
   }
 
   async reviewHistory(pid: number, rid: number): Promise<ReviewHistory> {

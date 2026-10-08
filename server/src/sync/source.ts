@@ -21,6 +21,12 @@ import type {
 export const SEARCH_FIELDS = ["title", "status", "decision", "tags", "manager"] as const;
 
 export interface SyncSource {
+  /**
+   * PCS_PAPER_SEARCH as this source applies it ("" or absent = every paper).
+   * The source restricts every read to it; the sync records it in meta and
+   * uses it to time papers entering the scope (sync.ts header).
+   */
+  readonly paperSearch?: string;
   pc(): Promise<PcResponse>;
   /** All papers (t=all) with SEARCH_FIELDS. */
   papers(): Promise<SearchResponse>;
@@ -47,6 +53,7 @@ export interface SyncSource {
 
 export function clientSource(client: HotcrpClient): SyncSource {
   return {
+    paperSearch: client.paperSearch,
     pc: () => client.pc(),
     papers: () => client.search({ t: "all", fields: SEARCH_FIELDS }),
     pcAssignments: () => client.pcAssignments({ t: "all" }),
