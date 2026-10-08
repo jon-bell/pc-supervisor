@@ -28,6 +28,7 @@ import {
   EnvelopeSchema,
   PcAssignmentsSchema,
   PcConflictsSchema,
+  AllRevPrefSchema,
   PcSchema,
   paperRoleRowsSchema,
   ReviewHistorySchema,
@@ -49,6 +50,7 @@ import {
   type PaperRoleRow,
   type PcAssignmentRow,
   type PcConflictRow,
+  type RevPrefRow,
   type Review,
 } from "./schemas.js";
 import { AssignTagsResultSchema, tagAssignmentBody, tagDiffOf, type TagChange, type TagDiff } from "./tag-assign.js";
@@ -248,6 +250,21 @@ export class HotcrpClient {
       params: { action: "get/pcconf", q: opts.q ?? "all", t: opts.t, forceShow: this.forceShow ? 1 : 0 },
       format: "csv",
       schema: PcConflictsSchema,
+    });
+  }
+
+  /**
+   * GET /searchaction?action=get/allrevpref: HotCRP's review preferences,
+   * expertise, and topic-interest scores for every (paper, PC member) pair
+   * that has any (chair/manager token). The solver's third affinity source
+   * (spec §10.5); fetched on demand, never stored.
+   */
+  allRevPrefs(opts: { q?: string; t?: SearchScope } = {}): Promise<RevPrefRow[]> {
+    return this.call({
+      path: "searchaction",
+      params: { action: "get/allrevpref", q: opts.q ?? "all", t: opts.t, forceShow: this.forceShow ? 1 : 0 },
+      format: "csv",
+      schema: AllRevPrefSchema,
     });
   }
 

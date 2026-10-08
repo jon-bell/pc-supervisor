@@ -783,6 +783,119 @@ p ──(cap = reviews per paper)──► sink
   - In compat mode, PHP's flows are reproduced edge for edge (242/242).
   A unit property test checks 600 instances against an Edmonds-Karp + cycle-canceling reference. The perf test (`test/unit/solver/mcmf-perf.test.ts`) runs the spec network at 2,400 × 600, top-60: 7.8k vertices, 160k edges. It takes 1.9 s soft and 1.0 s hard on a 4-core machine, against a 30 s budget.
 
+**Implemented (M10b): the assignment network, `server/src/modules/solver/` (`solve.ts`, `affinity.ts`, `load.ts`), `pcs solve-assignments`, `GET /api/assignment`, `GET`/`POST /api/assignment/solve`, *Modules → Assignment* and *Modules → Solver*.**
+
+*Inputs.* M10's `loadValidatorInput` supplies live papers with authors, people with tiers and affiliations, current slot-filling assignments with their review status, and the latest `invites` and `do-not-invite` imports. `scoresAsOf` supplies the merged `tpms-scores` + `affinity-local` matrix. Two read-only HotCRP downloads are made on demand and never stored: PC conflicts (`get/pcconf`, `t=all`) and, unless `PCS_SOLVER_W_HOTCRP=0`, review preferences. Assignments in the quick-reject round don't fill slots (`PCS_QR_EXCLUDE_FROM_SLOTS`, as in M10). They are never candidates and never appear in the CSV.
+
+*HotCRP preferences.* The request is **`GET /api/searchaction?action=get/allrevpref&q=all&t=all`** (`HotcrpClient.allRevPrefs`, `AllRevPrefSchema`, contract test `test/contract/allrevpref.test.ts`). It returns HotCRP's "PC review preferences" CSV and needs a manager token; a scoped token also needs `preference:read`. The header is `paper,title,given_name,family_name,email,conflict,preference[,expertise][,topic_score]`. HotCRP adds the `expertise` column only if some preference carries an expertise, and `topic_score` only if some PC member declared a topic interest. There is one row per (paper, PC member) pair that has a nonzero preference, an expertise, a nonzero topic score, or a conflict. Other pairs have no row. `conflict` is `conflict` or empty, and author conflicts appear there too. `expertise` is `X`, `Y`, or `Z`.
+
+*Affinity.* For each pair, the first source that scores it wins: TPMS, then local, then HotCRP. The integer affinity is `round(PCS_SOLVER_AFFINITY_SCALE × weight × score)`, using the source's weight (`PCS_SOLVER_W_TPMS`, `_W_LOCAL`, `_W_HOTCRP`; defaults 1, 1, 0.5). A HotCRP row maps to a 0–1 score as follows (`hotcrpScore`):
+- start at 0.5;
+- add ±0.3 for the preference, at full strength when it reaches ±`PCS_SOLVER_PREF_SCALE` (default 20);
+- add ±0.1 for expertise X or Z;
+- add ±0.1 for the topic score, at full strength when it reaches ±10;
+- clamp the result to 0–1.
+
+An unscored pair has affinity 0.
+
+*Network* (built once per solve, over M10a's `MinCostMaxFlow`):
+
+```
+source ──(c_r)──► R_r ──(c_r unit edges: cost (i−1)·LOAD_COST, − LOAD_MIN_BONUS while i ≤ band min)──► L_r ──(cap 1, −affinity)──► p.senior | p.third
+R_r ──(c_r, cost 0)──► sink                                   (bypass)
+p.senior ──(MIN_SENIOR, −SLOT_BONUS)──► p,  ──(MAX_SENIOR − MIN_SENIOR, 0)──► p
+p.third  ──(1, −SLOT_BONUS)──► p
+p ──(sum of the above)──► sink
+```
+
+- `c_r` is the reviewer's band maximum, raised to their pinned count if their pins exceed it. The convex unit costs follow HotCRP's autoassigner (`paper_assignment_cost × i`).
+- **The bypass makes the max-flow phase moot.** The maximum flow is always Σ c_r, so cost alone decides what gets assigned. Without the bypass, MCMF's "maximum flow first" would force every optional slot (a 4th senior under `PCS_POLICY_MAX_SENIOR`) to be filled.
+- **Optional seniors.** An optional senior slot is filled only when the reviewer's affinity outweighs their load cost. `PCS_POLICY_MAX_SENIOR` defaults to `PCS_POLICY_MIN_SENIOR`, which means no optional slots.
+- **Hard mode.** With `PCS_SOLVER_HARD` (or `--hard`), the two required edges get lower bounds instead of bonuses. An unstaffable paper then makes the solve infeasible. The report lists the paper slots MCMF's `unmet` points at, and there is no CSV.
+- **The third slot is required under both policies.** The validator flags a missing third slot under `atleast1` too, so the slot gets the bonus (or the lower bound) either way, and its capacity is 1. `atleast1` differs only in that the validator accepts extra pinned third-slot reviews.
+- **Reviewer band minimum.** The minimum is always soft (`PCS_SOLVER_LOAD_MIN_BONUS`, default 10,000, below `PCS_SOLVER_SLOT_BONUS`, default 100,000). Underloads show up in the load histogram.
+
+*Eligibility.* There is an `L_r → p.t` edge only if all of these hold:
+- r is an assignable PC member: on the PC, not a chair or AC, and in a tier with a `PCS_LOAD_*` band whose maximum is above 0. A custom tier without a band gets a note.
+- r is not an author of p.
+- r has no conflict with p in HotCRP (`get/pcconf`, or the conflict column of `allrevpref`).
+- r doesn't share a normalized affiliation with an author of p, when `PCS_CONFLICT_AFFILIATION` is on.
+- r is not on the do-not-invite list.
+- If r is in a `reserve-*` tier, r is approved for p in the invites import: `ac_decision=approve` and `response≠decline`.
+
+Junior, reserve-active, and any other non-senior tier feed `p.third`.
+
+*Pruning.* For each paper and slot class (senior, third), the solver keeps the `PCS_SOLVER_TOPK` best eligible candidates by affinity, plus every current unstarted assignment that is still eligible, plus every pinned edge. Ties, including all unscored candidates, are broken by a hash of (pid, reviewer), so they don't all go to the alphabetically first reviewer. At 2,400 × 600 with top-60 per class, that is 288k candidates and 306k edges.
+
+*Pins* (lower bound 1):
+- **Started reviews.** Their status is outside the validator's `CLEARABLE_STATUSES`, so they can't be cleared safely. An unstarted current assignment is a candidate, not a pin. The solver may drop it, and the CSV then clears it. This is how the planted cycles and overloads of the `assignment` scenario get fixed.
+- **AC-activated reserves.** The invites import has `approve`, not `decline`, and `activated_at` set.
+- **Current assignments of chairs and ACs** that the chair placed as reviewers.
+
+A started review that is itself ineligible is kept and reported as a pin issue. An activation that is ineligible is not pinned and is reported: a do-not-invite entry, a conflict, or a candidate not yet on the PC.
+
+*Repair passes.* After the first full solve, each round finds issues, forbids edges, and re-solves:
+- **Reciprocal cycles.** M10's `findCycles` runs on the solved author → reviewer graph (`PCS_CYCLE_MAX_K`). Each cycle edge is a person edge a → b. For each cycle, the solver picks the edge whose current assignments have the lowest total affinity and include no pin. b loses those assignments, and every other candidate edge from b onto a paper by a is forbidden too, so the pair can't close the cycle again on another paper. Forbidding only the single assignment let the solver move b to a's next paper and needed many more rounds.
+- **One reviewer per institution per paper** (`PCS_SOLVER_ONE_PER_INSTITUTION`, default on: cheap). Across tiers, the solver keeps the pinned or best-scoring reviewer of each normalized affiliation. The others go, and every other candidate from that affiliation on that paper is forbidden. An empty affiliation never matches.
+- **Re-solves are warm.** Only the papers that lost an assignment are solved again. Every other paper's assignment stays fixed, and its reviewers' load carries over, so bands and convex costs stay exact. A warm round takes milliseconds; a full solve at scale takes about 4 s. In hard mode, if the warm subproblem is infeasible, the solver tries a full solve. If that is infeasible too, it undoes the round and reports the issues as unresolved.
+- **Stopping.** Rounds repeat until both checks are clean or `PCS_SOLVER_REPAIR_MAX` rounds (default 10) have run. Whatever is left goes in `unresolved`, as do issues only pins could break.
+- **Polish.** One final full solve runs with every forbidden edge removed. Its result replaces the warm-repaired one if it is cheaper and has no new cycle or clash. On random 40-paper instances, this happened in 7 of 60.
+
+Each repair is reported as `{ round, kind, removed: [{pid, email, affinity}], forbidden, reason }`.
+
+*Outputs* (`SolveReport`, `modules/solver/types.ts`):
+- `objective`: the network cost of the final assignment, which is load costs − affinity − earned bonuses.
+- `affinityObjective`: the same without bonuses.
+- `unmet`: one entry per paper and slot, with `have`, `need`, the eligible count before pruning, and a reason. The reason is either "only N eligible candidates after conflicts, do-not-invite, and reserve approval" or "N eligible candidates, but their load bands (`PCS_LOAD_…_MAX`) are used by other papers", noting forbidden edges when repairs touched the paper.
+- `load`: per tier, the band, the number of reviewers at each load (a histogram, never a ranking), and the under and over counts.
+- `repairs`, `unresolved`, and `pinIssues`.
+- `coverage`: papers whose best eligible senior or third-slot candidate scores below `PCS_SOLVER_WEAK_AFFINITY` (0–1, unweighted; default 0.3), with the count of assignments without a score.
+- `assignments`, `cleared`, `csv`, and `lines`.
+- `crossCheck`: see the cross-check paragraph below.
+- `notes` and `timing`.
+
+*Bulk-assign CSV.* The columns are `paper,action,email,round`, ordered by paper. For each paper the lines are:
+1. `clearreview` for current unstarted assignments the solve dropped;
+2. the seniors, then the third slot, by affinity.
+
+A kept assignment keeps its current type (`primary`, `secondary`, or `pcreview`) and has an empty round. HotCRP's assignment parser keeps the existing round when the column is empty, so these lines are no-ops. A new senior is `primary`, a new third slot is `secondary`, and the round is `PCS_SOLVER_ROUND`, or empty for HotCRP's default. HotCRP takes `email` as the user column. The tool never applies the CSV; the integration test dry-runs it.
+
+*Cross-check.* M10's `validate()` runs on the solved assignment, with source `"solver"`, judged like `"hotcrp"`. Each finding gets an `explainedBy`:
+- composition findings, by the matching `unmet` entry;
+- `LOAD_OVER`, by pins over the band;
+- `LOAD_UNDER`, by the soft band minimum;
+- `RECIPROCAL_CYCLE`, by an `unresolved` entry;
+- conflict, reserve, and input findings, by a pinned pair.
+
+Anything else is counted as `unexplained`. The tests require zero.
+
+*Interfaces.*
+- **CLI.** `pcs solve-assignments [--hard] [--out file.csv] [--report file.json]` prints the report and writes the CSV and the JSON report (0600). It exits 1 if the hard solve is infeasible or HotCRP can't be read.
+- **`POST /api/assignment/solve`** (`{ hard?: boolean }`) runs the solver and caches the report in the server. It refuses foreign `Origin`s (403), runs one solve at a time (409), and answers 503 without a HotCRP client.
+- **`GET /api/assignment/solve`** returns the cached report, or `report: null` before the first solve.
+- **`GET /api/assignment[?source=tpms]`** routes M10's validator. It answers 404 with the import hint if there is no TPMS import.
+- **Web views.** *Modules → Assignment* shows findings by check plus the fix-up CSV. *Modules → Solver* has the run buttons and shows the summary, unmet requirements, load table, repairs, coverage, cross-check, and CSV.
+
+*Tests.*
+- **Properties** (`test/unit/solver/solve.test.ts`, 40 random soft instances plus 15 hard ones from `test/support/solver-instances.ts`):
+  - every paper meets its composition or is reported with a reason;
+  - no band is exceeded except by pins;
+  - no conflicted, author, same-affiliation, blocked, do-not-invite, or unapproved-reserve edge appears;
+  - started reviews are kept;
+  - every remaining cycle or institution clash is listed as unresolved;
+  - the CSV keeps or clears every current assignment;
+  - the cross-check has nothing unexplained.
+  
+  Hand-built cases cover the tier gadget, hard infeasibility, pins, repairs, the repair cap, institutions, source priority and weights, coverage, and the CSV round.
+- **Done criterion** (`seed/test/integration/solver.test.ts`). It seeds the `assignment` scenario, imports its fixtures plus the synthetic `fixtures/tpms-scores.csv` (every PC reviewer × every paper; the current panel scores 0.90), and solves with live conflicts and preferences. It checks:
+  - every paper meets its composition or is reported with a reason;
+  - no band is exceeded;
+  - there is no author, same-affiliation, do-not-invite (greta.holm on #6 is a reported pin issue), or unapproved-reserve edge;
+  - the planted 2- and 3-cycles are broken;
+  - the cross-check is clean;
+  - the CSV passes `POST /assign?dry_run=1` and leaves HotCRP unchanged.
+- **Perf** (`test/unit/solver/solve-perf.test.ts`). The instance has 2,400 papers and 600 reviewers (400 senior, 120 junior, 80 reserve-active), dense scores, PC authors, 200 affiliations, conflicts, pins, and activations. The run includes repairs and the cross-check: 8.4k vertices, 306k edges, about 90 repairs, and about 10 s in total (full solves of about 4 s, warm rounds of about 50 ms), against a 30 s budget.
+
 ### 10.6 Upstream HotCRP contributions (proposed as PRs, not a fork)
 - An admin endpoint for the **action log**, and one for the **mail log**. Together they would make email reminders and assignment changes visible, closing the "nudges are invisible" gap in §1.
 - `POST /reviews`: honor `override` for JSON bodies, not just text uploads.

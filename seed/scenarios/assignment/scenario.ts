@@ -192,6 +192,10 @@ export const FIXTURES = {
   invites: new URL("./fixtures/invites.csv", import.meta.url),
   "do-not-invite": new URL("./fixtures/do-not-invite.csv", import.meta.url),
   "tpms-assignments": new URL("./fixtures/tpms-assignments.csv", import.meta.url),
+  // PLAN M10b: a synthetic affinity matrix for the solver (every PC reviewer x
+  // every paper; the current panel scores 0.90, so the planted cycles are
+  // what the solver would pick without its repair pass).
+  "tpms-scores": new URL("./fixtures/tpms-scores.csv", import.meta.url),
 } as const;
 
 /**

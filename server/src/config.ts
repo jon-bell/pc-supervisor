@@ -440,6 +440,22 @@ export const FIELDS = {
   PCS_CYCLE_MAX_REPORT: withDefault(500, intIn(1, 100_000)),
   PCS_CONFLICT_AFFILIATION: withDefault(true, bool),
   PCS_CONFLICT_DBLP: withDefault(false, bool),
+  // Assignment solver (spec §10.5, PLAN M10b).
+  PCS_POLICY_MAX_SENIOR: optional(intIn(0, 20)),
+  PCS_SOLVER_HARD: withDefault(false, bool),
+  PCS_SOLVER_SLOT_BONUS: withDefault(100_000, intIn(1, 1_000_000)),
+  PCS_SOLVER_LOAD_COST: withDefault(20, intIn(0, 10_000)),
+  PCS_SOLVER_LOAD_MIN_BONUS: withDefault(10_000, intIn(0, 1_000_000)),
+  PCS_SOLVER_TOPK: withDefault(60, intIn(1, 100_000)),
+  PCS_SOLVER_AFFINITY_SCALE: withDefault(1000, intIn(1, 100_000)),
+  PCS_SOLVER_W_TPMS: withDefault(1, numberIn(0, 10)),
+  PCS_SOLVER_W_LOCAL: withDefault(1, numberIn(0, 10)),
+  PCS_SOLVER_W_HOTCRP: withDefault(0.5, numberIn(0, 10)),
+  PCS_SOLVER_PREF_SCALE: withDefault(20, numberIn(0, 1_000_000, { exclusiveMin: true })),
+  PCS_SOLVER_WEAK_AFFINITY: withDefault(0.3, numberIn(0, 1)),
+  PCS_SOLVER_REPAIR_MAX: withDefault(10, intIn(0, 100)),
+  PCS_SOLVER_ONE_PER_INSTITUTION: withDefault(true, bool),
+  PCS_SOLVER_ROUND: optional(roundName),
   // Reserve compliance (spec §10.4 A, PLAN M11).
   PCS_RESERVE_DESIGNEE_FIELD: withDefault("Reserve designee", optionName),
   PCS_RESERVE_EXEMPTION_FIELD: withDefault("Reserve exemption", optionName),
@@ -675,6 +691,52 @@ export const DEFAULT_ASSIGNMENT_POLICY: AssignmentPolicy = {
   dblpConflicts: false,
 };
 
+/** PCS_SOLVER_* and PCS_POLICY_MAX_SENIOR (spec §10.5, PLAN M10b). */
+export interface SolverSettings {
+  /** PCS_POLICY_MAX_SENIOR: senior reviews a paper may get (default PCS_POLICY_MIN_SENIOR). */
+  maxSenior: number;
+  /** PCS_SOLVER_HARD: required slots as true lower bounds (the solve can be infeasible). */
+  hard: boolean;
+  /** PCS_SOLVER_SLOT_BONUS: cost bonus per filled required slot (soft mode). */
+  slotBonus: number;
+  /** PCS_SOLVER_LOAD_COST: convex load cost; a reviewer's i-th assignment costs (i-1) x this. */
+  loadCost: number;
+  /** PCS_SOLVER_LOAD_MIN_BONUS: bonus per assignment up to the reviewer's band minimum. */
+  loadMinBonus: number;
+  /** PCS_SOLVER_TOPK: candidates kept per paper and tier class. */
+  topK: number;
+  /** PCS_SOLVER_AFFINITY_SCALE: integer affinity of a weight-1 score of 1.0. */
+  affinityScale: number;
+  /** PCS_SOLVER_W_TPMS / _W_LOCAL / _W_HOTCRP: per-source weights. */
+  weights: { tpms: number; local: number; hotcrp: number };
+  /** PCS_SOLVER_PREF_SCALE: the HotCRP preference that counts as full strength. */
+  prefScale: number;
+  /** PCS_SOLVER_WEAK_AFFINITY: a paper whose best candidate scores below this (0-1) is weakly covered. */
+  weakAffinity: number;
+  /** PCS_SOLVER_REPAIR_MAX: forbid-and-re-solve rounds at most. */
+  repairMax: number;
+  /** PCS_SOLVER_ONE_PER_INSTITUTION: at most one reviewer per affiliation per paper. */
+  onePerInstitution: boolean;
+  /** PCS_SOLVER_ROUND: review round for new assignments in the CSV (undefined = HotCRP's default). */
+  round: string | undefined;
+}
+
+export const DEFAULT_SOLVER_SETTINGS: SolverSettings = {
+  maxSenior: 2,
+  hard: false,
+  slotBonus: 100_000,
+  loadCost: 20,
+  loadMinBonus: 10_000,
+  topK: 60,
+  affinityScale: 1000,
+  weights: { tpms: 1, local: 1, hotcrp: 0.5 },
+  prefScale: 20,
+  weakAffinity: 0.3,
+  repairMax: 10,
+  onePerInstitution: true,
+  round: undefined,
+};
+
 /** PCS_RESERVE_* and PCS_DBLP_* (spec §10.4 A). */
 export interface ReservePolicy {
   /** Submission-option names in HotCRP. */
@@ -814,6 +876,8 @@ export interface Config {
    * that builds a Config literal keeps compiling; loadConfig always sets it.
    */
   assignment?: AssignmentPolicy;
+  /** Assignment solver (spec §10.5); optional like `assignment`, always set by loadConfig. */
+  solver?: SolverSettings;
   /** Reserve compliance (spec §10.4 A); optional like `assignment`, always set by loadConfig. */
   reserve?: ReservePolicy;
   /** Quick-reject tracker (spec §10.4 B); optional like `assignment`, always set by loadConfig. */
@@ -996,6 +1060,9 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
       problems.push({ name: `PCS_LOAD_${stem}_MAX`, message: `must not be less than PCS_LOAD_${stem}_MIN (${lo})` });
     }
   }
+  if (v.PCS_POLICY_MAX_SENIOR !== undefined && v.PCS_POLICY_MIN_SENIOR !== undefined && v.PCS_POLICY_MAX_SENIOR < v.PCS_POLICY_MIN_SENIOR) {
+    problems.push({ name: "PCS_POLICY_MAX_SENIOR", message: `must not be less than PCS_POLICY_MIN_SENIOR (${v.PCS_POLICY_MIN_SENIOR})` });
+  }
   if (v.PCS_MERIT_WEAK_REJECT_MAX !== undefined && v.PCS_MERIT_REJECT_MAX !== undefined && v.PCS_MERIT_WEAK_REJECT_MAX < v.PCS_MERIT_REJECT_MAX) {
     problems.push({ name: "PCS_MERIT_WEAK_REJECT_MAX", message: `must not be less than PCS_MERIT_REJECT_MAX (${v.PCS_MERIT_REJECT_MAX})` });
   }
@@ -1030,6 +1097,21 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
       cycleMaxReport: f.PCS_CYCLE_MAX_REPORT,
       affiliationConflicts: f.PCS_CONFLICT_AFFILIATION,
       dblpConflicts: f.PCS_CONFLICT_DBLP,
+    },
+    solver: {
+      maxSenior: f.PCS_POLICY_MAX_SENIOR ?? f.PCS_POLICY_MIN_SENIOR,
+      hard: f.PCS_SOLVER_HARD,
+      slotBonus: f.PCS_SOLVER_SLOT_BONUS,
+      loadCost: f.PCS_SOLVER_LOAD_COST,
+      loadMinBonus: f.PCS_SOLVER_LOAD_MIN_BONUS,
+      topK: f.PCS_SOLVER_TOPK,
+      affinityScale: f.PCS_SOLVER_AFFINITY_SCALE,
+      weights: { tpms: f.PCS_SOLVER_W_TPMS, local: f.PCS_SOLVER_W_LOCAL, hotcrp: f.PCS_SOLVER_W_HOTCRP },
+      prefScale: f.PCS_SOLVER_PREF_SCALE,
+      weakAffinity: f.PCS_SOLVER_WEAK_AFFINITY,
+      repairMax: f.PCS_SOLVER_REPAIR_MAX,
+      onePerInstitution: f.PCS_SOLVER_ONE_PER_INSTITUTION,
+      round: f.PCS_SOLVER_ROUND,
     },
     reserve: {
       designeeField: f.PCS_RESERVE_DESIGNEE_FIELD,

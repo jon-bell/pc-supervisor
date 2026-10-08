@@ -11,6 +11,8 @@ import { Volatile } from "./components/Time";
 import { formatTime, PHASE_LABELS } from "./format";
 import { Link, match, useLocation } from "./router";
 import { Acs } from "./views/Acs";
+import { Assignment } from "./views/Assignment";
+import { Solver } from "./views/Solver";
 import { EarlyReject } from "./views/EarlyReject";
 import { Overview } from "./views/Overview";
 import { Person } from "./views/Person";
@@ -36,6 +38,8 @@ const ROUTES: Route[] = [
   // Phase-2 modules (spec §10.4).
   { path: "/modules/reserve", render: (meta) => <Reserve meta={meta} /> },
   { path: "/modules/quickreject", render: (meta) => <QuickReject meta={meta} /> },
+  { path: "/modules/assignment", render: (meta) => <Assignment meta={meta} /> },
+  { path: "/modules/solver", render: (meta) => <Solver meta={meta} /> },
   { path: "/modules/tier-progress", render: (meta) => <TierProgress meta={meta} /> },
   { path: "/modules/early-reject", render: (meta) => <EarlyReject meta={meta} /> },
   { path: "/modules/report", render: (meta) => <Report meta={meta} /> },
