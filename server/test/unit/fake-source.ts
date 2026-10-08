@@ -62,6 +62,7 @@ export class FakeHotcrp implements SyncSource {
   reviewList: Review[] = [];
   commentList: Comment[] = [];
   histories = new Map<number, ReviewHistory>();
+  form: RqcResponse = FORM;
   /** Calls, for asserting request patterns. */
   calls: string[] = [];
   /** Make the n-th call to an endpoint throw (e.g. {"comments": 1}). */
@@ -115,7 +116,7 @@ export class FakeHotcrp implements SyncSource {
 
   async reviewForm(): Promise<RqcResponse> {
     this.hit("jsonrqc");
-    return FORM;
+    return this.form;
   }
 
   /** HotCRP's review-rating settings (GET /settings). */

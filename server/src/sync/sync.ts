@@ -31,7 +31,15 @@
 import { systemClock, type Clock } from "../clock.js";
 import type { AcRole, TierTags } from "../config.js";
 import { pidChunks, pidListChunks, type PidChunk } from "../hotcrp/chunk.js";
-import { reviewField, type Comment, type Review, type RqcField } from "../hotcrp/schemas.js";
+import {
+  reviewField,
+  reviewScore,
+  SCORE_FIELD_TYPES,
+  TEXT_FIELD_TYPES,
+  type Comment,
+  type Review,
+  type RqcField,
+} from "../hotcrp/schemas.js";
 import { countRatings, parseRatings, ratingsJson } from "../ratings.js";
 import { redact } from "../redact.js";
 import type { Db } from "../store/db.js";
@@ -41,9 +49,6 @@ import { applyPaperDetails, storedOptionFields, submissionStatements, syncSubmis
 
 /** Review statuses that count as a finished review. */
 export const COMPLETE_STATUSES: ReadonlySet<string> = new Set(["complete", "approved"]);
-
-/** Field types whose values are free text (everything else is a score/choice). */
-const TEXT_FIELD_TYPES = new Set(["text"]);
 
 const ASSIGNMENT_ROLE: Record<string, string> = {
   metareview: "meta",
@@ -295,7 +300,7 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
     const fields = Object.values(form.reviewform);
     syncFields(db, fields, now, counts);
     const textUids = fields.filter((f) => TEXT_FIELD_TYPES.has(f.type)).map((f) => f.uid);
-    const scoreUids = fields.filter((f) => !TEXT_FIELD_TYPES.has(f.type)).map((f) => f.uid);
+    const scoreUids = fields.filter((f) => SCORE_FIELD_TYPES.has(f.type)).map((f) => f.uid);
 
     const nameToEmails = syncPeople(db, pc.pc, holders, opts.tierTags, now, counts);
     const managerByPid = syncPapers(db, search.papers ?? [], leads, shepherds, nameToEmails, now, approx, counts, warnings);
@@ -706,7 +711,7 @@ interface ReviewCtx {
 export function reviewParts(r: Review, textUids: readonly string[], scoreUids: readonly string[]) {
   const scores: Record<string, number | string | null> = {};
   for (const uid of scoreUids) {
-    const v = reviewField(r, uid);
+    const v = reviewScore(r, uid);
     if (v !== undefined) scores[uid] = v;
   }
   const texts: [string, string][] = [];

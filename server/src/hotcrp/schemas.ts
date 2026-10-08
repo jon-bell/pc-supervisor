@@ -248,9 +248,27 @@ export const ReviewTypeSchema = z.union([z.literal(1), z.literal(2), z.literal(3
 export const REVIEW_STATUSES = ["empty", "acknowledged", "draft", "delivered", "approved", "complete"] as const;
 export const ReviewStatusSchema = z.enum(REVIEW_STATUSES);
 
-/** A review-form field value: score (number, or a letter symbol), text, or null. */
-export const ReviewFieldValueSchema = z.union([z.number(), z.string(), z.null()]);
+/**
+ * A review-form field value (ReviewField::unparse_json, by field type):
+ * - text: string;
+ * - radio/dropdown: the score symbol (number, or a letter), or false for "no entry";
+ * - checkbox: boolean;
+ * - checkboxes: list of symbols;
+ * - any type: null.
+ */
+export const ReviewFieldValueSchema = z.union([
+  z.number(),
+  z.string(),
+  z.boolean(),
+  z.array(z.union([z.number(), z.string()])),
+  z.null(),
+]);
 export type ReviewFieldValue = z.infer<typeof ReviewFieldValueSchema>;
+
+/** Review-field types whose values are free text. */
+export const TEXT_FIELD_TYPES: ReadonlySet<string> = new Set(["text"]);
+/** Review-field types whose values are scores. Others (checkbox, checkboxes) are not stored. */
+export const SCORE_FIELD_TYPES: ReadonlySet<string> = new Set(["radio", "dropdown"]);
 
 /** One HotCRP rating flag (ReviewInfo::$rating_bits). An unknown flag fails the parse: fix the vocabulary, don't hide it. */
 export const RatingFlagSchema = z.enum(RATING_FLAGS);
@@ -540,4 +558,16 @@ export function reviewField(r: Review | ReviewDelta, uid: string): ReviewFieldVa
   const parsed = ReviewFieldValueSchema.safeParse(v);
   if (!parsed.success) throw new TypeError(`review ${r.rid}: field ${uid} has unexpected type ${typeof v}`);
   return parsed.data;
+}
+
+/**
+ * A score-field (radio/dropdown) value by UID: the symbol, or null for no
+ * entry (HotCRP sends false); undefined when the key is absent. Throws on any
+ * other type.
+ */
+export function reviewScore(r: Review | ReviewDelta, uid: string): number | string | null | undefined {
+  const v = reviewField(r, uid);
+  if (v === false) return null;
+  if (v === undefined || v === null || typeof v === "number" || typeof v === "string") return v;
+  throw new TypeError(`review ${r.rid}: score field ${uid} has unexpected type ${Array.isArray(v) ? "array" : typeof v}`);
 }

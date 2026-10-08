@@ -11,7 +11,7 @@
 
 import { systemClock, type Clock } from "../clock.js";
 import { HotcrpError } from "../hotcrp/errors.js";
-import { reviewField, type ReviewHistory } from "../hotcrp/schemas.js";
+import { reviewField, reviewScore, SCORE_FIELD_TYPES, type ReviewHistory } from "../hotcrp/schemas.js";
 import { redact } from "../redact.js";
 import type { Db } from "../store/db.js";
 import type { SyncSource } from "./source.js";
@@ -94,7 +94,7 @@ export function historyVersions(h: ReviewHistory, f: FieldInfo): VersionState[] 
     if (v.object === "review") {
       s = { vtag: v.version ?? NaN, status: v.status, modified_at: v.modified_at ?? null, scores: {}, texts: new Map(), unknownText: new Set() };
       for (const uid of f.scoreUids) {
-        const x = reviewField(v, uid);
+        const x = reviewScore(v, uid);
         if (x !== undefined) s.scores[uid] = x;
       }
       for (const uid of f.textUids) {
@@ -114,7 +114,7 @@ export function historyVersions(h: ReviewHistory, f: FieldInfo): VersionState[] 
       };
       const rec = v as Record<string, unknown>;
       for (const uid of f.scoreUids) {
-        const x = reviewField(v, uid);
+        const x = reviewScore(v, uid);
         if (x !== undefined) s.scores[uid] = x;
       }
       for (const uid of f.textUids) {
@@ -142,13 +142,14 @@ export async function runBackfill(db: Db, source: SyncSource, opts: BackfillOpti
     db.prepare("insert into sync_run (kind, started_at, now_used) values ('backfill', ?, ?)").run(sec(systemClock.now()), now)
       .lastInsertRowid,
   );
-  const fields = db.prepare("select uid, is_text from review_field where removed_seen_at is null").all() as {
+  const fields = db.prepare("select uid, type, is_text from review_field where removed_seen_at is null").all() as {
     uid: string;
+    type: string;
     is_text: number;
   }[];
   const f: FieldInfo = {
     textUids: fields.filter((x) => x.is_text === 1).map((x) => x.uid),
-    scoreUids: fields.filter((x) => x.is_text !== 1).map((x) => x.uid),
+    scoreUids: fields.filter((x) => SCORE_FIELD_TYPES.has(x.type)).map((x) => x.uid),
   };
   const todoSql = `from review r where r.deleted_seen_at is null and not exists (select 1 from history_backfill h where h.rid = r.rid)`;
   const todo = db.prepare(`select r.rid, r.pid ${todoSql} order by r.rid limit ?`).all(opts.limit ?? -1) as {

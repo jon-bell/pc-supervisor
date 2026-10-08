@@ -97,6 +97,26 @@ describe("first sync", () => {
     expect(store.reviewText(22)).toEqual({});
   });
 
+  it("ignores checkbox fields and stores a score's false (no entry) as null", async () => {
+    hc.form = {
+      ...hc.form,
+      reviewform: {
+        ...hc.form.reviewform,
+        IFolIns: { uid: "IFolIns", name: "I followed the instructions", type: "checkbox", order: 5 },
+        Topics: { uid: "Topics", name: "Topics", type: "checkboxes", order: 6, values: ["Systems", "Theory"] },
+      },
+    };
+    const r12 = hc.reviewList.find((x) => x.rid === 12)!;
+    Object.assign(r12, { OveMer: false, IFolIns: true, Topics: ["A", "B"] });
+    Object.assign(hc.reviewList.find((x) => x.rid === 13)!, { IFolIns: false, Topics: [] });
+    const res = await runSync(store.db, hc, opts(T1));
+    expect(res.ok).toBe(true);
+    const reviews = store.reviews({ pids: [1] });
+    expect(reviews.find((x) => x.rid === 12)!.scores).toEqual({ OveMer: null, RevExp: 3 });
+    expect(reviews.find((x) => x.rid === 13)!.scores).toEqual({ OveMer: 4, RevExp: 4 });
+    expect(store.reviewText(12)).toEqual({ PapSum: "Short summary here.", ComAut: "Needs more evaluation work." });
+  });
+
   it("parses mentions against the roster", async () => {
     await runSync(store.db, hc, opts(T1));
     const cm = Object.fromEntries(store.comments().map((c) => [c.cid, c]));
