@@ -12,6 +12,7 @@ import { AbsTime } from "../components/Time";
 import { formatRatings, NEGATIVE_FLAGS, pickRatings } from "@pcs/server/ratings";
 import { formatDays, percent, plural, ruleLabel, tierLabel } from "../format";
 import { Link, navigate } from "../router";
+import { mean } from "../table/model";
 import { triageForAc } from "./Acs";
 
 const col = createColumnHelper<PersonPaper>();
@@ -23,6 +24,18 @@ const OUTLIER_TEXT: Readonly<Record<string, string>> = {
   thin: "Short or flagged reviews",
   flagged: "Repeatedly flagged reviews",
 };
+
+/** Labels for "their part" flags, as the chips say them (spec §7 wording). */
+const PART_LABELS: Readonly<Record<string, string>> = {
+  silentOnSplit: "no comment yet (split)",
+  unansweredPing: "ping unanswered",
+  outstanding: "review not submitted",
+  thin: "short review",
+  ratingFlagged: "rated",
+};
+
+const partFlags = (p: PersonPaper): string[] =>
+  (Object.keys(PART_LABELS) as (keyof PersonPaper["flags"])[]).filter((k) => p.flags[k] && (k !== "ratingFlagged" || p.review?.ratings));
 
 function Flags({ p }: { p: PersonPaper }) {
   const f = p.flags;
@@ -103,22 +116,23 @@ export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
 
   const columns = useMemo(
     () => [
-      col.accessor("pid", { header: "#", size: 52, cell: (c) => <span className="pid">#{c.getValue()}</span> }),
+      col.accessor("pid", { header: "#", size: 64, meta: { kind: "numeric", label: "Paper" }, cell: (c) => <span className="pid">#{c.getValue()}</span> }),
       col.accessor("title", {
         header: "Title",
         size: 180,
-        meta: { grow: true },
+        meta: { grow: true, kind: "text" },
         cell: (c) => (
           <span className="title" title={c.getValue()}>
             {c.getValue()}
           </span>
         ),
       }),
-      col.accessor("role", { header: "Role", size: 90, cell: (c) => <span data-testid="paper-role">{c.getValue()}</span> }),
+      col.accessor("role", { header: "Role", size: 90, meta: { kind: "categorical" }, cell: (c) => <span data-testid="paper-role">{c.getValue()}</span> }),
       col.display({
         id: "score",
         header: "Their review",
         size: 140,
+        meta: { kind: "numeric", label: "Their merit", value: (r) => r.review?.merit ?? null },
         cell: (c) => {
           const r = c.row.original.review;
           if (!r) return <span className="muted">none</span>;
@@ -130,11 +144,12 @@ export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
           );
         },
       }),
-      col.accessor("merits", { header: "Merits", size: 80, cell: (c) => <span className="scores">{c.getValue().join("/") || "–"}</span> }),
+      col.accessor("merits", { header: "Merits", size: 92, meta: { kind: "numeric", label: "Mean merit", value: (r) => mean(r.merits) }, cell: (c) => <span className="scores">{c.getValue().join("/") || "–"}</span> }),
       col.display({
         id: "last",
         header: "Their last comment",
         size: 200,
+        meta: { kind: "date", value: (r) => r.lastComment?.time ?? null },
         cell: (c) => {
           const p = c.row.original;
           const l = p.lastComment;
@@ -151,13 +166,14 @@ export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
         id: "rules",
         header: "Paper flags",
         size: 150,
+        meta: { kind: "categorical", value: (r) => r.rules, format: ruleLabel },
         cell: (c) => (
           <span className="ellipsis" title={c.row.original.rules.map(ruleLabel).join(", ")}>
             {c.row.original.rules.map(ruleLabel).join(", ") || <span className="muted">{c.row.original.decision ? "decided" : "none"}</span>}
           </span>
         ),
       }),
-      col.display({ id: "flags", header: "Their part", size: 300, cell: (c) => <Flags p={c.row.original} /> }),
+      col.display({ id: "flags", header: "Their part", size: 300, meta: { kind: "categorical", value: partFlags, format: (v) => PART_LABELS[v] ?? v }, cell: (c) => <Flags p={c.row.original} /> }),
     ],
     [meta.tz],
   );
@@ -227,9 +243,12 @@ export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
         </h2>
       </div>
       {d.papers.length ? <SearchActions pids={d.papers.map((p) => p.pid)} base={meta.hotcrpUrl} /> : null}
-      <div className="tier-table" style={{ height: 36 + Math.min(Math.max(d.papers.length, 1), 12) * 44 }}>
+      <div className="tier-table">
       <DataTable
         testId="person-papers"
+        stateKey="person"
+        noun="papers"
+        maxRows={12}
         data={d.papers}
         columns={columns}
         rowId={(r) => `${r.role}-${r.pid}`}

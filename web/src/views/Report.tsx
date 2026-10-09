@@ -5,12 +5,16 @@
 // Aggregates only: no people are listed, and groups smaller than
 // PCS_REPORT_MIN_CELL show "fewer than N" instead of numbers. Downloads come
 // from the local server to this browser; nothing is uploaded anywhere.
+// The per-tier tables sort by any column (MiniTable) but have no column
+// filters: a handful of tier rows needs none. The key/value tables (Kv) are
+// summaries, not lists, and stay plain.
 
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import type { Cell, ProcessReport } from "@pcs/server/modules/report/types";
+import type { AgreementRow, Cell, DepthRow, ProcessReport, RatingRow, TimelinessRow } from "@pcs/server/modules/report/types";
 import { getJson, type MetaResponse } from "../api";
 import { Histogram } from "../components/Charts";
+import { MiniTable, numColumn, type MiniColumn } from "../components/MiniTable";
 import { formatDate, formatTime, PHASE_LABELS, percent, tierLabel } from "../format";
 import { useTiersConfigured } from "../tiers";
 
@@ -23,22 +27,34 @@ const num = (v: number | null | undefined, digits = 0) => (v === null || v === u
 /** The row label when PCS_TIER_TAGS is empty (one "senior" group: everyone). */
 const ALL_REVIEWERS = "All reviewers";
 
-function Row({ cell, tier, minCell, children, testId }: { cell: Cell; tier: string; minCell: number; children: ReactNode; testId: string }) {
+/**
+ * One row per tier, sortable by any column (MiniTable): the tier, its
+ * people, then `columns`. A group under PCS_REPORT_MIN_CELL shows "fewer than
+ * N people; withheld" across the rest and sorts last.
+ */
+function TierTable<T extends Cell & { tier: string }>({ rows, columns, stateKey, rowTestId, minCell }: { rows: readonly T[]; columns: MiniColumn<T>[]; stateKey: string; rowTestId: string; minCell: number }) {
   const tiers = useTiersConfigured();
+  const label = (r: T) => (tiers ? tierLabel(r.tier) : ALL_REVIEWERS);
+  const all: MiniColumn<T>[] = [
+    { id: "tier", header: tiers ? "Tier" : "Reviewers", label: "Tier", rowHeader: true, kind: "text", value: label, cell: label },
+    numColumn("people", "Reviewers", (r) => r.people),
+    ...columns,
+  ];
   return (
-    <tr data-testid={testId} data-tier={tier} data-suppressed={cell.suppressed ? "1" : "0"}>
-      <th scope="row">{tiers ? tierLabel(tier) : ALL_REVIEWERS}</th>
-      {cell.suppressed ? (
-        <td colSpan={99} className="muted" data-testid="suppressed" title={`Numbers withheld: fewer than PCS_REPORT_MIN_CELL=${minCell} people`}>
-          fewer than {minCell} people; withheld
-        </td>
-      ) : (
-        <>
-          <td className="num">{cell.people}</td>
-          {children}
-        </>
-      )}
-    </tr>
+    <MiniTable
+      rows={rows}
+      columns={all}
+      stateKey={stateKey}
+      rowKey={(r) => r.tier}
+      rowAttrs={(r) => ({ "data-testid": rowTestId, "data-tier": r.tier, "data-suppressed": r.suppressed ? "1" : "0" })}
+      suppressed={(r) =>
+        r.suppressed ? (
+          <td colSpan={99} className="muted" data-testid="suppressed" title={`Numbers withheld: fewer than PCS_REPORT_MIN_CELL=${minCell} people`}>
+            fewer than {minCell} people; withheld
+          </td>
+        ) : null
+      }
+    />
   );
 }
 
@@ -123,32 +139,19 @@ export function Report({ meta }: { meta: MetaResponse }) {
       </section>
 
       <Section title={`Review depth${byTier}`} testId="report-depth" intro={`Words in submitted reviewer reviews. The floor is PCS_THRESH_MIN_WORDS=${r.depth.minWords}.`}>
-        <table className="mini">
-          <thead>
-            <tr>
-              <th>{tiers ? "Tier" : "Reviewers"}</th>
-              <th>Reviewers</th>
-              <th>Reviews</th>
-              <th>Median</th>
-              <th>p25–p75</th>
-              <th>Mean</th>
-              <th>Under floor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {r.depth.rows.map((d) => (
-              <Row key={d.tier} cell={d} tier={d.tier} minCell={m} testId="depth-row">
-                <td className="num">{num(d.reviews)}</td>
-                <td className="num" data-testid="depth-median">{num(d.median)}</td>
-                <td className="num">
-                  {num(d.p25)}–{num(d.p75)}
-                </td>
-                <td className="num">{num(d.mean, 1)}</td>
-                <td className="num">{num(d.underFloor)}</td>
-              </Row>
-            ))}
-          </tbody>
-        </table>
+        <TierTable
+          rows={r.depth.rows}
+          stateKey="depth"
+          rowTestId="depth-row"
+          minCell={m}
+          columns={[
+            numColumn<DepthRow>("reviews", "Reviews", (d) => d.reviews),
+            numColumn<DepthRow>("median", "Median", (d) => d.median, undefined, "depth-median"),
+            numColumn<DepthRow>("p25", "p25–p75", (d) => d.p25, (d) => `${num(d.p25)}–${num(d.p75)}`),
+            numColumn<DepthRow>("mean", "Mean", (d) => d.mean, (d) => num(d.mean, 1)),
+            numColumn<DepthRow>("underFloor", "Under floor", (d) => d.underFloor),
+          ]}
+        />
         <div className="ov-grid">
           {r.depth.rows
             .filter((d) => d.bins)
@@ -166,34 +169,22 @@ export function Report({ meta }: { meta: MetaResponse }) {
       </Section>
 
       <Section title={`Timeliness${byTier}`} testId="report-timeliness" intro={`First submission vs the review deadline (${formatDate(r.timeliness.reviewDue, meta.tz)}). Replacements assigned after the deadline are never late.`}>
-        <table className="mini">
-          <thead>
-            <tr>
-              <th>{tiers ? "Tier" : "Reviewers"}</th>
-              <th>Reviewers</th>
-              <th>Assigned</th>
-              <th>On time</th>
-              <th>Late</th>
-              <th>Not submitted</th>
-              <th>Assigned after deadline</th>
-              <th>Median vs deadline</th>
-            </tr>
-          </thead>
-          <tbody>
-            {r.timeliness.rows.map((d) => (
-              <Row key={d.tier} cell={d} tier={d.tier} minCell={m} testId="timeliness-row">
-                <td className="num">{num(d.assigned)}</td>
-                <td className="num">
-                  {num(d.onTime)} ({percent(d.onTimeShare)})
-                </td>
-                <td className="num">{num(d.late)}</td>
-                <td className="num">{num(d.notSubmitted)}</td>
-                <td className="num">{num(d.assignedAfterDue)}</td>
-                <td className="num">{d.medianDaysVsDue === null ? "–" : `${d.medianDaysVsDue > 0 ? "+" : ""}${d.medianDaysVsDue.toFixed(1)} d`}</td>
-              </Row>
-            ))}
-          </tbody>
-        </table>
+        <TierTable
+          rows={r.timeliness.rows}
+          stateKey="time"
+          rowTestId="timeliness-row"
+          minCell={m}
+          columns={[
+            numColumn<TimelinessRow>("assigned", "Assigned", (d) => d.assigned),
+            numColumn<TimelinessRow>("onTime", "On time", (d) => d.onTime, (d) => `${num(d.onTime)} (${percent(d.onTimeShare)})`),
+            numColumn<TimelinessRow>("late", "Late", (d) => d.late),
+            numColumn<TimelinessRow>("notSubmitted", "Not submitted", (d) => d.notSubmitted),
+            numColumn<TimelinessRow>("assignedAfterDue", "Assigned after deadline", (d) => d.assignedAfterDue),
+            numColumn<TimelinessRow>("medianDaysVsDue", "Median vs deadline", (d) => d.medianDaysVsDue, (d) =>
+              d.medianDaysVsDue === null ? "–" : `${d.medianDaysVsDue > 0 ? "+" : ""}${d.medianDaysVsDue.toFixed(1)} d`,
+            ),
+          ]}
+        />
       </Section>
 
       <Section title={`Merit distribution${byTier}`} testId="report-merits" intro={`Submitted reviewer merits (${r.merits.field}); accept side from ${r.merits.acceptMin}.`}>
@@ -229,61 +220,41 @@ export function Report({ meta }: { meta: MetaResponse }) {
             Review ratings are off in HotCRP, so there is nothing to show.
           </p>
         ) : (
-        <table className="mini">
-          <thead>
-            <tr>
-              <th>{tiers ? "Tier" : "Reviewers"}</th>
-              <th>Reviewers</th>
-              <th>Reviews</th>
-              <th>Rated</th>
-              {r.ratings.names.map((n) => (
-                <th key={n}>{n}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {r.ratings.rows.map((d) => (
-              <Row key={d.tier} cell={d} tier={d.tier} minCell={m} testId="rating-row">
-                <td className="num">{num(d.reviews)}</td>
-                <td className="num">{num(d.rated)}</td>
-                {r.ratings.names.map((n) => (
-                  <td key={n} className="num" title={d.perReview ? `${d.perReview[n]} per review` : undefined}>
-                    {num(d.counts?.[n])}
-                    {d.perReview ? <span className="muted"> ({d.perReview[n]}/review)</span> : null}
-                  </td>
-                ))}
-              </Row>
-            ))}
-          </tbody>
-        </table>
+        <TierTable
+          rows={r.ratings.rows}
+          stateKey="rate"
+          rowTestId="rating-row"
+          minCell={m}
+          columns={[
+            numColumn<RatingRow>("reviews", "Reviews", (d) => d.reviews),
+            numColumn<RatingRow>("rated", "Rated", (d) => d.rated),
+            ...r.ratings.names.map((n) => ({
+              ...numColumn<RatingRow>(`flag-${n.replace(/[^A-Za-z0-9_-]/g, "_")}`, n, (d) => d.counts?.[n] ?? null, (d) => (
+                <>
+                  {num(d.counts?.[n])}
+                  {d.perReview ? <span className="muted"> ({d.perReview[n]}/review)</span> : null}
+                </>
+              )),
+              tdAttrs: (d: RatingRow) => (d.perReview ? { title: `${d.perReview[n]} per review` } : ({} as Record<string, string>)),
+            })),
+          ]}
+        />
         )}
       </Section>
 
       <Section title={`Score agreement${byTier}`} testId="report-agreement" intro="Mean absolute deviation of a merit from its paper's mean (papers with 2+ merits), and how often merits sit on the final decision's side.">
-        <table className="mini">
-          <thead>
-            <tr>
-              <th>{tiers ? "Tier" : "Reviewers"}</th>
-              <th>Reviewers</th>
-              <th>Merits</th>
-              <th>Mean |dev|</th>
-              <th>On decided papers</th>
-              <th>On the decision's side</th>
-            </tr>
-          </thead>
-          <tbody>
-            {r.agreement.rows.map((d) => (
-              <Row key={d.tier} cell={d} tier={d.tier} minCell={m} testId="agreement-row">
-                <td className="num">{num(d.reviews)}</td>
-                <td className="num" data-testid="agreement-mad">{num(d.meanAbsDev, 2)}</td>
-                <td className="num">{num(d.decided)}</td>
-                <td className="num">
-                  {num(d.onDecisionSide)} ({percent(d.share)})
-                </td>
-              </Row>
-            ))}
-          </tbody>
-        </table>
+        <TierTable
+          rows={r.agreement.rows}
+          stateKey="agree"
+          rowTestId="agreement-row"
+          minCell={m}
+          columns={[
+            numColumn<AgreementRow>("reviews", "Merits", (d) => d.reviews),
+            numColumn<AgreementRow>("mad", "Mean |dev|", (d) => d.meanAbsDev, (d) => num(d.meanAbsDev, 2), "agreement-mad"),
+            numColumn<AgreementRow>("decided", "On decided papers", (d) => d.decided),
+            numColumn<AgreementRow>("onDecisionSide", "On the decision's side", (d) => d.onDecisionSide, (d) => `${num(d.onDecisionSide)} (${percent(d.share)})`),
+          ]}
+        />
       </Section>
 
       <div className="ov-grid">

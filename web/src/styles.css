@@ -910,3 +910,302 @@ pre.csv {
 .paper-scope code {
   font-size: 12px;
 }
+
+/* Column sort and filter (DataTable, MiniTable, ColumnFilters). Same light
+   tokens as the rest of the UI (no dark theme). */
+.btn-small {
+  padding: 1px 7px;
+  font-size: 12px;
+}
+.btn-on {
+  background: #e6eefb;
+  border-color: #9bb7e6;
+}
+.dt-hcell {
+  overflow: visible;
+}
+.dt-hctl {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.dt-htext {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Fixed-width grid headers wrap to two lines rather than truncate, so the
+   sort and filter controls never hide a column's name. */
+.dt-header .dt-htext {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 15px;
+  font-size: 13px;
+}
+.dt-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  text-align: left;
+}
+.dt-sort-ind {
+  flex: none;
+  font-size: 10px;
+  color: var(--accent);
+}
+/* Unsorted columns reserve no space for the arrow (the button's title says it sorts). */
+.dt-sort:not(.dt-sorted) .dt-sort-ind {
+  display: none;
+}
+.dt-sort:hover .dt-htext,
+.dt-sort:focus-visible .dt-htext {
+  text-decoration: underline dotted #9a9a9a;
+  text-underline-offset: 3px;
+}
+.dt-sort-ind sub {
+  font-size: 9px;
+}
+.dt-filter-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: #a0a0a0;
+  cursor: pointer;
+}
+.dt-hcell:hover .dt-filter-btn,
+th:hover .dt-filter-btn,
+.dt-filter-btn:focus-visible,
+.dt-filter-btn[aria-expanded="true"] {
+  color: #555;
+  border-color: #d6d6d6;
+}
+.dt-filter-btn.dt-filter-on {
+  color: var(--accent);
+  background: #eef4fd;
+  border-color: #c9dcf6;
+}
+table.mini th .dt-hctl {
+  display: inline-flex;
+}
+.dt-chips {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 6px;
+  height: 34px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfbfb;
+}
+.dt-fchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 3px;
+}
+.dt-chip-x {
+  font: inherit;
+  line-height: 14px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.dt-chip-x:hover,
+.dt-chip-x:focus-visible {
+  background: #c9dcf6;
+}
+.dt-chips .count {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.popover {
+  position: fixed;
+  z-index: 30;
+  width: 300px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #c8c8c8;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  font-weight: normal;
+  color: #1a1a1a;
+}
+.fp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+.fp-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: #444;
+}
+.fp input[type="search"],
+.fp input[type="number"],
+.fp input[type="date"] {
+  font: inherit;
+  padding: 3px 6px;
+  border: 1px solid #c8c8c8;
+  border-radius: 4px;
+}
+.fp-search,
+.fp-text input {
+  width: 100%;
+}
+.fp-text {
+  display: block;
+}
+.fp-text .combo-list {
+  position: static;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 4px;
+  box-shadow: none;
+}
+.fp-text .combo-label {
+  font-family: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fp-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.fp-inputs label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.fp-inputs input[type="number"] {
+  width: 90px;
+}
+.fp-list {
+  list-style: none;
+  margin: 0;
+  padding: 2px 0;
+  max-height: 16em;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.fp-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fp-option.fp-active {
+  background: var(--row-selected);
+}
+.fp-option.fp-zero .fp-label {
+  color: var(--muted);
+}
+.fp-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fp-label b {
+  color: var(--accent);
+}
+.fp-check {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border: 1px solid #8a8a8a;
+  border-radius: 2px;
+  background: #fff;
+}
+.fp-check.fp-checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px #fff;
+}
+.fp-empty {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.fp-hist {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 48px;
+  padding: 0 7px;
+}
+.fp-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.fp-bar span {
+  display: block;
+  width: 100%;
+  background: #d5d9df;
+  border-radius: 1px 1px 0 0;
+}
+.fp-bar-on span {
+  background: var(--chart-main);
+}
+.fp-sliders {
+  display: flex;
+  flex-direction: column;
+}
+.fp-sliders input[type="range"] {
+  width: 100%;
+  margin: 0;
+}
+.fp-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.fp-note {
+  margin: 0;
+  font-size: 11px;
+}
+.fp-bool {
+  display: flex;
+  gap: 12px;
+}
+.fp-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}

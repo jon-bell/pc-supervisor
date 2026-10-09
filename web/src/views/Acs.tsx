@@ -34,6 +34,7 @@ export function Acs({ meta }: { meta: MetaResponse }) {
         id: "name",
         header: "Area chair",
         size: 170,
+        meta: { kind: "text", value: (r) => r.person.name },
         cell: (c) => (
           <Link to={personPath(c.row.original.person.email)} className="ellipsis" data-testid="ac-name" onClick={(e) => e.stopPropagation()}>
             {c.row.original.person.name}
@@ -44,6 +45,7 @@ export function Acs({ meta }: { meta: MetaResponse }) {
         id: "load",
         header: "Load · flagged",
         size: 230,
+        meta: { kind: "numeric", label: "Load", value: (r) => r.load },
         cell: (c) => {
           const r = c.row.original;
           return (
@@ -59,7 +61,8 @@ export function Acs({ meta }: { meta: MetaResponse }) {
       col.display({
         id: "comments",
         header: "Comments",
-        size: 104,
+        size: 124,
+        meta: { kind: "numeric", value: (r) => r.comments },
         cell: (c) => {
           const r = c.row.original;
           return (
@@ -78,7 +81,8 @@ export function Acs({ meta }: { meta: MetaResponse }) {
       col.display({
         id: "coverage",
         header: "Coverage",
-        size: 100,
+        size: 112,
+        meta: { kind: "numeric", label: "Coverage %", value: (r) => (r.coverage.share === null ? null : Math.round(r.coverage.share * 100)) },
         cell: (c) => {
           const v = c.row.original.coverage;
           return (
@@ -92,6 +96,7 @@ export function Acs({ meta }: { meta: MetaResponse }) {
         id: "first",
         header: "First post",
         size: 150,
+        meta: { kind: "numeric", label: "First post (days)", value: (r) => r.timeToFirstPost.medianDays },
         cell: (c) => {
           const t = c.row.original.timeToFirstPost;
           return (
@@ -109,6 +114,7 @@ export function Acs({ meta }: { meta: MetaResponse }) {
         id: "nudges",
         header: "Nudges (proxy)",
         size: 150,
+        meta: { kind: "numeric", value: (r) => r.nudges.total },
         cell: (c) => {
           const n = c.row.original.nudges;
           return (
@@ -126,7 +132,8 @@ export function Acs({ meta }: { meta: MetaResponse }) {
       col.display({
         id: "stale",
         header: "Stale",
-        size: 64,
+        size: 76,
+        meta: { kind: "numeric", value: (r) => r.stale },
         cell: (c) => (
           <span className="num" data-testid="ac-stale" title={c.row.original.stalePids.map((p) => `#${p}`).join(", ") || "none"}>
             {c.row.original.stale}
@@ -137,6 +144,7 @@ export function Acs({ meta }: { meta: MetaResponse }) {
         id: "metareview",
         header: "Metareviews",
         size: 130,
+        meta: { kind: "numeric", label: "Metareviews submitted", value: (r) => r.metareview.submitted },
         cell: (c) => {
           const r = c.row.original;
           const rest = metaStatus(r);
@@ -151,7 +159,7 @@ export function Acs({ meta }: { meta: MetaResponse }) {
         id: "activity",
         header: "Activity",
         size: 140,
-        meta: { grow: true },
+        meta: { grow: true, kind: "numeric", label: "Activity (total)", value: (r) => r.activity.daily.reduce((a, b) => a + b, 0) },
         cell: (c) => <Sparkline daily={c.row.original.activity.daily} start={c.row.original.activity.start} tz={meta.tz} testId="ac-spark" />,
       }),
     ],
@@ -172,6 +180,8 @@ export function Acs({ meta }: { meta: MetaResponse }) {
       ) : (
         <DataTable
           testId="ac-table"
+          stateKey="ac"
+          noun="ACs"
           data={data?.acs ?? []}
           columns={columns}
           rowId={(r) => r.person.email}

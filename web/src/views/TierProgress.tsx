@@ -8,8 +8,12 @@ import { useQuery } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
 import type { ReactNode } from "react";
 import type { AccountabilityRow, CoachingRow, DropoutRow, DropoutState, TierProgressReport } from "@pcs/server/modules/tier-progress/types";
+
+type TierRow = TierProgressReport["tiers"][number];
+type ParticipationRow = TierProgressReport["participation"]["rows"][number];
 import { getJson, personPath, type MetaResponse } from "../api";
 import { DataTable } from "../components/DataTable";
+import { MiniTable, numColumn, type MiniColumn } from "../components/MiniTable";
 import { formatDays, formatTime, hotcrp, percent, plural, tierLabel } from "../format";
 import { Link } from "../router";
 
@@ -27,10 +31,11 @@ export const DROPOUT_LABELS: Readonly<Record<DropoutState, { label: string; chip
   replaced: { label: "Replaced", chip: "chip-alert", means: "another reviewer was added on the paper after the deadline" },
 };
 
-function Table<T>({ rows, children, testId, rowId, columns, rowAttrs }: {
+function Table<T>({ rows, children, testId, stateKey, rowId, columns, rowAttrs }: {
   rows: readonly T[];
   children?: ReactNode;
   testId: string;
+  stateKey: string;
   rowId: (r: T) => string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   columns: any[];
@@ -38,8 +43,8 @@ function Table<T>({ rows, children, testId, rowId, columns, rowAttrs }: {
 }) {
   if (rows.length === 0) return <p className="muted none">{children ?? "None."}</p>;
   return (
-    <div className="tier-table mod-table" style={{ height: 36 + Math.min(rows.length, MAX_ROWS) * ROW }}>
-      <DataTable data={rows} columns={columns} rowHeight={ROW} rowId={rowId} rowAttrs={rowAttrs} testId={testId} />
+    <div className="tier-table mod-table">
+      <DataTable data={rows} columns={columns} rowHeight={ROW} rowId={rowId} rowAttrs={rowAttrs} testId={testId} stateKey={stateKey} maxRows={MAX_ROWS} />
     </div>
   );
 }
@@ -57,50 +62,77 @@ const cell = (s: string) => (
   </span>
 );
 
+const tierCol = (): MiniColumn<{ tier: string }> => ({ id: "tier", header: "Tier", kind: "text", value: (t) => tierLabel(t.tier), cell: (t) => tierLabel(t.tier) });
+const TIER_COLUMNS: MiniColumn<TierRow>[] = [
+  tierCol(),
+  numColumn("reviewers", "Reviewers", (t) => t.reviewers),
+  numColumn("submitted", "Submitted", (t) => t.submitted, (t) => `${t.submitted}/${t.assigned}`),
+  numColumn("outstanding", "Outstanding", (t) => t.outstanding, undefined, "tier-outstanding"),
+  numColumn("late", "Late", (t) => t.late, undefined, "tier-late"),
+  numColumn("submittedLate", "Submitted late", (t) => t.submittedLate),
+  numColumn("assignedAfterDue", "Assigned after deadline", (t) => t.assignedAfterDue),
+];
+
+function participationColumns(opened: boolean): MiniColumn<ParticipationRow>[] {
+  return [
+    tierCol(),
+    numColumn("commenters", "Reviewers who commented", (p) => p.commenters, (p) => `${p.commenters}/${p.reviewers}`),
+    numColumn("comments", "Comments", (p) => p.comments),
+    numColumn(
+      "share",
+      "Papers with a comment since discussion opened",
+      (p) => (opened ? (p.share ?? 0) : 0),
+      (p) => (opened ? `${p.discussionCommented}/${plural(p.discussionPapers, "paper")} · ${percent(p.share)}` : "not open yet"),
+    ),
+  ];
+}
+
 const dcol = createColumnHelper<DropoutRow>();
 const DROPOUT_COLUMNS = [
-  dcol.accessor("pid", { header: "Paper", size: 70, cell: (c) => pidLink(c.getValue()) }),
-  dcol.display({ id: "who", header: "Reviewer", size: 170, cell: (c) => personLink(c.row.original.person) }),
-  dcol.accessor("lateDays", { header: "Late", size: 80, cell: (c) => <span className="num">{formatDays(c.getValue())}</span> }),
+  dcol.accessor("pid", { header: "Paper", size: 84, meta: { kind: "numeric" }, cell: (c) => pidLink(c.getValue()) }),
+  dcol.display({ id: "who", header: "Reviewer", size: 170, meta: { kind: "text", value: (r) => r.person.name }, cell: (c) => personLink(c.row.original.person) }),
+  dcol.accessor("lateDays", { header: "Late", size: 90, meta: { kind: "numeric", label: "Days late" }, cell: (c) => <span className="num">{formatDays(c.getValue())}</span> }),
   dcol.accessor("state", {
     header: "State",
-    size: 160,
+    size: 170,
+    meta: { kind: "categorical", format: (v) => DROPOUT_LABELS[v as DropoutState]?.label ?? v },
     cell: (c) => (
       <span className={`chip ${DROPOUT_LABELS[c.getValue()].chip}`} data-testid="dropout-state" data-state={c.getValue()}>
         {DROPOUT_LABELS[c.getValue()].label}
       </span>
     ),
   }),
-  dcol.accessor("reason", { header: "Why", size: 300, meta: { grow: true }, cell: (c) => cell(c.getValue()) }),
+  dcol.accessor("reason", { header: "Why", size: 300, meta: { grow: true, kind: "text" }, cell: (c) => cell(c.getValue()) }),
 ];
 
 const acol = createColumnHelper<AccountabilityRow>();
 const ACCOUNT_COLUMNS = [
-  acol.display({ id: "who", header: "Reserve reviewer", size: 170, cell: (c) => personLink(c.row.original.person) }),
-  acol.display({ id: "own", header: "Own papers", size: 110, cell: (c) => pids(c.row.original.ownPapers.map((p) => p.pid)) }),
-  acol.display({ id: "sub", header: "Submitted", size: 90, cell: (c) => <span className="num">{c.row.original.submitted}/{c.row.original.assigned}</span> }),
+  acol.display({ id: "who", header: "Reserve reviewer", size: 170, meta: { kind: "text", value: (r) => r.person.name }, cell: (c) => personLink(c.row.original.person) }),
+  acol.display({ id: "own", header: "Own papers", size: 120, meta: { kind: "numeric", label: "Own papers (count)", value: (r) => r.ownPapers.length }, cell: (c) => pids(c.row.original.ownPapers.map((p) => p.pid)) }),
+  acol.display({ id: "sub", header: "Submitted", size: 120, meta: { kind: "numeric", value: (r) => r.submitted }, cell: (c) => <span className="num">{c.row.original.submitted}/{c.row.original.assigned}</span> }),
   acol.display({
     id: "late",
     header: "Late",
-    size: 120,
+    size: 130,
+    meta: { kind: "numeric", label: "Late (open)", value: (r) => r.lateOutstanding },
     cell: (c) => (
       <span className="num" data-testid="acct-late">
         {c.row.original.lateOutstanding} open · {c.row.original.submittedLate} after
       </span>
     ),
   }),
-  acol.accessor("thin", { header: "Thin", size: 60, cell: (c) => <span className="num">{c.getValue()}</span> }),
-  acol.display({ id: "rated", header: "Rated short/vague", size: 130, cell: (c) => <span className="num">{c.row.original.ratedShort}/{c.row.original.ratedVague}</span> }),
-  acol.accessor("summary", { header: "Summary", size: 300, meta: { grow: true }, cell: (c) => cell(c.getValue()) }),
+  acol.accessor("thin", { header: "Thin", size: 80, meta: { kind: "numeric" }, cell: (c) => <span className="num">{c.getValue()}</span> }),
+  acol.display({ id: "rated", header: "Rated short/vague", size: 150, meta: { kind: "numeric", value: (r) => r.ratedShort + r.ratedVague }, cell: (c) => <span className="num">{c.row.original.ratedShort}/{c.row.original.ratedVague}</span> }),
+  acol.accessor("summary", { header: "Summary", size: 300, meta: { grow: true, kind: "text" }, cell: (c) => cell(c.getValue()) }),
 ];
 
 function coachColumns(base: string) {
   const ccol = createColumnHelper<CoachingRow>();
   return [
-    ccol.accessor("pid", { header: "Paper", size: 70, cell: (c) => pidLink(c.getValue()) }),
-    ccol.display({ id: "who", header: "Reviewer", size: 170, cell: (c) => personLink(c.row.original.person) }),
-    ccol.accessor("words", { header: "Words", size: 70, cell: (c) => <span className="num">{c.getValue()}</span> }),
-    ccol.accessor("reason", { header: "Why", size: 260, meta: { grow: true }, cell: (c) => cell(c.getValue()) }),
+    ccol.accessor("pid", { header: "Paper", size: 84, meta: { kind: "numeric" }, cell: (c) => pidLink(c.getValue()) }),
+    ccol.display({ id: "who", header: "Reviewer", size: 170, meta: { kind: "text", value: (r) => r.person.name }, cell: (c) => personLink(c.row.original.person) }),
+    ccol.accessor("words", { header: "Words", size: 84, meta: { kind: "numeric" }, cell: (c) => <span className="num">{c.getValue()}</span> }),
+    ccol.accessor("reason", { header: "Why", size: 260, meta: { grow: true, kind: "text" }, cell: (c) => cell(c.getValue()) }),
     ccol.display({
       id: "link",
       header: "",
@@ -133,38 +165,14 @@ export function TierProgress({ meta }: { meta: MetaResponse }) {
         <>
           <section className="mod-section">
             <h2>Outstanding and late, by tier</h2>
-            <table className="mini" data-testid="tier-table">
-              <thead>
-                <tr>
-                  <th>Tier</th>
-                  <th>Reviewers</th>
-                  <th>Submitted</th>
-                  <th>Outstanding</th>
-                  <th>Late</th>
-                  <th>Submitted late</th>
-                  <th>Assigned after deadline</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.tiers.map((t) => (
-                  <tr key={t.tier} data-testid="tier-row" data-tier={t.tier} title={t.reason}>
-                    <td>{tierLabel(t.tier)}</td>
-                    <td className="num">{t.reviewers}</td>
-                    <td className="num">
-                      {t.submitted}/{t.assigned}
-                    </td>
-                    <td className="num" data-testid="tier-outstanding">
-                      {t.outstanding}
-                    </td>
-                    <td className="num" data-testid="tier-late">
-                      {t.late}
-                    </td>
-                    <td className="num">{t.submittedLate}</td>
-                    <td className="num">{t.assignedAfterDue}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <MiniTable
+              testId="tier-table"
+              stateKey="tiers"
+              rows={r.tiers}
+              columns={TIER_COLUMNS}
+              rowKey={(t) => t.tier}
+              rowAttrs={(t) => ({ "data-testid": "tier-row", "data-tier": t.tier, title: t.reason })}
+            />
           </section>
 
           <section className="mod-section">
@@ -183,7 +191,7 @@ export function TierProgress({ meta }: { meta: MetaResponse }) {
                 </li>
               ))}
             </ul>
-            <Table rows={r.dropout.rows} columns={DROPOUT_COLUMNS} testId="dropout-table" rowId={key} rowAttrs={(d) => ({ "data-testid": "dropout-row", "data-key": key(d) })}>
+            <Table rows={r.dropout.rows} columns={DROPOUT_COLUMNS} testId="dropout-table" stateKey="drop" rowId={key} rowAttrs={(d) => ({ "data-testid": "dropout-row", "data-key": key(d) })}>
               No late reserve reviews.
             </Table>
           </section>
@@ -197,6 +205,7 @@ export function TierProgress({ meta }: { meta: MetaResponse }) {
               rows={r.accountability.rows}
               columns={ACCOUNT_COLUMNS}
               testId="accountability-table"
+              stateKey="acct"
               rowId={(a) => a.person.email}
               rowAttrs={(a) => ({ "data-testid": "accountability-row", "data-email": a.person.email })}
             >
@@ -211,7 +220,7 @@ export function TierProgress({ meta }: { meta: MetaResponse }) {
             <p className="muted bar">
               {r.coaching.tiers.map(tierLabel).join(", ") || "(no tiers)"} reviews under {r.coaching.minWords} words, or rated short or vague. Coaching happens in HotCRP, as comments.
             </p>
-            <Table rows={r.coaching.rows} columns={coachColumns(meta.hotcrpUrl)} testId="coaching-table" rowId={key} rowAttrs={(c) => ({ "data-testid": "coaching-row", "data-key": key(c) })}>
+            <Table rows={r.coaching.rows} columns={coachColumns(meta.hotcrpUrl)} testId="coaching-table" stateKey="coach" rowId={key} rowAttrs={(c) => ({ "data-testid": "coaching-row", "data-key": key(c) })}>
               No reviews in the coaching queue.
             </Table>
           </section>
@@ -244,30 +253,14 @@ export function TierProgress({ meta }: { meta: MetaResponse }) {
 
           <section className="mod-section">
             <h2>Discussion participation, by tier</h2>
-            <table className="mini" data-testid="participation-table">
-              <thead>
-                <tr>
-                  <th>Tier</th>
-                  <th>Reviewers who commented</th>
-                  <th>Comments</th>
-                  <th>Papers with a comment since discussion opened</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.participation.rows.map((p) => (
-                  <tr key={p.tier} data-testid="participation-row" data-tier={p.tier} title={p.reason}>
-                    <td>{tierLabel(p.tier)}</td>
-                    <td className="num">
-                      {p.commenters}/{p.reviewers}
-                    </td>
-                    <td className="num">{p.comments}</td>
-                    <td className="num">
-                      {r.participation.discussionOpened ? `${p.discussionCommented}/${plural(p.discussionPapers, "paper")} · ${percent(p.share)}` : "not open yet"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <MiniTable
+              testId="participation-table"
+              stateKey="part"
+              rows={r.participation.rows}
+              columns={participationColumns(r.participation.discussionOpened)}
+              rowKey={(p) => p.tier}
+              rowAttrs={(p) => ({ "data-testid": "participation-row", "data-tier": p.tier, title: p.reason })}
+            />
           </section>
         </>
       ) : null}
