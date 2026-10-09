@@ -27,6 +27,7 @@ export function Reserve({ meta }: { meta: MetaResponse }) {
         id: "pid",
         header: "#",
         size: 64,
+        meta: { kind: "numeric", label: "Paper", value: (r) => r.pid },
         cell: (c) => (
           <a className="pid" href={hotcrp.paper(meta.hotcrpUrl, c.row.original.pid)} target="_blank" rel="noreferrer">
             #{c.row.original.pid}
@@ -36,13 +37,15 @@ export function Reserve({ meta }: { meta: MetaResponse }) {
       col.display({
         id: "state",
         header: "State",
-        size: 150,
+        size: 160,
+        meta: { kind: "categorical", value: (r) => r.state, format: (v) => STATE_LABEL[v as keyof typeof STATE_LABEL] ?? v },
         cell: (c) => <Chip tone={STATE_TONE[c.row.original.state]} testId="reserve-state">{STATE_LABEL[c.row.original.state]}</Chip>,
       }),
       col.display({
         id: "who",
         header: "Designee or exemption",
         size: 260,
+        meta: { kind: "text", value: (r) => r.designee ?? (r.exemption ? `exemption: ${r.exemption}` : null) },
         cell: (c) => {
           const r = c.row.original;
           return (
@@ -57,7 +60,7 @@ export function Reserve({ meta }: { meta: MetaResponse }) {
         id: "codes",
         header: "Findings",
         size: 220,
-        meta: { grow: true },
+        meta: { grow: true, kind: "categorical", value: (r) => r.codes },
         cell: (c) => (
           <span className="chips">
             {c.row.original.codes.map((code) => (
@@ -144,6 +147,8 @@ export function Reserve({ meta }: { meta: MetaResponse }) {
         <h2>All papers</h2>
         <DataTable
           testId="reserve-papers"
+          stateKey="res"
+          noun="papers"
           data={d.papers}
           columns={columns}
           rowId={(r) => String(r.pid)}

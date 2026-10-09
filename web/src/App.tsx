@@ -4,7 +4,7 @@
 // /leads/:email), reviewer outliers
 // (/reviewers), the person page (/people/:email) and the overview (/overview).
 
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useMeta, type MetaResponse } from "./api";
 import { ModulesNav } from "./components/ModulesNav";
 import { PaperFilterBar } from "./components/PaperFilter";
@@ -12,6 +12,8 @@ import { SyncIndicator } from "./components/SyncIndicator";
 import { Volatile } from "./components/Time";
 import { formatTime, PHASE_LABELS } from "./format";
 import { Link, match, useLocation } from "./router";
+import { phaseStartOf } from "./table/model";
+import { TableClockContext } from "./table/useTable";
 import { TiersContext } from "./tiers";
 import { Acs } from "./views/Acs";
 import { Assignment } from "./views/Assignment";
@@ -74,6 +76,8 @@ export function App() {
   const meta = useMeta();
   const loc = useLocation();
   const m = meta.data;
+  // Date filters resolve against the server's clock (PCS_NOW), never the browser's.
+  const clock = useMemo(() => ({ now: m?.now ?? 0, tz: m?.tz ?? "UTC", phaseStart: m ? phaseStartOf(m.phases, m.now) : null }), [m]);
 
   let view: ReactNode = null;
   if (m) {
@@ -119,7 +123,9 @@ export function App() {
       {m ? <PaperFilterBar meta={m} /> : null}
       <main className="main">
         <TiersContext.Provider value={m?.tiersConfigured ?? true}>
-          {meta.error ? <p className="error">Could not reach the local server: {meta.error.message}</p> : view}
+          <TableClockContext.Provider value={clock}>
+            {meta.error ? <p className="error">Could not reach the local server: {meta.error.message}</p> : view}
+          </TableClockContext.Provider>
         </TiersContext.Provider>
       </main>
     </div>

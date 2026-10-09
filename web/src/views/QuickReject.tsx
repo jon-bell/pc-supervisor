@@ -25,6 +25,7 @@ export function QuickReject({ meta }: { meta: MetaResponse }) {
         id: "pid",
         header: "#",
         size: 64,
+        meta: { kind: "numeric", label: "Paper", value: (r) => r.pid },
         cell: (c) => (
           <a className="pid" href={hotcrp.paper(meta.hotcrpUrl, c.row.original.pid)} target="_blank" rel="noreferrer">
             #{c.row.original.pid}
@@ -35,6 +36,7 @@ export function QuickReject({ meta }: { meta: MetaResponse }) {
         id: "signals",
         header: "Signals",
         size: 230,
+        meta: { kind: "categorical", value: (r) => r.signals.map((s) => s.kind), format: (v) => SIGNAL_LABEL[v as keyof typeof SIGNAL_LABEL] ?? v },
         cell: (c) => (
           <span className="chips">
             {c.row.original.signals.map((s) => (
@@ -46,20 +48,21 @@ export function QuickReject({ meta }: { meta: MetaResponse }) {
           </span>
         ),
       }),
-      col.display({ id: "ac", header: "AC decision", size: 110, cell: (c) => c.row.original.acDecision }),
-      col.display({ id: "chair", header: "Chair action", size: 120, cell: (c) => c.row.original.chairAction }),
+      col.display({ id: "ac", header: "AC decision", size: 120, meta: { kind: "categorical", value: (r) => r.acDecision }, cell: (c) => c.row.original.acDecision }),
+      col.display({ id: "chair", header: "Chair action", size: 130, meta: { kind: "categorical", value: (r) => r.chairAction }, cell: (c) => c.row.original.chairAction }),
       col.display({
         id: "appeal",
         header: "Appeal",
         size: 110,
+        meta: { kind: "categorical", value: (r) => r.appealState },
         cell: (c) => <span data-testid="qr-appeal">{c.row.original.appealState}</span>,
       }),
-      col.display({ id: "decision", header: "Decision", size: 110, cell: (c) => c.row.original.decision ?? "—" }),
+      col.display({ id: "decision", header: "Decision", size: 110, meta: { kind: "categorical", value: (r) => r.decision }, cell: (c) => c.row.original.decision ?? "—" }),
       col.display({
         id: "stage",
         header: "Stage",
         size: 200,
-        meta: { grow: true },
+        meta: { grow: true, kind: "categorical", value: (r) => r.stage, format: (v) => STAGE_LABEL[v as keyof typeof STAGE_LABEL] ?? v },
         cell: (c) => (
           <span className="chips">
             <Chip tone={c.row.original.stage === "done" ? "neutral" : "info"} testId="qr-stage">
@@ -99,6 +102,8 @@ export function QuickReject({ meta }: { meta: MetaResponse }) {
         <h2>Queue</h2>
         <DataTable
           testId="qr-items"
+          stateKey="qr"
+          noun="papers"
           data={d.items}
           columns={columns}
           rowId={(r) => String(r.pid)}

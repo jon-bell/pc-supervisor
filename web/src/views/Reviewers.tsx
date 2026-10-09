@@ -2,7 +2,8 @@
 // they cross a list's absolute bar (shown under its heading), so these are
 // filtered lists, not a ranking: no rank numbers, and the sort is by name, so
 // the list never reads as a leaderboard (spec §2, §7); ?sort=count sorts by
-// count instead. Clicking a row opens the person page.
+// count instead (column headers sort and filter one list; the chair picks
+// the column, the default stays by name). Clicking a row opens the person page.
 
 import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
@@ -30,6 +31,7 @@ function TierGroup({ list, tier, entries, sort }: { list: OutlierList; tier: str
         id: "name",
         header: "Reviewer",
         size: 200,
+        meta: { kind: "text", value: (r) => r.person.name },
         cell: (c) => (
           <Link to={personPath(c.row.original.person.email)} data-testid="outlier-name" onClick={(e) => e.stopPropagation()}>
             {c.row.original.person.name}
@@ -38,7 +40,8 @@ function TierGroup({ list, tier, entries, sort }: { list: OutlierList; tier: str
       }),
       col.accessor("count", {
         header: "Count",
-        size: 70,
+        size: 84,
+        meta: { kind: "numeric" },
         cell: (c) => (
           <span className="num" data-testid="outlier-count">
             {c.getValue()}
@@ -64,7 +67,7 @@ function TierGroup({ list, tier, entries, sort }: { list: OutlierList; tier: str
       col.accessor("detail", {
         header: "Detail",
         size: 300,
-        meta: { grow: true },
+        meta: { grow: true, kind: "text" },
         cell: (c) => (
           <span className="ellipsis" title={c.getValue()} data-testid="outlier-detail">
             {c.getValue()}
@@ -87,8 +90,11 @@ function TierGroup({ list, tier, entries, sort }: { list: OutlierList; tier: str
       {rows.length === 0 ? (
         <p className="muted none">{tiers ? "No one in this tier is over the bar." : "No one is over the bar."}</p>
       ) : (
-        <div className="tier-table" style={{ height: 36 + Math.min(rows.length, MAX_ROWS) * ROW }}>
+        <div className="tier-table">
           <DataTable
+            stateKey={`rv-${list.id}-${tier}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-")}
+            maxRows={MAX_ROWS}
+            noun="people"
             data={rows}
             columns={columns}
             rowHeight={ROW}

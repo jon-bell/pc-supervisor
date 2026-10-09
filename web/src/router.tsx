@@ -7,7 +7,11 @@
 // to view. navigate() and <Link> carry the
 // current value onto any in-app target that doesn't set it itself; pass
 // { sticky: false } (navigate) to drop it, e.g. when clearing the filter.
+// Table sort/filter state (`<table>.<column>` parameters, table/model.ts) is
+// sticky the same way, so opening a paper from a sorted table and coming back
+// keeps the sort.
 
+import { isTableParam } from "./table/model";
 import { useSyncExternalStore, type AnchorHTMLAttributes, type MouseEvent } from "react";
 
 const NAV_EVENT = "pcs:navigate";
@@ -47,6 +51,13 @@ export function withSticky(to: string, current: string = window.location.search)
     const v = from.get(k);
     if (v && !u.searchParams.has(k)) {
       u.searchParams.set(k, v);
+      changed = true;
+    }
+  }
+  const own = new Set([...u.searchParams.keys()].filter(isTableParam));
+  for (const [k, v] of from) {
+    if (isTableParam(k) && !own.has(k)) {
+      u.searchParams.append(k, v);
       changed = true;
     }
   }

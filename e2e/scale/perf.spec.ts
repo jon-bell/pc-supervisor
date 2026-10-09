@@ -8,7 +8,9 @@
 //   - render: navigation start -> first triage rows in the DOM and the next
 //     animation frame (median of 3 fresh loads; the server's analysis is warm);
 //   - filter: the <select>'s change event -> the count shows the expected
-//     number and the next animation frame;
+//     number and the next animation frame; likewise a column-header sort
+//     (click -> aria-sort set) and a column filter (the AC popover's "None"
+//     and "Select all": click -> the count), sorted and filtered in the browser;
 //   - scroll: a scripted scroll of the virtualized list from top to bottom,
 //     400 px per animation frame, three times. Smooth = in the median pass,
 //     the 95th-percentile frame interval and the longest "longtask" entry
@@ -95,6 +97,38 @@ async function timeFilter(page: Page, testId: string, value: string, want: strin
   });
 }
 
+/**
+ * Time from a click on `selector` until `[watch]` has `attr` = `want` (or, with
+ * attr "text", that text content) and the next frame.
+ */
+async function timeClick(page: Page, selector: string, watch: string, attr: string, want: string): Promise<number> {
+  await page.evaluate(
+    ([selector, watch, attr, want]) => {
+      const w = window as unknown as { __t0?: number; __t1?: number };
+      w.__t0 = w.__t1 = undefined;
+      document.addEventListener("click", (e) => (e.target as Element).closest(selector) && (w.__t0 = performance.now()), { capture: true, once: true });
+      const ok = () => {
+        const el = document.querySelector(watch);
+        return el !== null && (attr === "text" ? el.textContent === want : el.getAttribute(attr) === want);
+      };
+      const mo = new MutationObserver(() => {
+        if (ok()) {
+          mo.disconnect();
+          requestAnimationFrame(() => (w.__t1 = performance.now()));
+        }
+      });
+      mo.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+    },
+    [selector, watch, attr, want] as const,
+  );
+  await page.locator(selector).click();
+  await page.waitForFunction(() => (window as unknown as { __t1?: number }).__t1 !== undefined, null, { timeout: 30_000 });
+  return page.evaluate(() => {
+    const w = window as unknown as { __t0: number; __t1: number };
+    return w.__t1 - w.__t0;
+  });
+}
+
 /** The "(n)" count in an option's label, and its value: the first option that isn't "all". */
 async function optionWithCount(page: Page, testId: string, pick: (opts: { value: string; n: number }[]) => { value: string; n: number }) {
   const opts = await page.getByTestId(testId).locator("option").evaluateAll((els) =>
@@ -130,6 +164,18 @@ test("triage at scale: render, filter, scroll", async ({ page }) => {
     const back = await timeFilter(page, testId, "", `${total} of ${total} papers`);
     filters.push({ name: `${name} cleared`, ms: back, rows: total });
   }
+
+  // ---- column sort and filter (in the browser, over all 2,400 rows) ----
+  const sev = '[data-testid="triage-table"] [data-testid="dt-sort"][data-col="severity"]';
+  const sevHead = '[data-testid="triage-table"] [role="columnheader"][data-col="severity"]';
+  filters.push({ name: "column sort asc", ms: await timeClick(page, sev, sevHead, "aria-sort", "ascending"), rows: total });
+  filters.push({ name: "column sort desc", ms: await timeClick(page, sev, sevHead, "aria-sort", "descending"), rows: total });
+  filters.push({ name: "column sort off", ms: await timeClick(page, sev, sevHead, "aria-sort", "none"), rows: total });
+  await page.locator('[data-testid="triage-table"] [data-testid="dt-filter"][data-col="acs"]').click();
+  const count = '[data-testid="triage-count"]';
+  filters.push({ name: "column filter none", ms: await timeClick(page, '[data-testid="fp-none"]', count, "text", `0 of ${total} papers`), rows: 0 });
+  filters.push({ name: "column filter all", ms: await timeClick(page, '[data-testid="fp-all"]', count, "text", `${total} of ${total} papers`), rows: total });
+  await page.keyboard.press("Escape");
 
   // ---- scroll ----
   // Three passes, top to bottom; the median pass (by p95 frame) is the result,

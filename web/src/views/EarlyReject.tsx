@@ -9,6 +9,7 @@ import type { Candidate, EarlyRejectReport, NoResponseRow } from "@pcs/server/mo
 import { getJson, personPath, type MetaResponse } from "../api";
 import { DataTable } from "../components/DataTable";
 import { formatTime } from "../format";
+import { mean } from "../table/model";
 import { Link } from "../router";
 
 const ROW = 36;
@@ -34,12 +35,13 @@ const pidLink = (pid: number) => (
 function candidateColumns(withOutcome: boolean) {
   const col = createColumnHelper<Candidate>();
   return [
-    col.accessor("pid", { header: "Paper", size: 70, cell: (c) => pidLink(c.getValue()) }),
-    col.accessor("title", { header: "Title", size: 220, meta: { grow: true }, cell: (c) => <span className="ellipsis" title={c.getValue()}>{c.getValue()}</span> }),
+    col.accessor("pid", { header: "Paper", size: 84, meta: { kind: "numeric" }, cell: (c) => pidLink(c.getValue()) }),
+    col.accessor("title", { header: "Title", size: 220, meta: { grow: true, kind: "text" }, cell: (c) => <span className="ellipsis" title={c.getValue()}>{c.getValue()}</span> }),
     col.display({
       id: "merits",
       header: withOutcome ? "Merits (open → now)" : "Merits",
       size: 150,
+      meta: { kind: "numeric", label: "Mean merit at open", value: (r) => mean(r.meritsAtOpen) },
       cell: (c) => (
         <span className="num" data-testid="cand-merits">
           {c.row.original.meritsAtOpen.join("/")}
@@ -51,6 +53,7 @@ function candidateColumns(withOutcome: boolean) {
       id: "signals",
       header: "Discussion signals",
       size: 260,
+      meta: { kind: "numeric", label: "Comments", value: (r) => r.signals.comments },
       cell: (c) => {
         const s = c.row.original.signals;
         const t = `${s.comments} comments (${s.acComments} by ACs, ${s.windowComments} in the window); ${s.outstandingReviews} reviews outstanding${s.newReviewsInWindow ? `; ${s.newReviewsInWindow} new in the window` : ""}`;
@@ -65,7 +68,8 @@ function candidateColumns(withOutcome: boolean) {
       ? [
           col.accessor("bumped", {
             header: "Outcome",
-            size: 110,
+            size: 120,
+            meta: { kind: "boolean", format: (v) => (v === "true" ? "bumped" : "not bumped") },
             cell: (c) => (
               <span className={`chip ${c.getValue() ? "chip-info" : "chip-neutral"}`} data-testid="cand-outcome" data-bumped={String(c.getValue())}>
                 {c.getValue() ? "bumped" : "not bumped"}
@@ -79,9 +83,9 @@ function candidateColumns(withOutcome: boolean) {
 
 const ncol = createColumnHelper<NoResponseRow>();
 const NO_RESPONSE_COLUMNS = [
-  ncol.accessor("pid", { header: "Paper", size: 70, cell: (c) => pidLink(c.getValue()) }),
-  ncol.display({ id: "who", header: "Reviewer", size: 180, cell: (c) => <Link to={personPath(c.row.original.person.email)}>{c.row.original.person.name}</Link> }),
-  ncol.accessor("reason", { header: "Detail", size: 320, meta: { grow: true }, cell: (c) => <span className="ellipsis" title={c.getValue()}>{c.getValue()}</span> }),
+  ncol.accessor("pid", { header: "Paper", size: 84, meta: { kind: "numeric" }, cell: (c) => pidLink(c.getValue()) }),
+  ncol.display({ id: "who", header: "Reviewer", size: 180, meta: { kind: "text", value: (r) => r.person.name }, cell: (c) => <Link to={personPath(c.row.original.person.email)}>{c.row.original.person.name}</Link> }),
+  ncol.accessor("reason", { header: "Detail", size: 320, meta: { grow: true, kind: "text" }, cell: (c) => <span className="ellipsis" title={c.getValue()}>{c.getValue()}</span> }),
 ];
 
 export function EarlyReject({ meta }: { meta: MetaResponse }) {
@@ -117,8 +121,11 @@ export function EarlyReject({ meta }: { meta: MetaResponse }) {
             {r.candidates.length === 0 ? (
               <p className="muted none">No paper has every merit in the band.</p>
             ) : (
-              <div className="tier-table mod-table" style={{ height: 36 + Math.min(r.candidates.length, MAX_ROWS) * ROW }}>
+              <div className="tier-table mod-table">
                 <DataTable
+                  stateKey="cand"
+                  maxRows={MAX_ROWS}
+                  noun="papers"
                   data={r.candidates}
                   columns={candidateColumns(withOutcome)}
                   rowHeight={ROW}
@@ -144,8 +151,11 @@ export function EarlyReject({ meta }: { meta: MetaResponse }) {
               {r.noResponse.length === 0 ? (
                 <p className="muted none">Every reviewer of a candidate responded.</p>
               ) : (
-                <div className="tier-table mod-table" style={{ height: 36 + Math.min(r.noResponse.length, MAX_ROWS) * ROW }}>
+                <div className="tier-table mod-table">
                   <DataTable
+                    stateKey="nores"
+                    maxRows={MAX_ROWS}
+                    noun="reviewers"
                     data={r.noResponse}
                     columns={NO_RESPONSE_COLUMNS}
                     rowHeight={ROW}

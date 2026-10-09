@@ -9,11 +9,27 @@ import type { ReactNode } from "react";
 import { useRunSolve, useSolve, type MetaResponse } from "../api";
 import { Chip } from "../components/Chip";
 import { CsvBlock } from "../components/CsvBlock";
+import { MiniTable, type MiniColumn } from "../components/MiniTable";
+import type { SolveReport } from "@pcs/server/server/assignment-types";
 import { formatTime, plural } from "../format";
 import { useTiersConfigured } from "../tiers";
 import { ModuleWindow, Notes } from "./ModuleParts";
 
 const LIST_MAX = 100;
+
+type LoadRow = SolveReport["load"][number];
+
+/** The load histogram by tier: counts of reviewers per load, sortable (no people are listed). */
+function loadColumns(tiers: boolean): MiniColumn<LoadRow>[] {
+  return [
+    ...(tiers ? [{ id: "tier", header: "Tier", kind: "text" as const, value: (t: LoadRow) => t.tier, cell: (t: LoadRow) => t.tier }] : []),
+    { id: "band", header: "Band", kind: "numeric", value: (t) => t.band?.min ?? null, cell: (t) => (t.band ? `${t.band.min}–${t.band.max}` : "none") },
+    { id: "reviewers", header: "Reviewers", kind: "numeric", value: (t) => t.reviewers, cell: (t) => t.reviewers },
+    { id: "histogram", header: "Reviewers per load", cell: (t) => t.histogram.map((h) => `${h.load}: ${h.reviewers}`).join(" · ") },
+    { id: "under", header: "Under", kind: "numeric", value: (t) => t.under, cell: (t) => t.under },
+    { id: "over", header: "Over", kind: "numeric", value: (t) => t.over, cell: (t) => t.over },
+  ];
+}
 
 function Capped<T>({ items, render, testId, empty }: { items: readonly T[]; render: (x: T, i: number) => ReactNode; testId: string; empty: string }) {
   if (items.length === 0) return <p className="muted">{empty}</p>;
@@ -81,30 +97,7 @@ export function Solver({ meta: _meta }: { meta: MetaResponse }) {
 
           <section className="ov-section">
             <h2>{tiers ? "Load by tier" : "Load"}</h2>
-            <table className="mini" data-testid="solver-load">
-              <thead>
-                <tr>
-                  {tiers ? <th>Tier</th> : null}
-                  <th>Band</th>
-                  <th>Reviewers</th>
-                  <th>Reviewers per load</th>
-                  <th>Under</th>
-                  <th>Over</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.load.map((t) => (
-                  <tr key={t.tier} data-tier={t.tier}>
-                    {tiers ? <td>{t.tier}</td> : null}
-                    <td>{t.band ? `${t.band.min}–${t.band.max}` : "none"}</td>
-                    <td>{t.reviewers}</td>
-                    <td>{t.histogram.map((h) => `${h.load}: ${h.reviewers}`).join(" · ")}</td>
-                    <td>{t.under}</td>
-                    <td>{t.over}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <MiniTable testId="solver-load" stateKey="load" rows={r.load} columns={loadColumns(tiers)} rowKey={(t) => t.tier} rowAttrs={(t) => ({ "data-tier": t.tier })} />
           </section>
 
           <section className="ov-section">

@@ -13,7 +13,8 @@ import { LoadBar, Sparkline } from "../components/Charts";
 import { ReasonChips } from "../components/Chip";
 import { DataTable } from "../components/DataTable";
 import { AbsTime, RelTime } from "../components/Time";
-import { plural } from "../format";
+import { plural, ruleLabel } from "../format";
+import { mean } from "../table/model";
 import { Link, navigate } from "../router";
 
 const col = createColumnHelper<LeadRow>();
@@ -44,6 +45,7 @@ export function Leads({ meta }: { meta: MetaResponse }) {
         id: "name",
         header: "Discussion lead",
         size: 170,
+        meta: { kind: "text", value: (r) => r.person.name },
         cell: (c) => (
           <Link to={personPath(c.row.original.person.email)} className="ellipsis" data-testid="lead-name" onClick={(e) => e.stopPropagation()}>
             {c.row.original.person.name}
@@ -54,6 +56,7 @@ export function Leads({ meta }: { meta: MetaResponse }) {
         id: "load",
         header: "Papers · flagged",
         size: 220,
+        meta: { kind: "numeric", label: "Papers", value: (r) => r.load },
         cell: (c) => {
           const r = c.row.original;
           return (
@@ -70,6 +73,7 @@ export function Leads({ meta }: { meta: MetaResponse }) {
         id: "reviews",
         header: "Reviews",
         size: 150,
+        meta: { kind: "numeric", label: "Reviews submitted", value: (r) => r.reviews.submitted },
         cell: (c) => {
           const v = c.row.original.reviews;
           return (
@@ -82,7 +86,8 @@ export function Leads({ meta }: { meta: MetaResponse }) {
       col.display({
         id: "comments",
         header: "Comments on papers",
-        size: 160,
+        size: 170,
+        meta: { kind: "numeric", value: (r) => r.comments.total },
         cell: (c) => {
           const v = c.row.original.comments;
           return (
@@ -97,6 +102,7 @@ export function Leads({ meta }: { meta: MetaResponse }) {
         id: "lead",
         header: "Lead has commented",
         size: 230,
+        meta: { kind: "numeric", label: "Papers the lead commented on", value: (r) => r.commentedPids.length },
         cell: (c) => (
           <span className="ellipsis" data-testid="lead-commented" data-commented={c.row.original.commentedPids.length}>
             <LeadCommented r={c.row.original} />
@@ -106,7 +112,8 @@ export function Leads({ meta }: { meta: MetaResponse }) {
       col.display({
         id: "stale",
         header: "Stale",
-        size: 64,
+        size: 76,
+        meta: { kind: "numeric", value: (r) => r.stale },
         cell: (c) => (
           <span className="num" data-testid="lead-stale" title={pidList(c.row.original.stalePids)}>
             {c.row.original.stale}
@@ -117,7 +124,7 @@ export function Leads({ meta }: { meta: MetaResponse }) {
         id: "activity",
         header: "Activity",
         size: 140,
-        meta: { grow: true },
+        meta: { grow: true, kind: "numeric", label: "Activity (total)", value: (r) => r.activity.daily.reduce((a, b) => a + b, 0) },
         cell: (c) => <Sparkline daily={c.row.original.activity.daily} start={c.row.original.activity.start} tz={meta.tz} testId="lead-spark" />,
       }),
     ],
@@ -151,6 +158,8 @@ export function Leads({ meta }: { meta: MetaResponse }) {
       ) : (
         <DataTable
           testId="lead-table"
+          stateKey="lead"
+          noun="leads"
           data={data?.leads ?? []}
           columns={columns}
           rowId={(r) => r.person.email}
@@ -169,11 +178,11 @@ export function LeadDetail({ meta, email }: { meta: MetaResponse; email: string 
 
   const columns = useMemo(
     () => [
-      pcol.accessor("pid", { header: "#", size: 52, cell: (c) => <span className="pid">#{c.getValue()}</span> }),
+      pcol.accessor("pid", { header: "#", size: 64, meta: { kind: "numeric", label: "Paper" }, cell: (c) => <span className="pid">#{c.getValue()}</span> }),
       pcol.accessor("title", {
         header: "Title",
         size: 180,
-        meta: { grow: true },
+        meta: { grow: true, kind: "text" },
         cell: (c) => (
           <span className="title" title={c.getValue()}>
             {c.getValue()}
@@ -184,12 +193,14 @@ export function LeadDetail({ meta, email }: { meta: MetaResponse; email: string 
         id: "acs",
         header: "AC",
         size: 130,
+        meta: { kind: "categorical", value: (r) => r.acs.map((a) => a.name) },
         cell: (c) => <span className="ellipsis">{c.row.original.acs.map((a) => a.name).join(", ") || <span className="muted">none</span>}</span>,
       }),
       pcol.display({
         id: "reviews",
         header: "Reviews",
         size: 120,
+        meta: { kind: "numeric", label: "Reviews submitted", value: (r) => r.reviews.submitted },
         cell: (c) => {
           const v = c.row.original.reviews;
           return (
@@ -199,11 +210,12 @@ export function LeadDetail({ meta, email }: { meta: MetaResponse; email: string 
           );
         },
       }),
-      pcol.accessor("merits", { header: "Merits", size: 80, cell: (c) => <span className="scores">{c.getValue().join("/") || "–"}</span> }),
+      pcol.accessor("merits", { header: "Merits", size: 92, meta: { kind: "numeric", label: "Mean merit", value: (r) => mean(r.merits) }, cell: (c) => <span className="scores">{c.getValue().join("/") || "–"}</span> }),
       pcol.display({
         id: "comments",
         header: "Comments",
         size: 110,
+        meta: { kind: "numeric", value: (r) => r.comments.total },
         cell: (c) => {
           const v = c.row.original.comments;
           return (
@@ -218,6 +230,7 @@ export function LeadDetail({ meta, email }: { meta: MetaResponse; email: string 
         id: "lead",
         header: "Lead's last comment",
         size: 190,
+        meta: { kind: "date", value: (r) => r.leadLastComment },
         cell: (c) => {
           const p = c.row.original;
           if (p.leadLastComment === null) return <span className="muted" data-testid="lp-lead">no comments yet</span>;
@@ -232,13 +245,15 @@ export function LeadDetail({ meta, email }: { meta: MetaResponse; email: string 
       pcol.display({
         id: "last",
         header: "Last activity",
-        size: 110,
+        size: 120,
+        meta: { kind: "date", value: (r) => r.lastActivity },
         cell: (c) => <RelTime ms={c.row.original.lastActivity} now={d?.now ?? 0} tz={meta.tz} />,
       }),
       pcol.display({
         id: "flags",
         header: "Flags",
         size: 220,
+        meta: { kind: "categorical", value: (r) => r.reasons.map((x) => x.rule), format: ruleLabel },
         cell: (c) => {
           const p = c.row.original;
           if (p.reasons.length === 0) return <span className="muted">{p.decision ? p.decision : "none"}</span>;
@@ -294,9 +309,12 @@ export function LeadDetail({ meta, email }: { meta: MetaResponse; email: string 
         </h2>
       </div>
       {d.papers.length ? <SearchActions pids={d.papers.map((p) => p.pid)} base={meta.hotcrpUrl} /> : null}
-      <div className="tier-table" style={{ height: 36 + Math.min(Math.max(d.papers.length, 1), 12) * 44 }}>
+      <div className="tier-table">
         <DataTable
           testId="lead-papers"
+          stateKey="leadp"
+          noun="papers"
+          maxRows={12}
           data={d.papers}
           columns={columns}
           rowId={(p) => String(p.pid)}
