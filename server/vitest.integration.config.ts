@@ -8,7 +8,10 @@ export default defineConfig({
     include: ["test/contract/**/*.test.ts", "test/integration/**/*.test.ts"],
     environment: "node",
     globalSetup: ["test/support/harness-global-setup.ts"],
-    testTimeout: 30_000,
+    // HotCRP allows 250 API requests a minute, as on a real instance. A test
+    // that starts after a request-heavy file (search-parity) may sit in the
+    // client's 429 backoff for up to a minute, so allow for one full window.
+    testTimeout: 90_000,
     // One harness; keep requests polite.
     fileParallelism: false,
     // File order is not fixed, and no file may depend on another's data: each
