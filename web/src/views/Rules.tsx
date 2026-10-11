@@ -378,7 +378,7 @@ export function Rules({ meta }: { meta: MetaResponse }) {
         {save.error && !(save.error instanceof RulesApiError && save.error.errors.length) ? <span className="error">{save.error.message}</span> : null}
         {save.data && !dirty ? (
           <span className="muted" data-testid="rules-saved">
-            Saved revision #{save.data.revision.id}: {save.data.history.raised} flags raised, {save.data.history.cleared} cleared.
+            Saved revision #{save.data.revision.id}: {plural(save.data.history.raised, "flag")} raised, {save.data.history.cleared} cleared.
           </span>
         ) : null}
       </section>

@@ -1,8 +1,8 @@
 // Comment types against golden (spec §5e): the drawer's type chips, a relabel
 // in the drawer (persisted, audited, counted in the AC pings column), back to
 // the classifier, and the documented COMMENT_TYPE_CASE rule option. Writes
-// only the app's local DB (never HotCRP), so it runs in the "rules" project
-// after the read-only specs, and restores what it changed.
+// only the app's local DB (never HotCRP), so it runs in its own project after
+// the read-only specs and the rules spec, and restores what it changed.
 import { expect, test, type Page } from "@playwright/test";
 import { P } from "@pcs/seed/scenarios/golden/scenario";
 import { COMMENT_TYPE_CASE, FIRES_AT_PRIMARY } from "@pcs/seed/scenarios/golden/expected";

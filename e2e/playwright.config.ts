@@ -49,9 +49,11 @@ export default defineConfig({
     { name: "csp", testMatch: /csp\.spec\.ts$/, use: { bypassCSP: false }, dependencies: [""] },
     // The rule-settings and comment-type specs write the app's local DB (rule
     // revisions, flag history, comment relabels), never HotCRP; they run after
-    // the read-only specs and restore the env defaults before tagging runs.
-    { name: "rules", testMatch: /(rules|comment-types)\.spec\.ts$/, dependencies: ["", "csp"] },
-    { name: "tagging", testMatch: /tagging\.spec\.ts$/, dependencies: ["", "csp", "rules"] },
+    // the read-only specs, one after the other (rules.spec expects a store
+    // with no revision yet), and restore the env defaults before tagging runs.
+    { name: "rules", testMatch: /rules\.spec\.ts$/, dependencies: ["", "csp"] },
+    { name: "comment-types", testMatch: /comment-types\.spec\.ts$/, dependencies: ["", "csp", "rules"] },
+    { name: "tagging", testMatch: /tagging\.spec\.ts$/, dependencies: ["", "csp", "rules", "comment-types"] },
   ],
   webServer: {
     command: "npx tsx e2e/support/golden-server.ts",
