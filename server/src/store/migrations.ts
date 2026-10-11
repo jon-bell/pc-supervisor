@@ -385,6 +385,80 @@ export const MIGRATIONS: readonly string[] = [
   ) strict;
   create index rating_change_rid on rating_change(rid, seen_at);
   `,
+
+  // 7: chair rule settings, flag history, chair actions (spec §5c "Rule
+  // settings" and "Flag history"). All three are app-local state that HotCRP
+  // never sees. Times are epoch seconds from the app clock.
+  //
+  // rule_revision: append-only (triggers refuse update/delete). Each row holds
+  //   the COMPLETE override map after the change (`overrides`, JSON key ->
+  //   value, keys = env variable names), so the effective settings are
+  //   env defaults + the latest row's overrides, and a revert copies an older
+  //   row's map into a new row. `diff` is the effective change as JSON
+  //   [{key, from, to, fromOverride, toOverride}]. kind 'revert' names the
+  //   restored revision in reverted_to (0 = the env defaults).
+  // flag_event: one row per observed raise or clear of (pid, rule). `at` is
+  //   the evaluation instant; the change happened in (since, at]. cause:
+  //   'baseline' (first recording ever: already flagged when history began),
+  //   'data' (a sync saw new data, or time passed), 'rules' (a rule_revision,
+  //   in rule_revision_id). reconstructed = 1: derived by `pcs backfill`
+  //   from the store's history at daily points (approximate). Readers
+  //   collapse repeats (a raise while open, a clear while closed) and order
+  //   by (at, reconstructed desc, id).
+  // flag_state: the open (pid, rule) pairs as last recorded, to diff against.
+  // chair_action: the chair's confirmed HotCRP tag writes (PLAN M8), one row
+  //   per paper, for the paper timeline and the flag-history feed.
+  `
+  create table rule_revision (
+    id integer primary key,
+    at integer not null,
+    actor text not null,
+    kind text not null check (kind in ('set','revert')),
+    reverted_to integer,
+    note text,
+    overrides text not null,
+    diff text not null
+  ) strict;
+  create trigger rule_revision_no_update before update on rule_revision
+    begin select raise(abort, 'rule_revision is append-only'); end;
+  create trigger rule_revision_no_delete before delete on rule_revision
+    begin select raise(abort, 'rule_revision is append-only'); end;
+
+  create table flag_event (
+    id integer primary key,
+    pid integer not null,
+    rule text not null,
+    kind text not null check (kind in ('raised','cleared')),
+    at integer not null,
+    since integer,
+    cause text not null check (cause in ('baseline','data','rules')),
+    sync_run_id integer,
+    rule_revision_id integer,
+    reconstructed integer not null default 0,
+    reason text
+  ) strict;
+  create index flag_event_pid on flag_event(pid, rule, at, id);
+  create index flag_event_at on flag_event(at, id);
+  create index flag_event_rule on flag_event(rule, at, id);
+
+  create table flag_state (
+    pid integer not null,
+    rule text not null,
+    reason text,
+    primary key (pid, rule)
+  ) strict, without rowid;
+
+  create table chair_action (
+    id integer primary key,
+    at integer not null,
+    actor text not null,
+    kind text not null check (kind in ('tag','untag')),
+    tag text not null,
+    pid integer not null
+  ) strict;
+  create index chair_action_pid on chair_action(pid, at, id);
+  create index chair_action_at on chair_action(at, id);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

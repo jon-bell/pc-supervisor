@@ -11,6 +11,8 @@ export const PAGES: readonly string[] = [
   "/reviewers",
   `/people/${encodeURIComponent(P.silent)}`,
   "/overview",
+  "/rules",
+  "/flag-history",
   "/modules/reserve",
   "/modules/quickreject",
   "/modules/tier-progress",

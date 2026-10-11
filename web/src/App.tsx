@@ -28,6 +28,8 @@ import { Reviewers } from "./views/Reviewers";
 import { Report } from "./views/Report";
 import { TierProgress } from "./views/TierProgress";
 import { Triage } from "./views/Triage";
+import { Rules } from "./views/Rules";
+import { FlagHistory } from "./views/FlagHistory";
 
 interface Route {
   path: string;
@@ -43,6 +45,9 @@ const ROUTES: Route[] = [
   { path: "/reviewers", render: () => <Reviewers /> },
   { path: "/people/:email", render: (meta, p) => <Person key={p.email} meta={meta} email={p.email ?? ""} /> },
   { path: "/overview", render: (meta) => <Overview meta={meta} /> },
+  // Chair rule settings and flag history (spec §5c).
+  { path: "/rules", render: (meta) => <Rules meta={meta} /> },
+  { path: "/flag-history", render: (meta) => <FlagHistory meta={meta} /> },
   // Phase-2 modules (spec §10.4).
   { path: "/modules/reserve", render: (meta) => <Reserve meta={meta} /> },
   { path: "/modules/quickreject", render: (meta) => <QuickReject meta={meta} /> },
@@ -70,6 +75,8 @@ const NAV: { to: string; label: string; active: (path: string) => boolean }[] = 
   { to: "/leads", label: "Leads", active: (p) => p === "/leads" || p.startsWith("/leads/") },
   { to: "/reviewers", label: "Reviewers", active: (p) => p === "/reviewers" || p.startsWith("/people/") },
   { to: "/overview", label: "Overview", active: (p) => p === "/overview" },
+  { to: "/flag-history", label: "Flag history", active: (p) => p === "/flag-history" },
+  { to: "/rules", label: "Rules", active: (p) => p === "/rules" },
 ];
 
 export function App() {

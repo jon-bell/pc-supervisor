@@ -28,6 +28,21 @@ export const FIRES_AT_PRIMARY: Readonly<Record<number, readonly RuleName[]>> = {
   13: ["REVIEW_FLAGGED"],
 };
 
+/**
+ * The documented rule-override case (PLAN.md "Golden scenario", rule
+ * settings): the chair raises the quiet limit PCS_THRESH_STALE_DAYS from the
+ * env default 4 to 13 days in the app. At NOW_PRIMARY pid 6 (quiet 12 days)
+ * stops firing GONE_QUIET; pid 5 (quiet 14.5 days since discussion opened)
+ * keeps it. Every other pid fires exactly FIRES_AT_PRIMARY.
+ */
+export const OVERRIDE_CASE = {
+  changes: { PCS_THRESH_STALE_DAYS: 13 },
+  /** pid -> exactly these rules under the override (the pids not listed are unchanged). */
+  fires: { 6: [] } as Readonly<Record<number, readonly RuleName[]>>,
+  /** The preview's paper diff. */
+  changed: [{ pid: 6, gained: [] as RuleName[], lost: ["GONE_QUIET"] as RuleName[] }],
+} as const;
+
 /** At NOW_SECOND only these are asserted; other rows drift with time. */
 export const AT_SECOND = {
   /** pid -> rules that must be among those fired. */

@@ -115,6 +115,8 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 
 **Second assertion instant:** `PCS_NOW = 2030-03-01T12:00` (~2.5 days to decisions, inside the 3-day window). Assert only that pid 12 includes `DEADLINE_NO_CONSENSUS` and pid 1 fires nothing. Other rows drift with time and aren't asserted here.
 
+**Override case (chair rule settings, spec §5c "Rule settings"):** at the primary instant, the chair overrides `PCS_THRESH_STALE_DAYS` from the env default 4 to **13** in the app. Then **pid 6 fires nothing**: it has been quiet 12 days, which is not > 13. **pid 5 keeps `GONE_QUIET`**: 14.5 days since discussion opened, > 13, and its reason reads "(limit 13 days)". Every other row is unchanged. The preview lists exactly one changed paper (pid 6, −`GONE_QUIET`, unflagged, severity 2 → 0). Flag history records that clear with cause `rules` and the revision id. Reverting to the env defaults restores the table above. Encoded as `OVERRIDE_CASE` in `seed/scenarios/golden/expected.ts`. It is asserted by `server/test/integration/rule-settings.test.ts`, `server/test/unit/rule-settings.test.ts` and `e2e/specs/rules.spec.ts`.
+
 **Rule semantics the table depends on:**
 - `CHAMPION_MISSING` fires only if **no** reviewer holding the top merit has commented.
 - `SILENT_DISCUSSION` and `GONE_QUIET` count AC comments as activity.

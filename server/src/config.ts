@@ -397,9 +397,25 @@ function path(v: string): string {
   return s === "~" ? homedir() : s.startsWith("~/") ? join(homedir(), s.slice(2)) : s;
 }
 
-const nonNeg = numberIn(0, 1_000_000);
+/**
+ * Bounds of the rule settings (spec §5c). The env fields below and the
+ * chair's in-app overrides (rules/settings.ts) share these, and the overrides
+ * are validated by the same FIELDS entries, so both accept exactly the same values.
+ */
+export const RULE_SETTING_BOUNDS = {
+  /** PCS_RULE_<NAME>_WEIGHT and PCS_THRESH_<NAME>: numbers (fractional days allowed). */
+  number: { min: 0, max: 1_000_000 },
+  /** PCS_MERIT_ACCEPT_MIN, PCS_EXPERTISE_OK_MIN: integers on the review form's scale. */
+  scale: { min: -1000, max: 1000 },
+  /** PCS_REVIEWS_REQUIRED. */
+  reviews: { min: 0, max: 100 },
+} as const;
+
+const nonNeg = numberIn(RULE_SETTING_BOUNDS.number.min, RULE_SETTING_BOUNDS.number.max);
 const numField = (dflt: number) => withDefault<number>(dflt, nonNeg);
 type NumField = ReturnType<typeof numField>;
+const enabledField = () => withDefault(true, bool);
+type EnabledField = ReturnType<typeof enabledField>;
 
 // ---------------------------------------------------------------------------
 // The variable table. Order here is the order problems are reported in.
@@ -407,6 +423,11 @@ type NumField = ReturnType<typeof numField>;
 const RULE_FIELDS = Object.fromEntries(
   RULE_NAMES.map((n) => [`PCS_RULE_${n}_WEIGHT`, numField(RULE_WEIGHT_DEFAULTS[n])]),
 ) as unknown as { [N in RuleName as `PCS_RULE_${N}_WEIGHT`]: NumField };
+
+// PCS_RULE_<NAME>_ENABLED (default true): off = the rule is not evaluated, whatever its weight.
+const RULE_ENABLED_FIELDS = Object.fromEntries(RULE_NAMES.map((n) => [`PCS_RULE_${n}_ENABLED`, enabledField()])) as unknown as {
+  [N in RuleName as `PCS_RULE_${N}_ENABLED`]: EnabledField;
+};
 
 const THRESHOLD_FIELDS = Object.fromEntries(
   THRESHOLD_NAMES.map((n) => [`PCS_THRESH_${n}`, numField(THRESHOLD_DEFAULTS[n])]),
@@ -437,11 +458,12 @@ export const FIELDS = {
   PCS_TIER_TAGS: withDefault<TierTags>({}, tierTags),
   PCS_FIELD_MERIT: withDefault("OveMer", fieldUid),
   PCS_FIELD_EXPERTISE: withDefault("RevExp", fieldUid),
-  PCS_MERIT_ACCEPT_MIN: withDefault(3, intIn(-1000, 1000)),
-  PCS_EXPERTISE_OK_MIN: withDefault(3, intIn(-1000, 1000)),
-  PCS_REVIEWS_REQUIRED: withDefault(3, intIn(0, 100)),
+  PCS_MERIT_ACCEPT_MIN: withDefault(3, intIn(RULE_SETTING_BOUNDS.scale.min, RULE_SETTING_BOUNDS.scale.max)),
+  PCS_EXPERTISE_OK_MIN: withDefault(3, intIn(RULE_SETTING_BOUNDS.scale.min, RULE_SETTING_BOUNDS.scale.max)),
+  PCS_REVIEWS_REQUIRED: withDefault(3, intIn(RULE_SETTING_BOUNDS.reviews.min, RULE_SETTING_BOUNDS.reviews.max)),
   ...THRESHOLD_FIELDS,
   ...RULE_FIELDS,
+  ...RULE_ENABLED_FIELDS,
   // Assignment validator (spec §10.4 C, PLAN M10).
   PCS_POLICY_MIN_SENIOR: withDefault(2, intIn(0, 20)),
   PCS_POLICY_THIRD_SLOT: withDefault<ThirdSlotPolicy>("exactly1", thirdSlot),
@@ -885,6 +907,8 @@ export interface Config {
   rules: {
     weights: Readonly<Record<RuleName, number>>;
     thresholds: Readonly<Record<ThresholdName, number>>;
+    /** PCS_RULE_<NAME>_ENABLED. Optional so Config literals keep compiling; absent = all enabled. */
+    enabled?: Readonly<Record<RuleName, boolean>>;
   };
   /**
    * Assignment validator policy (spec §10.4 C). Optional in the type so code
@@ -1103,6 +1127,7 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
         ThresholdName,
         number
       >,
+      enabled: Object.fromEntries(RULE_NAMES.map((n) => [n, f[`PCS_RULE_${n}_ENABLED`]])) as Record<RuleName, boolean>,
     },
     assignment: {
       minSenior: f.PCS_POLICY_MIN_SENIOR,

@@ -9,7 +9,8 @@
 
 import type { Clock } from "../../clock.js";
 import { DEFAULT_TIER_PROGRESS_POLICY, type Config } from "../../config.js";
-import { analyze, ruleContextFromConfig, type Analysis, type RuleContext } from "../../rules/index.js";
+import { analyze, type Analysis, type RuleContext } from "../../rules/index.js";
+import { effectiveRuleContext } from "../../rule-settings/service.js";
 import type { Db } from "../../store/db.js";
 import type { Store } from "../../store/store.js";
 import { buildSnapshot } from "../../views/snapshot.js";
@@ -71,7 +72,7 @@ export function tierProgressFrom(
 
 /** Build the snapshot, evaluate, and report (the CLI and tests). */
 export function tierProgress(store: Store, cfg: Config, clock: Clock): TierProgressReport {
-  const ctx = ruleContextFromConfig(cfg, clock);
+  const ctx = effectiveRuleContext(store, cfg, clock);
   const analysis = analyze(buildSnapshot(store, { fields: cfg.fields, acRole: cfg.acRole }), ctx);
   return tierProgressFrom({ analysis, ctx }, store, cfg);
 }
