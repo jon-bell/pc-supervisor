@@ -2449,6 +2449,11 @@ table.mini th .dt-hctl {
   border-left-color: var(--accent);
   background: var(--accent-tint);
 }
+.rs-input {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
 .rs-input input {
   width: 7em;
   font: inherit;
