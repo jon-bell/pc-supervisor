@@ -21,7 +21,7 @@ After M1, tracks M2, M3, and M4 can go to different people. The **golden scenari
 
 ## Repo layout and the npm-script contract
 
-Use npm workspaces, TypeScript strict mode everywhere, and Node 22.
+Use npm workspaces, TypeScript strict mode everywhere, and Node 22 (>= 22.14).
 
 ```
 server/   sync engine, store, rules, Fastify JSON API, CLI (`pcs`)

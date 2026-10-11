@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Local dashboard for a HotCRP program-committee chair. See README.md and PLAN.md.",
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.14"
   },
   "workspaces": [
     "server",
