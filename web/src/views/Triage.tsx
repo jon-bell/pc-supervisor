@@ -127,13 +127,13 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
     () => [
       col.accessor("severity", {
         header: "Sev.",
-        size: 92,
+        size: 84,
         meta: { kind: "numeric", label: "Severity" },
         cell: (c) => <SeverityCell sev={c.getValue()} max={maxSev} />,
       }),
       col.accessor("pid", {
         header: "#",
-        size: 60,
+        size: 56,
         meta: { kind: "numeric", label: "Paper" },
         cell: (c) => <span className="pid" data-testid="pid">#{c.getValue()}</span>,
       }),
@@ -157,7 +157,7 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
       col.display({
         id: "scores",
         header: "Merit",
-        size: 168,
+        size: 160,
         meta: { kind: "numeric", label: "Mean merit", value: (r) => mean(r.merits) },
         cell: (c) => {
           const r = c.row.original;
@@ -167,26 +167,26 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
       }),
       col.accessor("reasons", {
         header: "Reasons",
-        size: 340,
+        size: 350,
         meta: { kind: "categorical", value: (r) => r.reasons.map((x) => x.rule), format: ruleLabel },
         cell: (c) => <ReasonChips reasons={c.getValue()} max={3} />,
       }),
       col.accessor("acs", {
         header: "AC",
-        size: 140,
+        size: 130,
         meta: { kind: "categorical", value: (r) => r.acs.map((a) => a.name) },
         cell: (c) => <span className="ellipsis">{c.getValue().map((a) => a.name).join(", ") || <span className="muted">none</span>}</span>,
       }),
       col.accessor("lastActivity", {
         header: "Last activity",
-        size: 116,
+        size: 104,
         meta: { kind: "date" },
         cell: (c) => <RelTime ms={c.getValue()} now={data?.now ?? meta.now} tz={meta.tz} />,
       }),
       col.display({
         id: "link",
         header: "HotCRP",
-        size: 76,
+        size: 64,
         cell: (c) => (
           <a
             className="ext"

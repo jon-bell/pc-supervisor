@@ -538,7 +538,6 @@ input:hover {
   align-items: center;
   gap: var(--sp-2);
   flex: 1 1 520px;
-  min-width: 0;
 }
 .paper-filter-label {
   display: inline-flex;
@@ -556,7 +555,7 @@ input:hover {
 }
 .pf-search .combo {
   flex: 1 1 auto;
-  min-width: 12em;
+  min-width: 10em;
 }
 .paper-filter input {
   width: 100%;
@@ -736,12 +735,16 @@ input:hover {
 }
 
 /* --------------------------------------------------------------- chips */
+/* At most three chips (two plus "+N") per cell, so a second line, when a
+   narrow column needs one, still fits a 44px row. */
 .chips {
   display: flex;
-  gap: 4px;
-  flex-wrap: nowrap;
+  gap: 2px 4px;
+  flex-wrap: wrap;
   align-items: center;
+  align-content: center;
   min-width: 0;
+  max-height: 100%;
   overflow: hidden;
 }
 .chips-wrap {
@@ -750,11 +753,11 @@ input:hover {
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   white-space: nowrap;
-  line-height: 18px;
+  line-height: 17px;
   border-radius: var(--r-mark);
-  padding: 0 7px;
+  padding: 0 6px;
   font-size: var(--fs-sm);
   border: 1px solid var(--neutral-line);
   background: var(--neutral-tint);
@@ -1533,7 +1536,7 @@ p.page {
 }
 .rule-bars li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px 32px;
+  grid-template-columns: minmax(0, 1fr) 48px 28px;
   align-items: center;
   gap: var(--sp-2);
   padding: 3px 0;
