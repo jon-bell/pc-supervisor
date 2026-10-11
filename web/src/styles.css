@@ -2591,3 +2591,68 @@ table.mini th .dt-hctl {
   font-weight: 600;
   color: var(--muted);
 }
+
+/* Comment types (spec §5e): neutral chips, a glyph per type; your label is
+   accent, low confidence is dashed and says so. Not a status colour. */
+button.chip.ctype {
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-sm);
+  margin-left: var(--sp-2);
+  background: var(--surface);
+}
+button.chip.ctype:hover {
+  border-color: var(--accent);
+}
+button.chip.ctype:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.chip.ctype-chair {
+  background: var(--accent-tint);
+  border-color: color-mix(in oklab, var(--accent) 35%, var(--surface));
+  color: var(--accent-ink);
+}
+.chip.ctype-low {
+  border-style: dashed;
+}
+.ctype-src {
+  color: var(--muted);
+}
+.ctype-chair .ctype-src {
+  color: inherit;
+}
+.ctype-caret {
+  font-size: 9px;
+  color: var(--muted);
+}
+.ctype-menu {
+  gap: var(--sp-1);
+}
+.ctype-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.ctype-option:hover:not(:disabled),
+.ctype-option:focus-visible {
+  background: var(--hover);
+  border-color: var(--line);
+}
+.ctype-option-on {
+  background: var(--accent-tint);
+}
+.ctype-option:disabled {
+  cursor: default;
+}
+.ctype-note code {
+  font-size: var(--fs-xs);
+}

@@ -39,7 +39,7 @@ export const AC_METRICS = {
     format: (v) => `${Math.round(v)}%`,
   },
   first: { noun: "to first post (median)", cohort: "AC", direction: "lower-better", value: (r) => r.timeToFirstPost.medianDays, minGap: 0.5, format: formatDays },
-  nudges: { noun: "nudges (proxy)", cohort: "AC", direction: "higher-better", value: (r) => r.nudges.total, perPaper: (r) => r.load },
+  nudges: { noun: "nudges", cohort: "AC", direction: "higher-better", value: (r) => r.nudges.total, perPaper: (r) => r.load },
   stale: { noun: "stale papers", cohort: "AC", direction: "lower-better", value: (r) => r.stale, perPaper: (r) => r.load },
   metareview: {
     noun: "metareviews submitted",
@@ -50,9 +50,17 @@ export const AC_METRICS = {
   },
 } satisfies Record<string, MetricSpec<AcRow>>;
 
+/** What the nudges column counts: classified pings (spec §5e), or the proxy. */
+export function nudgeSource(rows: readonly AcRow[]): AcRow["nudges"]["source"] {
+  return rows[0]?.nudges.source ?? "proxy";
+}
+
+export const nudgeHeader = (source: AcRow["nudges"]["source"]) => (source === "proxy" ? "Nudges (proxy)" : `Pings (${source === "model" ? "model" : "heuristic"})`);
+
 export function Acs({ meta }: { meta: MetaResponse }) {
   const acs = useAcs();
   const data = acs.data;
+  const source = nudgeSource(data?.acs ?? []);
   const maxLoad = data?.maxLoad ?? 0;
   const c = useMemo(() => cohorts(data?.acs ?? [], AC_METRICS), [data]);
 
@@ -151,24 +159,21 @@ export function Acs({ meta }: { meta: MetaResponse }) {
       }),
       col.display({
         id: "nudges",
-        header: "Nudges (proxy)",
+        header: nudgeHeader(source),
         size: 140,
-        meta: { kind: "numeric", value: (r) => r.nudges.total },
+        meta: { kind: "numeric", label: nudgeHeader(source), value: (r) => r.nudges.total },
         cell: (x) => {
           const n = x.row.original.nudges;
           const mark = c.nudges.mark(x.row.original);
+          const title =
+            n.source === "proxy"
+              ? `A proxy, not a count of nudges: ${plural(n.mentions, "comment")} @mentioning a reviewer, plus ${plural(n.proxy, "comment")} posted while a reviewer had no comment yet. Email nudges are not visible.`
+              : `${plural(n.pings, "comment")} by this AC since discussion opened classified as a ping (asking someone to respond or act), by the ${n.source === "model" ? "local model" : "heuristic"} or your relabel. The proxy would say ${n.mentions + n.proxy}. Email nudges are not visible.`;
           return (
             <Marked mark={mark} constant={c.nudges.constant}>
-              <span
-                className="num"
-                data-testid="ac-nudges"
-                title={withMark(
-                  `A proxy, not a count of nudges: ${plural(n.mentions, "comment")} @mentioning a reviewer, plus ${plural(n.proxy, "comment")} posted while a reviewer had no comment yet. Email nudges are not visible.`,
-                  mark,
-                )}
-              >
+              <span className="num" data-testid="ac-nudges" data-source={n.source} title={withMark(title, mark)}>
                 {n.total}
-                {n.mentions ? <span className="muted"> ({n.mentions} @)</span> : null}
+                {n.source === "proxy" && n.mentions ? <span className="muted"> ({n.mentions} @)</span> : null}
               </span>
             </Marked>
           );
@@ -220,7 +225,7 @@ export function Acs({ meta }: { meta: MetaResponse }) {
         ),
       }),
     ],
-    [maxLoad, meta.tz, c],
+    [maxLoad, meta.tz, c, source],
   );
 
   return (
@@ -228,8 +233,11 @@ export function Acs({ meta }: { meta: MetaResponse }) {
       <div className="page-head">
         <h1>Area chairs</h1>
         <p className="muted">
-          One row per AC, alphabetical. Comments counts every published comment by the AC on their papers (and, if different, how many came since discussion opened); coverage, first post and nudges count from discussion opening. Nudges are a proxy: AC comments that @mention
-          a reviewer, or that were posted while a reviewer had no comment yet. Click a row to see that AC's papers in triage.
+          One row per AC, alphabetical. Comments counts every published comment by the AC on their papers (and, if different, how many came since discussion opened); coverage, first post and nudges count from discussion opening.{" "}
+          {source === "proxy"
+            ? "Nudges are a proxy: AC comments that @mention a reviewer, or that were posted while a reviewer had no comment yet."
+            : `Pings are AC comments the ${source === "model" ? "local model" : "heuristic"} classifies as asking someone to respond or act (relabel any comment in the paper drawer).`}{" "}
+          Click a row to see that AC's papers in triage.
         </p>
         <OutlierLegend more="comments, coverage, nudges, metareviews" less="days to first post, stale papers" cohort="ACs" />
       </div>

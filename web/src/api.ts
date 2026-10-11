@@ -17,6 +17,9 @@ import type {
   TriageResponse,
   PaperSearchResponse,
   SearchCompletionsResponse,
+  CommentKindName,
+  CommentLabelResponse,
+  CommentLabelRevision,
 } from "@pcs/server/server/api-types";
 import { useLocation } from "./router";
 
@@ -110,6 +113,29 @@ export const keys = {
   actions: ["actions"] as const,
   nudge: (pid: number) => ["nudge", pid] as const,
 };
+
+/** The chair relabels a comment (spec §5e); kind null = back to the classifier. Everything derived from labels refetches. */
+export function useRelabel(pid: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: { cid: number; kind: CommentKindName | null }) =>
+      getJson<CommentLabelResponse>(`/api/comments/${req.cid}/label`, {
+        method: "PUT",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ kind: req.kind }),
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: keys.paper(pid) });
+      // Nudge counts, rule results (when a rule ignores a type), people pages and the relabel log.
+      await qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "paper" && q.queryKey[0] !== "meta" });
+    },
+  });
+}
+
+/** The chair's relabels, newest first (the audit trail). */
+export function useCommentLabels() {
+  return useQuery({ queryKey: ["comment-labels"], queryFn: () => getJson<{ items: (CommentLabelRevision & { title: string | null })[] }>("/api/comment-labels?limit=100") });
+}
 
 export function useMeta() {
   return useQuery({ queryKey: keys.meta, queryFn: () => getJson<MetaResponse>("/api/meta") });
