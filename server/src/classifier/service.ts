@@ -113,6 +113,11 @@ export class CommentClassifier {
     return this.#running !== undefined;
   }
 
+  /** Why `model` isn't in use (as of the last active() check), or null. */
+  get fallback(): string | null {
+    return this.#fallback;
+  }
+
   /** Which classifier will run, after checking the model files. */
   async active(): Promise<ActiveClassifier> {
     const mode = this.settings.mode;

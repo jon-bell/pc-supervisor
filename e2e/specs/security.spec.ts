@@ -18,6 +18,7 @@ const SAMPLES: Readonly<Record<string, readonly string[]>> = {
   pid: ["4", "99"],
   email: [P.silent, "nobody@example.org"],
   file: [...EXPORT_FILE_NAMES],
+  cid: ["1", "999999"],
 };
 
 function expand(url: string): string[] {

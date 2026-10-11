@@ -32,8 +32,7 @@ export async function commentTypesMeta(c: CommentClassifier | undefined, deps: P
   const s = deps.cfg.commentClassifier;
   if (!c) return { configured: s?.mode ?? "heuristic", active: s?.mode === "off" ? "off" : "heuristic", fallback: null, minConfidence: s?.minConfidence ?? 0.6, running: false };
   const active = await c.active();
-  const st = await c.status();
-  return { configured: c.settings.mode, active, fallback: st.fallback, minConfidence: c.settings.minConfidence, running: c.running };
+  return { configured: c.settings.mode, active, fallback: c.fallback, minConfidence: c.settings.minConfidence, running: c.running };
 }
 
 export function registerComments(app: FastifyInstance, deps: RouteDeps): void {
