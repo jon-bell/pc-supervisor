@@ -50,7 +50,7 @@ export function quantile(sorted: readonly number[], p: number): number {
   return sorted[lo]! + (h - lo) * (sorted[hi]! - sorted[lo]!);
 }
 
-const round = (v: number) => (Math.abs(v) >= 10 ? String(Math.round(v)) : String(Math.round(v * 10) / 10));
+const round = (v: number) => String(Math.round(v * 10) / 10);
 
 /** Cohort statistics for one metric over `rows`; marks need at least 3 rows with a value. */
 export function cohort<T>(rows: readonly T[], spec: MetricSpec<T>): Cohort<T> {

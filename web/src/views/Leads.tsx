@@ -32,7 +32,6 @@ const LEAD_METRICS = {
   comments: { noun: "comments", cohort: "lead", direction: "higher-better", value: (r) => r.comments.total, perPaper: (r) => r.load },
   lead: { noun: "of their papers commented on", cohort: "lead", direction: "higher-better", value: (r) => r.commentedPids.length, perPaper: (r) => r.load },
   stale: { noun: "stale papers", cohort: "lead", direction: "lower-better", value: (r) => r.stale, perPaper: (r) => r.load },
-  activity: { noun: "comments since discussion opened", cohort: "lead", direction: "higher-better", value: activityTotal, perPaper: (r) => r.load },
 } satisfies Record<string, MetricSpec<LeadRow>>;
 
 const pidList = (pids: readonly number[]) => pids.map((p) => `#${p}`).join(", ") || "none";
@@ -155,9 +154,9 @@ export function Leads({ meta }: { meta: MetaResponse }) {
         size: 140,
         meta: { grow: true, kind: "numeric", label: "Activity (total)", value: activityTotal },
         cell: (c) => (
-          <Marked mark={m.activity.mark(c.row.original)} constant={m.activity.constant}>
+          <>
             <Sparkline daily={c.row.original.activity.daily} start={c.row.original.activity.start} tz={meta.tz} testId="lead-spark" />
-          </Marked>
+          </>
         ),
       }),
     ],
@@ -174,7 +173,7 @@ export function Leads({ meta }: { meta: MetaResponse }) {
           &ldquo;lead has commented&rdquo; counts the lead&apos;s own. Click a row to see that lead&apos;s papers.
           {data && data.papersWithLead > 0 ? ` ${data.papersWithLead} of ${plural(data.papers, "paper")} have a lead.` : ""}
         </p>
-        {noLeads ? null : <OutlierLegend more="reviews submitted, comments, papers the lead commented on, activity; per paper" less="stale papers" cohort="leads" />}
+        {noLeads ? null : <OutlierLegend more="reviews submitted, comments, papers the lead commented on; per paper" less="stale papers" cohort="leads" />}
       </div>
       {q.error ? (
         <p className="error">Could not load the discussion leads: {q.error.message}</p>

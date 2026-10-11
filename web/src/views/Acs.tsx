@@ -48,7 +48,6 @@ export const AC_METRICS = {
     value: (r) => r.metareview.submitted,
     perPaper: (r) => r.metareview.of,
   },
-  activity: { noun: "comments since discussion opened", cohort: "AC", direction: "higher-better", value: activityTotal, perPaper: (r) => r.load },
 } satisfies Record<string, MetricSpec<AcRow>>;
 
 export function Acs({ meta }: { meta: MetaResponse }) {
@@ -215,9 +214,9 @@ export function Acs({ meta }: { meta: MetaResponse }) {
         size: 140,
         meta: { grow: true, kind: "numeric", label: "Activity (total)", value: activityTotal },
         cell: (x) => (
-          <Marked mark={c.activity.mark(x.row.original)} constant={c.activity.constant}>
+          <>
             <Sparkline daily={x.row.original.activity.daily} start={x.row.original.activity.start} tz={meta.tz} testId="ac-spark" />
-          </Marked>
+          </>
         ),
       }),
     ],
@@ -232,7 +231,7 @@ export function Acs({ meta }: { meta: MetaResponse }) {
           One row per AC, alphabetical. Comments counts every published comment by the AC on their papers (and, if different, how many came since discussion opened); coverage, first post and nudges count from discussion opening. Nudges are a proxy: AC comments that @mention
           a reviewer, or that were posted while a reviewer had no comment yet. Click a row to see that AC's papers in triage.
         </p>
-        <OutlierLegend more="comments, coverage, nudges, metareviews, activity" less="days to first post, stale papers" cohort="ACs" />
+        <OutlierLegend more="comments, coverage, nudges, metareviews" less="days to first post, stale papers" cohort="ACs" />
       </div>
       {acs.error ? (
         <p className="error">Could not load the AC table: {acs.error.message}</p>

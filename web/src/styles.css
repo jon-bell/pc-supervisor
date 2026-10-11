@@ -597,7 +597,7 @@ input:hover {
   color: var(--ink-2);
 }
 .filters select {
-  max-width: 14em;
+  max-width: 11em;
   color: var(--ink);
 }
 
@@ -904,8 +904,8 @@ input:hover {
 }
 .strip-dot {
   fill: var(--pip, var(--muted));
-  stroke: var(--surface);
-  stroke-width: 1.2;
+  stroke: color-mix(in oklab, var(--pip, var(--muted)) 55%, var(--ink) 45%);
+  stroke-width: 1;
 }
 /* "sv" (HotCRP's default): a purple-to-green diverging scale (PRGn), so low and high
    differ in hue and in lightness and stay apart under red-green colour blindness. */
@@ -1198,6 +1198,9 @@ input:hover {
   gap: var(--sp-2);
   padding: var(--sp-2) 0;
   border-top: 1px solid var(--line-soft);
+}
+.ev-main {
+  min-width: 0;
 }
 .ev-time {
   color: var(--muted);

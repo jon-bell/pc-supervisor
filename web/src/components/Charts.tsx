@@ -136,7 +136,6 @@ export function TimeLines({
   ariaLabel: string;
 }) {
   const w = 760;
-  const h = 260;
   const m = { l: 36, r: 110, t: 0, b: 24 };
   const pw = w - m.l - m.r;
   const xs = [...ts, ...markers.map((k) => k.at)];
@@ -167,12 +166,13 @@ export function TimeLines({
         return p.x < a - 2 || p.x > b + 2; // higher lines cross my text
       });
     let row = 0;
-    while (!fits(row) && row < 5) row++;
+    while (!fits(row) && row < markers.length) row++;
     placed.push({ a, b, x, row });
     return { mk, x, text, end, row };
   });
   const rows = Math.max(1, ...labels.map((l) => l.row + 1));
   m.t = 8 + rows * 13;
+  const h = m.t + 200 + m.b;
   const ph = h - m.t - m.b;
   const Y = (v: number) => m.t + ph - (v / ymax) * ph;
   const last = ts.length - 1;

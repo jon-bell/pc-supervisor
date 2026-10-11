@@ -55,7 +55,7 @@ function TierGroup({ list, tier, entries, sort }: { list: OutlierList; tier: str
       }),
       col.accessor("pids", {
         header: "Papers",
-        size: 168,
+        size: 200,
         cell: (c) => (
           <span className="pids" data-testid="outlier-pids">
             {c.getValue().map((p, i) => (

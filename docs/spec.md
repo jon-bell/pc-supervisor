@@ -293,6 +293,20 @@ These are human-in-the-loop only; the app never sends email and never posts comm
 - **No leaderboards by default.** People tables (ACs, leads, reviewer lists, reserve and coaching lists) keep their alphabetical or by-paper default order. The chair may sort any column, including a count, but the app never opens a people table sorted by a metric, and a column sort is cleared with a third click.
 - **Conflicts:** `PCS_FORCE_SHOW=false` hides papers the chair is conflicted with.
 
+### Visual conventions (web UI)
+
+Colour has four separate jobs, and nothing is encoded by colour alone.
+
+- **Scores.** Every score shows as a numbered pip coloured on the field's scale. The scale comes from the synced review form: values run 1..n, where n is the number of labels from `get/jsonrqc`, and the colour scheme is the field's HotCRP `scheme`. The form omits `scheme` when it is the default `sv`; the store keeps it in `review_field.scheme` (migration 7), and `/api/meta` returns it as `scales`. A value maps to a scheme step by HotCRP's own rule (`Discrete_ReviewField::scheme_value_class`, reversed schemes included). The app draws `sv` as a purple-to-green diverging scale (PRGn): low and high differ in both hue and lightness, so they stay apart under red-green colour blindness, and green stays "high" as in HotCRP. `bupu`, `viridis` and `orbu` (and their reverses) get their own palettes. Other HotCRP schemes fall back to `sv`, and `none` is neutral. A paper's merits also show as a dot strip on the field's axis, so a split such as 1 and 4 reads as a long range bar. Expertise is a small figure beside each merit pip, or a neutral outlined pip in the drawer. The number is always printed.
+- **Severity.** A paper's severity is a bold number plus a bar. The bar's length is the severity relative to the largest in the list, and its colour steps up a five-step sequential red ramp. A reason chip's level comes from its rule's weight on a fixed three-step scale: high (weight ≥ 3, critical red), medium (2, amber), low (≤ 1, neutral). The chip repeats the level as one, two or three bars. Triage shows every reason when there are at most three, otherwise the two heaviest plus "+N", whose tooltip lists the rest. The drawer shows them all, heaviest first.
+- **Outlier marks** on people tables (ACs, leads) are a reading aid, not a rule, and not a ranking. Each metric declares which direction is concerning:
+  - more is better: comments, coverage, nudges, metareviews submitted, reviews submitted, papers the lead commented on;
+  - less is better: days to first post, stale papers.
+
+  A cell is marked only on the concerning side, when its value is beyond the cohort's quartile (below the 25th percentile, or above the 75th). It must also be at least a quarter of the median away from the median (half a day for days to first post), so a tight cohort marks no one. The cohort is the rows of the table: ACs against ACs, leads against leads. Counts compare per paper when loads differ. Marks need at least 3 rows with a value. A marked cell gets an amber tint and a ▼/▲ icon pointing the concerning way. Its tooltip (and the icon's accessible name) gives the numbers, e.g. "5 comments; AC median 16; below the 25th percentile of ACs". These bars are derived from the data, not configured: they are not PCS_* settings, because nothing acts on them. A column whose value is the same for every row is muted. Where a rule threshold exists, the mark uses it instead of the cohort: late reviews after the review deadline, and reviews under the word minimum (tier progress).
+- **Order and wording are unchanged by marks:** people tables stay alphabetical, and marks use the §7 wording above.
+- **Light and dark** themes follow `prefers-color-scheme`, from one set of CSS custom properties (`web/src/styles.css`), with text at WCAG AA contrast. The UI face is Atkinson Hyperlegible Next, self-hosted from npm (`@fontsource`, served from the app's origin), and numeric columns use tabular figures.
+
 ---
 
 ## 8. Milestones
