@@ -52,6 +52,9 @@ import { PaperFilter, type PaperSearcher } from "./paper-filter.js";
 import { registerPaperSearch } from "./routes/paper-search.js";
 import { registerSearchCompletions } from "./routes/search-completions.js";
 import { SearchCompletions, type SearchCompleter } from "./search-completions.js";
+import { registerRules } from "./routes/rules.js";
+import { registerFlagHistory } from "./routes/flag-history.js";
+import type { ActorResolver } from "../rule-settings/actor.js";
 
 export interface RouteDeps {
   cfg: Config;
@@ -71,6 +74,8 @@ export interface RouteDeps {
   paperFilter: PaperFilter;
   /** The filter box's autocomplete data (store + HotCRP /searchcompletion, cached). */
   searchCompletions: SearchCompletions;
+  /** Who is making a rule change or tag write (whoami, cached); absent = "local". */
+  actor?: ActorResolver | undefined;
 }
 
 export type RegisterRoutes = (app: FastifyInstance, deps: RouteDeps) => void;
@@ -98,6 +103,9 @@ export const ROUTES: readonly RegisterRoutes[] = [
   // The in-app paper filter: GET /api/paper-search, GET /api/search-completions.
   registerPaperSearch,
   registerSearchCompletions,
+  // Chair rule settings and flag history: /api/rules*, /api/flag-history, /api/papers/:pid/flag-history.
+  registerRules,
+  registerFlagHistory,
 ];
 
 export interface RouteInfo {
@@ -179,6 +187,8 @@ export interface AppOptions {
   paperSearcher?: PaperSearcher;
   /** HotCRP /searchcompletion + /alltags for the filter box; absent = completions from the store only. */
   searchCompleter?: SearchCompleter;
+  /** Who is making a rule change or tag write (whoami); absent = "local". */
+  actor?: ActorResolver;
   /** Built web app; null = API only. Default: defaultWebDir(). */
   webDir?: string | null;
   /** Fastify request logging (off by default: logs could carry paths, never bodies). */
@@ -244,6 +254,7 @@ export async function buildApp(o: AppOptions): Promise<App> {
     solverHotcrp: o.solverHotcrp,
     paperFilter,
     searchCompletions: new SearchCompletions(o.store, o.cfg, paperFilter, o.searchCompleter),
+    actor: o.actor,
   };
   for (const register of ROUTES) register(app, deps);
 

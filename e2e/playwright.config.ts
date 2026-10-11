@@ -43,11 +43,15 @@ export default defineConfig({
   projects: [
     // Unnamed, so Argos screenshot names carry no project prefix and keep
     // matching the baselines on main.
-    { name: "", testIgnore: /(tagging|csp)\.spec\.ts$/ },
+    { name: "", testIgnore: /(tagging|csp|rules)\.spec\.ts$/ },
     // The real CSP in a real browser (no bypassCSP; the spec takes no Argos
     // screenshots): fails on any securitypolicyviolation (specs/csp.spec.ts).
     { name: "csp", testMatch: /csp\.spec\.ts$/, use: { bypassCSP: false }, dependencies: [""] },
-    { name: "tagging", testMatch: /tagging\.spec\.ts$/, dependencies: ["", "csp"] },
+    // The rule-settings spec writes the app's local DB (rule revisions, flag
+    // history), never HotCRP; it runs after the read-only specs and restores
+    // the env defaults before tagging runs.
+    { name: "rules", testMatch: /rules\.spec\.ts$/, dependencies: ["", "csp"] },
+    { name: "tagging", testMatch: /tagging\.spec\.ts$/, dependencies: ["", "csp", "rules"] },
   ],
   webServer: {
     command: "npx tsx e2e/support/golden-server.ts",

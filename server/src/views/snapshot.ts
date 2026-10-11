@@ -32,7 +32,7 @@
 //   review rounds are left out, so quick-reject reviews don't fill the review
 //   slots (PCS_QR_EXCLUDE_FROM_SLOTS). Round names compare case-insensitively.
 
-import type { AcRole } from "../config.js";
+import { excludedRounds, type AcRole, type Config } from "../config.js";
 import type {
   AcView,
   CommentView,
@@ -55,6 +55,11 @@ export interface SnapshotOptions {
   pids?: readonly number[];
   /** Review rounds whose non-meta reviews are left out (config.ts excludedRounds()). Default none. */
   excludeRounds?: readonly string[];
+}
+
+/** The options every whole-store evaluation uses (server analysis, flag history). */
+export function snapshotOptions(cfg: Pick<Config, "fields" | "acRole" | "quickReject">): SnapshotOptions {
+  return { fields: cfg.fields, acRole: cfg.acRole, excludeRounds: excludedRounds(cfg) };
 }
 
 type Raw = Record<string, unknown>;

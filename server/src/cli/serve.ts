@@ -9,6 +9,9 @@ import { loadConfig, orExit } from "../config.js";
 import { clientFromConfig } from "../hotcrp/client.js";
 import { redact } from "../redact.js";
 import { buildApp, defaultWebDir } from "../server/app.js";
+import type { AnalysisSource } from "../server/analysis.js";
+import { recordFlags } from "../history/flags.js";
+import { whoamiActor } from "../rule-settings/actor.js";
 import { SyncRunner } from "../server/sync-runner.js";
 import { StoreError } from "../store/errors.js";
 import { openStore } from "../store/store.js";
@@ -47,6 +50,7 @@ export const SERVE_COMMAND: Command = {
     const source = clientSource(client);
     // The one write path (PLAN M8): dry run, explicit confirmation, then the write.
     const tagFlow = new TagFlow({ writer: client, tag: cfg.attentionTag });
+    const ref: { analysis?: AnalysisSource } = {};
     const sync = new SyncRunner(
       async () => {
         const r = await runSync(store.db, source, {
@@ -56,6 +60,12 @@ export const SERVE_COMMAND: Command = {
           tierTags: cfg.tierTags,
           acRole: cfg.acRole,
         });
+        // Flag history (spec §5c): what this sync raised and cleared. Only after
+        // a complete sync, so a partial one can't read as mass clears.
+        if (r.ok && ref.analysis) {
+          const view = ref.analysis.get();
+          recordFlags(store.db, view.analysis.evaluation.results, { atMs: view.ctx.now, cause: "data", syncRunId: r.runId });
+        }
         return { ...r, errors: r.errors.map((e) => redact(e, [cfg.hotcrp.token])) };
       },
       (r) => {
@@ -65,7 +75,20 @@ export const SERVE_COMMAND: Command = {
       [cfg.hotcrp.token],
     );
     const webDir = defaultWebDir();
-    const { app } = await buildApp({ cfg, store, clock, sync, tagFlow, webDir, solverHotcrp: client, paperSearcher: client, searchCompleter: client });
+    const built = await buildApp({
+      cfg,
+      store,
+      clock,
+      sync,
+      tagFlow,
+      webDir,
+      solverHotcrp: client,
+      paperSearcher: client,
+      searchCompleter: client,
+      actor: whoamiActor(client),
+    });
+    const app = built.app;
+    ref.analysis = built.analysis;
     if (!webDir) err("pcs serve: web/dist not found; serving the API only (run `npm run build -w @pcs/web`)");
     if (!store.lastSuccessfulSync()) err("pcs serve: the local store is empty; run `pcs sync` or press \"Sync now\"");
 

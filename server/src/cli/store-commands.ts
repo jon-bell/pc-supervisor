@@ -12,6 +12,7 @@ import { dbFiles, wipeDb } from "../store/wipe.js";
 import { runBackfill } from "../sync/backfill.js";
 import { clientSource } from "../sync/source.js";
 import { runSync, type SyncResult } from "../sync/sync.js";
+import { backfillFlagHistory, recordStoreFlags } from "../history/flags.js";
 import type { Command } from "./main.js";
 
 const out = (s: string) => process.stdout.write(`${s}\n`);
@@ -95,6 +96,11 @@ export const STORE_COMMANDS: Record<string, Command> = {
         });
         out(describeSync(r, clock));
         for (const e of r.errors) err(`  ${r.ok ? "warning" : "error"}: ${redact(e, [cfg.hotcrp.token])}`);
+        if (r.ok) {
+          // Flag history (spec §5c): what this sync raised and cleared.
+          const h = recordStoreFlags(store, cfg, clock, { cause: "data", syncRunId: r.runId });
+          if (!watch) err(`  flag history: ${h.baseline ? "baseline, " : ""}${h.raised} raised, ${h.cleared} cleared`);
+        }
         return r.ok;
       };
       try {
@@ -148,6 +154,9 @@ export const STORE_COMMANDS: Record<string, Command> = {
           `backfill #${r.runId} ${r.ok ? "ok" : "stopped"}: ${r.done} review(s) backfilled, ${r.versionsNew} new version(s), ${r.remaining} remaining`,
         );
         for (const e of r.errors.slice(0, 20)) err(`  ${redact(e, [cfg.hotcrp.token])}`);
+        // Rebuild the reconstructed flag history from the (now richer) review history.
+        const h = backfillFlagHistory(store, cfg, clock);
+        out(`flag history: ${h.events} reconstructed event(s) over ${h.points} daily point(s)`);
         return r.ok ? 0 : 1;
       } finally {
         off();

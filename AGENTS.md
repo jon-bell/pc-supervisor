@@ -13,15 +13,17 @@ These instructions are for anyone working in this repo, human or coding agent. R
 
 ## Conventions
 
-- **Config is environment variables only.**
+- **Config is environment variables only**, with one exception: the rule settings (next bullet group) may be overridden by the chair in the app.
   - Every new setting gets a `PCS_*` name, a Zod entry in `server/src/config.ts`, and a documented line in `.env.example`, all in the same PR.
+  - Everything else stays env-only: URLs, the token, phase dates, the DB path and key, sync tuning, module policies.
   - Don't add config files or hard-code dates, URLs, or field UIDs.
   - The `pcs` CLI loads `./.env` only when `PCS_HOTCRP_URL` is unset (`server/src/env-file.ts`). Tests that spawn the CLI must set `PCS_HOTCRP_URL` or run outside the repo, so a developer's `.env` never leaks in.
 - **Time:** never call `Date.now()` / `new Date()` directly in logic. Use `server/src/clock.ts`, which honors `PCS_NOW`. Phase logic must be testable at any instant.
 - **HotCRP access goes through `server/src/hotcrp/`.** Every response is parsed with its Zod schema. When HotCRP surprises you, fix the schema and add a contract test; don't add a `try/catch` that hides it.
 - **Rules (spec §5c):**
   - One function per rule.
-  - Each rule's weight and threshold come from env.
+  - Each rule's switch, weight and thresholds (`PCS_RULE_<NAME>_ENABLED` / `_WEIGHT`, `PCS_THRESH_*`, `PCS_MERIT_ACCEPT_MIN`, `PCS_EXPERTISE_OK_MIN`, `PCS_REVIEWS_REQUIRED`) have their **defaults** in env. The chair can override them in the app (Rules page, `pcs rules set`). Overrides are validated by the same `config.ts` field as the env variable, and stored only in the app's encrypted SQLite store (`rule_revision`, append-only, with actor, time, diff and note), never in HotCRP. Effective = env defaults + the latest revision's overrides (spec §5c "Rule settings").
+  - Build every rule context with `effectiveRuleContext()` (`server/src/rule-settings/service.ts`). A unit test fails if `src/` builds one any other way.
   - Each rule returns a reason string containing the actual numbers.
   - If you change a rule's behavior, update the golden table in PLAN.md and the tests together.
 - **UI wording follows spec §7.** Write "no comments yet", not "disengaged". Never show a ranked leaderboard of people.

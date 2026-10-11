@@ -152,7 +152,7 @@ There's no config file. `.env.example` is the full, documented list. Startup val
 | `PCS_MERIT_ACCEPT_MIN` | Lowest merit value on the accept side | `3` |
 | `PCS_EXPERTISE_OK_MIN` | Lowest "knowledgeable" expertise value | `3` |
 | `PCS_REVIEWS_REQUIRED` | Complete reviews needed per paper | `3` |
-| `PCS_RULE_<NAME>_WEIGHT`, `PCS_THRESH_<NAME>` | Rule weights and thresholds (§5c) | see code |
+| `PCS_RULE_<NAME>_ENABLED` / `_WEIGHT`, `PCS_THRESH_<NAME>` | Rule switches, weights and thresholds (§5c). These, and the three score knobs above, are **defaults**: the chair can override them in the app (§5c "Rule settings") | `true` / see code |
 | `PCS_POLICY_MIN_SENIOR`, `PCS_POLICY_THIRD_SLOT`, `PCS_LOAD_<TIER>_MIN` / `_MAX`, `PCS_CYCLE_MAX_K`, `PCS_CYCLE_MAX_REPORT`, `PCS_CONFLICT_AFFILIATION`, `PCS_CONFLICT_DBLP` | Assignment validator (§10.4 C) | 2 / `exactly1` / per tier, see §10.4 C / 3 / 500 / `true` / `false` |
 | `PCS_RESERVE_*`, `PCS_DBLP_*` | Reserve compliance (§10.4 A); the DBLP lookup is opt-in | see `.env.example`; `PCS_DBLP_ENABLED=false` |
 | `PCS_QR_*`, `PCS_REFCHECK_*` | Quick-reject tracker (§10.4 B) | see `.env.example` |
@@ -172,7 +172,7 @@ There's no config file. `.env.example` is the full, documented list. Startup val
 
 ## 5. Metrics and rules
 
-Windows are relative to the phase-date env vars. Every threshold has an env override.
+Windows are relative to the phase-date env vars. Every threshold has an env variable that sets its default; the chair can override rule settings in the app (§5c "Rule settings").
 
 ### 5a. Reviewer engagement (per person)
 
@@ -252,6 +252,34 @@ Views:
   - The spread histogram counts papers with ≥ 2 submitted reviewer merits by range (max − min). It highlights ranges ≥ `PCS_THRESH_SPLIT_RANGE`. Splits that come only from straddling `MERIT_ACCEPT_MIN` aren't highlighted.
   - The burndown (`rules/burndown.ts`) is an inline-SVG line chart, daily from `REVIEW_DUE` to now. It shows no-consensus and all-undecided papers, with markers at every configured phase date and at now. A decision counts from when the sync first saw it.
 
+#### Rule settings (chair overrides)
+
+The chair decides what the rules are, in the app; env supplies the defaults.
+
+- **Settings.** Per rule: a switch (`PCS_RULE_<NAME>_ENABLED`, default `true`) and a weight (`PCS_RULE_<NAME>_WEIGHT`). Plus every threshold (`PCS_THRESH_*`) and the score knobs `PCS_MERIT_ACCEPT_MIN`, `PCS_EXPERTISE_OK_MIN`, `PCS_REVIEWS_REQUIRED`. A setting is named by its env variable. An override is validated by that variable's own `config.ts` field, so env and the app accept exactly the same types and bounds. A disabled rule is not evaluated; a weight of 0 still disables it too. Metadata for each rule and setting (description, unit, range, phase gate, which rules read it) is in `server/src/rules/settings.ts`.
+- **Effective settings** = env defaults, then the chair's overrides on top. An override equal to the env default is kept (the chair pinned it); "reset" removes it. `effectiveRuleContext()` (`server/src/rule-settings/service.ts`) is the only way the app builds a rule context. Triage, the drawer, AC/lead/reviewer metrics, the overview and burndown, the modules, the process report, the CLI and flag history all use it. Only rule evaluation reads the overrides; module policies with their own env defaults (e.g. `PCS_EARLYREJECT_MIN_REVIEWS` falling back to `PCS_REVIEWS_REQUIRED`) still read env.
+- **Storage.** Overrides are stored only in the app's encrypted local DB, never in HotCRP. Each change is an append-only `rule_revision` row (update and delete are refused by triggers). The row holds the actor (the token's account from `GET /whoami`, cached per process; "chair (whoami unavailable)" if HotCRP can't be reached), the time (`clock.ts`, so `PCS_NOW` applies), the complete override map after the change, the effective diff (`key, from, to`, and whether each side was an override), and an optional note (≤ 500 characters). A revert copies an older revision's map into a new revision; revert to 0 restores the env defaults. Stored overrides that this build no longer accepts are ignored.
+- **Re-evaluation.** A change needs no HotCRP call. The analysis cache keys on the latest revision id, so the next read re-evaluates. The change is also recorded in flag history (cause `rules`).
+- **Preview.** A dry run (`POST /api/rules/preview`) evaluates the proposed settings over the cached evaluation's paper facts. Facts depend only on the data and the phase dates, so this skips the snapshot rebuild and SQL. It reports per-rule paper counts and flagged papers (current vs proposed), how many papers become newly flagged or unflagged, and every paper whose fired rules or severity change (newly flagged first, at most 500). Measured at 2,400 papers / ~10k reviews / 20k comments (`server/test/unit/rules/perf.test.ts`): about 50 ms on a loaded dev machine, budgeted at 100 ms; one reconstruction point (rewind + evaluate) about 55 ms, budgeted at 250 ms.
+- **Golden.** The documented override case (PLAN.md): `PCS_THRESH_STALE_DAYS` 4 → 13 unflags pid 6 only.
+
+#### Flag history
+
+Flag state over time, per paper and rule (tables `flag_event`, `flag_state`; `server/src/history/`).
+
+- **Recording.** After every complete sync (`pcs sync`, the server's sync) and after every rule revision, a whole-store evaluation is diffed against the last recorded open set. One event is appended per raise or clear, with `at` (the evaluation instant) and `since` (the previous recording), so the change happened in (since, at]. Cause: `data` means the sync saw new data, or time passed (a paper going quiet needs no new data). `rules` means a rule revision, with the revision id. `baseline` is the first recording ever: flags already open when history began. A partial (failed) sync records nothing.
+- **Reconstruction** (`pcs backfill`'s last step, idempotent). It replays the store's history at daily points from `REVIEW_DUE` up to the baseline, each with the rule settings in force at that time, and writes those events with `reconstructed = 1`. It replaces any earlier reconstruction. If the baseline is still all the live history there is (the usual first `pcs sync` then `pcs backfill`), the baseline is re-taken from the backfilled data first. Otherwise the backfill's new data is recorded as a `data` event. The rewind (`history/snapshot-at.ts`) uses the burndown's model:
+  - a decision counts from when the sync first saw it;
+  - a review's status and scores come from its latest version at or before t;
+  - comments count from their earliest known time.
+  - **Limits:** daily resolution (an event is dated at the first daily point where it held, up to 24 h late, and shown with "~"). Nothing before `REVIEW_DUE` is reconstructed. Review word counts and ratings, AC assignments, tags, comment draft state and the roster are not rewound, so they take their current values at every point (e.g. `REVIEW_FLAGGED` reads as raised at the first point). Times already approximate in the store (items present before the first sync) stay approximate. Deleted reviews and comments are absent at every point. A rule change between two daily points is attributed to `data`.
+- **Reading.** Readers collapse repeats per (pid, rule): a raise while open or a clear while closed is dropped. They order by (at, reconstructed first, id). This is how a baseline raise continues a reconstructed one.
+- **Why.** For a `data` event, the latest activity on the paper in (since, at] gives the "why": "after AC comment", "after reviewer comment", "after the author response", "after a review was submitted", "after a merit change 1→2", or "after the decision". With none (time passing), no why is given. A `rules` event reads "after rule change #N"; a baseline one reads "already flagged when history began".
+- **Chair actions.** The chair's confirmed HotCRP tag writes (§6) are logged in `chair_action`, one row per paper, with actor and time. They appear in the paper timeline and the feed.
+- **Views.**
+  - The paper drawer shows a compact per-paper flag timeline: open flags first ("Split since ~Feb 1"), then closed spans ("Gone quiet raised ~Feb 18, cleared Feb 26 after rule change #3"), then tag writes.
+  - The **Flag history** page (`/flag-history`) has a feed of recent raises, clears and tag writes, newest first. It can be filtered by rule (`?rule=`) and honours the paper filter (`?search=`). It also has an open-flag count over time (daily, all flagged papers or one rule against all), and a per-rule table: open now, raised and cleared in the last 7 days. It is about papers; there is no per-person view.
+
 ### 5d. Shadow-PC extras
 
 - **Review-quality view for coaching:** depth, rating flags, specificity.
@@ -280,6 +308,22 @@ These are human-in-the-loop only; the app never sends email and never posts comm
 
 ---
 
+### 6b. Rule settings and flag history API
+
+Types are in `server/src/server/rules-types.ts`. All times are epoch ms. The writes (PUT, POST) refuse a cross-origin `Origin` header (403), as the tag routes do. None of these routes calls HotCRP, except `GET /whoami` once per process for the actor. `?search=` on the flag-history feed resolves through HotCRP search, as everywhere else (§4).
+
+| Route | Body / query | Answer |
+|---|---|---|
+| `GET /api/rules` | | `revision` in force (or null = env defaults); `rules[]` with description, phase gate, enabled, weight, and papers firing now; `settings[]` with key, kind, label, description, unit, min/max/step, the rule whose card shows it, the rules reading it, effective `value`, env `default`, `overridden`; `counts` (flagged, byRule) |
+| `PUT /api/rules` | `{changes: {KEY: value \| null}, note?}` (null = back to the env default) | `{revision, history: {raised, cleared}, rules}`. 400 `invalid` with `errors[{key, error}]` (all-or-nothing); 409 `no_change` |
+| `POST /api/rules/preview` | `{changes}` | `{papers, current, proposed: {flagged, byRule}, newlyFlagged, unflagged, changes[{pid, title, from, to, gained, lost, severityFrom, severityTo}], changesTotal}`; nothing saved |
+| `GET /api/rules/revisions` | | `revisions[]`, newest first: id, at, actor, kind (`set`/`revert`), revertedTo, note, diff, overrideCount |
+| `POST /api/rules/revert` | `{to, note?}` (0 = env defaults) | as PUT; 404 `unknown_revision`, 409 `no_change` |
+| `GET /api/flag-history` | `?rule=A,B`, `?search=`/`?t=`, `?before=<ms>`, `?limit=` (≤ 500, default 200) | `items[]` newest first (`type: "flag"`: pid, title, rule, kind, at, cause, revisionId, reconstructed, reason, why; `type: "action"`: pid, title, tag/untag, tag, actor); `more`; `series {ts, byRule, flagged}`; `summary[{rule, open, raised7d, cleared7d}]`; `since` (baseline), `start` |
+| `GET /api/papers/:pid/flag-history` | | `spans[{rule, raisedAt, clearedAt, raised/clearedReconstructed, raised/clearedWhy, reason}]`, `actions[]` |
+
+CLI: `pcs rules show [--json]`, `pcs rules set KEY=VALUE... [--note TEXT]` (`VALUE` `default` resets; the `PCS_` prefix may be omitted), `pcs rules preview KEY=VALUE...`, `pcs rules history [--limit N]`, `pcs rules revert ID|defaults [--note TEXT]`. `pcs sync` records flag history; `pcs backfill` rebuilds the reconstructed part.
+
 ## 7. Confidentiality and tone
 
 - **Local only.** There's no hosted mode and no telemetry. The only outbound calls go to `PCS_HOTCRP_URL`, with one opt-in exception: the reserve module's DBLP lookup (§10.4 A), off unless the chair sets `PCS_DBLP_ENABLED=true`. It sends public author names only, to `PCS_DBLP_URL`, and its results are hints, never verdicts.
@@ -291,13 +335,14 @@ These are human-in-the-loop only; the app never sends email and never posts comm
 - **No LLM over review text.**
 - **Wording:** "no comments yet", not "disengaged"; "no in-HotCRP activity", not "absent".
 - **No leaderboards by default.** People tables (ACs, leads, reviewer lists, reserve and coaching lists) keep their alphabetical or by-paper default order. The chair may sort any column, including a count, but the app never opens a people table sorted by a metric, and a column sort is cleared with a third click.
+- **Rules and flag history describe papers, not people.** The Rules page and the flag-history feed use the rule labels from the triage chips ("No comments yet", "No AC comment yet", "Gone quiet"), and the "why" of a change names a role ("after AC comment"), never a person. A rule's paper count is not a ranking. Rule revisions record the actor, who is the chair.
 - **Conflicts:** `PCS_FORCE_SHOW=false` hides papers the chair is conflicted with.
 
 ### Visual conventions (web UI)
 
 Colour has four separate jobs, and nothing is encoded by colour alone.
 
-- **Scores.** Every score shows as a numbered pip coloured on the field's scale. The scale comes from the synced review form: values run 1..n, where n is the number of labels from `get/jsonrqc`, and the colour scheme is the field's HotCRP `scheme`. The form omits `scheme` when it is the default `sv`; the store keeps it in `review_field.scheme` (migration 7), and `/api/meta` returns it as `scales`. A value maps to a scheme step by HotCRP's own rule (`Discrete_ReviewField::scheme_value_class`, reversed schemes included). The app draws `sv` as a purple-to-green diverging scale (PRGn): low and high differ in both hue and lightness, so they stay apart under red-green colour blindness, and green stays "high" as in HotCRP. `bupu`, `viridis` and `orbu` (and their reverses) get their own palettes. Other HotCRP schemes fall back to `sv`, and `none` is neutral. A paper's merits also show as a dot strip on the field's axis, so a split such as 1 and 4 reads as a long range bar. Expertise is a small figure beside each merit pip, or a neutral outlined pip in the drawer. The number is always printed.
+- **Scores.** Every score shows as a numbered pip coloured on the field's scale. The scale comes from the synced review form: values run 1..n, where n is the number of labels from `get/jsonrqc`, and the colour scheme is the field's HotCRP `scheme`. The form omits `scheme` when it is the default `sv`; the store keeps it in `review_field.scheme` (migration 8), and `/api/meta` returns it as `scales`. A value maps to a scheme step by HotCRP's own rule (`Discrete_ReviewField::scheme_value_class`, reversed schemes included). The app draws `sv` as a purple-to-green diverging scale (PRGn): low and high differ in both hue and lightness, so they stay apart under red-green colour blindness, and green stays "high" as in HotCRP. `bupu`, `viridis` and `orbu` (and their reverses) get their own palettes. Other HotCRP schemes fall back to `sv`, and `none` is neutral. A paper's merits also show as a dot strip on the field's axis, so a split such as 1 and 4 reads as a long range bar. Expertise is a small figure beside each merit pip, or a neutral outlined pip in the drawer. The number is always printed.
 - **Severity.** A paper's severity is a bold number plus a bar. The bar's length is the severity relative to the largest in the list, and its colour steps up a five-step sequential red ramp. A reason chip's level comes from its rule's weight on a fixed three-step scale: high (weight ≥ 3, critical red), medium (2, amber), low (≤ 1, neutral). The chip repeats the level as one, two or three bars. Triage shows every reason when there are at most three, otherwise the two heaviest plus "+N", whose tooltip lists the rest. The drawer shows them all, heaviest first.
 - **Outlier marks** on people tables (ACs, leads) are a reading aid, not a rule, and not a ranking. Each metric declares which direction is concerning:
   - more is better: comments, coverage, nudges, metareviews submitted, reviews submitted, papers the lead commented on;

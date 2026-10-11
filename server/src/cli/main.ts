@@ -11,6 +11,7 @@ import { REPORT_COMMANDS } from "./report-command.js";
 import { SERVE_COMMAND } from "./serve.js";
 import { SOLVER_COMMANDS } from "./solver-command.js";
 import { STORE_COMMANDS } from "./store-commands.js";
+import { RULES_COMMANDS } from "./rules-command.js";
 
 export interface Command {
   summary: string;
@@ -26,6 +27,7 @@ export const COMMANDS: Record<string, Command> = {
   ...MODULE_COMMANDS,
   ...PROGRESS_COMMANDS,
   ...REPORT_COMMANDS,
+  ...RULES_COMMANDS,
   serve: SERVE_COMMAND,
   "config-check": {
     summary: "Validate every PCS_* variable and print a summary (secrets redacted)",

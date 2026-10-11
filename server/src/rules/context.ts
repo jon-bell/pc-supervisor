@@ -1,14 +1,21 @@
-// Everything a rule needs besides the paper: now, phase dates, and the
-// env-derived knobs. Built once per evaluation from Config + Clock.
+// Everything a rule needs besides the paper: now, phase dates, and the rule
+// settings (weights, switches, thresholds, score knobs). Built once per
+// evaluation from Config + Clock + the chair's overrides (settings.ts).
+//
+// The app builds every context through effectiveRuleContext()
+// (rule-settings/service.ts), which reads the overrides from the store; a
+// unit test keeps other src/ callers of ruleContextFromConfig out.
 
 import type { Clock } from "../clock.js";
 import type { Config, RuleName, ThresholdName } from "../config.js";
 import type { Millis } from "./model.js";
 import { phaseTimesFromConfig, type PhaseTimes } from "./phase.js";
+import { effectiveWeights, envSettings, overlay, type Overrides, type RuleSettings } from "./settings.js";
 
 export interface RuleContext {
   now: Millis;
   phases: PhaseTimes;
+  /** Effective weights: 0 for a disabled rule (settings.ts effectiveWeights). */
   weights: Readonly<Record<RuleName, number>>;
   thresholds: Readonly<Record<ThresholdName, number>>;
   /** PCS_MERIT_ACCEPT_MIN: lowest merit on the accept side. */
@@ -27,17 +34,22 @@ export interface RuleContext {
 
 type ContextConfig = Pick<Config, "phases" | "rules" | "meritAcceptMin" | "expertiseOkMin" | "reviewsRequired">;
 
-/** The rule context for a loaded config, at the clock's current instant. */
-export function ruleContextFromConfig(cfg: ContextConfig, clock: Clock): RuleContext {
+/** The rule context for given settings, at the clock's current instant. */
+export function ruleContextFromSettings(s: RuleSettings, phases: ContextConfig["phases"], clock: Clock): RuleContext {
   return {
     now: clock.now().getTime(),
-    phases: phaseTimesFromConfig(cfg.phases),
-    weights: cfg.rules.weights,
-    thresholds: cfg.rules.thresholds,
-    meritAcceptMin: cfg.meritAcceptMin,
-    expertiseOkMin: cfg.expertiseOkMin,
-    reviewsRequired: cfg.reviewsRequired,
+    phases: phaseTimesFromConfig(phases),
+    weights: effectiveWeights(s),
+    thresholds: s.thresholds,
+    meritAcceptMin: s.meritAcceptMin,
+    expertiseOkMin: s.expertiseOkMin,
+    reviewsRequired: s.reviewsRequired,
   };
+}
+
+/** The rule context for a loaded config (env defaults, plus `overrides` if given), at the clock's current instant. */
+export function ruleContextFromConfig(cfg: ContextConfig, clock: Clock, overrides: Overrides = {}): RuleContext {
+  return ruleContextFromSettings(overlay(envSettings(cfg), overrides), cfg.phases, clock);
 }
 
 /** True unless the snapshot said ratings are off. */
