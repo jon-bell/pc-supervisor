@@ -13,7 +13,9 @@ import { runBackfill } from "../sync/backfill.js";
 import { clientSource } from "../sync/source.js";
 import { runSync, type SyncResult } from "../sync/sync.js";
 import { backfillFlagHistory, recordStoreFlags } from "../history/flags.js";
+import { CommentClassifier } from "../classifier/service.js";
 import type { Command } from "./main.js";
+import { describeRun } from "./model-command.js";
 
 const out = (s: string) => process.stdout.write(`${s}\n`);
 const err = (s: string) => process.stderr.write(`${s}\n`);
@@ -85,6 +87,8 @@ export const STORE_COMMANDS: Record<string, Command> = {
       const store = openOrReport(cfg);
       if (!store) return 1;
       const source = clientSource(clientFromConfig(cfg.hotcrp));
+      // Comment types (spec §5e): new and changed comments are classified after each complete sync.
+      const classifier = new CommentClassifier(store, cfg, clock, { log: (l) => err(`  ${l}`) });
       const once = async () => {
         const r = await runSync(store.db, source, {
           clock,
@@ -97,6 +101,12 @@ export const STORE_COMMANDS: Record<string, Command> = {
         out(describeSync(r, clock));
         for (const e of r.errors) err(`  ${r.ok ? "warning" : "error"}: ${redact(e, [cfg.hotcrp.token])}`);
         if (r.ok) {
+          try {
+            const c = await classifier.run();
+            if (!watch) err(`  ${describeRun(c)}`);
+          } catch (e) {
+            err(`  comment types: classification failed (${e instanceof Error ? e.name : "error"}); labels unchanged`);
+          }
           // Flag history (spec §5c): what this sync raised and cleared.
           const h = recordStoreFlags(store, cfg, clock, { cause: "data", syncRunId: r.runId });
           if (!watch) err(`  flag history: ${h.baseline ? "baseline, " : ""}${h.raised} raised, ${h.cleared} cleared`);
@@ -115,6 +125,7 @@ export const STORE_COMMANDS: Record<string, Command> = {
         off();
         return 0;
       } finally {
+        await classifier.close();
         store.close();
       }
     },

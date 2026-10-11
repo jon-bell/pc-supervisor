@@ -59,6 +59,54 @@ export interface MetaResponse {
   ratings: { enabled: boolean; setting: string | null; visibility: string | null; flags: string[] };
   /** PCS_PAPER_SEARCH: the HotCRP search the whole app is pinned to ("" = every paper). */
   paperSearch: string;
+  /** The comment classifier (spec §5e). */
+  commentTypes: CommentTypesMeta;
+}
+
+/** Which comment classifier is labelling comments, for chips and the AC nudges column. */
+export interface CommentTypesMeta {
+  /** PCS_COMMENT_CLASSIFIER. */
+  configured: "off" | "heuristic" | "model";
+  /** What labels comments now ("heuristic" while the model isn't installed). */
+  active: "off" | "heuristic" | "model";
+  /** Why the model isn't in use, with what to run (e.g. `pcs model fetch`); null when it is or wasn't asked for. */
+  fallback: string | null;
+  /** PCS_COMMENT_CLASSIFIER_MIN_CONFIDENCE: labels below it read "low confidence". */
+  minConfidence: number;
+  /** A classification run is in progress (labels may be missing for new comments). */
+  running: boolean;
+}
+
+export type CommentKindName = "ping" | "reply" | "discussion" | "nonsubstantive";
+
+/** A comment's type (spec §5e): the chair's label, else the classifier's. */
+export interface CommentType {
+  kind: CommentKindName;
+  source: "chair" | "heuristic" | "model";
+  /** 0..1; 1 for the chair's label. */
+  confidence: number;
+  /** Below PCS_COMMENT_CLASSIFIER_MIN_CONFIDENCE (never for the chair's label). */
+  low: boolean;
+  /** Under a chair label: what the classifier said. */
+  classifier: { kind: CommentKindName; source: "heuristic" | "model"; confidence: number } | null;
+}
+
+export interface CommentLabelResponse {
+  cid: number;
+  type: CommentType | null;
+  revision: CommentLabelRevision;
+}
+
+export interface CommentLabelRevision {
+  id: number;
+  at: number;
+  actor: string;
+  cid: number;
+  pid: number;
+  /** null = the chair cleared their label (back to the classifier). */
+  kind: CommentKindName | null;
+  previous: string | null;
+  previousSource: string | null;
 }
 
 export interface ScoreScale {
@@ -166,6 +214,8 @@ export interface CommentDetail {
   /** HotCRP modified_at, when later than `time` (edited). */
   editedAt: number | null;
   text: string;
+  /** Its type (spec §5e); null when unclassified, a response or draft, or the classifier is off. */
+  type: CommentType | null;
 }
 
 export type TimelineEvent =
@@ -228,8 +278,12 @@ export interface AcRow {
   flaggedPids: number[];
   coverage: { covered: number; of: number; share: number | null };
   timeToFirstPost: { medianDays: number | null; posted: number; waiting: number };
-  /** A labeled proxy: AC comments that @mention a reviewer, or posted while a reviewer had no comment yet. */
-  nudges: { total: number; mentions: number; proxy: number };
+  /**
+   * `source` "proxy": a labeled proxy (AC comments that @mention a reviewer, or
+   * posted while a reviewer had no comment yet). "heuristic"/"model": the
+   * comment classifier is active and `total` = `pings`, their comments typed ping.
+   */
+  nudges: { total: number; mentions: number; proxy: number; pings: number; source: "proxy" | "heuristic" | "model" };
   stale: number;
   stalePids: number[];
   /** Their published comments on their papers, whenever posted (up to now). */

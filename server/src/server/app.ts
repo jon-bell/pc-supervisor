@@ -55,6 +55,8 @@ import { SearchCompletions, type SearchCompleter } from "./search-completions.js
 import { registerRules } from "./routes/rules.js";
 import { registerFlagHistory } from "./routes/flag-history.js";
 import type { ActorResolver } from "../rule-settings/actor.js";
+import type { CommentClassifier } from "../classifier/service.js";
+import { registerComments } from "./routes/comments.js";
 
 export interface RouteDeps {
   cfg: Config;
@@ -76,6 +78,8 @@ export interface RouteDeps {
   searchCompletions: SearchCompletions;
   /** Who is making a rule change or tag write (whoami, cached); absent = "local". */
   actor?: ActorResolver | undefined;
+  /** The comment classifier (spec §5e); absent = labels are read from the store but never computed here. */
+  classifier?: CommentClassifier | undefined;
 }
 
 export type RegisterRoutes = (app: FastifyInstance, deps: RouteDeps) => void;
@@ -106,6 +110,8 @@ export const ROUTES: readonly RegisterRoutes[] = [
   // Chair rule settings and flag history: /api/rules*, /api/flag-history, /api/papers/:pid/flag-history.
   registerRules,
   registerFlagHistory,
+  // Comment types (spec §5e): /api/classifier, /api/comments/:cid/label, /api/comment-labels.
+  registerComments,
 ];
 
 export interface RouteInfo {
@@ -189,6 +195,8 @@ export interface AppOptions {
   searchCompleter?: SearchCompleter;
   /** Who is making a rule change or tag write (whoami); absent = "local". */
   actor?: ActorResolver;
+  /** The comment classifier (spec §5e); absent = labels come only from the store. */
+  classifier?: CommentClassifier;
   /** Built web app; null = API only. Default: defaultWebDir(). */
   webDir?: string | null;
   /** Fastify request logging (off by default: logs could carry paths, never bodies). */
@@ -255,6 +263,7 @@ export async function buildApp(o: AppOptions): Promise<App> {
     paperFilter,
     searchCompletions: new SearchCompletions(o.store, o.cfg, paperFilter, o.searchCompleter),
     actor: o.actor,
+    classifier: o.classifier,
   };
   for (const register of ROUTES) register(app, deps);
 

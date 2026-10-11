@@ -10,6 +10,8 @@ import type { FastifyInstance } from "fastify";
 import type { CommentDetail, PaperDetail, ReviewDetail, TimelineEvent, VersionInfo } from "../api-types.js";
 import { personOf, type RouteDeps } from "../app.js";
 import { scoreNumber } from "../../views/snapshot.js";
+import { effectiveLabels } from "../../classifier/store.js";
+import { commentType } from "./comments.js";
 
 const SUBMITTED = new Set(["delivered", "approved", "complete"]);
 const ms = (s: number | null) => (s === null ? null : s * 1000);
@@ -99,6 +101,9 @@ export function registerPapers(app: FastifyInstance, deps: RouteDeps): void {
     }
     const modified = new Map(store.comments({ pids: [pid] }).map((c) => [c.cid, c.modifiedAt]));
     const reviewerEmails = new Set(facts.reviewerReviews.map((r) => r.email));
+    const typesOn = (cfg.commentClassifier?.mode ?? "heuristic") !== "off";
+    const labels = typesOn ? effectiveLabels(store.db, facts.bundle.comments.map((c) => c.cid)) : new Map();
+    const minConfidence = cfg.commentClassifier?.minConfidence ?? 0.6;
     const comments: CommentDetail[] = facts.bundle.comments.map((c) => {
       const mod = ms(modified.get(c.cid) ?? null);
       timeline.push({ kind: c.isResponse ? "response" : "comment", at: c.time, approximate: c.approximate, cid: c.cid });
@@ -116,6 +121,7 @@ export function registerPapers(app: FastifyInstance, deps: RouteDeps): void {
         // Edited: HotCRP's modified_at is more than a minute past the first time we know of.
         editedAt: mod !== null && mod - c.time > 60_000 ? mod : null,
         text: commentText.get(c.cid) ?? "",
+        type: c.isResponse || c.draft ? null : commentType(labels.get(c.cid), minConfidence),
       };
     });
     if (paper.decision !== null && paper.decisionSeenAt !== null) {
