@@ -3,7 +3,8 @@
 // under 1 s. Synthetic data from a fixed-seed RNG.
 import { performance } from "node:perf_hooks";
 import { describe, expect, it } from "vitest";
-import { analyze } from "../../../src/rules/index.js";
+import { analyze, atInstant, evaluateAll, previewRules } from "../../../src/rules/index.js";
+import { snapshotAt } from "../../../src/history/snapshot-at.js";
 import type { AcView, CommentView, PaperView, PersonView, ReviewView, SnapshotView } from "../../../src/rules/model.js";
 import { DAY_MS } from "../../../src/rules/phase.js";
 import { at, comment, contextAt, DISCUSSION_OPEN, paper, review } from "../../fixtures/builder.js";
@@ -96,5 +97,33 @@ describe("scale", () => {
     expect(a.acs).toHaveLength(40);
     expect(a.reviewers.length).toBeGreaterThan(300);
     expect(ms).toBeLessThan(600);
+  });
+});
+
+describe("scale: rule settings preview and flag-history reconstruction", () => {
+  const s = scaleSnapshot();
+  const ctx = contextAt("2030-02-26T12:00");
+  const current = analyze(s, ctx).evaluation;
+  const proposed = contextAt("2030-02-26T12:00", { PCS_THRESH_STALE_DAYS: "2", PCS_THRESH_SPLIT_RANGE: "3", PCS_RULE_AC_ABSENT_ENABLED: "false" });
+
+  it("previews a rules change over 2,400 papers in under 100 ms", () => {
+    previewRules(current, proposed); // warm-up
+    const t0 = performance.now();
+    const p = previewRules(current, proposed);
+    const ms = performance.now() - t0;
+    expect(p.papers).toBe(2400);
+    expect(p.changesTotal).toBeGreaterThan(0);
+    expect(p.proposed.byRule.AC_ABSENT).toBe(0);
+    expect(ms).toBeLessThan(100);
+  });
+
+  it("rewinds and evaluates one daily point of 2,400 papers in under 250 ms (a reconstruction is ~30 of these)", () => {
+    const t = DISCUSSION_OPEN + 5 * DAY_MS;
+    evaluateAll(snapshotAt(s, t), atInstant(ctx, t)); // warm-up
+    const t0 = performance.now();
+    const ev = evaluateAll(snapshotAt(s, t), atInstant(ctx, t));
+    const ms = performance.now() - t0;
+    expect(ev.results).toHaveLength(2400);
+    expect(ms).toBeLessThan(250);
   });
 });
