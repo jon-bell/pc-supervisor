@@ -586,6 +586,12 @@ input:hover {
   align-items: center;
   gap: var(--sp-2) var(--sp-3);
   flex-wrap: wrap;
+}
+.pf-slot .filters {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  flex-wrap: wrap;
   padding-left: var(--sp-4);
   border-left: 1px solid var(--line);
 }
@@ -2382,7 +2388,7 @@ table.mini th .dt-hctl {
 
 /* --- Rules page and flag history (spec §5c; views/Rules.tsx, FlagHistory.tsx, components/PaperFlagTimeline.tsx) --- */
 .small {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .rs-bar {
   position: sticky;
@@ -2392,9 +2398,9 @@ table.mini th .dt-hctl {
   flex-wrap: wrap;
   gap: 8px 12px;
   align-items: center;
-  padding: 8px 0;
+  padding: var(--sp-2) var(--sp-4);
   margin-bottom: 8px;
-  background: #fff;
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
 .rs-note {
@@ -2410,7 +2416,7 @@ table.mini th .dt-hctl {
 }
 .rs-card {
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   padding: 10px 12px;
 }
 .rs-off {
@@ -2441,7 +2447,7 @@ table.mini th .dt-hctl {
 }
 .rs-edited {
   border-left-color: var(--accent);
-  background: var(--row-hover);
+  background: var(--accent-tint);
 }
 .rs-input input {
   width: 7em;
@@ -2451,7 +2457,7 @@ table.mini th .dt-hctl {
 .rs-desc,
 .rs-err {
   grid-column: 1 / -1;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .rs-diff,
 .rs-changes,
@@ -2466,10 +2472,10 @@ table.mini th .dt-hctl {
   margin-bottom: 6px;
 }
 .rs-gain {
-  color: #a1260d;
+  color: var(--crit);
 }
 .rs-lose {
-  color: #2b6b2b;
+  color: var(--good);
 }
 .rs-title,
 .fh-title {
@@ -2492,8 +2498,91 @@ table.mini th .dt-hctl {
 }
 .pft h3 {
   margin: 8px 0 2px;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .pft-closed {
+  color: var(--muted);
+}
+/* Merged views in the design system: the rule card's level (weight) badge,
+   open flag spans marked like a high reason, and the sidebar subheading. */
+.rs-level {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: var(--r-mark);
+  border: 1px solid var(--neutral-line);
+  background: var(--neutral-tint);
+}
+.rs-level.lvl-3 {
+  background: var(--crit-tint);
+  border-color: var(--crit-line);
+  color: var(--crit);
+}
+.rs-level.lvl-2 {
+  background: var(--warn-tint);
+  border-color: var(--warn-line);
+  color: var(--warn);
+}
+.rs-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rs-card {
+  background: var(--surface);
+}
+.rs-field {
+  border-radius: var(--r-mark);
+}
+.pft {
+  margin: var(--sp-2) 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  background: var(--bg);
+  font-size: var(--fs-sm);
+}
+.pft h3 {
+  margin-top: 0;
+}
+.pft ul {
+  list-style: none;
+  padding-left: 0;
+}
+.pft li {
+  position: relative;
+  padding-left: 14px;
+}
+.pft li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.5em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+}
+.pft-open::before {
+  background: var(--crit);
+  border-color: var(--crit) !important;
+}
+.pft-action::before {
+  border-radius: 1px !important;
+  border-color: var(--accent) !important;
+}
+.fh-feed {
+  list-style: none;
+  padding-left: 0;
+}
+.fh-item {
+  padding: 4px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.side-subgroup {
+  margin: var(--sp-2) 0 2px;
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
   color: var(--muted);
 }

@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { MetaResponse } from "../api";
+import { LEVEL_NAMES, LevelBars, levelOf } from "../components/Chip";
 import { AbsTime } from "../components/Time";
 import { plural, ruleLabel } from "../format";
 import { Link } from "../router";
@@ -142,6 +143,9 @@ function RuleCard({
               setDraft(en.key, v === en.value ? undefined : v === en.default && en.overridden ? null : v);
             }}
           />
+          <span className={`rs-level chip-reason lvl-${levelOf(Number(shown(w, draft)))}`} title={`weight ${String(shown(w, draft))}: ${LEVEL_NAMES[levelOf(Number(shown(w, draft)))]}`}>
+            <LevelBars level={levelOf(Number(shown(w, draft)))} />
+          </span>
           <strong>{ruleLabel(rule.name)}</strong>
         </label>
         <span className="muted rs-phase">{rule.phaseLabel}{rule.decisionIndependent ? " · decided papers too" : ""}</span>

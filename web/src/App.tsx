@@ -6,7 +6,7 @@
 // /leads/:email), reviewer outliers
 // (/reviewers), the person page (/people/:email) and the overview (/overview).
 
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { useMeta, type MetaResponse } from "./api";
 import { ModulesNav } from "./components/ModulesNav";
 import { FilterSlotContext, PaperFilterBar } from "./components/PaperFilter";
@@ -81,6 +81,9 @@ const NAV: { to: string; label: string; active: (path: string) => boolean }[] = 
   { to: "/flag-history", label: "Flag history", active: (p) => p === "/flag-history" },
   { to: "/rules", label: "Rules", active: (p) => p === "/rules" },
 ];
+
+/** The Monitor nav ends with the chair's own record (flag history, rule settings), set off by a subheading. */
+const CHAIR_TOOLS_FROM = "/flag-history";
 
 const SIDEBAR_KEY = "pcs.sidebar";
 function readCollapsed(): boolean {
@@ -189,9 +192,16 @@ export function App() {
             {NAV.map((n) => {
               const on = n.active(loc.path);
               return (
-                <Link key={n.to} to={n.to} className={on ? "active" : undefined} aria-current={on ? "page" : undefined}>
-                  {n.label}
-                </Link>
+                <Fragment key={n.to}>
+                  {n.to === CHAIR_TOOLS_FROM ? (
+                    <p className="side-subgroup">
+                      Rules and history
+                    </p>
+                  ) : null}
+                  <Link to={n.to} className={on ? "active" : undefined} aria-current={on ? "page" : undefined}>
+                    {n.label}
+                  </Link>
+                </Fragment>
               );
             })}
           </nav>
