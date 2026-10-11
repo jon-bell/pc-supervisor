@@ -4,7 +4,8 @@
 // over time; both honour the paper filter (?search=). ?rule= narrows to one
 // rule. "~" marks events reconstructed by `pcs backfill` (daily resolution).
 
-import type { MetaResponse } from "../api";
+import { useCommentLabels, type MetaResponse } from "../api";
+import { KIND_LABEL } from "../components/CommentType";
 import { TimeLines } from "../components/Charts";
 import { AbsTime } from "../components/Time";
 import { ruleLabel } from "../format";
@@ -12,6 +13,38 @@ import { Link, navigate, useLocation } from "../router";
 import { useFlagHistory, type FlagFeedItem } from "../rules-api";
 
 const CAUSE: Readonly<Record<string, string>> = { data: "new data", rules: "rule change", baseline: "history began" };
+
+/** The chair's comment relabels (spec §5e), the audit trail. "After AC comment (ping)" in the feed above comes from these types. */
+function Relabels({ tz }: { tz: string }) {
+  const q = useCommentLabels();
+  const items = q.data?.items ?? [];
+  const label = (k: string | null) => (k === null ? "the classifier's label" : (KIND_LABEL[k as keyof typeof KIND_LABEL] ?? k).toLowerCase());
+  return (
+    <section className="ov-section">
+      <h2>Comment relabels</h2>
+      <p className="muted small">Your changes to comment types (ping, reply, discussion, non-substantive), newest first. They stay in the local store and train the local model.</p>
+      {items.length === 0 ? (
+        <p className="muted" data-testid="relabels-none">
+          No relabels yet. Relabel a comment from its type chip in the paper drawer.
+        </p>
+      ) : (
+        <ol className="fh-feed" data-testid="relabels">
+          {items.map((r) => (
+            <li key={r.id} className="fh-item" data-testid="relabel-item" data-cid={r.cid} data-kind={r.kind ?? ""}>
+              <span className="fh-time">
+                <AbsTime ms={r.at} tz={tz} />
+              </span>
+              <span>
+                <Link to={`/papers/${r.pid}`}>#{r.pid}</Link> comment {r.cid}: {r.previous ? `${label(r.previous)} (${r.previousSource === "chair" ? "yours" : r.previousSource})` : "unclassified"} → <strong>{label(r.kind)}</strong> by {r.actor}{" "}
+                <span className="muted ellipsis fh-title">{r.title ?? ""}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
 
 function Item({ it, tz }: { it: FlagFeedItem; tz: string }) {
   if (it.type === "action") {
@@ -144,6 +177,7 @@ export function FlagHistory({ meta }: { meta: MetaResponse }) {
         </ol>
         {d.more ? <p className="muted">Showing the latest {d.items.length}.</p> : null}
       </section>
+      {meta.commentTypes.active !== "off" ? <Relabels tz={meta.tz} /> : null}
     </div>
   );
 }

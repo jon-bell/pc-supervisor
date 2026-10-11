@@ -129,6 +129,19 @@ describe("explainEvent", () => {
     expect(explainEvent({ cause: "data", revisionId: null, since: day(2), at: day(4) }, b)).toBe("after AC comment");
     expect(explainEvent({ cause: "data", revisionId: null, since: day(0), at: day(2) }, b)).toBe("after reviewer comment");
   });
+
+  it("names the comment's type when the classifier labelled it (spec §5e)", () => {
+    const s = {
+      papers: [paper(1)],
+      people: [],
+      acs: [{ pid: 1, email: "ac@example.org" }],
+      reviews: [review({ rid: 1, pid: 1, email: "rev@example.org" })],
+      comments: [comment({ cid: 1, pid: 1, email: "rev@example.org", time: day(1), kind: "nonsubstantive" }), comment({ cid: 2, pid: 1, email: "ac@example.org", time: day(3), kind: "ping" })],
+    };
+    const b = indexSnapshot(s).byPid.get(1)!;
+    expect(explainEvent({ cause: "data", revisionId: null, since: day(2), at: day(4) }, b)).toBe("after AC comment (ping)");
+    expect(explainEvent({ cause: "data", revisionId: null, since: day(0), at: day(2) }, b)).toBe("after reviewer comment (non-substantive)");
+  });
 });
 
 describe("snapshotAt", () => {

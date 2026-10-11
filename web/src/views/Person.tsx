@@ -3,6 +3,7 @@
 // Wording follows spec §7: it describes what HotCRP shows, never the person.
 
 import { createColumnHelper } from "@tanstack/react-table";
+import { kindBreakdown } from "../components/CommentType";
 import { useMemo } from "react";
 import { usePerson, type MetaResponse, type PersonPaper, type PersonResponse } from "../api";
 import { SearchActions } from "../components/Actions";
@@ -98,6 +99,14 @@ function Summary({ d }: { d: PersonResponse }) {
           <dd>{r.movement.reviews ? `score changes on ${r.movement.pids.map((p) => `#${p}`).join(", ")}` : "no score changes since discussion opened"}</dd>
         </>
       ) : null}
+      {d.commentKinds && Object.keys(d.commentKinds.byKind).length ? (
+        <>
+          <dt>Their comments by type</dt>
+          <dd data-testid="sum-comment-types" title={`Labelled by the ${d.commentKinds.classifier === "model" ? "local model" : "heuristic"}, or by your relabels in the paper drawer.`}>
+            {kindBreakdown(d.commentKinds.byKind)} <span className="muted">({d.commentKinds.classifier === "model" ? "local model" : "heuristic"})</span>
+          </dd>
+        </>
+      ) : null}
       {a ? (
         <>
           <dt>As AC</dt>
@@ -177,7 +186,7 @@ export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
           const l = p.lastComment;
           if (!l) return <span className="muted" data-testid="last-comment">no comments yet</span>;
           return (
-            <span className="ellipsis" data-testid="last-comment" title={l.excerpt}>
+            <span className="ellipsis" data-testid="last-comment" title={p.commentKinds && kindBreakdown(p.commentKinds) ? `${l.excerpt}\n\nTheir comments here: ${kindBreakdown(p.commentKinds)}` : l.excerpt}>
               <AbsTime ms={l.time} tz={meta.tz} approximate={l.approximate} /> · {plural(l.wordCount, "word")}
               {p.comments > 1 ? <span className="muted"> · {p.comments} in all</span> : null}
             </span>

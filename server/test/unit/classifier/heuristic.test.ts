@@ -70,7 +70,10 @@ describe("structural features", () => {
   it("feature vector: fixed length, scaled to 0..1", () => {
     const v = featureVector(f({ words: 5000, hoursSincePrev: 1e6 }));
     expect(v).toHaveLength(STRUCTURAL_DIM);
-    for (const x of v) expect(x).toBeGreaterThanOrEqual(0), expect(x).toBeLessThanOrEqual(1);
+    for (const x of v) {
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(1);
+    }
     expect(featureVector(f({ hoursSincePrev: null }))[3]).toBe(1);
   });
 });

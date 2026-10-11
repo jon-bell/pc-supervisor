@@ -4,12 +4,16 @@
 // - cause 'rules': "after rule change #N";
 // - cause 'baseline': "already flagged when history began";
 // - cause 'data': the latest activity in (since, at] on that paper: a
-//   comment (by an AC, a reviewer, or someone else), the author response, a
+//   comment (by an AC, a reviewer, or someone else; with its type when the
+//   comment classifier labelled it), the author response, a
 //   review submission, a merit change, or the decision. None found (e.g. a
 //   paper going quiet just by time passing): null.
 
 import { isSubmitted, type PaperBundle } from "../rules/facts.js";
 import type { FlagEvent } from "./flags.js";
+import type { CommentKind } from "../classifier/kinds.js";
+
+const KIND_WORD: Readonly<Record<CommentKind, string>> = { ping: "ping", reply: "reply", discussion: "discussion", nonsubstantive: "non-substantive" };
 
 export function explainEvent(e: Pick<FlagEvent, "cause" | "revisionId" | "since" | "at">, b: PaperBundle | undefined): string | null {
   if (e.cause === "rules") return e.revisionId ? `after rule change #${e.revisionId}` : "after a rule change";
@@ -29,7 +33,9 @@ export function explainEvent(e: Pick<FlagEvent, "cause" | "revisionId" | "since"
     else {
       const ac = acs.has(c.email) || b.reviews.some((r) => r.email === c.email && r.rtype === 5);
       const reviewer = b.reviews.some((r) => r.email === c.email && r.rtype !== 5);
-      consider(c.time, ac ? "after AC comment" : reviewer ? "after reviewer comment" : "after a comment");
+      // With comment types (spec §5e), the type follows in brackets: "after AC comment (ping)".
+      const kind = c.kind ? ` (${KIND_WORD[c.kind]})` : "";
+      consider(c.time, `${ac ? "after AC comment" : reviewer ? "after reviewer comment" : "after a comment"}${kind}`);
     }
   }
   for (const r of b.reviews) {

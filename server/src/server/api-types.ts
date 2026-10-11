@@ -355,6 +355,8 @@ export interface PersonPaper {
   comments: number;
   discussionComments: number;
   lastComment: { cid: number; time: number; approximate: boolean; wordCount: number; excerpt: string } | null;
+  /** Their published comments on the paper by type (spec §5e); null when the comment classifier is off or hasn't run. */
+  commentKinds: Partial<Record<CommentKindName, number>> | null;
   /** The paper's fired rules (names) and severity. */
   rules: string[];
   severity: number;
@@ -414,6 +416,8 @@ export interface PersonResponse {
   /** AC papers first, then reviewer papers; pid order within each. */
   papers: PersonPaper[];
   openPings: OpenPing[];
+  /** All their published comments on these papers by type (spec §5e), and who labelled them; null when off. */
+  commentKinds: { byKind: Partial<Record<CommentKindName, number>>; classifier: "heuristic" | "model" } | null;
 }
 
 export interface OverviewResponse {

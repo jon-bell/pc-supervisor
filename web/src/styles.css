@@ -2656,3 +2656,11 @@ button.chip.ctype:focus-visible {
 .ctype-note code {
   font-size: var(--fs-xs);
 }
+
+/* Switch settings inside a rule card (the comment-type options). */
+.rs-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  cursor: pointer;
+}
