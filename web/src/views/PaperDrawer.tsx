@@ -13,6 +13,7 @@ import { AbsTime } from "../components/Time";
 import { formatRatings } from "@pcs/server/ratings";
 import { hotcrp, plural } from "../format";
 import { useTiersConfigured } from "../tiers";
+import { PaperFlagTimeline } from "../components/PaperFlagTimeline";
 
 function Who({ name, tier, role }: { name: string; tier: string; role?: string }) {
   const tiers = useTiersConfigured();
@@ -243,6 +244,7 @@ export function PaperDrawer({ pid, meta, onClose }: { pid: number; meta: MetaRes
               No rules fire for this paper.
             </p>
           )}
+          <PaperFlagTimeline pid={pid} tz={meta.tz} />
           <DrawerActions d={d} />
           {pcComments === 0 ? <p className="muted">No comments yet.</p> : null}
           <Timeline d={d} meta={meta} />
