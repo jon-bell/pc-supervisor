@@ -144,30 +144,23 @@ export function TimeLines({
   const ymax = Math.max(1, ...series.flatMap((s) => s.values));
   const X = (t: number) => m.l + ((t - x0) / (x1 - x0)) * pw;
   const yTicks = [...new Set([0, Math.round(ymax / 2), ymax])];
-  // Marker labels sit in a band above the plot, anchored at their line
-  // (end-anchored near the right edge). Row 0 is nearest the plot; a label's
-  // line runs down through every row below it, so a row is taken only if the
-  // label overlaps no label there, its line crosses no label in a lower row,
-  // and its text covers no line of a label in a higher row.
+  // Marker labels sit in a band above the plot, one row each where needed so
+  // no two overlap (row 0 nearest the plot). The vertical lines stay inside
+  // the plot, so they never cross a label; each label starts (or, near the
+  // right edge, ends) at its line's x, with a short tick there.
   const sorted = [...markers].sort((a, b) => a.at - b.at);
-  const placed: { a: number; b: number; x: number; row: number }[] = [];
+  const placed: { a: number; b: number; row: number }[] = [];
   const CH = 6.4; // average glyph width at 11px
   const labels = sorted.map((mk) => {
     const x = X(mk.at);
     const text = `${mk.label} · ${formatDate(mk.at, tz)}`;
     const width = text.length * CH;
     const end = x + 3 + width > w - 2;
-    const a = end ? x - 3 - width : x + 3;
-    const b = a + width;
-    const fits = (row: number) =>
-      placed.every((p) => {
-        if (p.row === row) return b + 6 < p.a || a > p.b + 6;
-        if (p.row < row) return x < p.a - 2 || x > p.b + 2; // my line crosses lower labels
-        return p.x < a - 2 || p.x > b + 2; // higher lines cross my text
-      });
+    const a = end ? x - 3 - width : x - 1;
+    const b = end ? x + 1 : x + 3 + width;
     let row = 0;
-    while (!fits(row) && row < markers.length) row++;
-    placed.push({ a, b, x, row });
+    while (placed.some((p) => p.row === row && !(b + 6 < p.a || a > p.b + 6))) row++;
+    placed.push({ a, b, row });
     return { mk, x, text, end, row };
   });
   const rows = Math.max(1, ...labels.map((l) => l.row + 1));
@@ -190,7 +183,8 @@ export function TimeLines({
         const ly = m.t - 6 - row * 13;
         return (
           <g key={`${mk.label}-${mk.at}`} className={mk.className ?? "marker"} data-testid="marker" data-label={mk.label}>
-            <line x1={x} x2={x} y1={ly + 3} y2={m.t + ph} />
+            <line x1={x} x2={x} y1={m.t} y2={m.t + ph} />
+            <line x1={x} x2={x} y1={ly - 8} y2={ly + 2} className="marker-tick" />
             <text x={end ? x - 3 : x + 3} y={ly} textAnchor={end ? "end" : "start"} className="marker-label">
               {text}
             </text>

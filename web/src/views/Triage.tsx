@@ -167,7 +167,7 @@ export function Triage({ meta, pid }: { meta: MetaResponse; pid: number | null }
       }),
       col.accessor("reasons", {
         header: "Reasons",
-        size: 380,
+        size: 340,
         meta: { kind: "categorical", value: (r) => r.reasons.map((x) => x.rule), format: ruleLabel },
         cell: (c) => <ReasonChips reasons={c.getValue()} max={3} />,
       }),

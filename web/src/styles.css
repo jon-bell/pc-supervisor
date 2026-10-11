@@ -1774,6 +1774,11 @@ p.page {
 .chart .marker-label {
   fill: var(--ink-2);
 }
+.chart .marker .marker-tick {
+  stroke: var(--ink-2);
+  stroke-dasharray: none;
+  stroke-width: 1.5;
+}
 .chart .marker-now .marker-label {
   fill: var(--ink);
   font-weight: 600;
