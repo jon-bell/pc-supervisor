@@ -1,0 +1,6 @@
+PID,Candidate Email,AC Email,AC Decision,TPMS Score,Seniority Note,Invited At,Response,Activated At,Sheet Row Color
+1,Rosa.Quill@example.org,ac.amber@example.org,approve,0.82,"PhD 2019, 9 papers at venue list",2030-01-20,accept,2030-01-22T09:30,green
+1,tomas.vey@example.org,ac.amber@example.org,reject,0.77,student,,none,,red
+2,ines.marlow@example.org,ac.birch@example.org,,0.64,,,,,
+3,rosa.quill@example.org,ac.birch@example.org,Pending,,"assistant prof, 2027",2030-01-21 14:00,none,,
+4,kenji.arlo@example.org,AC.Cedar@Example.org,approve,0.9,senior,2030-01-20T08:00,decline,,yellow

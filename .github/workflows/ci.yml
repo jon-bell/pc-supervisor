@@ -11,6 +11,11 @@ on:
       hotcrp_ref:
         description: HotCRP commit/branch to test against (default = pinned)
         required: false
+      scale:
+        description: Also run the scale job (PLAN M7)
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
@@ -41,6 +46,11 @@ env:
 jobs:
   ci:
     runs-on: ripley-cloud
+    # id-token: write lets the Argos reporter authenticate with GitHub Actions
+    # OIDC (no stored secret); tokenless exchange is disabled for this project.
+    permissions:
+      contents: read
+      id-token: write
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -63,36 +73,39 @@ jobs:
         run: scripts/harness-smoke.sh
 
       - uses: actions/setup-node@v4
-        if: hashFiles('package.json') != ''
         with:
           node-version: 22
           cache: npm
 
       - name: Install
-        if: hashFiles('package.json') != ''
         run: npm ci
 
       - name: Lint + typecheck
-        if: hashFiles('package.json') != ''
         run: npm run lint && npm run typecheck
 
       - name: Unit tests
-        if: hashFiles('package.json') != ''
         run: npm run test:unit
 
       - name: Contract + integration tests (against harness)
-        if: hashFiles('package.json') != ''
         run: set -a && . ./.env.test && set +a && npm run test:integration
 
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
       - name: Playwright E2E
-        if: hashFiles('package.json') != ''
         run: |
           npx playwright install --with-deps chromium
           set -a && . ./.env.test && set +a && npm run test:e2e
-
-      - name: Scale scenario (nightly only)
-        if: github.event_name == 'schedule' && hashFiles('package.json') != ''
-        run: set -a && . ./.env.test && set +a && npm run test:scale
+        env:
+          # Optional fallback; when the secret is absent this is empty and OIDC is used.
+          ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
 
       - name: Collect harness logs
         if: failure()
@@ -102,6 +115,78 @@ jobs:
         if: failure()
         with:
           name: failure-artifacts
+          path: |
+            hotcrp-logs.txt
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
+      - name: Tear down harness
+        if: always()
+        run: docker compose -f hotcrp/compose.yaml down -v --remove-orphans || true
+
+  # PLAN M7: seed `scale` (2,400 papers / ~10k reviews), timed full sync and
+  # no-change re-sync, API and browser perf budgets. Nightly (and on manual
+  # dispatch with scale=true), on its own large runner and its own fresh
+  # harness, so the chair token's rate-limit budget is untouched by the suite
+  # above. Timings and DB size go to the job summary.
+  scale:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scale)
+    runs-on: ripley-cloud-large
+    timeout-minutes: 45
+    env:
+      # Perf budgets run against the pinned HotCRP, never master: a slow or
+      # broken master would read as our regression. The ci job covers master.
+      # Keep in sync with the workflow-level HOTCRP_REF and hotcrp/Dockerfile.
+      HOTCRP_REF: ${{ inputs.hotcrp_ref || '60f693f88b9a0ef9e34b11af957a513f1c122690' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install docker compose plugin
+        run: |
+          if ! docker compose version >/dev/null 2>&1; then
+            mkdir -p ~/.docker/cli-plugins
+            curl -fsSL -o ~/.docker/cli-plugins/docker-compose \
+              https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-x86_64
+            chmod +x ~/.docker/cli-plugins/docker-compose
+          fi
+          docker compose version
+
+      - name: Start HotCRP harness
+        run: scripts/hotcrp-up.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Scale scenario
+        run: set -a && . ./.env.test && set +a && npm run test:scale
+
+      - name: Collect harness logs
+        if: failure()
+        run: docker compose -f hotcrp/compose.yaml logs --no-color > hotcrp-logs.txt 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: scale-failure-artifacts
           path: |
             hotcrp-logs.txt
             playwright-report/

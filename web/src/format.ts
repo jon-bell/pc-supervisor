@@ -1,0 +1,124 @@
+// Display helpers. "Now" is always the server's (GET /api/meta), so a pinned
+// PCS_NOW renders the same everywhere and the browser clock is never read.
+//
+// Wording follows spec §7: describe what HotCRP shows ("no comments yet",
+// "no in-HotCRP activity"), never judge people.
+
+const DAY = 86_400_000;
+
+// Constructing an Intl.DateTimeFormat costs ~1 ms; one per row per render made
+// scrolling the 2,400-row triage list janky (PLAN M7). Keep one per zone.
+const timeFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** "Feb 26, 12:00" in the conference time zone. */
+export function formatTime(ms: number, tz: string): string {
+  let f = timeFormats.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    timeFormats.set(tz, f);
+  }
+  return f.format(ms);
+}
+
+/** "Feb 26" in the conference time zone. */
+export function formatDate(ms: number, tz: string): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(ms);
+}
+
+/** "2.5 days" (one decimal under 10, whole days above). */
+export function formatDays(d: number): string {
+  const v = d < 10 ? d.toFixed(1) : String(Math.round(d));
+  return `${v} ${v === "1.0" ? "day" : "days"}`;
+}
+
+/** "75%"; "–" when unknown. */
+export const percent = (share: number | null) => (share === null ? "–" : `${Math.round(share * 100)}%`);
+
+/** Labels for the reviewer outlier lists and for tiers. */
+export const TIER_LABELS: Readonly<Record<string, string>> = {
+  senior: "Senior PC",
+  junior: "Junior PC",
+  reciprocal: "Reciprocal",
+};
+export const tierLabel = (t: string) => TIER_LABELS[t] ?? t;
+
+/** "3 days ago", "today", "in 2 days". */
+export function relativeDays(ms: number, now: number): string {
+  const d = (now - ms) / DAY;
+  if (Math.abs(d) < 1) return d >= 0 ? "today" : "later today";
+  const n = Math.floor(Math.abs(d));
+  const unit = n === 1 ? "day" : "days";
+  return d > 0 ? `${n} ${unit} ago` : `in ${n} ${unit}`;
+}
+
+/** Short chip labels for rule names (the full reason is the chip's title). */
+export const RULE_LABELS: Readonly<Record<string, string>> = {
+  MISSING_REVIEWS: "Missing reviews",
+  SPLIT: "Split",
+  UNRESOLVED_SPLIT: "Unresolved split",
+  SILENT_DISCUSSION: "No comments yet",
+  GONE_QUIET: "Gone quiet",
+  AC_ABSENT: "No AC comment yet",
+  CHAMPION_MISSING: "No champion comment",
+  LOW_EXPERTISE: "Low expertise",
+  THIN_REVIEWS: "Thin reviews",
+  RESPONSE_UNADDRESSED: "Response not discussed",
+  REVIEW_FLAGGED: "Flagged review",
+  DEADLINE_NO_CONSENSUS: "Deadline, no consensus",
+};
+
+export const ruleLabel = (rule: string) => RULE_LABELS[rule] ?? rule;
+
+export const PHASE_LABELS: Readonly<Record<string, string>> = {
+  "before-review-due": "Reviewing",
+  "reviewing-late": "Reviews overdue",
+  response: "Author response",
+  discussion: "Discussion",
+  decisions: "Decisions",
+  "after-decisions": "After decisions",
+  // Extended phases (spec §10.1).
+  registration: "Registration",
+  submission: "Submission",
+  "quick-reject": "Quick reject",
+  assignment: "Assignment",
+  "early-reject": "Early reject",
+};
+
+export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+const PHASE_DATE_LABELS: Readonly<Record<string, string>> = {
+  reviewDue: "Reviews due",
+  responseOpen: "Response opens",
+  responseClose: "Response closes",
+  discussionOpen: "Discussion opens",
+  discussionClose: "Discussion closes",
+  decisionsDue: "Decisions due",
+};
+
+/** The next configured phase date after now (from /api/meta), e.g. { label: "Discussion closes", at }. */
+export function nextPhaseDate(m: { phases: Readonly<Record<string, number | null>>; now: number }): { label: string; at: number } | null {
+  const upcoming = Object.entries(m.phases)
+    .flatMap(([k, at]) => (typeof at === "number" && at > m.now && PHASE_DATE_LABELS[k] ? [{ label: PHASE_DATE_LABELS[k]!, at }] : []))
+    .sort((a, b) => a.at - b.at);
+  return upcoming[0] ?? null;
+}
+
+/** "in 3 days", "tomorrow", "today" (whole days, rounded up). */
+export function daysUntil(at: number, now: number): string {
+  const days = Math.ceil((at - now) / DAY);
+  return days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+}
+
+/** HotCRP deep links (spec §4): the base URL comes from /api/meta. */
+export const hotcrp = {
+  paper: (base: string, pid: number) => `${base}/paper/${pid}`,
+  review: (base: string, pid: number, ordinal: string | null, rid: number) =>
+    ordinal ? `${base}/review/${pid}${ordinal}` : `${base}/review?p=${pid}&r=${rid}`,
+};

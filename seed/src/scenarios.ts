@@ -1,0 +1,29 @@
+// Scenario registry. Scenarios load lazily (scale is generated on import).
+
+import type { Scenario } from "./format.js";
+
+export const SCENARIO_NAMES = ["golden", "multistage", "shadow", "scale", "assignment", "registration", "earlyreject"] as const;
+export type ScenarioName = (typeof SCENARIO_NAMES)[number];
+
+export function isScenarioName(s: string): s is ScenarioName {
+  return (SCENARIO_NAMES as readonly string[]).includes(s);
+}
+
+export async function loadScenario(name: ScenarioName): Promise<Scenario> {
+  switch (name) {
+    case "golden":
+      return (await import("../scenarios/golden/scenario.js")).scenario;
+    case "multistage":
+      return (await import("../scenarios/multistage/scenario.js")).scenario;
+    case "shadow":
+      return (await import("../scenarios/shadow/scenario.js")).scenario;
+    case "scale":
+      return (await import("../scenarios/scale/scenario.js")).scenario;
+    case "assignment":
+      return (await import("../scenarios/assignment/scenario.js")).scenario;
+    case "registration":
+      return (await import("../scenarios/registration/scenario.js")).scenario;
+    case "earlyreject":
+      return (await import("../scenarios/earlyreject/scenario.js")).scenario;
+  }
+}

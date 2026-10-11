@@ -23,7 +23,7 @@ GitHub ──► ARC listener (arc-runners-jon-bell) ──► ephemeral runner 
 
 ## Visual testing (Argos)
 
-The Playwright suite takes `argosScreenshot`s, and the reporter uploads them to Argos **only when `CI` is set**. Auth is tokenless: the Argos GitHub App is installed on the repo, and the SDK proves the job from the GitHub Actions run and job IDs. If an `ARGOS_TOKEN` secret exists, it's used instead.
+The Playwright suite takes `argosScreenshot`s, and the reporter uploads them to Argos **only when `CI` is set**. Auth is **GitHub Actions OIDC**: the `ci` job has `id-token: write`, and the Argos SDK exchanges the job's OIDC token for a short-lived Argos token, so no secret is stored. (The older tokenless exchange, based on run and job IDs, is disabled for this Argos project and fails with *Tokenless authentication is disabled*.) If an `ARGOS_TOKEN` repository secret exists, it takes priority.
 
 Tokenless auth also requires an **Argos project linked to this repository** (app.argos-ci.com → new project → import the repo). Without one, the upload fails with `No project found`. `.github/workflows/argos-canary.yml`, which runs on manual dispatch only, screenshots the harness home page to check this setup end to end.
 
@@ -72,5 +72,12 @@ Don't do either until build time actually hurts.
 
 | Job | Trigger | Runs |
 |---|---|---|
-| `ci` | push, PR | harness up → API smoke → (once `package.json` exists) lint, typecheck, unit, contract, seed `golden`, integration, Playwright → artifacts on failure → teardown |
-| `nightly` | schedule + manual | the same suite against `HOTCRP_REF=master` (an early warning when upstream changes the API), plus the `scale` scenario on `ripley-cloud-large` |
+| `ci` | push, PR | harness up → API smoke → lint, typecheck, unit, contract + integration (each file seeds its own data), Playwright (its webServer seeds `golden`) → artifacts on failure → teardown |
+| `ci` (nightly) | schedule + manual | the same suite against `HOTCRP_REF=master` (an early warning when upstream changes the API) |
+| `scale` | schedule, or manual dispatch with `scale: true` | `ripley-cloud-large`, its own fresh harness on the pinned `HOTCRP_REF` (never `master`, so a slow upstream can't read as our regression): `npm run test:scale` (PLAN M7). Seeds `scale`, times a full sync and a no-change re-sync, times the analyze()-backed API endpoints cold and warm, then runs the Playwright perf spec (`e2e/scale/perf.spec.ts`: render, filter, scripted scroll). Budgets live in `e2e/scale/budgets.ts` and are assertions. The timings, HotCRP traffic, and DB size are printed and written to the job summary. |
+
+### Scale job notes
+
+- It's a separate job, not a step in `ci`, so it gets the large runner and a harness whose chair token hasn't spent its rate-limit budget on the rest of the suite.
+- The harness keeps HotCRP's default rate limits for the chair token (250 requests/min, 5,000/h; the seeder uses its own raised token). Those are also the defaults on a real instance unless its `apiRefreshAmount*` options change them. Bytes cost budget only for *downloads* (`searchaction` CSVs, 0.01 per KiB); JSON `/reviews` and `/comments` cost one per request. A full sync of `scale` is ~34 requests, so the budget is not the bottleneck; WAN latency on a real instance is, and the sync has 50x headroom on the 5-minute budget against the harness.
+- Locally: `scripts/hotcrp-up.sh`, load `.env.test` and the ci.yml `PCS_*` vars, then `npm run test:scale` (`-- --skip-seed` reuses a harness already seeded with `scale`; `--skip-browser` stops after the API checks).

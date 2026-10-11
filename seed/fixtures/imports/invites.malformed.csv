@@ -1,0 +1,8 @@
+pid,candidate_email,ac_decision,invited_at,tpms_score
+1,rosa.quill@example.org,approve,2030-01-20,0.8
+zero,tomas.vey@example.org,approve,,0.5
+2,not-an-email,maybe,,high
+3,ines.marlow@example.org,approve,20/01/2030,
+1,ROSA.QUILL@example.org,approve,,
+4,kenji.arlo@example.org,approve,,0.9,extra
+,olu.brandt@example.org,pending,,

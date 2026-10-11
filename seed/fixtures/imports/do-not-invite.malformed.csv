@@ -1,0 +1,4 @@
+email,reason
+mallory.stone@example.org,no-show
+mallory.stone@example,typo domain
+MALLORY.STONE@example.org,duplicate after lowercasing

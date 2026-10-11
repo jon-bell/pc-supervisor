@@ -1,0 +1,33 @@
+{
+  "name": "@pcs/server",
+  "private": true,
+  "type": "module",
+  "description": "Sync engine, store, rules, JSON API, and the pcs CLI.",
+  "bin": {
+    "pcs": "./bin/pcs.js"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "pcs": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@fastify/static": "10.1.5",
+    "@huggingface/tokenizers": "0.2.0",
+    "better-sqlite3-multiple-ciphers": "13.0.3",
+    "fastify": "5.12.5",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@pcs/seed": "*",
+    "@types/better-sqlite3": "7.6.13"
+  },
+  "optionalDependencies": {
+    "onnxruntime-node": "1.30.0"
+  }
+}

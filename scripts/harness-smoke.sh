@@ -6,6 +6,12 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 set -a; . "${PCS_ENV_OUT:-$ROOT/.env.test}"; set +a
+# This script writes. Only ever to the local harness (AGENTS.md rules 2-3).
+case "${PCS_HOTCRP_URL:-}" in
+  *@*) echo "harness-smoke: refusing: PCS_HOTCRP_URL carries userinfo (@)" >&2; exit 1 ;;
+  http://127.0.0.1:*|http://localhost:*) ;;
+  *) echo "harness-smoke: refusing: PCS_HOTCRP_URL is not http://127.0.0.1:<port> or http://localhost:<port>" >&2; exit 1 ;;
+esac
 dc() { docker compose -p "${HOTCRP_COMPOSE_PROJECT:-pcs}" -f "$ROOT/hotcrp/compose.yaml" "$@"; }
 api() { curl -fsS -H "Authorization: Bearer $PCS_HOTCRP_TOKEN" "$@"; }
 U="$PCS_HOTCRP_URL/api"
@@ -36,6 +42,8 @@ dc exec -T db mariadb -uroot -proot "${HOTCRP_DB_NAME:-hotcrp}" \
   -e "update PaperReview set timeRequested = timeRequested - 7*86400"
 
 api "$U/searchaction?action=get/pcassignments&q=all" | grep -q '^1,metareview,ac1@example.org'
+# PC conflicts list (pcs export tpms): HotCRP's CSV header must stay as parsed by PcConflictsSchema.
+api "$U/searchaction?action=get/pcconf&q=all&t=s" | head -1 | grep -qx 'paper,title,given_name,family_name,email,conflicttype'
 api "$U/reviews?q=all&pretty=0" | python3 -c '
 import json,sys
 rs=json.load(sys.stdin)["reviews"]

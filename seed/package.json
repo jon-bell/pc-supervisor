@@ -1,0 +1,20 @@
+{
+  "name": "@pcs/seed",
+  "private": true,
+  "type": "module",
+  "description": "Scenario format and seeding driver for the HotCRP harness (PLAN M2).",
+  "scripts": {
+    "seed": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@pcs/server": "*",
+    "zod": "4.6.5"
+  },
+  "exports": {
+    "./*": "./src/*.ts",
+    "./scenarios/*": "./scenarios/*.ts"
+  }
+}

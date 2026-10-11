@@ -1,0 +1,5 @@
+pid,total_refs,hallucinated_refs,in_field_refs,note
+1,42,0,17,
+2,30,3,12,"3 references not found: titles do not resolve"
+3,25,0,0,no references to in-field venues
+4,,1,5,

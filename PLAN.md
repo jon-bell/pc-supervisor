@@ -5,7 +5,7 @@ This is the work breakdown for building PC Supervisor. Read [docs/spec.md](docs/
 **Already done (2026-10-07):**
 - the disposable HotCRP harness (`hotcrp/`, `scripts/hotcrp-up.sh`);
 - a smoke test that exercises every API path the app depends on (`scripts/harness-smoke.sh`);
-- the CI workflow skeleton, which runs the harness on `ripley-cloud`;
+- the CI workflow (`.github/workflows/ci.yml`), which runs the harness on `ripley-cloud`;
 - the spec, `.env.example`, and AGENTS.md.
 
 ## Parallel tracks
@@ -21,7 +21,7 @@ After M1, tracks M2, M3, and M4 can go to different people. The **golden scenari
 
 ## Repo layout and the npm-script contract
 
-Use npm workspaces, TypeScript strict mode everywhere, and Node 22.
+Use npm workspaces, TypeScript strict mode everywhere, and Node 22 (>= 22.14).
 
 ```
 server/   sync engine, store, rules, Fastify JSON API, CLI (`pcs`)
@@ -43,7 +43,7 @@ CI calls exactly these root scripts, so keep the names stable:
 | `test:e2e` | seed `golden` → sync → start server + built web → Playwright |
 | `test:scale` | seed `scale` → timed sync → Playwright perf checks |
 
-The CI steps for these are already in `.github/workflows/ci.yml`. They're gated on `package.json` existing, so they switch on automatically.
+The CI steps for these are in `.github/workflows/ci.yml`: `ci` runs lint through `test:e2e`, and the nightly `scale` job runs `test:scale`.
 
 ---
 
@@ -106,19 +106,25 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 | 5 | `SILENT_DISCUSSION`, `AC_ABSENT`, `GONE_QUIET` | Merit 2/2/2. No comments at all. The last activity is review submission before 02-01. |
 | 6 | `GONE_QUIET` | Merit 4/4/4. The last comment is on day +2. |
 | 7 | `AC_ABSENT` | The AC never comments; the reviewers do. |
-| 8 | `CHAMPION_MISSING` | Merit 5/3/3. The 5 reviewer never comments. |
+| 8 | `CHAMPION_MISSING` | Merit 5/4/4 (not 5/3/3: a range of 2 is `SPLIT`). The 5 reviewer never comments. |
 | 9 | `LOW_EXPERTISE` | All expertise ≤ 2. |
 | 10 | `THIN_REVIEWS` | One review is 35 words and is rated `short` by both co-reviewers. |
-| 11 | `RESPONSE_UNADDRESSED` | An author response is posted on 02-09. Reviewers never comment, and the AC comments on days +1 and +12. |
+| 11 | `RESPONSE_UNADDRESSED` | Merit 2/2/2 (so no top merit on the accept side can fire `CHAMPION_MISSING`). An author response is posted on 02-09. Reviewers never comment, and the AC comments on days +1 and +12. |
 | 12 | `SPLIT` | Merit 2/4/4, with movement 1→2 on day +5. At the second instant (below), it also fires `DEADLINE_NO_CONSENSUS`. |
 | 13 | `REVIEW_FLAGGED` | One review is rated `disrespectful` by the AC and `short` by a co-reviewer. Otherwise healthy (that review is ≥ 200 words, so `THIN_REVIEWS` doesn't fire, because `THIN_REVIEWS` counts only `short`/`vague` ratings from **≥ 2 raters** or word count). |
 
 **Second assertion instant:** `PCS_NOW = 2030-03-01T12:00` (~2.5 days to decisions, inside the 3-day window). Assert only that pid 12 includes `DEADLINE_NO_CONSENSUS` and pid 1 fires nothing. Other rows drift with time and aren't asserted here.
 
+**Override case (chair rule settings, spec §5c "Rule settings"):** at the primary instant, the chair overrides `PCS_THRESH_STALE_DAYS` from the env default 4 to **13** in the app. Then **pid 6 fires nothing**: it has been quiet 12 days, which is not > 13. **pid 5 keeps `GONE_QUIET`**: 14.5 days since discussion opened, > 13, and its reason reads "(limit 13 days)". Every other row is unchanged. The preview lists exactly one changed paper (pid 6, −`GONE_QUIET`, unflagged, severity 2 → 0). Flag history records that clear with cause `rules` and the revision id. Reverting to the env defaults restores the table above. Encoded as `OVERRIDE_CASE` in `seed/scenarios/golden/expected.ts`. It is asserted by `server/test/integration/rule-settings.test.ts`, `server/test/unit/rule-settings.test.ts` and `e2e/specs/rules.spec.ts`.
+
+**Comment-type case (spec §5e):** the seeded wording makes pid 4's day +3 AC comment a ping ("@Pat Pingleton could you please respond to the author rebuttal…") and pid 13's only AC comment non-substantive ("Thanks for the reviews, all. Fine with accept from my side."); every other comment is filler, which the heuristic reads as discussion. The ignore options default off, so the table above is unchanged. With `PCS_RULE_AC_ABSENT_IGNORE_NONSUBSTANTIVE` overridden to **true**, pid 13 fires `AC_ABSENT` and `REVIEW_FLAGGED` (severity 4 → 6, reason "… (1 non-substantive comment not counted)"); nothing else changes. With the heuristic active, AC-busy's nudges column reads "Pings (heuristic)" = 1. Encoded as `COMMENT_TYPE_CASE` and `COMMENT_KINDS` in `seed/scenarios/golden/expected.ts`; asserted by `server/test/unit/rule-settings.test.ts`, `server/test/integration/comment-types.test.ts` and `e2e/specs/comment-types.spec.ts`.
+
 **Rule semantics the table depends on:**
 - `CHAMPION_MISSING` fires only if **no** reviewer holding the top merit has commented.
 - `SILENT_DISCUSSION` and `GONE_QUIET` count AC comments as activity.
 - `RESPONSE_UNADDRESSED` counts only reviewer comments.
+- A paper with a decision fires nothing (pid 1).
+- `GONE_QUIET` measures quiet time from `max(last activity, DISCUSSION_OPEN)`.
 - `THIN_REVIEWS` fires on word count < floor, **or** a `short`/`vague` flag from ≥ `PCS_THRESH_RATING_RATERS` (2) raters.
 - Ratings are seeded with `POST /{p}/reviewrating?actas=<rater>`. The rater must be a co-reviewer who has already submitted, or the metareviewer.
 
@@ -128,6 +134,7 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 - **AC-busy** holds pids 1, 3, 4, 8, 9, and 10: 6 papers, 5 flagged, commenting on all of them.
 - **AC-idle** holds pids 5 and 7: 2 papers, 0 comments, both flagged.
 - **AC-normal** holds pids 2, 6, 11, 12, and 13.
+- **R-hal** wrote the flagged reviews on 10 and 13 (negative rating flags on two papers), so Hal is the one entry in the "repeatedly flagged" reviewer list.
 - The pid 2 laggard is tagged `reciprocal`. R-silent is tagged `junior`. Everyone else is senior.
 
 Changing this table means changing the M3 and M4 tests in the same PR.
@@ -172,7 +179,7 @@ Changing this table means changing the M3 and M4 tests in the same PR.
 
 - **Scope:**
   - The AC table (coverage, time to first post, nudges, stale, metareview status, load vs. flagged, sparkline).
-  - Reviewer outlier lists (silent on split papers, unanswered pings, late, thin), split by tier.
+  - Reviewer outlier lists (silent on split papers, unanswered pings, late, thin, repeatedly rating-flagged), split by tier.
   - The person page.
   - The overview with the no-consensus burndown.
   - The wording rules from spec §7, enforced by a test that greps the UI strings for "disengaged", "absent", and "lazy".
@@ -192,7 +199,7 @@ Changing this table means changing the M3 and M4 tests in the same PR.
 - **Scope:**
   - A copyable HotCRP search for any filtered set.
   - Nudge-comment drafts (the app copies the text; it doesn't post).
-  - `#chair-attention` tagging via `POST /assigntags`, which always runs `dry_run=1` first, shows the diff, needs explicit confirmation, and then commits.
+  - `#chair-attention` tagging, which always runs `dry_run=1` first, shows the diff, needs explicit confirmation, and then commits. It uses `POST /assign` rather than `POST /assigntags`, because `/assigntags` has no dry run (spec §1, §6).
 - **Done when:** E2E against the harness shows the dry run changes nothing, the confirmed run sets the tags, and a re-sync shows them. No test ever targets a non-harness URL; the test helper refuses to start unless `PCS_HOTCRP_URL` is `127.0.0.1`/`localhost`.
 
 ---
