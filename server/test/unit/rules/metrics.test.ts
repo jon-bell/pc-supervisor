@@ -53,7 +53,7 @@ describe("AC metrics", () => {
     // Day +1 at 09:00 on every paper; the clock starts at DISCUSSION_OPEN.
     expect(busy.timeToFirstPost).toEqual({ medianDays: 1.375, posted: 6, waiting: 0 });
     // 7 comments: all day +1 posts precede any reviewer comment (proxy), plus the day +3 @mention.
-    expect(busy.nudges).toEqual({ total: 7, mentions: 1, proxy: 6, pings: 0, source: "proxy" });
+    expect(busy.nudges).toEqual({ total: 7, mentions: 1, proxy: 6, pings: 1, source: "proxy" });
     expect(busy.activity.daily).toHaveLength(15);
     expect(busy.activity.daily[1]).toBe(6);
     expect(busy.activity.daily[3]).toBe(1);
