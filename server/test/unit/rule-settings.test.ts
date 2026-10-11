@@ -21,7 +21,7 @@ import {
   SETTING_KEYS,
   SETTING_META,
 } from "../../src/rules/settings.js";
-import { effectiveRuleContext, effectiveSettings, revertRules, ruleContextAt, ruleContextWith, RuleSettingsError, updateRules } from "../../src/rule-settings/service.js";
+import { effectiveRuleContext, effectiveSettings, revertRules, ruleContextAt, ruleContextWith, updateRules, type RuleSettingsError } from "../../src/rule-settings/service.js";
 import { listRevisions, overridesAt } from "../../src/rule-settings/store.js";
 import { memoryStore, type Store } from "../../src/store/store.js";
 import { at, RULES_ENV } from "../fixtures/builder.js";

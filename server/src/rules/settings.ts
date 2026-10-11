@@ -336,12 +336,12 @@ export interface ChangeError {
  * any error and `overrides` is the unchanged input.
  */
 export function applyChanges(current: Overrides, changes: Readonly<Record<string, unknown>>): { overrides: Overrides; errors: ChangeError[] } {
-  const next: Overrides = { ...current };
+  let next: Overrides = { ...current };
   const errors: ChangeError[] = [];
   for (const [key, value] of Object.entries(changes)) {
     if (value === null) {
       if (!isSettingKey(key)) errors.push({ key, error: `unknown rule setting ${JSON.stringify(key)}` });
-      else delete next[key];
+      else next = Object.fromEntries(Object.entries(next).filter(([k]) => k !== key)) as Overrides;
       continue;
     }
     const p = parseSetting(key, value);
