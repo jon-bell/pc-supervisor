@@ -5,7 +5,7 @@
 //                                pinned URL, sha256-checked; sends no data. Chair-run only.
 //   pcs model install <src>      the same files from a directory or .tar(.gz) you downloaded yourself
 //   pcs model remove --yes       delete the installed model files
-//   pcs model eval               confusion matrices on held-out synthetic data (heuristic, and the model if installed)
+//   pcs model accuracy           confusion matrices on held-out synthetic data (heuristic, and the model if installed)
 //   pcs model bench [--n N]      classify N synthetic comments end to end in memory; prints throughput
 //   pcs classify                 classify new or changed comments in the local store now
 //
@@ -25,7 +25,7 @@ import type { Command } from "./main.js";
 const out = (s: string) => process.stdout.write(`${s}\n`);
 const err = (s: string) => process.stderr.write(`${s}\n`);
 
-const USAGE = "usage: pcs model status | fetch | install <dir|tarball> | remove --yes | eval | bench [--n N]";
+const USAGE = "usage: pcs model status | fetch | install <dir|tarball> | remove --yes | accuracy | bench [--n N]";
 
 /** "classified 120 comment(s) with the heuristic in 0.4 s (300/s)". */
 export function describeRun(s: RunStats): string {
@@ -80,7 +80,7 @@ async function model(args: string[]): Promise<number> {
         out(`removed ${verifyModelDir(modelDir)}`);
         return 0;
       }
-      case "eval": {
+      case "accuracy": {
         if (rest.length) break;
         printEval(evaluateHeuristic());
         const v = await verifyModel(modelDir);
@@ -123,7 +123,7 @@ const verifyModelDir = (dir: string) => `${dir}/${MODEL.subdir}`;
 
 export const MODEL_COMMANDS: Record<string, Command> = {
   model: {
-    summary: "Local comment-classifier model: status, fetch (the one chair-run download), install, remove, eval, bench",
+    summary: "Local comment-classifier model: status, fetch (the one chair-run download), install, remove, accuracy, bench",
     usage: USAGE,
     run: model,
   },
