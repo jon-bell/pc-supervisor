@@ -7,7 +7,7 @@
 // (SearchCombobox); HotCRP's warnings show beside the count, as HotCRP shows
 // them above its results.
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { isFilterOn, usePaperSearch, usePaperSearchInfo, useSearchCompletions, type MetaResponse } from "../api";
 import { plural } from "../format";
 import { navigate, useLocation } from "../router";
@@ -31,7 +31,13 @@ const FALLBACK_COLLECTIONS = [
   { t: "all", label: "All" },
 ];
 
-export function PaperFilterBar({ meta }: { meta: MetaResponse }) {
+/**
+ * Where a view puts its own filters (triage: AC, rule, tier) so they sit in
+ * the same bar as the paper search: a DOM node views portal into.
+ */
+export const FilterSlotContext = createContext<HTMLElement | null>(null);
+
+export function PaperFilterBar({ meta, slotRef }: { meta: MetaResponse; slotRef?: (el: HTMLElement | null) => void }) {
   const loc = useLocation();
   const filter = usePaperSearch();
   const [draft, setDraft] = useState(filter.search);
@@ -83,8 +89,13 @@ export function PaperFilterBar({ meta }: { meta: MetaResponse }) {
 
   return (
     <form className="paper-filter" data-testid="paper-filter" onSubmit={submit} role="search">
+      <div className="pf-search">
       <label htmlFor="paper-filter-input" className="paper-filter-label">
-        Papers matching
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" className="pf-icon">
+          <circle cx="7" cy="7" r="4.5" />
+          <path d="M10.5 10.5L14 14" />
+        </svg>
+        <span>Papers matching</span>
       </label>
       <SearchCombobox id="paper-filter-input" value={draft} onChange={setDraft} />
       <select
@@ -110,15 +121,21 @@ export function PaperFilterBar({ meta }: { meta: MetaResponse }) {
         Filter
       </button>
       {isFilterOn(filter) ? (
-        <button type="button" className="btn" data-testid="paper-filter-clear" onClick={() => go("", "")}>
+        <button type="button" className="btn btn-ghost" data-testid="paper-filter-clear" onClick={() => go("", "")}>
           Clear
         </button>
       ) : null}
-      {status}
-      {meta.paperSearch ? (
-        <span className="muted paper-scope" data-testid="paper-scope" title="PCS_PAPER_SEARCH: every view and sync is limited to these papers">
-          Pinned to HotCRP search <code>{meta.paperSearch}</code>
-        </span>
+      </div>
+      <div className="pf-slot" ref={slotRef} />
+      {status || meta.paperSearch ? (
+        <div className="pf-status">
+          {status}
+          {meta.paperSearch ? (
+            <span className="muted paper-scope" data-testid="paper-scope" title="PCS_PAPER_SEARCH: every view and sync is limited to these papers">
+              Pinned to HotCRP search <code>{meta.paperSearch}</code>
+            </span>
+          ) : null}
+        </div>
       ) : null}
     </form>
   );

@@ -37,6 +37,7 @@ export function triageRows(view: AnalysisView): TriageRow[] {
       acs: f.bundle.acs.map((e) => personOf(people, e)),
       merits: [...f.merits],
       expertise: f.submitted.flatMap((x) => (x.expertise === null ? [] : [x.expertise])),
+      scores: f.submitted.map((x) => ({ ordinal: x.ordinal, merit: x.merit, expertise: x.expertise })),
       reviews: { submitted: f.submitted.length, assigned: f.reviewerReviews.length },
       tiers,
       severity: r.severity,

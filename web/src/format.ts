@@ -93,6 +93,29 @@ export const PHASE_LABELS: Readonly<Record<string, string>> = {
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+const PHASE_DATE_LABELS: Readonly<Record<string, string>> = {
+  reviewDue: "Reviews due",
+  responseOpen: "Response opens",
+  responseClose: "Response closes",
+  discussionOpen: "Discussion opens",
+  discussionClose: "Discussion closes",
+  decisionsDue: "Decisions due",
+};
+
+/** The next configured phase date after now (from /api/meta), e.g. { label: "Discussion closes", at }. */
+export function nextPhaseDate(m: { phases: Readonly<Record<string, number | null>>; now: number }): { label: string; at: number } | null {
+  const upcoming = Object.entries(m.phases)
+    .flatMap(([k, at]) => (typeof at === "number" && at > m.now && PHASE_DATE_LABELS[k] ? [{ label: PHASE_DATE_LABELS[k]!, at }] : []))
+    .sort((a, b) => a.at - b.at);
+  return upcoming[0] ?? null;
+}
+
+/** "in 3 days", "tomorrow", "today" (whole days, rounded up). */
+export function daysUntil(at: number, now: number): string {
+  const days = Math.ceil((at - now) / DAY);
+  return days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+}
+
 /** HotCRP deep links (spec §4): the base URL comes from /api/meta. */
 export const hotcrp = {
   paper: (base: string, pid: number) => `${base}/paper/${pid}`,

@@ -117,6 +117,16 @@ describe("first sync", () => {
     expect(store.reviewText(12)).toEqual({ PapSum: "Short summary here.", ComAut: "Needs more evaluation work." });
   });
 
+  it("stores a score field's colour scheme (null for HotCRP's default) and notices a change", async () => {
+    await runSync(store.db, hc, opts(T1));
+    const scheme = (uid: string) => store.reviewFields().find((f) => f.uid === uid)?.scheme;
+    expect(scheme("OveMer")).toBeNull();
+    hc.form = { ...hc.form, reviewform: { ...hc.form.reviewform, OveMer: { ...hc.form.reviewform.OveMer!, scheme: "bupu" } } };
+    const res = await runSync(store.db, hc, opts(T2));
+    expect(res.counts.fields_changed).toBe(1);
+    expect(scheme("OveMer")).toBe("bupu");
+  });
+
   it("parses mentions against the roster", async () => {
     await runSync(store.db, hc, opts(T1));
     const cm = Object.fromEntries(store.comments().map((c) => [c.cid, c]));

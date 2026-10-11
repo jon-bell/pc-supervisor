@@ -136,7 +136,6 @@ export function TimeLines({
   ariaLabel: string;
 }) {
   const w = 760;
-  const h = 260;
   const m = { l: 36, r: 110, t: 0, b: 24 };
   const pw = w - m.l - m.r;
   const xs = [...ts, ...markers.map((k) => k.at)];
@@ -145,22 +144,28 @@ export function TimeLines({
   const ymax = Math.max(1, ...series.flatMap((s) => s.values));
   const X = (t: number) => m.l + ((t - x0) / (x1 - x0)) * pw;
   const yTicks = [...new Set([0, Math.round(ymax / 2), ymax])];
-  // Marker labels: anchored at their line (end-anchored near the right edge),
-  // stacked on as many rows as needed so no two overlap.
+  // Marker labels sit in a band above the plot, one row each where needed so
+  // no two overlap (row 0 nearest the plot). The vertical lines stay inside
+  // the plot, so they never cross a label; each label starts (or, near the
+  // right edge, ends) at its line's x, with a short tick there.
   const sorted = [...markers].sort((a, b) => a.at - b.at);
-  const rowEnds: number[] = [];
+  const placed: { a: number; b: number; row: number }[] = [];
+  const CH = 6.4; // average glyph width at 11px
   const labels = sorted.map((mk) => {
     const x = X(mk.at);
     const text = `${mk.label} · ${formatDate(mk.at, tz)}`;
-    const width = text.length * 6;
+    const width = text.length * CH;
     const end = x + 3 + width > w - 2;
-    const a = end ? x - 3 - width : x + 3;
-    let row = rowEnds.findIndex((b) => a > b + 6);
-    if (row < 0) row = rowEnds.push(-Infinity) - 1;
-    rowEnds[row] = a + width;
+    const a = end ? x - 3 - width : x - 1;
+    const b = end ? x + 1 : x + 3 + width;
+    let row = 0;
+    while (placed.some((p) => p.row === row && !(b + 6 < p.a || a > p.b + 6))) row++;
+    placed.push({ a, b, row });
     return { mk, x, text, end, row };
   });
-  m.t = 14 + Math.max(1, rowEnds.length) * 12;
+  const rows = Math.max(1, ...labels.map((l) => l.row + 1));
+  m.t = 8 + rows * 13;
+  const h = m.t + 200 + m.b;
   const ph = h - m.t - m.b;
   const Y = (v: number) => m.t + ph - (v / ymax) * ph;
   const last = ts.length - 1;
@@ -175,10 +180,11 @@ export function TimeLines({
         </g>
       ))}
       {labels.map(({ mk, x, text, end, row }) => {
-        const ly = 12 + row * 12;
+        const ly = m.t - 6 - row * 13;
         return (
           <g key={`${mk.label}-${mk.at}`} className={mk.className ?? "marker"} data-testid="marker" data-label={mk.label}>
-            <line x1={x} x2={x} y1={ly + 3} y2={m.t + ph} />
+            <line x1={x} x2={x} y1={m.t} y2={m.t + ph} />
+            <line x1={x} x2={x} y1={ly - 8} y2={ly + 2} className="marker-tick" />
             <text x={end ? x - 3 : x + 3} y={ly} textAnchor={end ? "end" : "start"} className="marker-label">
               {text}
             </text>

@@ -71,6 +71,9 @@ describe("GET /api/meta", () => {
     expect(m).toMatchObject({ now: cfg.now!.getTime(), pinned: true, phase: "discussion", hotcrpUrl: "http://127.0.0.1:8080", tz: "America/New_York" });
     expect(m.rules.map((r) => r.name)).toEqual(RULE_NAMES);
     expect(m.tiers).toEqual(["senior", "junior", "reciprocal"]);
+    // Score scales come from the synced review form.
+    expect(m.scales.merit).toMatchObject({ uid: cfg.fields.merit, scheme: "sv" });
+    expect(m.scales.merit!.labels.length).toBeGreaterThanOrEqual(2);
   });
 });
 

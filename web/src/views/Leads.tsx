@@ -13,12 +13,26 @@ import { LoadBar, Sparkline } from "../components/Charts";
 import { ReasonChips } from "../components/Chip";
 import { DataTable } from "../components/DataTable";
 import { AbsTime, RelTime } from "../components/Time";
+import { SeverityCell } from "../components/Severity";
 import { plural, ruleLabel } from "../format";
+import { cohorts, Marked, withMark, type MetricSpec } from "../outliers";
+import { MeritCell } from "../scores";
 import { mean } from "../table/model";
 import { Link, navigate } from "../router";
+import { OutlierLegend } from "./Acs";
 
 const col = createColumnHelper<LeadRow>();
 const pcol = createColumnHelper<LeadPaper>();
+
+const activityTotal = (r: LeadRow) => r.activity.daily.reduce((a, b) => a + b, 0);
+
+/** Which way is concerning, per column (spec §7 "Outlier marks"); counts compare per paper. */
+const LEAD_METRICS = {
+  reviews: { noun: "reviews submitted", cohort: "lead", direction: "higher-better", value: (r) => r.reviews.submitted, perPaper: (r) => r.reviews.assigned },
+  comments: { noun: "comments", cohort: "lead", direction: "higher-better", value: (r) => r.comments.total, perPaper: (r) => r.load },
+  lead: { noun: "of their papers commented on", cohort: "lead", direction: "higher-better", value: (r) => r.commentedPids.length, perPaper: (r) => r.load },
+  stale: { noun: "stale papers", cohort: "lead", direction: "lower-better", value: (r) => r.stale, perPaper: (r) => r.load },
+} satisfies Record<string, MetricSpec<LeadRow>>;
 
 const pidList = (pids: readonly number[]) => pids.map((p) => `#${p}`).join(", ") || "none";
 
@@ -38,6 +52,7 @@ export function Leads({ meta }: { meta: MetaResponse }) {
   const q = useLeads();
   const data = q.data;
   const maxLoad = data?.maxLoad ?? 0;
+  const m = useMemo(() => cohorts(data?.leads ?? [], LEAD_METRICS), [data]);
 
   const columns = useMemo(
     () => [
@@ -47,7 +62,7 @@ export function Leads({ meta }: { meta: MetaResponse }) {
         size: 170,
         meta: { kind: "text", value: (r) => r.person.name },
         cell: (c) => (
-          <Link to={personPath(c.row.original.person.email)} className="ellipsis" data-testid="lead-name" onClick={(e) => e.stopPropagation()}>
+          <Link to={personPath(c.row.original.person.email)} className="ellipsis person-link" data-testid="lead-name" onClick={(e) => e.stopPropagation()}>
             {c.row.original.person.name}
           </Link>
         ),
@@ -55,13 +70,13 @@ export function Leads({ meta }: { meta: MetaResponse }) {
       col.display({
         id: "load",
         header: "Papers · flagged",
-        size: 220,
+        size: 210,
         meta: { kind: "numeric", label: "Papers", value: (r) => r.load },
         cell: (c) => {
           const r = c.row.original;
           return (
             <span className="load" title={`flagged: ${pidList(r.flaggedPids)}`}>
-              <span data-testid="lead-load" data-load={r.load} data-flagged={r.flagged}>
+              <span className="num" data-testid="lead-load" data-load={r.load} data-flagged={r.flagged}>
                 {plural(r.load, "paper")} · {r.flagged} flagged
               </span>
               <LoadBar load={r.load} flagged={r.flagged} max={maxLoad} />
@@ -76,25 +91,31 @@ export function Leads({ meta }: { meta: MetaResponse }) {
         meta: { kind: "numeric", label: "Reviews submitted", value: (r) => r.reviews.submitted },
         cell: (c) => {
           const v = c.row.original.reviews;
+          const mark = m.reviews.mark(c.row.original);
           return (
-            <span className="num" data-testid="lead-reviews" title={`${v.complete} of their papers have all required reviews`}>
-              {v.submitted}/{v.assigned} submitted
-            </span>
+            <Marked mark={mark} constant={m.reviews.constant}>
+              <span className="num" data-testid="lead-reviews" title={withMark(`${v.complete} of their papers have all required reviews`, mark)}>
+                {v.submitted}/{v.assigned} submitted
+              </span>
+            </Marked>
           );
         },
       }),
       col.display({
         id: "comments",
         header: "Comments on papers",
-        size: 170,
+        size: 160,
         meta: { kind: "numeric", value: (r) => r.comments.total },
         cell: (c) => {
           const v = c.row.original.comments;
+          const mark = m.comments.mark(c.row.original);
           return (
-            <span className="num" data-testid="lead-comments" title={`published comments by anyone: ${v.total} in all, ${v.discussion} since discussion opened`}>
-              {v.total}
-              {v.total !== v.discussion ? <span className="muted"> ({v.discussion} since open)</span> : null}
-            </span>
+            <Marked mark={mark} constant={m.comments.constant}>
+              <span className="num" data-testid="lead-comments" title={withMark(`published comments by anyone: ${v.total} in all, ${v.discussion} since discussion opened`, mark)}>
+                {v.total}
+                {v.total !== v.discussion ? <span className="muted"> ({v.discussion} since open)</span> : null}
+              </span>
+            </Marked>
           );
         },
       }),
@@ -104,9 +125,11 @@ export function Leads({ meta }: { meta: MetaResponse }) {
         size: 230,
         meta: { kind: "numeric", label: "Papers the lead commented on", value: (r) => r.commentedPids.length },
         cell: (c) => (
-          <span className="ellipsis" data-testid="lead-commented" data-commented={c.row.original.commentedPids.length}>
-            <LeadCommented r={c.row.original} />
-          </span>
+          <Marked mark={m.lead.mark(c.row.original)} constant={m.lead.constant}>
+            <span className="ellipsis" data-testid="lead-commented" data-commented={c.row.original.commentedPids.length}>
+              <LeadCommented r={c.row.original} />
+            </span>
+          </Marked>
         ),
       }),
       col.display({
@@ -114,21 +137,30 @@ export function Leads({ meta }: { meta: MetaResponse }) {
         header: "Stale",
         size: 76,
         meta: { kind: "numeric", value: (r) => r.stale },
-        cell: (c) => (
-          <span className="num" data-testid="lead-stale" title={pidList(c.row.original.stalePids)}>
-            {c.row.original.stale}
-          </span>
-        ),
+        cell: (c) => {
+          const mark = m.stale.mark(c.row.original);
+          return (
+            <Marked mark={mark} constant={m.stale.constant}>
+              <span className="num" data-testid="lead-stale" title={withMark(pidList(c.row.original.stalePids), mark)}>
+                {c.row.original.stale}
+              </span>
+            </Marked>
+          );
+        },
       }),
       col.display({
         id: "activity",
         header: "Activity",
         size: 140,
-        meta: { grow: true, kind: "numeric", label: "Activity (total)", value: (r) => r.activity.daily.reduce((a, b) => a + b, 0) },
-        cell: (c) => <Sparkline daily={c.row.original.activity.daily} start={c.row.original.activity.start} tz={meta.tz} testId="lead-spark" />,
+        meta: { grow: true, kind: "numeric", label: "Activity (total)", value: activityTotal },
+        cell: (c) => (
+          <>
+            <Sparkline daily={c.row.original.activity.daily} start={c.row.original.activity.start} tz={meta.tz} testId="lead-spark" />
+          </>
+        ),
       }),
     ],
-    [maxLoad, meta.tz],
+    [maxLoad, meta.tz, m],
   );
 
   const noLeads = data && data.leads.length === 0;
@@ -141,6 +173,7 @@ export function Leads({ meta }: { meta: MetaResponse }) {
           &ldquo;lead has commented&rdquo; counts the lead&apos;s own. Click a row to see that lead&apos;s papers.
           {data && data.papersWithLead > 0 ? ` ${data.papersWithLead} of ${plural(data.papers, "paper")} have a lead.` : ""}
         </p>
+        {noLeads ? null : <OutlierLegend more="reviews submitted, comments, papers the lead commented on; per paper" less="stale papers" cohort="leads" />}
       </div>
       {q.error ? (
         <p className="error">Could not load the discussion leads: {q.error.message}</p>
@@ -175,9 +208,16 @@ export function Leads({ meta }: { meta: MetaResponse }) {
 export function LeadDetail({ meta, email }: { meta: MetaResponse; email: string }) {
   const q = useLead(email);
   const d = q.data;
+  const maxSev = Math.max(0, ...(d?.papers ?? []).map((p) => p.severity));
 
   const columns = useMemo(
     () => [
+      pcol.accessor("severity", {
+        header: "Sev.",
+        size: 84,
+        meta: { kind: "numeric", label: "Severity" },
+        cell: (c) => <SeverityCell sev={c.getValue()} max={maxSev} testId="lp-severity" />,
+      }),
       pcol.accessor("pid", { header: "#", size: 64, meta: { kind: "numeric", label: "Paper" }, cell: (c) => <span className="pid">#{c.getValue()}</span> }),
       pcol.accessor("title", {
         header: "Title",
@@ -210,7 +250,12 @@ export function LeadDetail({ meta, email }: { meta: MetaResponse; email: string 
           );
         },
       }),
-      pcol.accessor("merits", { header: "Merits", size: 92, meta: { kind: "numeric", label: "Mean merit", value: (r) => mean(r.merits) }, cell: (c) => <span className="scores">{c.getValue().join("/") || "–"}</span> }),
+      pcol.accessor("merits", {
+        header: "Merits",
+        size: 150,
+        meta: { kind: "numeric", label: "Mean merit", value: (r) => mean(r.merits) },
+        cell: (c) => <MeritCell items={c.getValue().map((v) => ({ merit: v }))} submitted={c.row.original.reviews.submitted} assigned={c.row.original.reviews.assigned} />,
+      }),
       pcol.display({
         id: "comments",
         header: "Comments",
@@ -257,11 +302,11 @@ export function LeadDetail({ meta, email }: { meta: MetaResponse; email: string 
         cell: (c) => {
           const p = c.row.original;
           if (p.reasons.length === 0) return <span className="muted">{p.decision ? p.decision : "none"}</span>;
-          return <ReasonChips reasons={p.reasons} />;
+          return <ReasonChips reasons={p.reasons} max={3} />;
         },
       }),
     ],
-    [meta.tz, d],
+    [meta.tz, d, maxSev],
   );
 
   if (q.error) {
