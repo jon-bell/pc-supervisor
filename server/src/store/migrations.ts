@@ -466,6 +466,71 @@ export const MIGRATIONS: readonly string[] = [
   `
   alter table review_field add column scheme text;
   `,
+
+  // 9: comment types (spec §5e). App-local; HotCRP never sees any of it, and
+  // nothing here leaves the encrypted store.
+  //
+  // comment_class: the classifier's label for a comment's current text
+  //   (text_hash = comment.text_hash when it was classified). source is
+  //   'heuristic' or 'model'; head names the heuristic version or the
+  //   model head (model + training-set hash), so a new head re-predicts.
+  //   probs = JSON {kind: p}; features = the structural features used (JSON).
+  // comment_embedding: the sentence embedding of one comment version under
+  //   one model (vec = little-endian float32 x dim), plus that version's
+  //   structural features, so re-predicting after a retrain needs no
+  //   inference. Rows for versions the chair labelled are kept for training.
+  // comment_chair_label: the chair's label in force per comment, for the
+  //   text version they labelled; it applies while comment.text_hash matches.
+  // comment_label_revision: append-only audit of every relabel (triggers
+  //   refuse update/delete), like rule_revision. kind null = cleared (back to
+  //   the classifier); previous / previous_source = the label shown before.
+  `
+  create table comment_class (
+    cid integer primary key,
+    text_hash text not null,
+    source text not null check (source in ('heuristic','model')),
+    kind text not null check (kind in ('ping','reply','discussion','nonsubstantive')),
+    confidence real not null,
+    probs text not null,
+    head text not null,
+    features text not null,
+    classified_at integer not null
+  ) strict;
+
+  create table comment_embedding (
+    cid integer not null,
+    text_hash text not null,
+    model text not null,
+    dim integer not null,
+    vec blob not null,
+    features text not null,
+    primary key (cid, text_hash, model)
+  ) strict, without rowid;
+
+  create table comment_chair_label (
+    cid integer primary key,
+    text_hash text not null,
+    kind text not null check (kind in ('ping','reply','discussion','nonsubstantive')),
+    revision_id integer not null
+  ) strict;
+
+  create table comment_label_revision (
+    id integer primary key,
+    at integer not null,
+    actor text not null,
+    cid integer not null,
+    pid integer not null,
+    text_hash text not null,
+    kind text check (kind in ('ping','reply','discussion','nonsubstantive')),
+    previous text,
+    previous_source text
+  ) strict;
+  create index comment_label_revision_cid on comment_label_revision(cid, id);
+  create trigger comment_label_revision_no_update before update on comment_label_revision
+    begin select raise(abort, 'comment_label_revision is append-only'); end;
+  create trigger comment_label_revision_no_delete before delete on comment_label_revision
+    begin select raise(abort, 'comment_label_revision is append-only'); end;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
