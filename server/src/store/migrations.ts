@@ -385,6 +385,13 @@ export const MIGRATIONS: readonly string[] = [
   ) strict;
   create index rating_change_rid on rating_change(rid, seen_at);
   `,
+
+  // 7: a score field's HotCRP colour scheme (get/jsonrqc "scheme", omitted
+  // for the default "sv"), so the UI colours scores the way HotCRP does
+  // (spec §7 "Scores"). null = HotCRP's default.
+  `
+  alter table review_field add column scheme text;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

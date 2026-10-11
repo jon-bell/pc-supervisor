@@ -46,12 +46,26 @@ export interface MetaResponse {
   tiersConfigured: boolean;
   fields: { merit: string; expertise: string };
   /**
+   * The merit and expertise fields' score scales from the synced review form
+   * (spec §7 "Scores"): `labels[i]` names value i + 1, so values run 1..labels.length;
+   * `scheme` is HotCRP's colour scheme ("sv" when the form leaves the default).
+   * null when the field is not in the synced form.
+   */
+  scales: { merit: ScoreScale | null; expertise: ScoreScale | null };
+  /**
    * HotCRP review ratings (spec §1) as last synced. When `enabled` is false
    * the instance has ratings off: rating signals are hidden, not zero.
    */
   ratings: { enabled: boolean; setting: string | null; visibility: string | null; flags: string[] };
   /** PCS_PAPER_SEARCH: the HotCRP search the whole app is pinned to ("" = every paper). */
   paperSearch: string;
+}
+
+export interface ScoreScale {
+  uid: string;
+  name: string;
+  labels: string[];
+  scheme: string;
 }
 
 /** GET /api/paper-search?search=: the in-app filter, resolved. */
@@ -80,6 +94,8 @@ export interface TriageRow {
   /** Current merits / expertise of submitted reviewer reviews, in review order. */
   merits: number[];
   expertise: number[];
+  /** Per submitted reviewer review, in review order: its ordinal and current merit and expertise. */
+  scores: { ordinal: string | null; merit: number | null; expertise: number | null }[];
   reviews: { submitted: number; assigned: number };
   /** Reviewer count per tier on this paper, e.g. { senior: 2, junior: 1 }. */
   tiers: Record<string, number>;

@@ -14,7 +14,7 @@ import { Link, navigate, useLocation } from "../router";
 import { useTiersConfigured } from "../tiers";
 
 const col = createColumnHelper<OutlierEntry>();
-const ROW = 36;
+const ROW = 44;
 const MAX_ROWS = 8;
 
 type SortKey = "count" | "name";
@@ -30,47 +30,42 @@ function TierGroup({ list, tier, entries, sort }: { list: OutlierList; tier: str
       col.display({
         id: "name",
         header: "Reviewer",
-        size: 200,
-        meta: { kind: "text", value: (r) => r.person.name },
+        size: 180,
+        meta: { grow: true, kind: "text", value: (r) => r.person.name },
         cell: (c) => (
-          <Link to={personPath(c.row.original.person.email)} data-testid="outlier-name" onClick={(e) => e.stopPropagation()}>
-            {c.row.original.person.name}
-          </Link>
+          <span className="rv-who">
+            <Link to={personPath(c.row.original.person.email)} className="person-link ellipsis" data-testid="outlier-name" onClick={(e) => e.stopPropagation()}>
+              {c.row.original.person.name}
+            </Link>
+            <span className="rv-detail ellipsis" title={c.row.original.detail} data-testid="outlier-detail">
+              {c.row.original.detail}
+            </span>
+          </span>
         ),
       }),
       col.accessor("count", {
         header: "Count",
-        size: 84,
+        size: 72,
         meta: { kind: "numeric" },
         cell: (c) => (
-          <span className="num" data-testid="outlier-count">
+          <span className="num rv-count" data-testid="outlier-count">
             {c.getValue()}
           </span>
         ),
       }),
       col.accessor("pids", {
         header: "Papers",
-        size: 160,
+        size: 168,
         cell: (c) => (
           <span className="pids" data-testid="outlier-pids">
             {c.getValue().map((p, i) => (
               <span key={p}>
                 {i ? " " : ""}
-                <Link to={`/papers/${p}`} onClick={(e) => e.stopPropagation()}>
+                <Link to={`/papers/${p}`} className="pid-chip" onClick={(e) => e.stopPropagation()}>
                   #{p}
                 </Link>
               </span>
             ))}
-          </span>
-        ),
-      }),
-      col.accessor("detail", {
-        header: "Detail",
-        size: 300,
-        meta: { grow: true, kind: "text" },
-        cell: (c) => (
-          <span className="ellipsis" title={c.getValue()} data-testid="outlier-detail">
-            {c.getValue()}
           </span>
         ),
       }),
@@ -136,15 +131,26 @@ export function Reviewers() {
       </div>
       {q.error ? <p className="error">Could not load the reviewer lists: {q.error.message}</p> : null}
       {!data && !q.error ? <p className="muted">Loading…</p> : null}
+      {data ? (
+        <nav className="list-index" aria-label="Lists on this page">
+          {data.lists.map((list) => (
+            <a key={list.id} href={`#list-${list.id}`} className={list.total ? undefined : "muted"}>
+              {list.label} <span className="num">{list.total}</span>
+            </a>
+          ))}
+        </nav>
+      ) : null}
       {data?.lists.map((list) => (
-        <section key={list.id} className="outlier-list" data-testid="outlier-list" data-list={list.id}>
+        <section key={list.id} id={`list-${list.id}`} className="outlier-list" data-testid="outlier-list" data-list={list.id}>
           <h2>
             {list.label} <span className="muted">({list.total})</span>
           </h2>
           <p className="muted bar">Shown when: {list.bar}.</p>
-          {list.byTier.map((g) => (
-            <TierGroup key={g.tier} list={list} tier={g.tier} entries={g.entries} sort={sort} />
-          ))}
+          <div className="tier-groups">
+            {list.byTier.map((g) => (
+              <TierGroup key={g.tier} list={list} tier={g.tier} entries={g.entries} sort={sort} />
+            ))}
+          </div>
         </section>
       ))}
     </div>

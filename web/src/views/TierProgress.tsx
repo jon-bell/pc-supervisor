@@ -15,6 +15,7 @@ import { getJson, personPath, type MetaResponse } from "../api";
 import { DataTable } from "../components/DataTable";
 import { MiniTable, numColumn, type MiniColumn } from "../components/MiniTable";
 import { formatDays, formatTime, hotcrp, percent, plural, tierLabel } from "../format";
+import { Marked } from "../outliers";
 import { Link } from "../router";
 
 const ROW = 36;
@@ -68,7 +69,7 @@ const TIER_COLUMNS: MiniColumn<TierRow>[] = [
   numColumn("reviewers", "Reviewers", (t) => t.reviewers),
   numColumn("submitted", "Submitted", (t) => t.submitted, (t) => `${t.submitted}/${t.assigned}`),
   numColumn("outstanding", "Outstanding", (t) => t.outstanding, undefined, "tier-outstanding"),
-  numColumn("late", "Late", (t) => t.late, undefined, "tier-late"),
+  numColumn("late", "Late", (t) => t.late, (t) => (t.late > 0 ? <Marked mark={{ side: "high", text: `${plural(t.late, "review")} not submitted after the review deadline (${t.assigned} assigned)` }}>{t.late}</Marked> : <span className="muted">0</span>), "tier-late"),
   numColumn("submittedLate", "Submitted late", (t) => t.submittedLate),
   numColumn("assignedAfterDue", "Assigned after deadline", (t) => t.assignedAfterDue),
 ];
@@ -116,12 +117,14 @@ const ACCOUNT_COLUMNS = [
     size: 130,
     meta: { kind: "numeric", label: "Late (open)", value: (r) => r.lateOutstanding },
     cell: (c) => (
-      <span className="num" data-testid="acct-late">
-        {c.row.original.lateOutstanding} open · {c.row.original.submittedLate} after
-      </span>
+      <Marked mark={c.row.original.lateOutstanding > 0 ? { side: "high", text: `${plural(c.row.original.lateOutstanding, "review")} still open after the review deadline` } : null}>
+        <span className="num" data-testid="acct-late">
+          {c.row.original.lateOutstanding} open · {c.row.original.submittedLate} after
+        </span>
+      </Marked>
     ),
   }),
-  acol.accessor("thin", { header: "Thin", size: 80, meta: { kind: "numeric" }, cell: (c) => <span className="num">{c.getValue()}</span> }),
+  acol.accessor("thin", { header: "Thin", size: 80, meta: { kind: "numeric" }, cell: (c) => (c.getValue() > 0 ? <Marked mark={{ side: "high", text: `${plural(c.getValue(), "review")} under the word minimum` }}><span className="num">{c.getValue()}</span></Marked> : <span className="num muted">0</span>) }),
   acol.display({ id: "rated", header: "Rated short/vague", size: 150, meta: { kind: "numeric", value: (r) => r.ratedShort + r.ratedVague }, cell: (c) => <span className="num">{c.row.original.ratedShort}/{c.row.original.ratedVague}</span> }),
   acol.accessor("summary", { header: "Summary", size: 300, meta: { grow: true, kind: "text" }, cell: (c) => cell(c.getValue()) }),
 ];

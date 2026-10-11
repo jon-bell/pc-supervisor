@@ -146,6 +146,8 @@ export interface ReviewFieldRow {
   isText: boolean;
   order: number | null;
   values: string[] | null;
+  /** HotCRP colour scheme of a score field (null = HotCRP's default, "sv"). */
+  scheme: string | null;
   removedSeenAt: number | null;
 }
 
@@ -448,6 +450,7 @@ export function storeFromDb(db: Db): Store {
         isText: bool(r.is_text),
         order: r.ord as number | null,
         values: r.values_json === null ? null : parse<string[]>(r.values_json, []),
+        scheme: (r.scheme as string | null) ?? null,
         removedSeenAt: r.removed_seen_at as number | null,
       }));
     },

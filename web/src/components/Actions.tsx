@@ -33,21 +33,24 @@ export function CopyButton({ text, label, testId }: { text: string; label: strin
 }
 
 /** "HotCRP search: 2-4 9 [Copy search] [Search in HotCRP]" for a set of papers. */
-export function SearchActions({ pids, base, children }: { pids: readonly number[]; base: string; children?: ReactNode }) {
+export function SearchActions({ pids, base, children, lead }: { pids: readonly number[]; base: string; children?: ReactNode; lead?: ReactNode }) {
   const q = hotcrpPidSearch(pids);
   return (
     <div className="actions-bar" data-testid="search-actions">
-      <span className="muted">HotCRP search</span>
-      <code className="search-q" data-testid="hotcrp-search" title={q}>
-        {q || "(no papers)"}
-      </code>
-      <CopyButton text={q} label="Copy search" testId="copy-search" />
-      {q ? (
-        <a className="ext" href={hotcrpSearchUrl(base, q)} target="_blank" rel="noreferrer noopener" data-testid="hotcrp-search-link">
-          search in HotCRP ↗
-        </a>
-      ) : null}
-      {children}
+      {lead}
+      <span className="actions-group">
+        <span className="muted">HotCRP search</span>
+        <code className="search-q" data-testid="hotcrp-search" title={q}>
+          {q || "(no papers)"}
+        </code>
+        <CopyButton text={q} label="Copy search" testId="copy-search" />
+        {q ? (
+          <a className="ext btn btn-ghost" href={hotcrpSearchUrl(base, q)} target="_blank" rel="noreferrer noopener" data-testid="hotcrp-search-link">
+            search in HotCRP ↗
+          </a>
+        ) : null}
+      </span>
+      {children ? <span className="actions-group actions-tag">{children}</span> : null}
     </div>
   );
 }

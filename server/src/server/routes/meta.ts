@@ -5,9 +5,19 @@ import type { FastifyInstance } from "fastify";
 import { RATING_FLAGS } from "../../ratings.js";
 import { phaseAt } from "../../rules/phase.js";
 import { redact } from "../../redact.js";
-import type { SyncRunRow } from "../../store/store.js";
-import type { MetaResponse, SyncRunInfo, SyncStatus } from "../api-types.js";
+import type { ReviewFieldRow, SyncRunRow } from "../../store/store.js";
+import type { MetaResponse, ScoreScale, SyncRunInfo, SyncStatus } from "../api-types.js";
 import type { RouteDeps } from "../app.js";
+
+/** The merit and expertise score scales from the synced review form (live fields only). */
+export function scalesOf(fields: readonly ReviewFieldRow[], uids: { merit: string; expertise: string }): MetaResponse["scales"] {
+  const scale = (uid: string): ScoreScale | null => {
+    const f = fields.find((x) => x.uid === uid && x.removedSeenAt === null);
+    if (!f || f.isText || !f.values || f.values.length === 0) return null;
+    return { uid: f.uid, name: f.name, labels: [...f.values], scheme: f.scheme ?? "sv" };
+  };
+  return { merit: scale(uids.merit), expertise: scale(uids.expertise) };
+}
 
 export function registerMeta(app: FastifyInstance, deps: RouteDeps): void {
   app.get("/api/meta", async (): Promise<MetaResponse> => {
@@ -24,6 +34,7 @@ export function registerMeta(app: FastifyInstance, deps: RouteDeps): void {
       tiers: ["senior", ...Object.keys(cfg.tierTags)],
       tiersConfigured: Object.keys(cfg.tierTags).length > 0,
       fields: cfg.fields,
+      scales: scalesOf(deps.store.reviewFields(), cfg.fields),
       ratings: { ...deps.store.ratingSettings(), flags: [...RATING_FLAGS] },
       paperSearch: cfg.hotcrp.paperSearch,
     };

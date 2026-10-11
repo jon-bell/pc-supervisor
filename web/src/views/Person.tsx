@@ -6,12 +6,13 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { usePerson, type MetaResponse, type PersonPaper, type PersonResponse } from "../api";
 import { SearchActions } from "../components/Actions";
-import { Chip } from "../components/Chip";
+import { Chip, ReasonChips } from "../components/Chip";
 import { DataTable } from "../components/DataTable";
 import { AbsTime } from "../components/Time";
 import { formatRatings, NEGATIVE_FLAGS, pickRatings } from "@pcs/server/ratings";
 import { formatDays, percent, plural, ruleLabel, tierLabel } from "../format";
 import { Link, navigate } from "../router";
+import { MeritCell, Pip } from "../scores";
 import { mean } from "../table/model";
 import { triageForAc } from "./Acs";
 
@@ -113,6 +114,7 @@ function Summary({ d }: { d: PersonResponse }) {
 export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
   const q = usePerson(email);
   const d = q.data;
+  const weights = useMemo(() => new Map(meta.rules.map((r) => [r.name, r.weight])), [meta.rules]);
 
   const columns = useMemo(
     () => [
@@ -137,14 +139,34 @@ export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
           const r = c.row.original.review;
           if (!r) return <span className="muted">none</span>;
           return (
-            <span data-testid="their-score" title={plural(r.wordCount, "word")}>
-              {r.submitted ? (r.merit !== null ? `merit ${r.merit}` : "submitted") : <span className="warn-text">{r.status}</span>}
-              {r.submitted && r.expertise !== null ? <span className="muted"> · exp {r.expertise}</span> : null}
+            <span className="their-score" data-testid="their-score" title={plural(r.wordCount, "word")}>
+              {r.submitted ? (
+                r.merit !== null ? (
+                  <>
+                    <span className="ev-score-label">merit</span> <Pip v={r.merit} />
+                  </>
+                ) : (
+                  "submitted"
+                )
+              ) : (
+                <span className="warn-text">{r.status}</span>
+              )}
+              {r.submitted && r.expertise !== null ? (
+                <span className="muted">
+                  {" "}
+                  <span className="ev-score-label">exp</span> <Pip v={r.expertise} field="expertise" />
+                </span>
+              ) : null}
             </span>
           );
         },
       }),
-      col.accessor("merits", { header: "Merits", size: 92, meta: { kind: "numeric", label: "Mean merit", value: (r) => mean(r.merits) }, cell: (c) => <span className="scores">{c.getValue().join("/") || "–"}</span> }),
+      col.accessor("merits", {
+        header: "Merits",
+        size: 150,
+        meta: { kind: "numeric", label: "Mean merit", value: (r) => mean(r.merits) },
+        cell: (c) => <MeritCell items={c.getValue().map((v) => ({ merit: v }))} />,
+      }),
       col.display({
         id: "last",
         header: "Their last comment",
@@ -165,17 +187,17 @@ export function Person({ meta, email }: { meta: MetaResponse; email: string }) {
       col.display({
         id: "rules",
         header: "Paper flags",
-        size: 150,
+        size: 250,
         meta: { kind: "categorical", value: (r) => r.rules, format: ruleLabel },
-        cell: (c) => (
-          <span className="ellipsis" title={c.row.original.rules.map(ruleLabel).join(", ")}>
-            {c.row.original.rules.map(ruleLabel).join(", ") || <span className="muted">{c.row.original.decision ? "decided" : "none"}</span>}
-          </span>
-        ),
+        cell: (c) => {
+          const p = c.row.original;
+          if (p.rules.length === 0) return <span className="muted">{p.decision ? "decided" : "none"}</span>;
+          return <ReasonChips max={2} reasons={p.rules.map((rule) => ({ rule, weight: weights.get(rule) ?? 1, reason: `${ruleLabel(rule)} (paper severity ${p.severity})` }))} />;
+        },
       }),
       col.display({ id: "flags", header: "Their part", size: 300, meta: { kind: "categorical", value: partFlags, format: (v) => PART_LABELS[v] ?? v }, cell: (c) => <Flags p={c.row.original} /> }),
     ],
-    [meta.tz],
+    [meta.tz, weights],
   );
 
   if (q.error) {

@@ -145,22 +145,34 @@ export function TimeLines({
   const ymax = Math.max(1, ...series.flatMap((s) => s.values));
   const X = (t: number) => m.l + ((t - x0) / (x1 - x0)) * pw;
   const yTicks = [...new Set([0, Math.round(ymax / 2), ymax])];
-  // Marker labels: anchored at their line (end-anchored near the right edge),
-  // stacked on as many rows as needed so no two overlap.
+  // Marker labels sit in a band above the plot, anchored at their line
+  // (end-anchored near the right edge). Row 0 is nearest the plot; a label's
+  // line runs down through every row below it, so a row is taken only if the
+  // label overlaps no label there, its line crosses no label in a lower row,
+  // and its text covers no line of a label in a higher row.
   const sorted = [...markers].sort((a, b) => a.at - b.at);
-  const rowEnds: number[] = [];
+  const placed: { a: number; b: number; x: number; row: number }[] = [];
+  const CH = 6.4; // average glyph width at 11px
   const labels = sorted.map((mk) => {
     const x = X(mk.at);
     const text = `${mk.label} · ${formatDate(mk.at, tz)}`;
-    const width = text.length * 6;
+    const width = text.length * CH;
     const end = x + 3 + width > w - 2;
     const a = end ? x - 3 - width : x + 3;
-    let row = rowEnds.findIndex((b) => a > b + 6);
-    if (row < 0) row = rowEnds.push(-Infinity) - 1;
-    rowEnds[row] = a + width;
+    const b = a + width;
+    const fits = (row: number) =>
+      placed.every((p) => {
+        if (p.row === row) return b + 6 < p.a || a > p.b + 6;
+        if (p.row < row) return x < p.a - 2 || x > p.b + 2; // my line crosses lower labels
+        return p.x < a - 2 || p.x > b + 2; // higher lines cross my text
+      });
+    let row = 0;
+    while (!fits(row) && row < 5) row++;
+    placed.push({ a, b, x, row });
     return { mk, x, text, end, row };
   });
-  m.t = 14 + Math.max(1, rowEnds.length) * 12;
+  const rows = Math.max(1, ...labels.map((l) => l.row + 1));
+  m.t = 8 + rows * 13;
   const ph = h - m.t - m.b;
   const Y = (v: number) => m.t + ph - (v / ymax) * ph;
   const last = ts.length - 1;
@@ -175,7 +187,7 @@ export function TimeLines({
         </g>
       ))}
       {labels.map(({ mk, x, text, end, row }) => {
-        const ly = 12 + row * 12;
+        const ly = m.t - 6 - row * 13;
         return (
           <g key={`${mk.label}-${mk.at}`} className={mk.className ?? "marker"} data-testid="marker" data-label={mk.label}>
             <line x1={x} x2={x} y1={ly + 3} y2={m.t + ph} />

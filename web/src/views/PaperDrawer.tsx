@@ -8,10 +8,11 @@ import { useState, type ReactNode } from "react";
 import type { CommentDetail, MetaResponse, PaperDetail, ReviewDetail, TimelineEvent } from "../api";
 import { useActions, useNudge, usePaper } from "../api";
 import { CopyButton, TagDialog } from "../components/Actions";
-import { Chip, ReasonChips } from "../components/Chip";
+import { byWeight, Chip, ReasonChips } from "../components/Chip";
 import { AbsTime } from "../components/Time";
 import { formatRatings } from "@pcs/server/ratings";
 import { hotcrp, plural } from "../format";
+import { MeritCell, Pip, scoreLabel, useScales } from "../scores";
 import { useTiersConfigured } from "../tiers";
 
 function Who({ name, tier, role }: { name: string; tier: string; role?: string }) {
@@ -27,6 +28,7 @@ function Who({ name, tier, role }: { name: string; tier: string; role?: string }
 
 function ReviewEvent({ r, base, pid }: { r: ReviewDetail; base: string; pid: number }) {
   const label = r.role === "AC" ? "Metareview" : `Review ${r.ordinal ?? ""}`.trim();
+  const scales = useScales();
   return (
     <>
       <div className="ev-head">
@@ -35,9 +37,18 @@ function ReviewEvent({ r, base, pid }: { r: ReviewDetail; base: string; pid: num
         </a>{" "}
         by <Who name={r.reviewer.name} tier={r.reviewer.tier} /> submitted
       </div>
-      <div className="ev-meta">
-        {r.merit !== null ? `merit ${r.merit}` : null}
-        {r.expertise !== null ? ` · expertise ${r.expertise}` : null} · {plural(r.wordCount, "word")}
+      <div className="ev-meta ev-scores">
+        {r.merit !== null ? (
+          <span className="ev-score" data-testid="review-merit">
+            <span className="ev-score-label">merit</span> <Pip v={r.merit} title={`merit ${scoreLabel(scales.merit, r.merit)}`} />
+          </span>
+        ) : null}
+        {r.expertise !== null ? (
+          <span className="ev-score" data-testid="review-expertise">
+            <span className="ev-score-label">expertise</span> <Pip v={r.expertise} field="expertise" title={`expertise ${scoreLabel(scales.expertise, r.expertise)}`} />
+          </span>
+        ) : null}
+        <span>{plural(r.wordCount, "word")}</span>
         {r.ratings && formatRatings(r.ratings) ? (
           <span data-testid="review-ratings" title="HotCRP review ratings: raters per flag">
             {" · rated "}
@@ -87,9 +98,25 @@ function CommentEvent({ c, tz }: { c: CommentDetail; tz: string }) {
           </span>
         ) : null}
       </div>
-      <p className="ev-body">{c.text}</p>
+      {c.isResponse ? (
+        // Author responses are long: collapsed like review text, with the opening line as a preview.
+        <details className="ev-text ev-response" data-testid="response-text">
+          <summary>
+            Response text <span className="ev-preview">{preview(c.text)}</span>
+          </summary>
+          <p className="ev-body">{c.text}</p>
+        </details>
+      ) : (
+        <p className="ev-body">{c.text}</p>
+      )}
     </>
   );
+}
+
+/** The first ~90 characters of a text, on one line. */
+function preview(text: string): string {
+  const one = text.replace(/\s+/g, " ").trim();
+  return one.length > 90 ? `${one.slice(0, 88).trimEnd()}…` : one;
 }
 
 function eventKey(e: TimelineEvent): string {
@@ -197,23 +224,25 @@ function DrawerActions({ d }: { d: PaperDetail }) {
   );
 }
 
-export function PaperDrawer({ pid, meta, onClose }: { pid: number; meta: MetaResponse; onClose: () => void }) {
+export function PaperDrawer({ pid, meta, onClose, width }: { pid: number; meta: MetaResponse; onClose: () => void; width?: number }) {
   const q = usePaper(pid);
   const d = q.data;
   const pcComments = d?.comments.filter((c) => !c.isResponse && !c.draft).length ?? 0;
+  const reviewerReviews = d?.reviews.filter((r) => r.role === "reviewer") ?? [];
+  const scored = reviewerReviews.filter((r) => r.submittedAt !== null && r.merit !== null);
   return (
-    <aside className="drawer" data-testid="paper-drawer" data-pid={pid} aria-label={`Paper ${pid}`}>
+    <aside className="drawer" data-testid="paper-drawer" data-pid={pid} aria-label={`Paper ${pid}`} style={width ? { width } : undefined}>
       <header className="drawer-head">
         <div>
           <div className="drawer-pid">
-            #{pid}{" "}
+            <span className="pid">#{pid}</span>{" "}
             <a href={hotcrp.paper(meta.hotcrpUrl, pid)} target="_blank" rel="noreferrer noopener" className="ext" data-testid="drawer-hotcrp-link">
               open in HotCRP ↗
             </a>
           </div>
           <h2 data-testid="drawer-title">{d?.title ?? (q.error ? "Not found" : "Loading…")}</h2>
         </div>
-        <button type="button" className="btn close" onClick={onClose} aria-label="Close" data-testid="drawer-close">
+        <button type="button" className="btn btn-ghost close" onClick={onClose} aria-label="Close" data-testid="drawer-close">
           ×
         </button>
       </header>
@@ -221,20 +250,32 @@ export function PaperDrawer({ pid, meta, onClose }: { pid: number; meta: MetaRes
       {d ? (
         <div className="drawer-body">
           <dl className="facts">
+            <dt>Severity</dt>
+            <dd>
+              <span className={`sev-badge${d.severity > 0 ? " sev-badge-on" : ""}`} data-testid="drawer-severity">
+                {d.severity}
+              </span>
+            </dd>
+            <dt>Merit</dt>
+            <dd>
+              <MeritCell
+                items={scored.map((r) => ({ merit: r.merit, expertise: r.expertise, label: r.ordinal ? `Review ${r.ordinal}` : undefined }))}
+                submitted={scored.length}
+                assigned={reviewerReviews.length}
+              />
+            </dd>
             <dt>AC</dt>
             <dd>{d.acs.map((a) => a.name).join(", ") || "none"}</dd>
             <dt>Decision</dt>
             <dd>{d.decision ?? "none yet"}</dd>
-            <dt>Severity</dt>
-            <dd data-testid="drawer-severity">{d.severity}</dd>
             <dt>Tags</dt>
             <dd data-testid="drawer-tags">{d.tags.length ? d.tags.map((t) => `#${t}`).join(" ") : "none"}</dd>
           </dl>
           {d.reasons.length ? (
             <ul className="reasons" data-testid="drawer-reasons">
-              {d.reasons.map((r) => (
+              {byWeight(d.reasons).map((r) => (
                 <li key={r.rule}>
-                  <ReasonChips reasons={[r]} /> {r.reason}
+                  <ReasonChips reasons={[r]} /> <span className="reason-text">{r.reason}</span>
                 </li>
               ))}
             </ul>

@@ -429,23 +429,24 @@ export async function runSync(db: Db, source: SyncSource, opts: SyncOptions): Pr
 // ---------------------------------------------------------------------------
 
 function syncFields(db: Db, fields: RqcField[], now: number, counts: Counter) {
-  const get = db.prepare("select name, type, is_text, ord, values_json, removed_seen_at from review_field where uid = ?");
+  const get = db.prepare("select name, type, is_text, ord, values_json, scheme, removed_seen_at from review_field where uid = ?");
   const ins = db.prepare(
-    "insert into review_field (uid, name, type, is_text, ord, values_json, first_seen_at) values (?, ?, ?, ?, ?, ?, ?)",
+    "insert into review_field (uid, name, type, is_text, ord, values_json, scheme, first_seen_at) values (?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const upd = db.prepare(
-    "update review_field set name = ?, type = ?, is_text = ?, ord = ?, values_json = ?, removed_seen_at = null where uid = ?",
+    "update review_field set name = ?, type = ?, is_text = ?, ord = ?, values_json = ?, scheme = ?, removed_seen_at = null where uid = ?",
   );
   const seen = new Set<string>();
   for (const f of fields) {
     seen.add(f.uid);
     const isText = TEXT_FIELD_TYPES.has(f.type) ? 1 : 0;
     const values = f.values ? json(f.values) : null;
+    const scheme = f.scheme ?? null;
     const old = get.get(f.uid) as
-      | { name: string; type: string; is_text: number; ord: number | null; values_json: string | null; removed_seen_at: number | null }
+      | { name: string; type: string; is_text: number; ord: number | null; values_json: string | null; scheme: string | null; removed_seen_at: number | null }
       | undefined;
     if (!old) {
-      ins.run(f.uid, f.name, f.type, isText, f.order ?? null, values, now);
+      ins.run(f.uid, f.name, f.type, isText, f.order ?? null, values, scheme, now);
       counts.add("fields_new");
     } else if (
       old.name !== f.name ||
@@ -453,9 +454,10 @@ function syncFields(db: Db, fields: RqcField[], now: number, counts: Counter) {
       old.is_text !== isText ||
       old.ord !== (f.order ?? null) ||
       old.values_json !== values ||
+      old.scheme !== scheme ||
       old.removed_seen_at !== null
     ) {
-      upd.run(f.name, f.type, isText, f.order ?? null, values, f.uid);
+      upd.run(f.name, f.type, isText, f.order ?? null, values, scheme, f.uid);
       counts.add("fields_changed");
     }
   }
