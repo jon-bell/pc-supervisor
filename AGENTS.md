@@ -35,6 +35,7 @@ These instructions are for anyone working in this repo, human or coding agent. R
 - **UI wording follows spec §7.** Write "no comments yet", not "disengaged". Never show a ranked leaderboard of people.
 - **Scale:** assume 2,400 papers and 10k reviews. Do the work in SQL with indexes, use virtualized tables, and don't load all text into memory.
 - **Ported code keeps its license notice.** The assignment solver is a port of HotCRP's `lib/mincostmaxflow.php` and `src/autoassigner.php` (MIT-style, © Eddie Kohler). Keep the copyright notice and a `Ported from hotcrp@<commit>` line at the top of each ported file.
+- **Comment classifier (spec §5e):** tests never download the model. Use the fake embedder (`server/test/support/fake-embedder.ts`); the one real-model test skips unless `PCS_MODEL_DIR` holds the verified model. Inference stays in the network-locked worker (`server/src/classifier/embed-worker.ts`); don't load the model anywhere else, and never pass it a path or URL it could resolve remotely. Changing templates in `synthetic.ts` means bumping `SYNTHETIC_VERSION`; changing the heuristic means bumping `HEURISTIC_ID`.
 - TypeScript strict mode. Keep dependencies minimal; justify new ones in the PR description.
 
 ## Running things
@@ -61,6 +62,8 @@ npm run seed -- shadow --reset
 npm run pcs -- sync && npm run pcs -- backfill
 npm run dev                                   # http://127.0.0.1:5173/
 ```
+
+The comment classifier uses the heuristic unless the model is installed. To try the model locally (chair-run setup; never in tests or CI): `npm run pcs -- model fetch`, then `PCS_COMMENT_CLASSIFIER=model npm run pcs -- classify`. `npm run pcs -- model accuracy` and `model bench` measure it on synthetic data only.
 
 ## HotCRP harness gotchas (already solved; don't re-learn them)
 
