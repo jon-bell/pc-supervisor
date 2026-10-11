@@ -12,6 +12,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { nudgeDraft } from "../../actions/nudge.js";
 import { TagFlowError } from "../../actions/tagging.js";
+import { recordTagWrite } from "../../history/chair-actions.js";
 import { HotcrpError } from "../../hotcrp/errors.js";
 import { redact } from "../../redact.js";
 import type { ActionsInfo, NudgeResponse, TagCommitResponse, TagPaper, TagPreviewResponse } from "../action-types.js";
@@ -90,6 +91,14 @@ export function registerActions(app: FastifyInstance, deps: RouteDeps): void {
     const b = (req.body ?? {}) as { token?: unknown; gain?: unknown; lose?: unknown; confirm?: unknown };
     try {
       const done = await deps.tagFlow!.commit(b);
+      // The chair-action log (flag history, spec §5c): what HotCRP reported changing.
+      recordTagWrite(deps.store.db, {
+        atMs: deps.clock.now().getTime(),
+        actor: deps.actor ? await deps.actor() : "local",
+        tag: deps.tagFlow!.tag,
+        gain: done.gain,
+        lose: done.lose,
+      });
       deps.analysis.invalidate();
       const body: TagCommitResponse = { tag: deps.tagFlow!.tag, ...done, syncStarted: deps.sync?.start() ?? false };
       return body;

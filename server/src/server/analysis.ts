@@ -2,9 +2,11 @@
 //
 // Rebuilding means one buildSnapshot() (six SQL statements) plus one
 // analyze() pass, both linear in the store. The cache key is the latest
-// sync_run id (sync or backfill) and the clock's current minute, so a sync,
-// a backfill, or the passage of time re-ranks; a pinned clock (PCS_NOW)
-// keeps the key stable. Routes for M6 (/api/acs, /api/reviewers, people,
+// sync_run id (sync or backfill), the latest rule_revision id (the chair's
+// rule settings) and the clock's current minute, so a sync, a backfill, a
+// rule change, or the passage of time re-ranks; a pinned clock (PCS_NOW)
+// keeps the key stable. The rule context is effectiveRuleContext(): env
+// defaults + the chair's overrides. Routes for M6 (/api/acs, /api/reviewers, people,
 // overview) read the same Analysis: it already holds AC and reviewer metrics
 // and the burndown.
 //
@@ -13,10 +15,12 @@
 // them. A few recent subsets are cached under the same key.
 
 import type { Clock } from "../clock.js";
-import { excludedRounds, type Config } from "../config.js";
-import { analyze, ruleContextFromConfig, type Analysis, type PersonView, type RuleContext, type SnapshotView } from "../rules/index.js";
+import type { Config } from "../config.js";
+import { analyze, type Analysis, type PersonView, type RuleContext, type SnapshotView } from "../rules/index.js";
+import { effectiveRuleContext } from "../rule-settings/service.js";
+import { latestRevisionId } from "../rule-settings/store.js";
 import type { Store } from "../store/store.js";
-import { buildSnapshot } from "../views/snapshot.js";
+import { buildSnapshot, snapshotOptions } from "../views/snapshot.js";
 
 export interface AnalysisView {
   snapshot: SnapshotView;
@@ -50,11 +54,11 @@ export class AnalysisSource {
 
   /** The whole store, or with `pids` only those papers. */
   get(o: { pids?: readonly number[] } = {}): AnalysisView {
-    const ctx = ruleContextFromConfig(this.cfg, this.clock);
+    const ctx = effectiveRuleContext(this.store, this.cfg, this.clock);
     const run = this.store.db.prepare("select coalesce(max(id), 0) as id from sync_run where finished_at is not null").get() as {
       id: number;
     };
-    const key = `${run.id}:${Math.floor(ctx.now / 60_000)}`;
+    const key = `${run.id}:${latestRevisionId(this.store.db)}:${Math.floor(ctx.now / 60_000)}`;
     if (this.#key !== key) {
       this.#view = undefined;
       this.#subsets.clear();
@@ -62,7 +66,7 @@ export class AnalysisSource {
     if (o.pids) return this.#subset(key, ctx, o.pids);
     if (this.#view && this.#key === key) return this.#view;
     const t0 = performance.now();
-    const snapshot = buildSnapshot(this.store, { fields: this.cfg.fields, acRole: this.cfg.acRole, excludeRounds: excludedRounds(this.cfg) });
+    const snapshot = buildSnapshot(this.store, snapshotOptions(this.cfg));
     const t1 = performance.now();
     const analysis = analyze(snapshot, ctx);
     this.stats.builds++;
@@ -84,12 +88,7 @@ export class AnalysisSource {
     }
     this.#key = key;
     const t0 = performance.now();
-    const snapshot = buildSnapshot(this.store, {
-      fields: this.cfg.fields,
-      acRole: this.cfg.acRole,
-      excludeRounds: excludedRounds(this.cfg),
-      pids: sorted,
-    });
+    const snapshot = buildSnapshot(this.store, { ...snapshotOptions(this.cfg), pids: sorted });
     const t1 = performance.now();
     const analysis = analyze(snapshot, ctx);
     this.stats.builds++;
