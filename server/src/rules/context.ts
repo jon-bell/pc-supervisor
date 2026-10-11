@@ -7,7 +7,7 @@
 // unit test keeps other src/ callers of ruleContextFromConfig out.
 
 import type { Clock } from "../clock.js";
-import type { Config, RuleName, ThresholdName } from "../config.js";
+import type { CommentIgnore, CommentRule, Config, RuleName, ThresholdName } from "../config.js";
 import type { Millis } from "./model.js";
 import { phaseTimesFromConfig, type PhaseTimes } from "./phase.js";
 import { effectiveWeights, envSettings, overlay, type Overrides, type RuleSettings } from "./settings.js";
@@ -24,6 +24,11 @@ export interface RuleContext {
   expertiseOkMin: number;
   /** PCS_REVIEWS_REQUIRED. */
   reviewsRequired: number;
+  /**
+   * PCS_RULE_<NAME>_IGNORE_*: comment types (spec §5e) a comment rule leaves
+   * out. Absent = every comment counts (contexts built in tests).
+   */
+  ignore?: Readonly<Record<CommentRule, CommentIgnore>>;
   /**
    * From the synced HotCRP settings, not config: false when the instance has
    * review ratings off, so rating clauses are skipped (spec §1). Absent =
@@ -44,6 +49,7 @@ export function ruleContextFromSettings(s: RuleSettings, phases: ContextConfig["
     meritAcceptMin: s.meritAcceptMin,
     expertiseOkMin: s.expertiseOkMin,
     reviewsRequired: s.reviewsRequired,
+    ignore: s.ignore,
   };
 }
 

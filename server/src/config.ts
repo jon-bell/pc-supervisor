@@ -13,7 +13,7 @@
 // - Secret values (token, DB key) are never echoed in error messages.
 
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, resolve as resolvePath } from "node:path";
 import { z } from "zod";
 import { formatInZone, isValidTimeZone, parseIsoLocal, zonedTimeToInstant, type LocalDateTime } from "./tz.js";
 import { strictSearchProblem } from "./hotcrp/scope.js";
@@ -59,6 +59,25 @@ export const THRESHOLD_DEFAULTS = {
 } as const;
 export type ThresholdName = keyof typeof THRESHOLD_DEFAULTS;
 export const THRESHOLD_NAMES = Object.keys(THRESHOLD_DEFAULTS) as ThresholdName[];
+
+/**
+ * The rules whose "a comment counts" test can skip comments by classified
+ * type (spec §5e): PCS_RULE_<NAME>_IGNORE_NONSUBSTANTIVE and
+ * PCS_RULE_<NAME>_IGNORE_PINGS, default false (every comment counts).
+ */
+export const COMMENT_RULES = ["SILENT_DISCUSSION", "GONE_QUIET", "AC_ABSENT", "CHAMPION_MISSING"] as const satisfies readonly RuleName[];
+export type CommentRule = (typeof COMMENT_RULES)[number];
+/** What a comment rule leaves out: comments classified non-substantive, and/or pings. */
+export interface CommentIgnore {
+  nonSubstantive: boolean;
+  pings: boolean;
+}
+export const NO_COMMENT_IGNORE: Readonly<Record<CommentRule, CommentIgnore>> = Object.fromEntries(
+  COMMENT_RULES.map((r) => [r, { nonSubstantive: false, pings: false }]),
+) as unknown as Record<CommentRule, CommentIgnore>;
+
+/** PCS_COMMENT_CLASSIFIER (spec §5e). */
+export type CommentClassifierMode = "off" | "heuristic" | "model";
 
 /** Variables that begin with PCS_ but belong to scripts, not the app. */
 const NON_APP_PCS_VARS = new Set(["PCS_ENV_OUT"]);
@@ -247,6 +266,12 @@ function thirdSlot(v: string, ctx: z.RefinementCtx): ThirdSlotPolicy {
   return fail(ctx, `expected exactly1 or atleast1, got ${show(v)}`);
 }
 
+function classifierMode(v: string, ctx: z.RefinementCtx): CommentClassifierMode {
+  const s = v.trim().toLowerCase();
+  if (s === "off" || s === "heuristic" || s === "model") return s;
+  return fail(ctx, `expected off, heuristic or model, got ${show(v)}`);
+}
+
 // Reviewing by tier + early reject (spec §10.4 D/E, PLAN M12).
 
 /** Which merits make a paper an early-reject candidate (spec §10.4 E). */
@@ -429,6 +454,16 @@ const RULE_ENABLED_FIELDS = Object.fromEntries(RULE_NAMES.map((n) => [`PCS_RULE_
   [N in RuleName as `PCS_RULE_${N}_ENABLED`]: EnabledField;
 };
 
+// PCS_RULE_<NAME>_IGNORE_NONSUBSTANTIVE / _IGNORE_PINGS (default false), for the comment rules only.
+const COMMENT_IGNORE_FIELDS = Object.fromEntries(
+  COMMENT_RULES.flatMap((n) => [
+    [`PCS_RULE_${n}_IGNORE_NONSUBSTANTIVE`, withDefault(false, bool)],
+    [`PCS_RULE_${n}_IGNORE_PINGS`, withDefault(false, bool)],
+  ]),
+) as unknown as {
+  [N in CommentRule as `PCS_RULE_${N}_IGNORE_NONSUBSTANTIVE` | `PCS_RULE_${N}_IGNORE_PINGS`]: EnabledField;
+};
+
 const THRESHOLD_FIELDS = Object.fromEntries(
   THRESHOLD_NAMES.map((n) => [`PCS_THRESH_${n}`, numField(THRESHOLD_DEFAULTS[n])]),
 ) as unknown as { [N in ThresholdName as `PCS_THRESH_${N}`]: NumField };
@@ -464,6 +499,15 @@ export const FIELDS = {
   ...THRESHOLD_FIELDS,
   ...RULE_FIELDS,
   ...RULE_ENABLED_FIELDS,
+  ...COMMENT_IGNORE_FIELDS,
+  // Comment classifier (spec §5e): off | heuristic | model, the local model's
+  // directory, the confidence under which a label reads "low confidence", and
+  // how much more a chair's label weighs than a synthetic example when the
+  // model's head is retrained.
+  PCS_COMMENT_CLASSIFIER: withDefault<CommentClassifierMode>("heuristic", classifierMode),
+  PCS_MODEL_DIR: withDefault("data/models", path),
+  PCS_COMMENT_CLASSIFIER_MIN_CONFIDENCE: withDefault(0.6, numberIn(0, 1)),
+  PCS_COMMENT_LABEL_WEIGHT: withDefault(5, numberIn(1, 1000)),
   // Assignment validator (spec §10.4 C, PLAN M10).
   PCS_POLICY_MIN_SENIOR: withDefault(2, intIn(0, 20)),
   PCS_POLICY_THIRD_SLOT: withDefault<ThirdSlotPolicy>("exactly1", thirdSlot),
@@ -699,6 +743,36 @@ export function extendedPhaseProblems(
   return problems;
 }
 
+/** PCS_COMMENT_CLASSIFIER, PCS_MODEL_DIR, ... (spec §5e). */
+export interface CommentClassifierConfig {
+  mode: CommentClassifierMode;
+  /** PCS_MODEL_DIR, absolute (a relative value is resolved against the directory npm ran in, INIT_CWD). */
+  modelDir: string;
+  /** PCS_COMMENT_CLASSIFIER_MIN_CONFIDENCE: labels below it are shown as low confidence. */
+  minConfidence: number;
+  /** PCS_COMMENT_LABEL_WEIGHT: a chair label's training weight relative to one synthetic example. */
+  chairLabelWeight: number;
+}
+
+export const DEFAULT_COMMENT_CLASSIFIER: CommentClassifierConfig = {
+  mode: "heuristic",
+  modelDir: "data/models",
+  minConfidence: 0.6,
+  chairLabelWeight: 5,
+};
+
+/** PCS_MODEL_DIR made absolute: relative to the directory npm was invoked from (as env-file.ts does for .env). */
+export function resolveModelDir(dir: string, env: Env = process.env): string {
+  return isAbsolute(dir) ? dir : resolvePath(env.INIT_CWD || process.cwd(), dir);
+}
+
+/** Only PCS_MODEL_DIR, for `pcs model fetch|install|status` (no HotCRP, phases or DB needed). */
+export function loadModelConfig(env: Env = process.env): { modelDir: string } {
+  const { values, problems } = parseFields(env, ["PCS_MODEL_DIR"] as const);
+  if (problems.length > 0) throw new ConfigError(problems);
+  return { modelDir: resolveModelDir(values.PCS_MODEL_DIR!, env) };
+}
+
 /** PCS_POLICY_*, PCS_LOAD_*, PCS_CYCLE_*, PCS_CONFLICT_* (spec §10.4 C). */
 export interface AssignmentPolicy {
   /** PCS_POLICY_MIN_SENIOR: senior reviews every paper needs. */
@@ -909,7 +983,11 @@ export interface Config {
     thresholds: Readonly<Record<ThresholdName, number>>;
     /** PCS_RULE_<NAME>_ENABLED. Optional so Config literals keep compiling; absent = all enabled. */
     enabled?: Readonly<Record<RuleName, boolean>>;
+    /** PCS_RULE_<NAME>_IGNORE_*: comment types a comment rule skips. Optional like `enabled`; absent = none. */
+    ignore?: Readonly<Record<CommentRule, CommentIgnore>>;
   };
+  /** The comment classifier (spec §5e). Optional like `assignment`; loadConfig always sets it. */
+  commentClassifier?: CommentClassifierConfig;
   /**
    * Assignment validator policy (spec §10.4 C). Optional in the type so code
    * that builds a Config literal keeps compiling; loadConfig always sets it.
@@ -1128,6 +1206,15 @@ export function loadConfig(env: Env = process.env, opts: LoadOptions = {}): Conf
         number
       >,
       enabled: Object.fromEntries(RULE_NAMES.map((n) => [n, f[`PCS_RULE_${n}_ENABLED`]])) as Record<RuleName, boolean>,
+      ignore: Object.fromEntries(
+        COMMENT_RULES.map((n) => [n, { nonSubstantive: f[`PCS_RULE_${n}_IGNORE_NONSUBSTANTIVE`], pings: f[`PCS_RULE_${n}_IGNORE_PINGS`] }]),
+      ) as Record<CommentRule, CommentIgnore>,
+    },
+    commentClassifier: {
+      mode: f.PCS_COMMENT_CLASSIFIER,
+      modelDir: resolveModelDir(f.PCS_MODEL_DIR, env),
+      minConfidence: f.PCS_COMMENT_CLASSIFIER_MIN_CONFIDENCE,
+      chairLabelWeight: f.PCS_COMMENT_LABEL_WEIGHT,
     },
     assignment: {
       minSenior: f.PCS_POLICY_MIN_SENIOR,
@@ -1293,6 +1380,11 @@ export function describeConfig(c: Config): string[] {
     ...(c.report
       ? [
           `Report            groups under ${c.report.minCell} people suppressed; accept decisions ${c.report.acceptDecisions.map((d) => `${d}*`).join(",")}; pseudonym key ${c.report.pseudonymKey ? "(set; not shown)" : "(unset; pcs export refuses to run)"}`,
+        ]
+      : []),
+    ...(c.commentClassifier
+      ? [
+          `Comment types     ${c.commentClassifier.mode}${c.commentClassifier.mode === "model" ? ` (model dir ${c.commentClassifier.modelDir})` : ""}; low confidence under ${c.commentClassifier.minConfidence}; chair label weight ${c.commentClassifier.chairLabelWeight}`,
         ]
       : []),
     `Rule weights      ${RULE_NAMES.map((n) => `${n}=${c.rules.weights[n]}`).join(" ")}`,

@@ -6,7 +6,7 @@
 //   2. `seed reset` + `seed golden`;
 //   3. sync + /reviewhistory backfill into a fresh temp DB, with the clock
 //      pinned at the golden primary instant (PCS_NOW), plus the flag-history
-//      baseline and reconstruction, as `pcs sync` / `pcs backfill` do;
+//      baseline and reconstruction and the comment types, as `pcs sync` / `pcs backfill` do;
 //   4. `pcs serve` on 127.0.0.1:PCS_E2E_PORT with that DB and clock.
 //
 // It runs as the webServer (not globalSetup) because Playwright starts
@@ -31,6 +31,7 @@ import { clientSource } from "@pcs/server/sync/source";
 import { runSync } from "@pcs/server/sync/sync";
 import { formatInZone } from "@pcs/server/tz";
 import { backfillFlagHistory, recordStoreFlags } from "@pcs/server/history/flags";
+import { CommentClassifier } from "@pcs/server/classifier/service";
 import { E2E_ENV } from "./env.js";
 
 const log = (s: string) => process.stderr.write(`e2e golden-server: ${s}\n`);
@@ -63,6 +64,10 @@ async function main(): Promise<number> {
     acRole: cfg.acRole,
   });
   if (!s.ok) throw new Error(`sync failed: ${s.errors.join("; ")}`);
+  // As `pcs sync` does: classify the comments (PCS_COMMENT_CLASSIFIER, default heuristic; spec §5e).
+  const classifier = new CommentClassifier(store, cfg, clock);
+  await classifier.run();
+  await classifier.close();
   // As `pcs sync` and `pcs backfill` do: record the flag-history baseline, then reconstruct before it.
   recordStoreFlags(store, cfg, clock, { cause: "data", syncRunId: s.runId });
   const b = await runBackfill(store.db, source, { clock, rps: cfg.sync.historyRps });

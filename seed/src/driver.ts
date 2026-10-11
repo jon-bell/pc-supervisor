@@ -464,7 +464,7 @@ class StageRunner {
           const mentions = e.type === "comment" ? (e.mentions ?? []).map((m) => m.toLowerCase()) : [];
           const names = mentions.map((m) => mentionName(this.people.get(m)!));
           const words = e.words ?? (e.type === "response" ? 120 : 40);
-          const text = commentText(e.key, 0, names, words);
+          const text = commentText(e.key, 0, names, words, e.type === "comment" ? e.text : undefined);
           mentionsOf.set(e.key, mentions);
           editCount.set(e.key, 0);
           commentAuthor.set(e.key, { pid: e.pid, email: e.email.toLowerCase() });

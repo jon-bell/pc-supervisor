@@ -17,7 +17,9 @@ import { StoreError } from "../store/errors.js";
 import { openStore } from "../store/store.js";
 import { clientSource } from "../sync/source.js";
 import { runSync } from "../sync/sync.js";
+import { CommentClassifier } from "../classifier/service.js";
 import type { Command } from "./main.js";
+import { describeRun } from "./model-command.js";
 import { describeSync } from "./store-commands.js";
 
 const out = (s: string) => process.stdout.write(`${s}\n`);
@@ -51,6 +53,16 @@ export const SERVE_COMMAND: Command = {
     // The one write path (PLAN M8): dry run, explicit confirmation, then the write.
     const tagFlow = new TagFlow({ writer: client, tag: cfg.attentionTag });
     const ref: { analysis?: AnalysisSource } = {};
+    // Comment types (spec §5e): classified after each complete sync and once at start (inference in a worker thread).
+    const classifier = new CommentClassifier(store, cfg, clock, { log: err });
+    const classify = async () => {
+      try {
+        const c = await classifier.run();
+        if (c.classified > 0) out(describeRun(c));
+      } catch (e) {
+        err(`pcs serve: comment classification failed (${e instanceof Error ? e.name : "error"}); labels unchanged`);
+      }
+    };
     const sync = new SyncRunner(
       async () => {
         const r = await runSync(store.db, source, {
@@ -60,6 +72,7 @@ export const SERVE_COMMAND: Command = {
           tierTags: cfg.tierTags,
           acRole: cfg.acRole,
         });
+        if (r.ok) await classify();
         // Flag history (spec §5c): what this sync raised and cleared. Only after
         // a complete sync, so a partial one can't read as mass clears.
         if (r.ok && ref.analysis) {
@@ -86,6 +99,7 @@ export const SERVE_COMMAND: Command = {
       paperSearcher: client,
       searchCompleter: client,
       actor: whoamiActor(client),
+      classifier,
     });
     const app = built.app;
     ref.analysis = built.analysis;
@@ -93,6 +107,7 @@ export const SERVE_COMMAND: Command = {
     if (!store.lastSuccessfulSync()) err("pcs serve: the local store is empty; run `pcs sync` or press \"Sync now\"");
 
     await app.listen({ host: HOST, port: cfg.port });
+    void classify();
     out(`pcs serve: http://${HOST}:${cfg.port}/ (clock ${clock.pinned ? `pinned at ${clock.now().toISOString()}` : "live"})`);
 
     let timer: NodeJS.Timeout | undefined;
@@ -108,6 +123,7 @@ export const SERVE_COMMAND: Command = {
     if (timer) clearInterval(timer);
     await app.close();
     await sync.current?.catch(() => undefined);
+    await classifier.close();
     store.close();
     return 0;
   },

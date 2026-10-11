@@ -26,6 +26,10 @@
 //   existed (an edit overwrites HotCRP's modified_at; comment_text keeps the
 //   first one we saw). approximate = first_seen_approx. Mentions come from the
 //   comment's mentions JSON (the same set as comment_mention).
+// - Comment kinds (spec §5e, migration 9), unless PCS_COMMENT_CLASSIFIER is off:
+//   the chair's label for the comment's current text, else the classifier's
+//   (comment_chair_label / comment_class, both keyed by text_hash), else null.
+//   commentClassifier names the classifier behind most labels.
 // - ratingsEnabled: from the synced HotCRP settings (meta review_rating;
 //   Store.ratingSettings()). Off = rating signals hidden, not zero.
 // - excludeRounds (PLAN M11): reviewer reviews (not metareviews) in these
@@ -44,6 +48,7 @@ import type {
   ReviewView,
   SnapshotView,
 } from "../rules/model.js";
+import { isCommentKind } from "../classifier/kinds.js";
 import { parseRatings } from "../ratings.js";
 import type { Store } from "../store/store.js";
 
@@ -55,11 +60,13 @@ export interface SnapshotOptions {
   pids?: readonly number[];
   /** Review rounds whose non-meta reviews are left out (config.ts excludedRounds()). Default none. */
   excludeRounds?: readonly string[];
+  /** Read comment types (spec §5e): false/absent = PCS_COMMENT_CLASSIFIER off, no kinds. */
+  commentKinds?: boolean;
 }
 
 /** The options every whole-store evaluation uses (server analysis, flag history). */
-export function snapshotOptions(cfg: Pick<Config, "fields" | "acRole" | "quickReject">): SnapshotOptions {
-  return { fields: cfg.fields, acRole: cfg.acRole, excludeRounds: excludedRounds(cfg) };
+export function snapshotOptions(cfg: Pick<Config, "fields" | "acRole" | "quickReject" | "commentClassifier">): SnapshotOptions {
+  return { fields: cfg.fields, acRole: cfg.acRole, excludeRounds: excludedRounds(cfg), commentKinds: (cfg.commentClassifier?.mode ?? "heuristic") !== "off" };
 }
 
 type Raw = Record<string, unknown>;
@@ -179,15 +186,22 @@ export function buildSnapshot(store: Store, o: SnapshotOptions): SnapshotView {
   });
 
   const cp = pidClause(o.pids, "c.pid");
+  // Comment types (migration 9): the chair's label for the current text, else the classifier's.
+  const kinds = o.commentKinds === true;
+  const kindCol = kinds
+    ? `, coalesce((select l.kind from comment_chair_label l where l.cid = c.cid and l.text_hash = c.text_hash),
+                  (select k.kind from comment_class k where k.cid = c.cid and k.text_hash = c.text_hash)) as kind`
+    : "";
   const comments: CommentView[] = all(
     `select c.cid, c.pid, c.email, c.is_response, c.draft, c.visibility, c.word_count, c.mentions,
             c.first_seen_approx,
-            min(c.first_seen_at, coalesce((select min(t.modified_at) from comment_text t where t.cid = c.cid), c.first_seen_at)) as time
+            min(c.first_seen_at, coalesce((select min(t.modified_at) from comment_text t where t.cid = c.cid), c.first_seen_at)) as time${kindCol}
        from comment c
       where c.deleted_seen_at is null${cp.sql}
       order by c.pid, c.cid`,
     cp.args,
   ).map((r) => ({
+    ...(kinds ? { kind: isCommentKind(r.kind) ? r.kind : null } : {}),
     cid: r.cid as number,
     pid: r.pid as number,
     email: (r.email as string | null) ?? "",
@@ -200,5 +214,10 @@ export function buildSnapshot(store: Store, o: SnapshotOptions): SnapshotView {
     approximate: r.first_seen_approx === 1,
   }));
 
-  return { papers, people, acs, reviews, comments, ratingsEnabled };
+  let commentClassifier: "heuristic" | "model" | null = null;
+  if (kinds) {
+    const src = db.prepare("select source, count(*) as n from comment_class group by source order by n desc limit 1").get() as { source: string } | undefined;
+    commentClassifier = src ? (src.source === "model" ? "model" : "heuristic") : null;
+  }
+  return { papers, people, acs, reviews, comments, ratingsEnabled, commentClassifier };
 }

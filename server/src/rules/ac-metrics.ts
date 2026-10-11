@@ -13,11 +13,16 @@
 //                    DISCUSSION_OPEN (0 if they posted before the last review
 //                    landed). Median over papers with a post; `waiting` counts
 //                    papers whose clock has started but have no post yet.
-// - nudges:          the AC's discussion comments that @mention a reviewer of
-//                    that paper (`mentions`), or that were posted while >= 1
-//                    reviewer had no discussion comment yet (`proxy`, a
-//                    labeled proxy: we can't see email nudges). `total` counts
-//                    each comment once.
+// - nudges:          with the comment classifier active (spec §5e;
+//                    snapshot commentClassifier set): `total` = `pings`, the
+//                    AC's discussion comments whose type is ping (the chair's
+//                    label, else the classifier's), and `source` names the
+//                    classifier. Otherwise (`source` "proxy") the labeled
+//                    proxy: the AC's discussion comments that @mention a
+//                    reviewer of that paper (`mentions`), or that were posted
+//                    while >= 1 reviewer had no discussion comment yet
+//                    (`proxy`; we can't see email nudges), each comment once.
+//                    The proxy counts are kept either way.
 // - comments:        all published non-response comments by the AC on their
 //                    papers, up to now, whenever posted. HotCRP allows
 //                    discussion as soon as reviews are visible, so on a real
@@ -41,6 +46,9 @@ import { DEFAULT_TIER, type Millis, type ReviewStatus, type Tier } from "./model
 import { DAY_MS, discussionOpened } from "./phase.js";
 import { goneQuiet } from "./rules.js";
 
+/** What AC nudges count: classified pings, or the @mention / silent-reviewer proxy. */
+export type NudgeSource = "proxy" | "heuristic" | "model";
+
 export interface AcMetrics {
   email: string;
   name: string;
@@ -51,7 +59,7 @@ export interface AcMetrics {
   flaggedPids: readonly number[];
   coverage: { covered: number; of: number; share: number | null };
   timeToFirstPost: { medianDays: number | null; posted: number; waiting: number };
-  nudges: { total: number; mentions: number; proxy: number };
+  nudges: { total: number; mentions: number; proxy: number; pings: number; source: NudgeSource };
   stale: number;
   stalePids: readonly number[];
   /** Published comments by this AC on their papers, any time up to now. */
@@ -82,7 +90,7 @@ interface Acc {
   covered: number;
   firstPostDays: number[];
   waiting: number;
-  nudges: { total: number; mentions: number; proxy: number };
+  nudges: { total: number; mentions: number; proxy: number; pings: number };
   stalePids: number[];
   comments: number;
   discussionComments: number;
@@ -120,7 +128,7 @@ export function computeAcMetrics(ev: Evaluation, ctx: RuleContext): AcMetrics[] 
           covered: 0,
           firstPostDays: [],
           waiting: 0,
-          nudges: { total: 0, mentions: 0, proxy: 0 },
+          nudges: { total: 0, mentions: 0, proxy: 0, pings: 0 },
           stalePids: [],
           comments: 0,
           discussionComments: 0,
@@ -152,6 +160,7 @@ export function computeAcMetrics(ev: Evaluation, ctx: RuleContext): AcMetrics[] 
         if (mentions) a.nudges.mentions++;
         else if (silent) a.nudges.proxy++;
         if (mentions || silent) a.nudges.total++;
+        if (c.kind === "ping") a.nudges.pings++;
       }
       if (first !== null) {
         a.covered++;
@@ -175,6 +184,7 @@ export function computeAcMetrics(ev: Evaluation, ctx: RuleContext): AcMetrics[] 
     }
   }
 
+  const classified = ev.index.commentClassifier;
   const out: AcMetrics[] = [];
   for (const [email, a] of accs) {
     const person = ev.index.people.get(email);
@@ -188,7 +198,7 @@ export function computeAcMetrics(ev: Evaluation, ctx: RuleContext): AcMetrics[] 
       flaggedPids: a.flaggedPids,
       coverage: { covered: a.covered, of: a.pids.length, share: opened ? a.covered / a.pids.length : null },
       timeToFirstPost: { medianDays: median(a.firstPostDays), posted: a.firstPostDays.length, waiting: a.waiting },
-      nudges: a.nudges,
+      nudges: classified ? { ...a.nudges, total: a.nudges.pings, source: classified } : { ...a.nudges, source: "proxy" },
       stale: a.stalePids.length,
       stalePids: a.stalePids,
       comments: a.comments,

@@ -15,6 +15,7 @@ import { hotcrp, plural } from "../format";
 import { MeritCell, Pip, scoreLabel, useScales } from "../scores";
 import { useTiersConfigured } from "../tiers";
 import { PaperFlagTimeline } from "../components/PaperFlagTimeline";
+import { ClassifierNote, CommentTypeChip, kindBreakdown } from "../components/CommentType";
 
 function Who({ name, tier, role }: { name: string; tier: string; role?: string }) {
   const tiers = useTiersConfigured();
@@ -72,12 +73,13 @@ function ReviewEvent({ r, base, pid }: { r: ReviewDetail; base: string; pid: num
   );
 }
 
-function CommentEvent({ c, tz }: { c: CommentDetail; tz: string }) {
+function CommentEvent({ c, tz, pid, types }: { c: CommentDetail; tz: string; pid: number; types: boolean }) {
   return (
     <>
       <div className="ev-head">
         {c.isResponse ? "Author response" : "Comment"} by <Who name={c.author.name} tier={c.author.tier} role={c.role} />
         {c.draft ? <Chip tone="neutral">draft</Chip> : null}
+        {types && !c.isResponse && !c.draft ? <CommentTypeChip c={c} pid={pid} /> : null}
       </div>
       <div className="ev-meta">
         <span data-testid="word-count">{plural(c.wordCount, "word")}</span>
@@ -112,6 +114,12 @@ function CommentEvent({ c, tz }: { c: CommentDetail; tz: string }) {
       )}
     </>
   );
+}
+
+function countKinds(cs: readonly CommentDetail[]): Partial<Record<string, number>> {
+  const out: Partial<Record<string, number>> = {};
+  for (const c of cs) if (c.type) out[c.type.kind] = (out[c.type.kind] ?? 0) + 1;
+  return out;
 }
 
 /** The first ~90 characters of a text, on one line. */
@@ -158,7 +166,7 @@ function Timeline({ d, meta }: { d: PaperDetail; meta: MetaResponse }) {
         </div>
       );
     } else if (e.kind === "decision") body = <div className="ev-head">Decision: {e.decision}</div>;
-    else body = <CommentEvent c={comments.get(e.cid)!} tz={meta.tz} />;
+    else body = <CommentEvent c={comments.get(e.cid)!} tz={meta.tz} pid={d.pid} types={meta.commentTypes.active !== "off"} />;
     const id = "cid" in e ? e.cid : "rid" in e ? e.rid : 0;
     items.push(
       <li key={eventKey(e)} className={`ev ev-${e.kind}`} data-testid={`timeline-${e.kind}`} data-id={id}>
@@ -288,6 +296,11 @@ export function PaperDrawer({ pid, meta, onClose, width }: { pid: number; meta: 
           <PaperFlagTimeline pid={pid} tz={meta.tz} />
           <DrawerActions d={d} />
           {pcComments === 0 ? <p className="muted">No comments yet.</p> : null}
+          {pcComments > 0 && meta.commentTypes.active !== "off" ? (
+            <p className="muted small ctype-summary" data-testid="drawer-comment-types">
+              Comment types: {kindBreakdown(countKinds(d.comments)) || "not classified yet"} <ClassifierNote meta={meta.commentTypes} />
+            </p>
+          ) : null}
           <Timeline d={d} meta={meta} />
         </div>
       ) : null}

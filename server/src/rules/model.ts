@@ -19,6 +19,7 @@
 //                   as counts per flag)
 //   CommentView  <- comment (deleted comments are left out by the adapter)
 
+import type { CommentKind } from "../classifier/kinds.js";
 import type { RatingCounts } from "../ratings.js";
 
 /** Epoch milliseconds. */
@@ -123,6 +124,11 @@ export interface CommentView {
   time: Millis;
   /** True when `time` is a best guess (comment existed before the first sync). */
   approximate: boolean;
+  /**
+   * The comment's type (spec §5e): the chair's label, else the classifier's;
+   * null/absent when unclassified or the classifier is off.
+   */
+  kind?: CommentKind | null;
 }
 
 export interface SnapshotView {
@@ -138,4 +144,9 @@ export interface SnapshotView {
    * Absent = enabled (HotCRP's default).
    */
   ratingsEnabled?: boolean;
+  /**
+   * Which classifier labelled the comments' `kind` (spec §5e), or absent/null
+   * when PCS_COMMENT_CLASSIFIER is off. With it set, AC nudges count pings.
+   */
+  commentClassifier?: "heuristic" | "model" | null;
 }

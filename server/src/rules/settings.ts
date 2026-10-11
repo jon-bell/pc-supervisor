@@ -15,10 +15,14 @@
 // revisions and the actor.
 
 import {
+  COMMENT_RULES,
   FIELDS,
+  NO_COMMENT_IGNORE,
   RULE_NAMES,
   RULE_SETTING_BOUNDS,
   THRESHOLD_NAMES,
+  type CommentIgnore,
+  type CommentRule,
   type Config,
   type RuleName,
   type ThresholdName,
@@ -31,12 +35,15 @@ export interface RuleSettings {
   meritAcceptMin: number;
   expertiseOkMin: number;
   reviewsRequired: number;
+  /** Comment types the comment rules leave out (spec §5e); default none. */
+  ignore: Readonly<Record<CommentRule, CommentIgnore>>;
 }
 
 export type SettingValue = number | boolean;
 
 export type ScaleKey = "PCS_MERIT_ACCEPT_MIN" | "PCS_EXPERTISE_OK_MIN" | "PCS_REVIEWS_REQUIRED";
-export type SettingKey = `PCS_RULE_${RuleName}_ENABLED` | `PCS_RULE_${RuleName}_WEIGHT` | `PCS_THRESH_${ThresholdName}` | ScaleKey;
+export type IgnoreKey = `PCS_RULE_${CommentRule}_IGNORE_NONSUBSTANTIVE` | `PCS_RULE_${CommentRule}_IGNORE_PINGS`;
+export type SettingKey = `PCS_RULE_${RuleName}_ENABLED` | `PCS_RULE_${RuleName}_WEIGHT` | `PCS_THRESH_${ThresholdName}` | ScaleKey | IgnoreKey;
 
 /** The chair's overrides: only the keys they set. */
 export type Overrides = Partial<Record<SettingKey, SettingValue>>;
@@ -44,6 +51,9 @@ export type Overrides = Partial<Record<SettingKey, SettingValue>>;
 export const enabledKey = (r: RuleName) => `PCS_RULE_${r}_ENABLED` as const;
 export const weightKey = (r: RuleName) => `PCS_RULE_${r}_WEIGHT` as const;
 export const thresholdKey = (t: ThresholdName) => `PCS_THRESH_${t}` as const;
+export const ignoreNonSubstantiveKey = (r: CommentRule) => `PCS_RULE_${r}_IGNORE_NONSUBSTANTIVE` as const;
+export const ignorePingsKey = (r: CommentRule) => `PCS_RULE_${r}_IGNORE_PINGS` as const;
+export const isCommentRule = (r: RuleName): r is CommentRule => (COMMENT_RULES as readonly string[]).includes(r);
 
 type SettingsSource = Pick<Config, "rules" | "meritAcceptMin" | "expertiseOkMin" | "reviewsRequired">;
 
@@ -57,7 +67,12 @@ export function envSettings(cfg: SettingsSource): RuleSettings {
     meritAcceptMin: cfg.meritAcceptMin,
     expertiseOkMin: cfg.expertiseOkMin,
     reviewsRequired: cfg.reviewsRequired,
+    ignore: cloneIgnore(cfg.rules.ignore ?? NO_COMMENT_IGNORE),
   };
+}
+
+function cloneIgnore(i: Readonly<Record<CommentRule, CommentIgnore>>): Record<CommentRule, CommentIgnore> {
+  return Object.fromEntries(COMMENT_RULES.map((r) => [r, { ...NO_COMMENT_IGNORE[r], ...i[r] }])) as Record<CommentRule, CommentIgnore>;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +118,7 @@ export const PHASE_LABEL: Readonly<Record<PhaseGate, string>> = {
 };
 
 const T = thresholdKey;
+const I = { n: ignoreNonSubstantiveKey, p: ignorePingsKey };
 
 export const RULE_META: readonly RuleMeta[] = [
   {
@@ -135,7 +151,7 @@ export const RULE_META: readonly RuleMeta[] = [
     description: "No published comment (by anyone) since discussion opened.",
     phase: "discussion",
     decisionIndependent: false,
-    settings: [],
+    settings: [I.n("SILENT_DISCUSSION"), I.p("SILENT_DISCUSSION")],
   },
   {
     name: "GONE_QUIET",
@@ -143,7 +159,7 @@ export const RULE_META: readonly RuleMeta[] = [
     description: "No in-HotCRP activity (reviews or comments, AC ones included) for longer than the limit, measured from discussion opening at the earliest.",
     phase: "discussion",
     decisionIndependent: false,
-    settings: [T("STALE_DAYS")],
+    settings: [T("STALE_DAYS"), I.n("GONE_QUIET"), I.p("GONE_QUIET")],
   },
   {
     name: "AC_ABSENT",
@@ -151,7 +167,7 @@ export const RULE_META: readonly RuleMeta[] = [
     description: "None of the paper's area chairs has commented since discussion opened (or the paper has no AC).",
     phase: "discussion",
     decisionIndependent: false,
-    settings: [],
+    settings: [I.n("AC_ABSENT"), I.p("AC_ABSENT")],
   },
   {
     name: "CHAMPION_MISSING",
@@ -159,7 +175,7 @@ export const RULE_META: readonly RuleMeta[] = [
     description: "The top merit is on the accept side, and no reviewer holding it has commented since discussion opened.",
     phase: "discussion",
     decisionIndependent: false,
-    settings: ["PCS_MERIT_ACCEPT_MIN"],
+    settings: ["PCS_MERIT_ACCEPT_MIN", I.n("CHAMPION_MISSING"), I.p("CHAMPION_MISSING")],
   },
   {
     name: "LOW_EXPERTISE",
@@ -199,7 +215,7 @@ export const RULE_META: readonly RuleMeta[] = [
     description: "Inside the window before decisions are due (or overdue), undecided, and split or without comments.",
     phase: "deadline-window",
     decisionIndependent: false,
-    settings: [T("DEADLINE_DAYS"), T("SPLIT_RANGE"), "PCS_MERIT_ACCEPT_MIN"],
+    settings: [T("DEADLINE_DAYS"), T("SPLIT_RANGE"), "PCS_MERIT_ACCEPT_MIN", I.n("SILENT_DISCUSSION"), I.p("SILENT_DISCUSSION")],
   },
 ];
 
@@ -235,6 +251,12 @@ export const SETTING_META: readonly SettingMeta[] = [
   ...RULE_META.flatMap((r): SettingMeta[] => [
     { key: enabledKey(r.name), kind: "bool", label: "Enabled", description: `Evaluate ${r.label}. Off: it never fires, whatever its weight.`, unit: "", rule: r.name, rules: [r.name], alsoUsedBy: [] },
     { key: weightKey(r.name), kind: "number", label: "Weight", description: "Added to a paper's severity when the rule fires. 0 also disables it.", unit: "points", min: NUM.min, max: NUM.max, step: 1, rule: r.name, rules: [r.name], alsoUsedBy: [] },
+    ...(isCommentRule(r.name)
+      ? ([
+          { key: I.n(r.name), kind: "bool", label: "Ignore non-substantive comments", description: `${r.label} doesn't count comments classified non-substantive ("agree", "+1", "thanks", "fine with accept"). Needs the comment classifier.`, unit: "", rule: r.name, rules: [r.name], alsoUsedBy: [] },
+          { key: I.p(r.name), kind: "bool", label: "Ignore pings", description: `${r.label} doesn't count comments classified as pings (nudges asking someone to respond). Needs the comment classifier.`, unit: "", rule: r.name, rules: [r.name], alsoUsedBy: [] },
+        ] satisfies SettingMeta[])
+      : []),
   ]),
   ...THRESHOLD_NAMES.map((t): SettingMeta => ({ key: T(t), kind: "number", min: NUM.min, max: NUM.max, rules: rulesReading(T(t)), ...THRESHOLD_META[t] })),
   ...(Object.keys(SCALE_META) as ScaleKey[]).map((k): SettingMeta => {
@@ -263,6 +285,10 @@ export function flatSettings(s: RuleSettings): Record<SettingKey, SettingValue> 
   out.PCS_MERIT_ACCEPT_MIN = s.meritAcceptMin;
   out.PCS_EXPERTISE_OK_MIN = s.expertiseOkMin;
   out.PCS_REVIEWS_REQUIRED = s.reviewsRequired;
+  for (const r of COMMENT_RULES) {
+    out[I.n(r)] = s.ignore[r].nonSubstantive;
+    out[I.p(r)] = s.ignore[r].pings;
+  }
   return out as Record<SettingKey, SettingValue>;
 }
 
@@ -282,7 +308,15 @@ export function overlay(defaults: RuleSettings, o: Overrides): RuleSettings {
     if (typeof v === "number") thresholds[t] = v;
   }
   const num = (k: ScaleKey, d: number) => (typeof o[k] === "number" ? (o[k] as number) : d);
+  const ignore = cloneIgnore(defaults.ignore);
+  for (const r of COMMENT_RULES) {
+    const n = o[I.n(r)];
+    if (typeof n === "boolean") ignore[r].nonSubstantive = n;
+    const p = o[I.p(r)];
+    if (typeof p === "boolean") ignore[r].pings = p;
+  }
   return {
+    ignore,
     enabled,
     weights,
     thresholds,

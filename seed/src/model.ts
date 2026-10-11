@@ -263,7 +263,7 @@ export function replay(scenario: Scenario, ctx: PhaseContext, upToStage = scenar
           response: e.type === "response",
           visibility: e.type === "response" ? "au" : (e.visibility ?? "rev"),
           mentions,
-          text: commentText(e.key, 0, names, words),
+          text: commentText(e.key, 0, names, words, e.type === "comment" ? e.text : undefined),
           createdAt: t,
           modifiedAt: t,
           edits: 0,

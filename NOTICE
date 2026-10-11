@@ -1,0 +1,17 @@
+PC Supervisor
+
+Third-party components with notices:
+
+- The assignment solver ports HotCRP's lib/mincostmaxflow.php and
+  src/autoassigner.php (c) Eddie Kohler, MIT-style licence; see the notice at
+  the top of each ported file.
+
+- The optional comment-classifier model, all-MiniLM-L6-v2
+  (sentence-transformers; quantized ONNX conversion by Xenova,
+  https://huggingface.co/Xenova/all-MiniLM-L6-v2 at revision
+  751bff37182d3f1213fa05d7196b954e230abad9), is licensed under the Apache
+  License 2.0. It is not distributed with this repository; `pcs model fetch`
+  downloads it on the chair's machine. See docs/comment-classifier.md.
+
+- onnxruntime-node (MIT, Microsoft) and @huggingface/tokenizers (Apache-2.0,
+  Hugging Face) run that model; they are npm dependencies.

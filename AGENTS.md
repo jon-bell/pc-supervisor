@@ -7,7 +7,13 @@ These instructions are for anyone working in this repo, human or coding agent. R
 1. **Synthetic data only.** This tool reads confidential peer-review data: reviews, discussions, and reviewer identities. Nothing real may ever enter the repo, issues, PRs, CI logs, screenshots, or test fixtures. All fixtures come from `seed/` scenarios with invented names at `example.org`.
 2. **Never point code, tests, or scripts at a real HotCRP instance.** Tests run only against the harness (`scripts/hotcrp-up.sh`). Test helpers must refuse to start unless `PCS_HOTCRP_URL` is a `127.0.0.1`/`localhost` URL. The one exception is `pcs probe` (PLAN M0): it is read-only, prints no content, and the chair runs it by hand.
 3. **No writes to HotCRP outside the harness.** The app is read-only until M8, and M8's writes are dry-run-first with explicit confirmation.
-4. **No LLM or third-party service ever receives review or comment text.** Argos visual testing is the one exception, and only because it receives **harness screenshots of synthetic data, from CI**. Never run an Argos upload (`CI=1` or `ARGOS_TOKEN` set) against anything except the harness. The only outbound network calls allowed at runtime go to `PCS_HOTCRP_URL`. The one opt-in exception is the reserve module's DBLP lookup (spec §10.4 A): only when the chair sets `PCS_DBLP_ENABLED=true` (default false), it sends **public author names only** to `PCS_DBLP_URL`, never emails, titles, or any submission or review content. Tests mock it completely and never call the network. No telemetry, analytics, error reporters, or CDN fonts.
+4. **No review or comment text ever leaves the machine.**
+   - No remote LLM or third-party service may receive it.
+   - A local model may read it, but only if it runs **in-process on the chair's machine**, with its weights stored locally (`PCS_MODEL_DIR`) and **no network access at inference time**. The comment classifier (spec §5e) is the one such model.
+   - The only network fetch for a model is an explicit, chair-run setup command, `pcs model fetch`. It downloads a pinned model from a pinned URL and verifies a pinned sha256. It sends no data. It is never run automatically, never at runtime, and never in tests. Alternatively, the chair runs `pcs model install <dir|tarball>` with files they downloaded themselves; it gets the same sha256 check.
+   - Argos visual testing is the one exception to "no third-party service", and only because it receives **harness screenshots of synthetic data, from CI**. Never run an Argos upload (`CI=1` or `ARGOS_TOKEN` set) against anything except the harness.
+   - The only outbound network calls allowed at runtime go to `PCS_HOTCRP_URL`. The one opt-in exception is the reserve module's DBLP lookup (spec §10.4 A): only when the chair sets `PCS_DBLP_ENABLED=true` (default false), it sends **public author names only** to `PCS_DBLP_URL`, never emails, titles, or any submission or review content. Tests mock it completely and never call the network.
+   - No telemetry, analytics, error reporters, or CDN fonts.
 5. **The token stays server-side.** It is never sent to the browser, logged, or included in error messages.
 6. **Never commit `.env*` (except `.env.example`), `*.db`, or `data/`.** These are already in `.gitignore`; don't weaken it.
 
@@ -29,6 +35,7 @@ These instructions are for anyone working in this repo, human or coding agent. R
 - **UI wording follows spec §7.** Write "no comments yet", not "disengaged". Never show a ranked leaderboard of people.
 - **Scale:** assume 2,400 papers and 10k reviews. Do the work in SQL with indexes, use virtualized tables, and don't load all text into memory.
 - **Ported code keeps its license notice.** The assignment solver is a port of HotCRP's `lib/mincostmaxflow.php` and `src/autoassigner.php` (MIT-style, © Eddie Kohler). Keep the copyright notice and a `Ported from hotcrp@<commit>` line at the top of each ported file.
+- **Comment classifier (spec §5e):** tests never download the model. Use the fake embedder (`server/test/support/fake-embedder.ts`); the one real-model test skips unless `PCS_MODEL_DIR` holds the verified model. Inference stays in the network-locked worker (`server/src/classifier/embed-worker.ts`); don't load the model anywhere else, and never pass it a path or URL it could resolve remotely. Changing templates in `synthetic.ts` means bumping `SYNTHETIC_VERSION`; changing the heuristic means bumping `HEURISTIC_ID`.
 - TypeScript strict mode. Keep dependencies minimal; justify new ones in the PR description.
 
 ## Running things
@@ -55,6 +62,8 @@ npm run seed -- shadow --reset
 npm run pcs -- sync && npm run pcs -- backfill
 npm run dev                                   # http://127.0.0.1:5173/
 ```
+
+The comment classifier uses the heuristic unless the model is installed. To try the model locally (chair-run setup; never in tests or CI): `npm run pcs -- model fetch`, then `PCS_COMMENT_CLASSIFIER=model npm run pcs -- classify`. `npm run pcs -- model accuracy` and `model bench` measure it on synthetic data only.
 
 ## HotCRP harness gotchas (already solved; don't re-learn them)
 

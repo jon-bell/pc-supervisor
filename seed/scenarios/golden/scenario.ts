@@ -124,12 +124,23 @@ interface PaperSpec {
   pid: number;
   ac: string;
   slots: readonly [Slot, Slot, Slot];
-  acComments: readonly { day: number; mentions?: string[] }[];
+  /** `text`: literal wording instead of filler (comment types, spec §5e). */
+  acComments: readonly { day: number; mentions?: string[]; text?: string }[];
   decisionDay?: number;
   response?: boolean;
 }
 
 const DEFAULT_COMMENT_DAYS = [3, 8, 13];
+
+/**
+ * Comment types (spec §5e; invented wording). Pid 4's day +3 AC comment is a
+ * ping; pid 13's only AC comment (day +1) is non-substantive, so the
+ * comment-type override case (expected.ts COMMENT_TYPE_CASE) makes pid 13
+ * fire AC_ABSENT when that rule ignores non-substantive comments. Every
+ * other comment is filler, which the heuristic reads as discussion.
+ */
+export const PING_TEXT = "could you please respond to the author rebuttal when you get a chance? Your view would help us converge.";
+export const NONSUBSTANTIVE_TEXT = "Thanks for the reviews, all. Fine with accept from my side.";
 const DEFAULT_EXPERTISE = [3, 4, 3];
 
 export const SPECS: readonly PaperSpec[] = [
@@ -145,7 +156,7 @@ export const SPECS: readonly PaperSpec[] = [
     pid: 4,
     ac: P.acBusy,
     slots: [{ email: P.silent, merit: 2, comments: [] }, { email: P.pinged, merit: 4, comments: [] }, { email: P.cal, merit: 4 }],
-    acComments: [{ day: 1 }, { day: 3, mentions: [P.pinged] }],
+    acComments: [{ day: 1 }, { day: 3, mentions: [P.pinged], text: PING_TEXT }],
   },
   {
     pid: 5,
@@ -201,7 +212,7 @@ export const SPECS: readonly PaperSpec[] = [
       { email: P.hal, ratedBy: [{ rater: P.acNormal, flags: ["disrespectful"] }, { rater: P.fay, flags: ["short"] }] },
       { email: P.ben, merit: 4 },
     ],
-    acComments: [{ day: 1 }],
+    acComments: [{ day: 1, text: NONSUBSTANTIVE_TEXT }],
   },
 ];
 
@@ -247,6 +258,7 @@ for (const s of SPECS) {
       pid: s.pid,
       email: s.ac,
       ...(c.mentions ? { mentions: c.mentions } : {}),
+      ...(c.text !== undefined ? { text: c.text } : {}),
     });
   });
   if (s.decisionDay !== undefined) {

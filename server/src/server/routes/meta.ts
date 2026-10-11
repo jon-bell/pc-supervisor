@@ -8,6 +8,7 @@ import { redact } from "../../redact.js";
 import type { ReviewFieldRow, SyncRunRow } from "../../store/store.js";
 import type { MetaResponse, ScoreScale, SyncRunInfo, SyncStatus } from "../api-types.js";
 import type { RouteDeps } from "../app.js";
+import { commentTypesMeta } from "./comments.js";
 
 /** The merit and expertise score scales from the synced review form (live fields only). */
 export function scalesOf(fields: readonly ReviewFieldRow[], uids: { merit: string; expertise: string }): MetaResponse["scales"] {
@@ -37,6 +38,7 @@ export function registerMeta(app: FastifyInstance, deps: RouteDeps): void {
       scales: scalesOf(deps.store.reviewFields(), cfg.fields),
       ratings: { ...deps.store.ratingSettings(), flags: [...RATING_FLAGS] },
       paperSearch: cfg.hotcrp.paperSearch,
+      commentTypes: await commentTypesMeta(deps.classifier, deps),
     };
   });
 }

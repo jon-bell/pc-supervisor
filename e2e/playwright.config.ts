@@ -43,15 +43,17 @@ export default defineConfig({
   projects: [
     // Unnamed, so Argos screenshot names carry no project prefix and keep
     // matching the baselines on main.
-    { name: "", testIgnore: /(tagging|csp|rules)\.spec\.ts$/ },
+    { name: "", testIgnore: /(tagging|csp|rules|comment-types)\.spec\.ts$/ },
     // The real CSP in a real browser (no bypassCSP; the spec takes no Argos
     // screenshots): fails on any securitypolicyviolation (specs/csp.spec.ts).
     { name: "csp", testMatch: /csp\.spec\.ts$/, use: { bypassCSP: false }, dependencies: [""] },
-    // The rule-settings spec writes the app's local DB (rule revisions, flag
-    // history), never HotCRP; it runs after the read-only specs and restores
-    // the env defaults before tagging runs.
+    // The rule-settings and comment-type specs write the app's local DB (rule
+    // revisions, flag history, comment relabels), never HotCRP; they run after
+    // the read-only specs, one after the other (rules.spec expects a store
+    // with no revision yet), and restore the env defaults before tagging runs.
     { name: "rules", testMatch: /rules\.spec\.ts$/, dependencies: ["", "csp"] },
-    { name: "tagging", testMatch: /tagging\.spec\.ts$/, dependencies: ["", "csp", "rules"] },
+    { name: "comment-types", testMatch: /comment-types\.spec\.ts$/, dependencies: ["", "csp", "rules"] },
+    { name: "tagging", testMatch: /tagging\.spec\.ts$/, dependencies: ["", "csp", "rules", "comment-types"] },
   ],
   webServer: {
     command: "npx tsx e2e/support/golden-server.ts",

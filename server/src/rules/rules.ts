@@ -47,11 +47,20 @@
 // DEADLINE_NO_CONSENSUS days to DECISIONS_DUE < PCS_THRESH_DEADLINE_DAYS
 //                   (including overdue), and the paper is SPLIT or
 //                   SILENT_DISCUSSION.
+//
+// Comment types (spec §5e). SILENT_DISCUSSION, GONE_QUIET, AC_ABSENT and
+// CHAMPION_MISSING can leave out comments classified non-substantive and/or
+// pings (PCS_RULE_<NAME>_IGNORE_NONSUBSTANTIVE / _IGNORE_PINGS, default off).
+// An unclassified comment always counts. GONE_QUIET then measures last
+// activity from reviews and the counted comments only. The reason says how
+// many comments were left out. DEADLINE_NO_CONSENSUS's "silent" follows
+// SILENT_DISCUSSION's setting.
 
-import type { RuleName } from "../config.js";
+import type { CommentRule, RuleName } from "../config.js";
 import { formatRatings, pickRatings, ratingTotal, SEVERE_FLAGS, type RatingCounts } from "../ratings.js";
 import { ratingsOn, type RuleContext } from "./context.js";
 import type { PaperFacts } from "./facts.js";
+import type { CommentView, Millis } from "./model.js";
 import { daysSince, daysToDecisions, discussionOpened, reviewsDuePassed } from "./phase.js";
 
 export type Rule = (f: PaperFacts, ctx: RuleContext) => string | null;
@@ -86,6 +95,24 @@ export function splitOf(merits: readonly number[], ctx: RuleContext): SplitInfo 
 
 const scores = (f: PaperFacts) => f.merits.join("/");
 
+/** Does this comment count for `rule`, under its comment-type settings? */
+export function countsFor(c: CommentView, ctx: RuleContext, rule: CommentRule): boolean {
+  const ig = ctx.ignore?.[rule];
+  if (!ig || !c.kind) return true;
+  return !((ig.nonSubstantive && c.kind === "nonsubstantive") || (ig.pings && c.kind === "ping"));
+}
+
+/** The comments `rule` counts out of `cs`, and how many it left out (with a phrase for the reason). */
+export function countedComments(cs: readonly CommentView[], ctx: RuleContext, rule: CommentRule): { kept: readonly CommentView[]; note: string } {
+  const ig = ctx.ignore?.[rule];
+  if (!ig || (!ig.nonSubstantive && !ig.pings)) return { kept: cs, note: "" };
+  const kept = cs.filter((c) => countsFor(c, ctx, rule));
+  const left = cs.length - kept.length;
+  if (left === 0) return { kept, note: "" };
+  const what = ig.nonSubstantive && ig.pings ? "non-substantive or ping" : ig.nonSubstantive ? "non-substantive" : "ping";
+  return { kept, note: ` (${plural(left, `${what} comment`)} not counted)` };
+}
+
 export function missingReviews(f: PaperFacts, ctx: RuleContext): string | null {
   if (!reviewsDuePassed(ctx.phases, ctx.now)) return null;
   const done = f.submitted.length;
@@ -119,27 +146,39 @@ export function unresolvedSplit(f: PaperFacts, ctx: RuleContext): string | null 
 
 export function silentDiscussion(f: PaperFacts, ctx: RuleContext): string | null {
   if (!discussionOpened(ctx.phases, ctx.now)) return null;
-  if (f.discussionComments.length > 0) return null;
-  return `0 comments since discussion opened ${fmtDays(daysSince(ctx.phases.discussionOpen, ctx.now))} ago`;
+  const { kept, note } = countedComments(f.discussionComments, ctx, "SILENT_DISCUSSION");
+  if (kept.length > 0) return null;
+  return `0 comments since discussion opened ${fmtDays(daysSince(ctx.phases.discussionOpen, ctx.now))} ago${note}`;
 }
 
 export function goneQuiet(f: PaperFacts, ctx: RuleContext): string | null {
   if (!discussionOpened(ctx.phases, ctx.now)) return null;
-  const from = Math.max(f.lastActivity ?? -Infinity, ctx.phases.discussionOpen);
+  const { kept, note } = countedComments(f.pcComments, ctx, "GONE_QUIET");
+  let lastActivity: Millis | null = f.lastActivity;
+  if (note) {
+    lastActivity = f.reviewActivity;
+    for (const c of kept) if (lastActivity === null || c.time > lastActivity) lastActivity = c.time;
+  }
+  const from = Math.max(lastActivity ?? -Infinity, ctx.phases.discussionOpen);
   const quiet = daysSince(from, ctx.now);
   if (quiet <= ctx.thresholds.STALE_DAYS) return null;
   const last =
-    f.lastActivity === null ? "no activity recorded" : `last activity ${fmtDays(daysSince(f.lastActivity, ctx.now))} ago`;
-  const since = f.lastActivity !== null && f.lastActivity >= ctx.phases.discussionOpen ? "" : " since discussion opened";
-  return `no in-HotCRP activity for ${fmtDays(quiet)}${since} (limit ${fmtDays(ctx.thresholds.STALE_DAYS)}); ${last}`;
+    lastActivity === null ? "no activity recorded" : `last activity ${fmtDays(daysSince(lastActivity, ctx.now))} ago`;
+  const since = lastActivity !== null && lastActivity >= ctx.phases.discussionOpen ? "" : " since discussion opened";
+  return `no in-HotCRP activity for ${fmtDays(quiet)}${since} (limit ${fmtDays(ctx.thresholds.STALE_DAYS)}); ${last}${note}`;
 }
 
 export function acAbsent(f: PaperFacts, ctx: RuleContext): string | null {
   if (!discussionOpened(ctx.phases, ctx.now)) return null;
   const open = fmtDays(daysSince(ctx.phases.discussionOpen, ctx.now));
   if (f.acSet.size === 0) return `no area chair assigned; discussion opened ${open} ago`;
-  for (const c of f.discussionComments) if (f.acSet.has(c.email)) return null;
-  return `no AC comment since discussion opened ${open} ago (${plural(f.acSet.size, "AC")})`;
+  const { kept, note } = countedComments(
+    f.discussionComments.filter((c) => f.acSet.has(c.email)),
+    ctx,
+    "AC_ABSENT",
+  );
+  if (kept.length > 0) return null;
+  return `no AC comment since discussion opened ${open} ago (${plural(f.acSet.size, "AC")})${note}`;
 }
 
 export function championMissing(f: PaperFacts, ctx: RuleContext): string | null {
@@ -147,10 +186,16 @@ export function championMissing(f: PaperFacts, ctx: RuleContext): string | null 
   const top = Math.max(...f.merits);
   if (top < ctx.meritAcceptMin) return null;
   const champions = f.submitted.filter((r) => r.merit === top);
-  if (champions.some((r) => f.discussionCommenters.has(r.email))) return null;
+  const emails = new Set(champions.map((r) => r.email));
+  const { kept, note } = countedComments(
+    f.discussionComments.filter((c) => emails.has(c.email)),
+    ctx,
+    "CHAMPION_MISSING",
+  );
+  if (kept.length > 0) return null;
   return (
     `top merit ${top} (${plural(champions.length, "reviewer")}); ` +
-    `no comment from ${champions.length === 1 ? "that reviewer" : "any of them"} since discussion opened`
+    `no comment from ${champions.length === 1 ? "that reviewer" : "any of them"} since discussion opened${note}`
   );
 }
 

@@ -108,6 +108,45 @@ function SettingField({ s, draft, setDraft, error }: { s: RuleSettingInfo; draft
   );
 }
 
+/** A switch setting other than the rule's own on/off (the comment-type options, spec §5e). */
+function BoolField({ s, draft, setDraft, error }: { s: RuleSettingInfo; draft: Draft; setDraft: (k: string, v: SettingValue | null | undefined) => void; error?: string }) {
+  const value = shown(s, draft) as boolean;
+  const edited = draft[s.key] !== undefined;
+  const willOverride = draft[s.key] === undefined ? s.overridden : draft[s.key] !== null;
+  const id = `setting-${s.key}`;
+  return (
+    <div className={`rs-field rs-bool${edited ? " rs-edited" : ""}`} data-testid="setting" data-key={s.key}>
+      <label htmlFor={id} className="rs-label rs-check" title={s.description}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={value}
+          data-testid="setting-input"
+          onChange={(e) => {
+            const v = e.target.checked;
+            setDraft(s.key, v === s.value ? undefined : v === s.default && s.overridden ? null : v);
+          }}
+        />{" "}
+        {s.label}
+      </label>
+      <div className="rs-default muted">
+        env default {fmt(s.default)}
+        {willOverride ? (
+          <button type="button" className="btn btn-small" data-testid="setting-reset" onClick={() => setDraft(s.key, s.overridden ? null : undefined)} title="Back to the env default">
+            reset
+          </button>
+        ) : null}
+      </div>
+      {error ? (
+        <div className="error rs-err" data-testid="setting-error">
+          {error}
+        </div>
+      ) : null}
+      <div className="rs-desc muted">{s.description}</div>
+    </div>
+  );
+}
+
 function RuleCard({
   rule,
   settings,
@@ -126,6 +165,7 @@ function RuleCard({
   const en = settings.get(`PCS_RULE_${rule.name}_ENABLED`)!;
   const w = settings.get(`PCS_RULE_${rule.name}_WEIGHT`)!;
   const own = [...settings.values()].filter((s) => s.rule === rule.name && s.kind !== "bool" && s.key !== w.key);
+  const toggles = [...settings.values()].filter((s) => s.rule === rule.name && s.kind === "bool" && s.key !== en.key);
   const shared = rule.settings.filter((k) => settings.get(k)?.rule !== rule.name).map((k) => settings.get(k)!);
   const on = shown(en, draft) as boolean;
   const cur = rule.papers;
@@ -174,6 +214,9 @@ function RuleCard({
         <SettingField s={w} draft={draft} setDraft={setDraft} error={errors.get(w.key)} />
         {own.map((s) => (
           <SettingField key={s.key} s={s} draft={draft} setDraft={setDraft} error={errors.get(s.key)} />
+        ))}
+        {toggles.map((s) => (
+          <BoolField key={s.key} s={s} draft={draft} setDraft={setDraft} error={errors.get(s.key)} />
         ))}
       </div>
       {shared.length ? (
@@ -335,7 +378,7 @@ export function Rules({ meta }: { meta: MetaResponse }) {
         {save.error && !(save.error instanceof RulesApiError && save.error.errors.length) ? <span className="error">{save.error.message}</span> : null}
         {save.data && !dirty ? (
           <span className="muted" data-testid="rules-saved">
-            Saved revision #{save.data.revision.id}: {save.data.history.raised} flags raised, {save.data.history.cleared} cleared.
+            Saved revision #{save.data.revision.id}: {plural(save.data.history.raised, "flag")} raised, {save.data.history.cleared} cleared.
           </span>
         ) : null}
       </section>

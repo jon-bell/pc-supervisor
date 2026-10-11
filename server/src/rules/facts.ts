@@ -46,6 +46,8 @@ export interface SnapshotIndex {
   people: ReadonlyMap<string, PersonView>;
   /** SnapshotView.ratingsEnabled (default true). */
   ratingsEnabled: boolean;
+  /** SnapshotView.commentClassifier: which classifier labelled comment kinds, or null (none). */
+  commentClassifier: "heuristic" | "model" | null;
 }
 
 function groupByPid<T extends { pid: number }>(rows: readonly T[]): Map<number, T[]> {
@@ -78,7 +80,13 @@ export function indexSnapshot(s: SnapshotView): SnapshotIndex {
     bundles.push(b);
     byPid.set(paper.pid, b);
   }
-  return { bundles, byPid, people: new Map(s.people.map((p) => [p.email, p])), ratingsEnabled: s.ratingsEnabled !== false };
+  return {
+    bundles,
+    byPid,
+    people: new Map(s.people.map((p) => [p.email, p])),
+    ratingsEnabled: s.ratingsEnabled !== false,
+    commentClassifier: s.commentClassifier ?? null,
+  };
 }
 
 export function isSubmitted(r: Pick<ReviewView, "status">): boolean {
@@ -132,6 +140,8 @@ export interface PaperFacts {
   /** Emails with at least one discussion comment. */
   discussionCommenters: ReadonlySet<string>;
   lastActivity: Millis | null;
+  /** The review part of lastActivity alone (GONE_QUIET recomputes the comment part when it ignores comment types). */
+  reviewActivity: Millis | null;
   /** Reviewer merit moves at or after DISCUSSION_OPEN. */
   moves: readonly MeritMove[];
 }
@@ -157,6 +167,7 @@ export function paperFacts(b: PaperBundle, ctx: RuleContext): PaperFacts {
     if (t !== null && (lastActivity === null || t > lastActivity)) lastActivity = t;
   };
   for (const r of b.reviews) bump(reviewActivityTime(r));
+  const reviewActivity: Millis | null = lastActivity;
   for (const c of pcComments) bump(c.time);
 
   const moves: MeritMove[] = [];
@@ -175,6 +186,7 @@ export function paperFacts(b: PaperBundle, ctx: RuleContext): PaperFacts {
     responses,
     discussionCommenters: new Set(discussionComments.map((c) => c.email)),
     lastActivity,
+    reviewActivity,
     moves,
   };
 }

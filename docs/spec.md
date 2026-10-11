@@ -80,7 +80,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | Metric style | Rules that fire with a human-readable reason, rolled into a ranked attention list. No single opaque score. |
 | People views | An outlier list plus per-person drill-down. **No leaderboards.** |
 | Phase awareness | Thresholds depend on the current phase, which comes from the phase-date env vars and the clock. |
-| LLMs | None. Review text must not leave the machine. Use text heuristics only. |
+| LLMs and models | No remote LLM or third-party service ever sees review or comment text, which never leaves the machine. One local model is allowed: the comment classifier (§5e), a small sentence-embedding model that runs in-process on the chair's machine, with weights in `PCS_MODEL_DIR` and no network access at inference time. Without it, text heuristics only. |
 
 ---
 
@@ -100,6 +100,8 @@ comment(cid PK, pid, email, topic, visibility, is_response, draft,
         word_count, mentions[], modified_at, first_seen_at, deleted_seen_at NULL)
 comment_text(cid, modified_at, text)
 sync_run(id, started_at, finished_at, now_used, counts JSON, errors JSON)
+comment_class(cid, text_hash, source, kind, confidence, probs, head)  -- §5e, migration 9
+comment_embedding(cid, text_hash, model, vec), comment_chair_label, comment_label_revision
 fts(text)                                              -- FTS5 over review_text + comment_text
 ```
 
@@ -167,6 +169,10 @@ There's no config file. `.env.example` is the full, documented list. Startup val
 | `PCS_PORT` | Local server port | `5317` |
 | `PCS_DEV` | `npm run dev` is running: the tag routes also accept the Vite dev origin (`http://127.0.0.1:5173`) | `false` |
 | `PCS_ATTENTION_TAG` | Paper tag the v1 tagging action adds/removes (no `#`) | `chair-attention` |
+| `PCS_COMMENT_CLASSIFIER` | Comment types (§5e): `off` \| `heuristic` \| `model` (falls back to the heuristic until the model is installed) | `heuristic` |
+| `PCS_MODEL_DIR` | Where `pcs model fetch` / `install` put the local model; relative = to the directory npm ran in. Gitignored under `data/` | `data/models` |
+| `PCS_COMMENT_CLASSIFIER_MIN_CONFIDENCE`, `PCS_COMMENT_LABEL_WEIGHT` | Labels below this read "low confidence"; a chair label's training weight vs one synthetic example | 0.6 / 5 |
+| `PCS_RULE_<NAME>_IGNORE_NONSUBSTANTIVE` / `_IGNORE_PINGS` | For `SILENT_DISCUSSION`, `GONE_QUIET`, `AC_ABSENT`, `CHAMPION_MISSING`: leave those comment types out (§5e); rule settings the chair can override | `false` |
 
 ---
 
@@ -197,7 +203,7 @@ Views (M6): `/reviewers` shows the five lists (the rating-flag list only when ra
 |---|---|
 | Coverage | Share of their papers with an AC comment since `DISCUSSION_OPEN`. |
 | Time to first post | From `DISCUSSION_OPEN`, or from the last review landing if later, to the AC's first comment. |
-| Nudges | AC comments that `@mention` a reviewer, or that are posted while ≥1 reviewer is silent (a labeled proxy). |
+| Nudges | With the comment classifier on (§5e): AC comments typed `ping`. Otherwise a labeled proxy: AC comments that `@mention` a reviewer, or that are posted while ≥1 reviewer is silent. |
 | Stale papers | No activity in `PCS_THRESH_STALE_DAYS` during discussion. |
 | Metareview status | Their `rtype` 5 reviews by status, against `DECISIONS_DUE`. |
 | Load | Paper count vs. flagged count, so a load problem reads differently from an engagement problem. |
@@ -206,7 +212,7 @@ The view is one row per AC (activity sparkline, coverage, stale, flagged). Click
 
 Precise definitions are in the header of `server/src/rules/ac-metrics.ts`. Coverage and time to first post count only comments at or after `DISCUSSION_OPEN`. The sparkline buckets the AC's comments per 24 h from `DISCUSSION_OPEN`.
 
-The AC table (`/acs`, M6) lists ACs alphabetically. The load column reads "6 papers · 5 flagged", next to a bar whose length is the AC's load relative to the largest load and whose dark part is the flagged share. So a chair with many papers looks different from one whose few papers are all flagged. Nudges are labelled "(proxy)". The Comments column counts **every** published comment by the AC on their papers, whenever posted (up to now), and adds "(N since open)" when the count since `DISCUSSION_OPEN` differs; the person page's AC summary shows both. (Counting only comments since `DISCUSSION_OPEN` read 0 on a live PC, because HotCRP allows discussion as soon as reviews are visible and the drawer showed comments posted before the configured date. The comment JSON itself matches the harness: for a chair token `/comments` carries `author_email`, compared lowercased.) Clicking a row opens `/?ac=<email>`.
+The AC table (`/acs`, M6) lists ACs alphabetically. The load column reads "6 papers · 5 flagged", next to a bar whose length is the AC's load relative to the largest load and whose dark part is the flagged share. So a chair with many papers looks different from one whose few papers are all flagged. Nudges are labelled "(proxy)", or "Pings (heuristic)" / "Pings (model)" when the comment classifier labels comments (§5e). The Comments column counts **every** published comment by the AC on their papers, whenever posted (up to now), and adds "(N since open)" when the count since `DISCUSSION_OPEN` differs; the person page's AC summary shows both. (Counting only comments since `DISCUSSION_OPEN` read 0 on a live PC, because HotCRP allows discussion as soon as reviews are visible and the drawer showed comments posted before the configured date. The comment JSON itself matches the harness: for a chair token `/comments` carries `author_email`, compared lowercased.) Clicking a row opens `/?ac=<email>`.
 
 **Discussion leads** (`/leads`, `GET /api/leads`; definitions in `server/src/rules/lead-metrics.ts`). The same idea grouped by each paper's HotCRP discussion lead (synced from `get/lead` into `assignment` role `lead`), whatever `PCS_AC_ROLE` is. One row per lead, alphabetical, never ranked: their papers and flagged count (with the load bar), reviewer reviews submitted/assigned on those papers (and how many papers have `PCS_REVIEWS_REQUIRED`), everyone's comments on those papers (in all and since `DISCUSSION_OPEN`), whether the lead has commented ("on 2 of 3 papers · not yet on #11", or "no comments yet"), stale papers, and a sparkline of comments on their papers from `DISCUSSION_OPEN`. Clicking a row opens `/leads/:email` (`GET /api/leads/:email`): that lead's papers with AC, reviews, merits, comments, the lead's last comment, last activity and the fired-rule chips; a paper opens its drawer. Both honour the paper filter (`?search=`). With no leads, the page says so and how to assign them in HotCRP (the `lead` assignment action), with the paper count.
 
@@ -285,6 +291,46 @@ Flag state over time, per paper and rule (tables `flag_event`, `flag_state`; `se
 - **Review-quality view for coaching:** depth, rating flags, specificity.
 - (Later, optional) Compare shadow outcomes with real outcomes, if they become available.
 
+### 5e. Comment types (local classifier)
+
+Each published, non-response comment gets one type (`server/src/classifier/`):
+
+| Type | Meaning |
+|---|---|
+| `ping` | a nudge asking someone to respond or act |
+| `reply` | answers or responds to an earlier comment or review |
+| `discussion` | a substantive argument about the paper |
+| `nonsubstantive` | "agree", "+1", "thanks", "fine with accept" |
+
+Types describe comments, never people (§7). Author responses and drafts get none.
+
+- **Which classifier.** `PCS_COMMENT_CLASSIFIER` = `off` | `heuristic` (default) | `model`. Both classifiers sit behind one interface and give a type, a confidence and class probabilities.
+  - **Heuristic** (`heuristic.ts`): text patterns over sentences (assent/thanks wording, addressed requests, reply openers, quotes) plus the structural features below. It is the fallback whenever `model` is set but the model isn't installed or can't load; the UI then says "heuristic" with a hint to run `pcs model fetch`.
+  - **Model**: a small sentence-embedding model, **all-MiniLM-L6-v2** (sentence-transformers, Apache-2.0), quantized ONNX from `Xenova/all-MiniLM-L6-v2` at revision `751bff37182d3f1213fa05d7196b954e230abad9` (`onnx/model_quantized.onnx`, 22,972,370 bytes, sha256 `afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1`; the tokenizer and config files are pinned too, `model-files.ts`). It runs in-process with `onnxruntime-node` (prebuilt binaries, no install script needed) and `@huggingface/tokenizers` (pure JS), mean-pooled and L2-normalized, inputs truncated at 256 tokens. On top sits a **head**: multinomial logistic regression trained in TS (`head.ts`, Adam, L2, fixed epochs from zero weights, so deterministic) on [embedding (384) ++ 7 structural features].
+- **Structural features** (`features.ts`): the author is one of the paper's ACs or its discussion lead; @mentions; word count; hours since the previous comment or submitted review on the paper; the author had submitted a review before; the comment quotes earlier text (a `>` line, or a quoted span found in an earlier comment or review).
+- **Training data.** `synthetic.ts` ships a labelled set of 360 invented comments per class (hand-written templates and slot lists, fixed-seed RNG, invented names, no real data), plus a hand-written "hard" set of 25 per class in other styles, used only for measuring. The default head is trained on the synthetic set at first use; with the chair's labels it is retrained on synthetic + the chair's labels, each chair label weighing `PCS_COMMENT_LABEL_WEIGHT` (default 5) synthetic examples. The head's id hashes the model, `SYNTHETIC_VERSION`, the latest relabel and the weight, so a relabel retrains and every comment is re-predicted from cached embeddings, with no new inference.
+- **Pipeline** (`service.ts`). After every complete sync (`pcs sync`, the server's sync, and once when `pcs serve` starts; also `pcs classify`), only comments whose current text (`comment.text_hash`) has no label from the current classifier head are classified. Embeddings are cached per (comment, text version, model); embeddings of old versions are pruned unless the chair labelled them. Inference runs in a **worker thread** (`embed-worker.ts`), so the server stays responsive; the worker gets an empty environment and **locks the network first** (`no-network.ts`: `fetch`, `WebSocket`, `net`, `tls`, `http(s)`, `http2`, `dgram`, `dns` all throw), then reads the model files itself and hands the runtime bytes, never a path or URL.
+- **Confidence.** Each label is stored with its confidence. Below `PCS_COMMENT_CLASSIFIER_MIN_CONFIDENCE` (default 0.6) the UI shows it as low confidence (dashed chip, "low confidence" in words).
+- **The chair's labels.** The drawer's type chip opens a relabel menu: one click sets the chair's label (or "back to the classifier"). A chair label applies to the comment version it was made on (an edited comment is classified afresh) and beats the classifier's. Every relabel is an append-only `comment_label_revision` row (actor = the whoami account, time from `clock.ts`, previous label and its source); the Flag history page lists them. Labels, embeddings and the head never leave the encrypted store (the head is held in memory and retrained, not stored).
+- **Storage** (migration 9): `comment_class` (classifier label per comment version: source, kind, confidence, probabilities, head, features), `comment_embedding` (float32 vectors + features per comment version and model), `comment_chair_label`, `comment_label_revision`. A meta counter bumps on every label write, so the analysis cache (§4) re-reads labels.
+- **Where types are used.**
+  - The **AC table's nudges** become real ping counts when a classifier has labelled the comments: the AC's comments since `DISCUSSION_OPEN` typed `ping`. The column reads "Pings (heuristic)" or "Pings (model)", and "Nudges (proxy)" with the old @mention / silent-reviewer proxy when the classifier is off (the proxy counts are still computed and shown in the tooltip).
+  - **Rule options** (rule settings, §5c): `PCS_RULE_<NAME>_IGNORE_NONSUBSTANTIVE` and `PCS_RULE_<NAME>_IGNORE_PINGS` for `SILENT_DISCUSSION` ("No comments yet"), `GONE_QUIET` ("Gone quiet"), `AC_ABSENT` ("No AC comment yet") and `CHAMPION_MISSING` ("No champion comment"), default off, env defaults the chair can override on the Rules page. An ignored comment doesn't count for that rule (for `GONE_QUIET`, it isn't activity); an unclassified comment always counts; the reason says how many were left out ("(1 non-substantive comment not counted)"). `DEADLINE_NO_CONSENSUS`'s "silent" follows `SILENT_DISCUSSION`'s setting. A relabel can change flags then, so it is recorded in flag history (cause `data`).
+  - **Breakdowns**: the drawer's comment summary ("Comment types: 3 discussion · 1 ping"), the person page ("Their comments by type", and per paper in the last-comment tooltip), and the flag-history "why", which names the type ("after AC comment (ping)").
+- **Golden.** The seeded wording makes pid 4's day +3 AC comment a ping and pid 13's only AC comment non-substantive ("Thanks for the reviews, all. Fine with accept from my side."); every other golden comment is filler, which reads as discussion. The **comment-type override case** (`COMMENT_TYPE_CASE` in `seed/scenarios/golden/expected.ts`, PLAN.md): `PCS_RULE_AC_ABSENT_IGNORE_NONSUBSTANTIVE=true` makes pid 13 fire `AC_ABSENT` too (severity 4 → 6); nothing else changes.
+- **Measured** (`pcs model accuracy`, `pcs model bench`; held-out = templates never seen in training, every 5th per class; hard = the hand-written set):
+
+  | Classifier | Held-out templates (n = 286) | Hard set (n = 100) |
+  |---|---|---|
+  | heuristic | 99.3% | 52.0% |
+  | model (head on the training templates only) | 92.7% | 81.0% |
+
+  The heuristic was written alongside the templates, so its template score is optimistic; the hard set is the better guide, and there the model is far ahead. Confusion matrices are in `docs/comment-classifier.md`. Throughput on 10,000 synthetic comments in memory (9 vCPU, 4 ONNX threads): heuristic 1.3 s (~7,500/s); model 42.6 s (~235/s) for a first run, including embedding the synthetic training set and training the head. Later runs only embed new or edited comments.
+
+API: `GET /api/classifier` (status: configured and active classifier, why it fell back, counts by type, last run), `PUT /api/comments/:cid/label {kind | null}` (403 cross-origin, 400 bad kind or a response/draft, 404 unknown comment, 409 no change or classifier off), `GET /api/comment-labels?cid=&limit=` (the relabel log, newest first). `/api/meta` carries `commentTypes {configured, active, fallback, minConfidence, running}`; the drawer's comments carry `type {kind, source, confidence, low, classifier}`; AC rows' `nudges` carry `pings` and `source`; the person response carries `commentKinds`.
+
+CLI: `pcs model status | fetch | install <dir|tarball> | remove --yes | accuracy | bench [--n N]`, `pcs classify`. `pcs model fetch` is the **only** model download (AGENTS.md rule 4): plain GETs of the pinned files from the pinned URL, each checked against its pinned size and sha256 before it is moved into place; nothing about the conference is sent. It is never run automatically, at runtime, or in tests. `pcs model install` takes a directory or `.tar`/`.tar.gz` you downloaded yourself, extracts only the manifest's files and applies the same check.
+
 ---
 
 ## 6. Actions (v1)
@@ -326,13 +372,13 @@ CLI: `pcs rules show [--json]`, `pcs rules set KEY=VALUE... [--note TEXT]` (`VAL
 
 ## 7. Confidentiality and tone
 
-- **Local only.** There's no hosted mode and no telemetry. The only outbound calls go to `PCS_HOTCRP_URL`, with one opt-in exception: the reserve module's DBLP lookup (§10.4 A), off unless the chair sets `PCS_DBLP_ENABLED=true`. It sends public author names only, to `PCS_DBLP_URL`, and its results are hints, never verdicts.
+- **Local only.** There's no hosted mode and no telemetry. The only outbound calls at runtime go to `PCS_HOTCRP_URL` (`pcs model fetch` is a setup command, not runtime; see below), with one opt-in exception: the reserve module's DBLP lookup (§10.4 A), off unless the chair sets `PCS_DBLP_ENABLED=true`. It sends public author names only, to `PCS_DBLP_URL`, and its results are hints, never verdicts.
 - **The DB is the most sensitive artifact** (every review and comment, plus reviewer identities).
   - Encrypt it with SQLCipher (`better-sqlite3-multiple-ciphers`).
   - The default path is outside the repo and outside any synced folder.
   - `pcs wipe` deletes it.
   - The repo holds **synthetic data only**. No real review text, names, or emails ever go into fixtures, tests, issues, or screenshots.
-- **No LLM over review text.**
+- **No review or comment text leaves the machine.** No remote LLM or third-party service may receive it. A local model may read it only if it runs in-process on the chair's machine, with weights stored locally and no network access at inference time (the comment classifier, §5e). The only network fetch for a model is the chair-run setup command `pcs model fetch`: a pinned model from a pinned URL, checked against a pinned sha256, sending no data, never run automatically, at runtime, or in tests. `pcs model install <dir|tarball>` takes files the chair downloaded themselves, with the same check. The chair's comment labels and the comments' embeddings stay in the encrypted store.
 - **Wording:** "no comments yet", not "disengaged"; "no in-HotCRP activity", not "absent".
 - **No leaderboards by default.** People tables (ACs, leads, reviewer lists, reserve and coaching lists) keep their alphabetical or by-paper default order. The chair may sort any column, including a count, but the app never opens a people table sorted by a metric, and a column sort is cleared with a third click.
 - **Rules and flag history describe papers, not people.** The Rules page and the flag-history feed use the rule labels from the triage chips ("No comments yet", "No AC comment yet", "Gone quiet"), and the "why" of a change names a role ("after AC comment"), never a person. A rule's paper count is not a ranking. Rule revisions record the actor, who is the chair.

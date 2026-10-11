@@ -9,7 +9,7 @@ import type { FastifyInstance } from "fastify";
 import { isSubmitted } from "../../rules/facts.js";
 import type { CommentView } from "../../rules/model.js";
 import { OUTLIER_LISTS } from "../../rules/reviewer-metrics.js";
-import type { OpenPing, OutlierListId, PersonPaper, PersonResponse } from "../api-types.js";
+import type { CommentKindName, OpenPing, OutlierListId, PersonPaper, PersonResponse } from "../api-types.js";
 import { personOf, type RouteDeps } from "../app.js";
 import { acRow } from "./acs.js";
 import { filteredView } from "../paper-filter.js";
@@ -45,6 +45,18 @@ export function registerPeople(app: FastifyInstance, deps: RouteDeps): void {
     const ratingFlagged = new Set(rm?.ratings?.negativePids ?? []);
     const ratingsEnabled = ev.index.ratingsEnabled;
 
+    const classifier = ev.index.commentClassifier;
+    const totalKinds: Partial<Record<CommentKindName, number>> = {};
+    const kindsOf = (cs: readonly CommentView[]) => {
+      if (!classifier) return null;
+      const out: Partial<Record<CommentKindName, number>> = {};
+      for (const c of cs) {
+        if (!c.kind) continue;
+        out[c.kind] = (out[c.kind] ?? 0) + 1;
+        totalKinds[c.kind] = (totalKinds[c.kind] ?? 0) + 1;
+      }
+      return out;
+    };
     const papers: PersonPaper[] = [];
     for (const f of ev.facts.values()) {
       const isAc = f.acSet.has(email);
@@ -78,6 +90,7 @@ export function registerPeople(app: FastifyInstance, deps: RouteDeps): void {
         lastComment: last
           ? { cid: last.cid, time: last.time, approximate: last.approximate, wordCount: last.wordCount, excerpt: excerpt(lastRow?.text ?? "") }
           : null,
+        commentKinds: kindsOf(mine),
         rules: result?.fired.map((x) => x.rule) ?? [],
         severity: result?.severity ?? 0,
         flags: {
@@ -141,6 +154,7 @@ export function registerPeople(app: FastifyInstance, deps: RouteDeps): void {
       outliers,
       papers,
       openPings,
+      commentKinds: classifier ? { byKind: totalKinds, classifier } : null,
     };
     return body;
   });

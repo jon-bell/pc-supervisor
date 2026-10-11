@@ -38,9 +38,12 @@ test.describe("AC table", () => {
     await expect(idle.getByTestId("ac-coverage")).toHaveText("0/2 · 0%");
     await expect(idle.getByTestId("ac-spark")).toHaveAttribute("data-total", "0");
     await expect(busy.getByTestId("ac-coverage")).toHaveText("6/6 · 100%");
-    // Nudges are labelled as a proxy.
-    await expect(page.getByRole("columnheader", { name: "Nudges (proxy)" })).toBeVisible();
-    await expect(busy.getByTestId("ac-nudges")).toHaveAttribute("title", /^A proxy, not a count of nudges/);
+    // With the comment classifier on (heuristic, the default; spec §5e) nudges are
+    // ping counts, labelled with the classifier: AC-busy's day +3 @mention on pid 4.
+    await expect(page.getByRole("columnheader", { name: "Pings (heuristic)" })).toBeVisible();
+    await expect(busy.getByTestId("ac-nudges")).toHaveText("1");
+    await expect(busy.getByTestId("ac-nudges")).toHaveAttribute("data-source", "heuristic");
+    await expect(busy.getByTestId("ac-nudges")).toHaveAttribute("title", /^1 comment by this AC since discussion opened classified as a ping/);
   });
 
   test("clicking an AC row filters triage to that AC's papers", async ({ page }) => {

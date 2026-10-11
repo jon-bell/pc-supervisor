@@ -19,6 +19,7 @@ import type { Config } from "../config.js";
 import { analyze, type Analysis, type PersonView, type RuleContext, type SnapshotView } from "../rules/index.js";
 import { effectiveRuleContext } from "../rule-settings/service.js";
 import { latestRevisionId } from "../rule-settings/store.js";
+import { labelGeneration } from "../classifier/store.js";
 import type { Store } from "../store/store.js";
 import { buildSnapshot, snapshotOptions } from "../views/snapshot.js";
 
@@ -58,7 +59,8 @@ export class AnalysisSource {
     const run = this.store.db.prepare("select coalesce(max(id), 0) as id from sync_run where finished_at is not null").get() as {
       id: number;
     };
-    const key = `${run.id}:${latestRevisionId(this.store.db)}:${Math.floor(ctx.now / 60_000)}`;
+    // The label generation (spec §5e) changes whenever a comment is classified or relabelled.
+    const key = `${run.id}:${latestRevisionId(this.store.db)}:${labelGeneration(this.store.db)}:${Math.floor(ctx.now / 60_000)}`;
     if (this.#key !== key) {
       this.#view = undefined;
       this.#subsets.clear();
