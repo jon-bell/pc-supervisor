@@ -124,6 +124,8 @@ export interface CommentOpts {
   isResponse?: boolean;
   draft?: boolean;
   words?: number;
+  /** Comment type (spec §5e); absent = unclassified. */
+  kind?: CommentView["kind"];
 }
 
 export function comment(o: CommentOpts): CommentView {
@@ -138,5 +140,6 @@ export function comment(o: CommentOpts): CommentView {
     mentions: o.mentions ?? [],
     time: o.time,
     approximate: false,
+    ...(o.kind !== undefined ? { kind: o.kind } : {}),
   };
 }

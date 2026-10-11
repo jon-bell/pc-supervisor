@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { fixedClock } from "../../src/clock.js";
-import { FIELDS, loadConfig, RULE_NAMES, THRESHOLD_NAMES, type Config } from "../../src/config.js";
+import { COMMENT_RULES, FIELDS, loadConfig, RULE_NAMES, THRESHOLD_NAMES, type Config } from "../../src/config.js";
 import { analyze, previewRules } from "../../src/rules/index.js";
 import {
   applyChanges,
@@ -26,6 +26,7 @@ import { listRevisions, overridesAt } from "../../src/rule-settings/store.js";
 import { memoryStore, type Store } from "../../src/store/store.js";
 import { at, RULES_ENV } from "../fixtures/builder.js";
 import { GOLDEN_EXPECTED, GOLDEN_NOW, goldenSnapshot } from "../fixtures/golden.js";
+import { COMMENT_TYPE_CASE } from "@pcs/seed/scenarios/golden/expected";
 
 const cfgOf = (extra: Record<string, string> = {}): Config => loadConfig({ ...RULES_ENV, PCS_NOW: GOLDEN_NOW, ...extra });
 
@@ -38,6 +39,7 @@ describe("metadata", () => {
       "PCS_MERIT_ACCEPT_MIN",
       "PCS_EXPERTISE_OK_MIN",
       "PCS_REVIEWS_REQUIRED",
+      ...COMMENT_RULES.flatMap((r) => [`PCS_RULE_${r}_IGNORE_NONSUBSTANTIVE`, `PCS_RULE_${r}_IGNORE_PINGS`]),
     ];
     expect([...SETTING_KEYS].sort()).toEqual(expected.sort());
     for (const k of SETTING_KEYS) expect(Object.keys(FIELDS), k).toContain(k);
@@ -224,5 +226,42 @@ describe("one path to a rule context", () => {
     };
     walk(root);
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("comment-type options (spec §5e; golden fixture)", () => {
+  const cfg = cfgOf();
+  const now = at(GOLDEN_NOW);
+  const current = analyze(goldenSnapshot(), ruleContextWith(cfg, {}, now)).evaluation;
+
+  it("default off: the golden table is unchanged", () => {
+    for (const r of current.results) expect(r.fired.map((f) => f.rule), `pid ${r.pid}`).toEqual(GOLDEN_EXPECTED[r.pid]);
+  });
+
+  it("the documented comment-type case: AC_ABSENT ignoring non-substantive comments flags pid 13 only", () => {
+    const p = previewRules(current, ruleContextWith(cfg, COMMENT_TYPE_CASE.changes, now));
+    expect(p.changes.map((c) => ({ pid: c.pid, gained: c.gained, lost: c.lost }))).toEqual(COMMENT_TYPE_CASE.changed);
+    expect(p.changes[0]).toMatchObject({ severityFrom: 4, severityTo: 6 });
+    const ev = analyze(goldenSnapshot(), ruleContextWith(cfg, COMMENT_TYPE_CASE.changes, now)).evaluation;
+    const r13 = ev.byPid.get(13)!;
+    expect(r13.fired.map((f) => f.rule)).toEqual(COMMENT_TYPE_CASE.fires[13]);
+    expect(r13.fired.find((f) => f.rule === "AC_ABSENT")!.reason).toContain(COMMENT_TYPE_CASE.reason.includes);
+  });
+
+  it("ignoring pings changes nothing on golden (pid 4's AC also posted a discussion comment)", () => {
+    const changes = Object.fromEntries(COMMENT_RULES.map((r) => [`PCS_RULE_${r}_IGNORE_PINGS`, true]));
+    expect(previewRules(current, ruleContextWith(cfg, changes, now)).changes).toEqual([]);
+  });
+
+  it("the options are rule settings: env defaults, overridable, validated as booleans", () => {
+    expect(parseSetting("PCS_RULE_GONE_QUIET_IGNORE_PINGS", true)).toEqual({ ok: true, value: true });
+    expect(parseSetting("PCS_RULE_GONE_QUIET_IGNORE_PINGS", 3).ok).toBe(false);
+    expect(parseSetting("PCS_RULE_SPLIT_IGNORE_PINGS", true).ok).toBe(false);
+    const fromEnv = cfgOf({ PCS_RULE_AC_ABSENT_IGNORE_NONSUBSTANTIVE: "true" });
+    const ev = analyze(goldenSnapshot(), ruleContextWith(fromEnv, {}, now)).evaluation;
+    expect(ev.byPid.get(13)!.fired.map((f) => f.rule)).toEqual(COMMENT_TYPE_CASE.fires[13]);
+    // An override back to false wins over the env default.
+    const back = analyze(goldenSnapshot(), ruleContextWith(fromEnv, { PCS_RULE_AC_ABSENT_IGNORE_NONSUBSTANTIVE: false }, now)).evaluation;
+    expect(back.byPid.get(13)!.fired.map((f) => f.rule)).toEqual(GOLDEN_EXPECTED[13]);
   });
 });

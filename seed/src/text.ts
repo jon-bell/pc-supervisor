@@ -60,11 +60,11 @@ export function reviewText(key: string, words: number): Record<string, string> {
   };
 }
 
-/** Comment text: "@First Last ..." for each mention, then `words` filler words. */
-export function commentText(key: string, version: number, mentionNames: readonly string[], words: number): string {
+/** Comment text: "@First Last ..." for each mention, then `words` filler words (or the literal `body`). */
+export function commentText(key: string, version: number, mentionNames: readonly string[], words: number, literal?: string): string {
   const rng = rngFor(`comment:${key}:${version}`);
   const lead = mentionNames.map((n) => `@${n}`).join(" ");
-  const body = fillerWords(rng, words);
+  const body = literal ?? fillerWords(rng, words);
   return lead ? `${lead} ${body}` : body;
 }
 

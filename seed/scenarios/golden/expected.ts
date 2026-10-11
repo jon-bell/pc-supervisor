@@ -43,6 +43,31 @@ export const OVERRIDE_CASE = {
   changed: [{ pid: 6, gained: [] as RuleName[], lost: ["GONE_QUIET"] as RuleName[] }],
 } as const;
 
+/**
+ * The comment-type override case (spec §5e, PLAN.md "Golden scenario"): the
+ * chair sets AC_ABSENT to ignore non-substantive comments. Pid 13's only AC
+ * comment ("Thanks for the reviews, all. Fine with accept from my side.") is
+ * non-substantive, so pid 13 gains AC_ABSENT (severity 4 -> 6) and its reason
+ * says "1 non-substantive comment not counted". Every other AC comment is
+ * filler (discussion) or pid 4's ping, so nothing else changes. Needs the
+ * classifier (heuristic, the default).
+ */
+export const COMMENT_TYPE_CASE = {
+  changes: { PCS_RULE_AC_ABSENT_IGNORE_NONSUBSTANTIVE: true },
+  fires: { 13: ["AC_ABSENT", "REVIEW_FLAGGED"] } as Readonly<Record<number, readonly RuleName[]>>,
+  changed: [{ pid: 13, gained: ["AC_ABSENT"] as RuleName[], lost: [] as RuleName[] }],
+  reason: { pid: 13, rule: "AC_ABSENT" as RuleName, includes: "1 non-substantive comment not counted" },
+} as const;
+
+/**
+ * Comment types the heuristic gives the golden comments (spec §5e): every
+ * comment is discussion except these (scenario keys).
+ */
+export const COMMENT_KINDS = {
+  "g4-ac-1": "ping",
+  "g13-ac-0": "nonsubstantive",
+} as const;
+
 /** At NOW_SECOND only these are asserted; other rows drift with time. */
 export const AT_SECOND = {
   /** pid -> rules that must be among those fired. */

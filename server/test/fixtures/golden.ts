@@ -32,11 +32,15 @@
 //  11  ben 2, cal 2, dee 2 (all -); AC +1, +12; response 2030-02-09T12:00
 //  12  silent 1->2 day +5 (-), eli 4 (8), hal 4 (13); AC +1
 //  13  fay 3 (3), hal 3 rated 1x disrespectful (by the AC) + 1x short (8),
-//      ben 4 (13); AC +1
+//      ben 4 (13); AC +1 (non-substantive: "Fine with accept")
+// Comment types (spec §5e) as the seeded wording classifies: pid 4's day +3
+// AC comment is a ping, pid 13's AC comment non-substantive, every other
+// comment discussion. The snapshot names no classifier, so AC nudges stay the proxy.
 // Default expertise is 3/4/3; default length 250 words.
 
 import type { AcView, CommentView, PersonView, ReviewView, SnapshotView } from "../../src/rules/model.js";
 import type { RatingCounts } from "../../src/ratings.js";
+import type { CommentKind } from "../../src/classifier/kinds.js";
 import { at, comment, day, paper, review } from "./builder.js";
 
 export const GOLDEN_NOW = "2030-02-26T12:00";
@@ -112,7 +116,8 @@ interface PaperSpec {
   pid: number;
   ac: string;
   slots: [Slot, Slot, Slot];
-  acComments: { day: number; mentions?: string[] }[];
+  /** kind: the comment's type as the seeded wording classifies (spec §5e); default discussion. */
+  acComments: { day: number; mentions?: string[]; kind?: CommentKind }[];
   decisionDay?: number;
   responseAt?: string;
 }
@@ -152,7 +157,7 @@ const SPECS: PaperSpec[] = [
       { email: E.pinged, merit: 4, comments: [] },
       { email: E.cal, merit: 4 },
     ],
-    acComments: [{ day: 1 }, { day: 3, mentions: [E.pinged] }],
+    acComments: [{ day: 1 }, { day: 3, mentions: [E.pinged], kind: "ping" }],
   },
   {
     pid: 5,
@@ -227,7 +232,7 @@ const SPECS: PaperSpec[] = [
     pid: 13,
     ac: E.acNormal,
     slots: [{ email: E.fay }, { email: E.hal, ratings: { short: 1, disrespectful: 1 } }, { email: E.ben, merit: 4 }],
-    acComments: [{ day: 1 }],
+    acComments: [{ day: 1, kind: "nonsubstantive" }],
   },
 ];
 
@@ -276,11 +281,11 @@ export function goldenSnapshot(): SnapshotView {
         }),
       );
       for (const d of slot.comments ?? [DEFAULT_COMMENT_DAYS[i]!]) {
-        comments.push(comment({ cid: cid++, pid: s.pid, email: slot.email, time: day(d) }));
+        comments.push(comment({ cid: cid++, pid: s.pid, email: slot.email, time: day(d), kind: "discussion" }));
       }
     });
     for (const c of s.acComments) {
-      comments.push(comment({ cid: cid++, pid: s.pid, email: s.ac, time: day(c.day, 9), mentions: c.mentions ?? [] }));
+      comments.push(comment({ cid: cid++, pid: s.pid, email: s.ac, time: day(c.day, 9), mentions: c.mentions ?? [], kind: c.kind ?? "discussion" }));
     }
     if (s.responseAt) {
       comments.push(comment({ cid: cid++, pid: s.pid, email: E.author11, time: at(s.responseAt), isResponse: true, words: 400 }));

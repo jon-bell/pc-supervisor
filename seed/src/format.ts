@@ -122,6 +122,12 @@ export interface CommentEvent {
   mentions?: readonly string[];
   /** Filler words after the mentions. Default 40. */
   words?: number;
+  /**
+   * Literal (invented) text after the mentions, instead of filler: for
+   * comments whose wording matters, e.g. comment types (spec §5e). `words`
+   * is then ignored.
+   */
+  text?: string;
   visibility?: Visibility;
 }
 
