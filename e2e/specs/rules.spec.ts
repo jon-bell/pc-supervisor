@@ -11,7 +11,10 @@ import type { RulesResponse } from "@pcs/server/server/rules-types";
 test.describe.configure({ mode: "serial" });
 
 const row = (page: Page, pid: number) => page.locator(`[data-testid="triage-row"][data-pid="${pid}"]`);
-const chipRules = (page: Page, pid: number) => row(page, pid).getByTestId("chip").evaluateAll((els) => els.map((e) => e.getAttribute("data-rule")).sort());
+const chipRules = async (page: Page, pid: number) => {
+  await expect(row(page, pid)).toBeVisible();
+  return row(page, pid).getByTestId("chip").evaluateAll((els) => els.map((e) => e.getAttribute("data-rule")).sort());
+};
 const flaggedAtPrimary = Object.values(FIRES_AT_PRIMARY).filter((r) => r.length > 0).length;
 
 test.beforeAll(async ({ request }) => {

@@ -225,10 +225,10 @@ test.describe("triage polish", () => {
   });
 });
 
-test("nav links to Triage, ACs, Leads, Reviewers and Overview", async ({ page }) => {
+test("nav links to Triage, ACs, Leads, Reviewers, Overview, Flag history and Rules", async ({ page }) => {
   await page.goto("/");
   const nav = page.getByTestId("nav");
-  await expect(nav.getByRole("link")).toHaveText(["Triage", "ACs", "Leads", "Reviewers", "Overview"]);
+  await expect(nav.getByRole("link")).toHaveText(["Triage", "ACs", "Leads", "Reviewers", "Overview", "Flag history", "Rules"]);
   await nav.getByRole("link", { name: "ACs" }).click();
   await expect(page).toHaveURL(/\/acs$/);
   await nav.getByRole("link", { name: "Overview" }).click();
