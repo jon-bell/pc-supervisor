@@ -23,8 +23,9 @@ export class NetworkLockedError extends Error {
 
 const req = createRequire(import.meta.url);
 
+/** A function that throws when called, or constructed (`new WebSocket(...)`). */
 function deny(what: string): () => never {
-  return () => {
+  return function denied(): never {
     throw new NetworkLockedError(what);
   };
 }
