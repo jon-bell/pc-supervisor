@@ -80,7 +80,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | Metric style | Rules that fire with a human-readable reason, rolled into a ranked attention list. No single opaque score. |
 | People views | An outlier list plus per-person drill-down. **No leaderboards.** |
 | Phase awareness | Thresholds depend on the current phase, which comes from the phase-date env vars and the clock. |
-| LLMs | None. Review text must not leave the machine. Use text heuristics only. |
+| LLMs and models | No remote LLM or third-party service ever sees review or comment text, which never leaves the machine. One local model is allowed: the comment classifier (§5e), a small sentence-embedding model that runs in-process on the chair's machine, with weights in `PCS_MODEL_DIR` and no network access at inference time. Without it, text heuristics only. |
 
 ---
 
@@ -326,13 +326,13 @@ CLI: `pcs rules show [--json]`, `pcs rules set KEY=VALUE... [--note TEXT]` (`VAL
 
 ## 7. Confidentiality and tone
 
-- **Local only.** There's no hosted mode and no telemetry. The only outbound calls go to `PCS_HOTCRP_URL`, with one opt-in exception: the reserve module's DBLP lookup (§10.4 A), off unless the chair sets `PCS_DBLP_ENABLED=true`. It sends public author names only, to `PCS_DBLP_URL`, and its results are hints, never verdicts.
+- **Local only.** There's no hosted mode and no telemetry. The only outbound calls at runtime go to `PCS_HOTCRP_URL` (`pcs model fetch` is a setup command, not runtime; see below), with one opt-in exception: the reserve module's DBLP lookup (§10.4 A), off unless the chair sets `PCS_DBLP_ENABLED=true`. It sends public author names only, to `PCS_DBLP_URL`, and its results are hints, never verdicts.
 - **The DB is the most sensitive artifact** (every review and comment, plus reviewer identities).
   - Encrypt it with SQLCipher (`better-sqlite3-multiple-ciphers`).
   - The default path is outside the repo and outside any synced folder.
   - `pcs wipe` deletes it.
   - The repo holds **synthetic data only**. No real review text, names, or emails ever go into fixtures, tests, issues, or screenshots.
-- **No LLM over review text.**
+- **No review or comment text leaves the machine.** No remote LLM or third-party service may receive it. A local model may read it only if it runs in-process on the chair's machine, with weights stored locally and no network access at inference time (the comment classifier, §5e). The only network fetch for a model is the chair-run setup command `pcs model fetch`: a pinned model from a pinned URL, checked against a pinned sha256, sending no data, never run automatically, at runtime, or in tests. `pcs model install <dir|tarball>` takes files the chair downloaded themselves, with the same check. The chair's comment labels and the comments' embeddings stay in the encrypted store.
 - **Wording:** "no comments yet", not "disengaged"; "no in-HotCRP activity", not "absent".
 - **No leaderboards by default.** People tables (ACs, leads, reviewer lists, reserve and coaching lists) keep their alphabetical or by-paper default order. The chair may sort any column, including a count, but the app never opens a people table sorted by a metric, and a column sort is cleared with a third click.
 - **Rules and flag history describe papers, not people.** The Rules page and the flag-history feed use the rule labels from the triage chips ("No comments yet", "No AC comment yet", "Gone quiet"), and the "why" of a change names a role ("after AC comment"), never a person. A rule's paper count is not a ranking. Rule revisions record the actor, who is the chair.
