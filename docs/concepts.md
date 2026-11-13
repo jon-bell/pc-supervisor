@@ -272,7 +272,7 @@ The screening concepts are as designed earlier and are summarized here. The full
 ```
 concept Ground
 state  Ground = format | scope | anonymity | fabricated-reference | misused-citation
-              | no-contribution | nomination-noncompliance
+              | no-contribution | nomination-noncompliance | prompt-injection
        -- closed: no ruling, check, or action adds a constructor.
        -- nomination-noncompliance is usable only if Q10 or Q11 admits it
 ```
@@ -609,7 +609,7 @@ These are synthetic cases with the outcome a signer confirms. Each card shows th
 | E4b | Self-reveal found after reviews are released | Desk reject only under Q3's "any stage" reading | **Q3**; S9 |
 | E6 | Two references exist in no index | Grounds or evidence | **Q6** |
 | E8 | AC refers; second opinion disagrees | In review; the member reviews it or not | **Q5**; S11 |
-| E9 | Hidden instructions in white text | Integrity flag; stripped; summary unchanged | S4 |
+| E9 | Hidden instructions in white text | A finding on ground `prompt-injection`, for the AC's triage; the text is stripped and the summary unchanged | S4 |
 | E10 | The model quotes a sentence that isn't in the paper | Never shown | S4 |
 | E11 | Q6 revised after the screening deadline | No paper in review is removed | S7 |
 | E12 | The dev engine is asked to run on a real submission | Refused | S5 |

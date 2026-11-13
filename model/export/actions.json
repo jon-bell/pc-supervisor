@@ -7,6 +7,7 @@
    {"perm": "triage", "action": "refer on misused citation"},
    {"perm": "triage", "action": "refer on no contribution"},
    {"perm": "triage", "action": "refer on nomination non-compliance"},
+   {"perm": "triage", "action": "refer on prompt injection"},
    {"perm": "second-opinion", "action": "agree (person 2, an AC, senior)"},
    {"perm": "second-opinion", "action": "agree (person 3, senior)"},
    {"perm": "second-opinion", "action": "agree (person 4, junior)"},

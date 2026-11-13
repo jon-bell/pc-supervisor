@@ -34,7 +34,7 @@ The agent is built so that the policy, the checks, and the inference can each ch
 
 ```
 submission deadline
-  └─ extract (deterministic): text with page anchors, parsed references, layout facts, hidden-text scan
+  └─ extract (deterministic): text with page anchors, parsed references, layout facts, injection scans (render-and-OCR diff, vectors, channels)
        └─ checks (§3.2) ──► flags + summary, stored as proposals
             └─ AC triage (per paper, from flag cards + summary)
                  ├─ keep in review ────────────────────────────► assignment
@@ -73,7 +73,10 @@ decision(id, title, status, statement, owner_role, decided_at, source, supersede
 | `scope` | bounded LLM | Is the paper within the call's topics, given the CFP text? | Flag with the paper's own claims, anchored |
 | `refs.use` | bounded LLM | For each in-text citation: the citing sentence plus the cited work's abstract (or full text, as a variant). Is the work cited for something it doesn't say? | Flag per citation with both quotations. Never a paper-level verdict |
 | `summary` | bounded LLM | A structured summary of about 500 words: claimed contributions, evaluation, the stated relation to prior work, and the closest cited work. Every field is anchored. | A view for triage, never a recommendation |
-| `hidden-text` | deterministic | Text that is invisible when rendered (white-on-white, tiny fonts, off-page, rendered under images) that contains instructions. It is stripped before any LLM sees the paper, and flagged as an integrity issue in its own right. | Flag with the extracted text |
+| `injection.hidden` | deterministic | **Text a model would read that a person wouldn't see.** The general method: render each page and OCR it locally, then diff the OCR text against the extracted text layer; a span in one but not the other is a finding. Direct detectors for the known vectors back it up: invisible render mode (`Tr 3`); fill colour matching the background (not only white); fonts under 2 pt; text clipped, off-page, or covered by an image or shape; optional-content layers that are off by default; `ToUnicode`/CMap remapping, where the extracted characters differ from the drawn glyphs; `ActualText` and alt text; zero-width, Unicode tag (U+E0000 block), and bidi-override characters. Hidden spans are stripped before any LLM sees the paper. Hidden text of any content is a signal; hidden text that addresses an AI reader is evidence for the desk-reject ground `prompt-injection` | Flag with the extracted text, the vector, and the page region |
+| `injection.channels` | deterministic | Text outside the page content that a tool might pass to a model: document-info and XMP metadata, annotations and comments, form fields, bookmarks, embedded files, JavaScript and actions; and in the artifact, the README, code comments, and notebook outputs (the artifact is read by `anonymity`). Each channel is screened by `injection.addressed`, and only the page content and the artifact files a check needs are ever passed on | Flag with the channel and the text |
+| `injection.addressed` | deterministic, then bounded LLM | **Text addressed to an AI reader rather than a person**, visible or hidden. First a pattern list: instruction-override phrasing ("ignore previous instructions"), role markers ("System:", "Assistant:"), chat-template tokens, "as an AI / LLM reviewer", requests to rate, praise, accept, or leave out weaknesses; in several languages, and after Unicode normalization. Then a bounded classifier on each candidate span alone (a short excerpt, no tools, schema-bound), which separates an attack from a paper *about* prompts or injection that quotes them legitimately | Flag with the anchored span and the classifier's reason. A visible match in a paper about LLMs is expected, so it is a signal for a person, never a ground by itself |
+| `injection.effect` | differential, at run time | Whether an instruction **worked**. When a suspect span exists, each LLM check also runs with the span removed; a material difference between the two outputs is strong evidence and is reported with both, and the output without the span is the one shown. Every LLM call is also monitored for: a recommendation, score, or verdict the check's schema doesn't ask for; text that talks about instructions; refusals and schema failures; quotations that don't verify (S4); and tool calls outside the paper's scope | Flag with the check, both outputs, and the span |
 | `novelty` | **not in v1** | Recorded so the manifest shows it as an escalated judgment: ACs judge novelty and significance. The summary helps them decide where to look. | |
 
 Each check is a directory, `agent/checks/<id>/`, containing:
@@ -212,13 +215,14 @@ A call is refused, with an error naming the engine and the class, unless `engine
 ### 5.2 Prompt injection
 
 Submissions are adversarial input.
-- Hidden text is removed and flagged before any model call (`hidden-text`).
+- Hidden text and non-page channels are screened, and hidden spans removed, before any model call (`injection.hidden`, `injection.channels`). Text addressed to an AI reader is flagged wherever it appears (`injection.addressed`).
+- When a suspect span is found, every LLM check also runs without it, and a difference is evidence the injection worked (`injection.effect`).
 - Paper content is always passed as delimited data, never as instructions.
 - Outputs are schema-bound.
 - Tools are read-only and scoped to the one paper being checked.
 - No tool can reach the network except the reference resolver (§5.3).
 
-The evaluation measures injection resistance directly (§7.2): how often an injected instruction changes a check's output.
+The evaluation measures both sides (§7.2): detection (how many planted injections the `injection.*` checks find, per vector, and how often they flag a clean paper), and resistance (how often a planted instruction changes a check's output despite the defences).
 
 ### 5.3 Egress
 
@@ -259,7 +263,9 @@ Most checks have no labeled data, so known positives are made by **mutating clea
 - re-point a citation to a real but wrong work;
 - swap the paper's domain so it falls outside the CFP;
 - break the template;
-- add hidden instructions.
+- plant an instruction to the AI reader, once per vector of `injection.hidden` and `injection.channels`, and once as visible text; with payloads of increasing subtlety (a blunt override, a request to praise, a request to leave out a weakness, an instruction to emit a phrase that proves it was obeyed).
+
+Injection detection also needs **benign controls** for its false-flag rate, papers that look like attacks but aren't: papers about prompt injection or LLM agents that quote payloads; legitimately tiny text (figure labels, subscripts); white text inside figures; metadata written by the authors' tools.
 
 The metrics are:
 - **mutation score** per check (planted defects found, with correct anchors);
@@ -282,7 +288,8 @@ Each check runs `k` times (default 3) per paper. The measurements are:
 - refusal, schema-failure, and truncation rates;
 - cost per paper, and cost projected to the instance size (`PCS_AGENT_SCALE_PAPERS`);
 - latency, and projected wall time for the whole corpus under the engine's rate limits;
-- injection resistance: how often a hidden-instruction mutant changes the output;
+- injection detection, per vector: planted injections found, and flags on the benign controls;
+- injection resistance: how often an injection mutant changes the output of each LLM check, with and without the stripping step (the second shows what the defences are worth);
 - **scaffold delta**: the score with our preprocessing (extraction, slicing, reference fetching) minus the score of the same model given only the raw PDF and the question. A delta that shrinks as models get stronger marks engineering we can drop. A delta that holds marks engineering worth maintaining;
 - cross-engine agreement on `held-out`.
 
@@ -308,7 +315,7 @@ The planner (§4.4) reports which class a change falls into. Failures found in p
 ```
 agent/            Gradle module (Kotlin); depends on core
   engines/        adapters (§4.3) + dispatcher with the clearance check (§5.1)
-  extract/        PDF text + anchors (PDFBox), GROBID client, layout facts, hidden-text scan
+  extract/        PDF text + anchors (PDFBox), GROBID client, layout facts, injection scans (render-and-OCR diff, vectors, channels)
   tools/          read-only tools; exported in-process and as an MCP server
   checks/runner/  runner, anchor verification, flag-card renderer
   checks/<id>/    check specs (§3.2)

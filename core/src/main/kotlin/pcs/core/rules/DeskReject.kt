@@ -23,6 +23,7 @@ public enum class Ground(public val key: String) {
     MISUSED_CITATION("misused-citation"),
     NO_CONTRIBUTION("no-contribution"),
     NOMINATION_NONCOMPLIANCE("nomination-noncompliance"),
+    PROMPT_INJECTION("prompt-injection"),
     ;
 
     public companion object {

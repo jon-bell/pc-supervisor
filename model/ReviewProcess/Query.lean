@@ -11,7 +11,8 @@ namespace ReviewProcess
 def groundKeys : List (String × Ground) :=
   [("format", .format), ("scope", .scope), ("anonymity", .anonymity),
    ("fabricated-reference", .fabricatedReference), ("misused-citation", .misusedCitation),
-   ("no-contribution", .noContribution), ("nomination-noncompliance", .nominationNoncompliance)]
+   ("no-contribution", .noContribution), ("nomination-noncompliance", .nominationNoncompliance),
+   ("prompt-injection", .promptInjection)]
 
 def stageKeys : List (String × Stage) :=
   [("screening", .screening), ("assigned", .assigned), ("in-review", .inReview), ("released", .released)]

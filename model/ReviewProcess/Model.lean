@@ -16,13 +16,14 @@ inductive Tier | senior | junior
 
 inductive Ground
   | format | scope | anonymity | fabricatedReference | misusedCitation | noContribution
-  | nominationNoncompliance
+  | nominationNoncompliance | promptInjection
   deriving DecidableEq, Repr, Inhabited
 
 def Ground.name : Ground → String
   | .format => "format" | .scope => "scope" | .anonymity => "anonymity"
   | .fabricatedReference => "fabricated reference" | .misusedCitation => "misused citation"
   | .noContribution => "no contribution" | .nominationNoncompliance => "nomination non-compliance"
+  | .promptInjection => "prompt injection"
 
 inductive Stage | screening | assigned | inReview | released
   deriving DecidableEq, Repr, Inhabited

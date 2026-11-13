@@ -292,7 +292,7 @@ def deskSys : Sys DeskSt DeskAct where
   name := "desk reject"
   init := {}
   acts := ([Ground.format, .scope, .anonymity, .fabricatedReference, .misusedCitation, .noContribution,
-            .nominationNoncompliance].map DeskAct.refer) ++ searchOpinions.map DeskAct.opinion ++
+            .nominationNoncompliance, .promptInjection].map DeskAct.refer) ++ searchOpinions.map DeskAct.opinion ++
           [.offerRemedy, .warn, .cure, .tick, .advance, .remove]
   perm
     | .refer _ => some .triage | .opinion _ => some .secondOpinion
@@ -474,7 +474,7 @@ def groundAdmittedBy (r : Reading) : Ground → Bool
 
 def searchAll (p : Params) (r : Reading) : List SearchResult :=
   let grounds := [Ground.format, .scope, .anonymity, .fabricatedReference, .misusedCitation, .noContribution,
-                  .nominationNoncompliance]
+                  .nominationNoncompliance, .promptInjection]
   [ runSearch deskSys p r (grounds.map fun g =>
       (s!"desk reject on {g.name}", groundAdmittedBy r g, fun (s : DeskSt) => s.disp == .removed g)),
     runSearch earlySys p r [("early reject", true, (·.removed))],

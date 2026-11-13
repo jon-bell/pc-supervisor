@@ -366,7 +366,7 @@ Changing this table means changing the M3 and M18 tests in the same PR.
 
 ## M8: Extraction and deterministic checks (agent.md)
 
-- **Scope:** PDF text with page anchors (PDFBox), GROBID (local container, or in-process where it runs), layout facts, and the hidden-text scan; the `format`, `refs.doi`, deterministic `anonymity`, and `hidden-text` checks; the `synthetic` corpus with planted defects.
+- **Scope:** PDF text with page anchors (PDFBox), GROBID (local container, or in-process where it runs), layout facts, and the injection scans (page render plus local OCR, diffed against the text layer; the vector detectors; non-page channels); the `format`, `refs.doi`, deterministic `anonymity`, `injection.hidden`, `injection.channels`, and the pattern half of `injection.addressed`; the `synthetic` corpus with planted defects, including one injection per vector and the benign controls.
 - **Done when:** every planted deterministic defect is flagged with a verifying anchor, and no flags fire on clean synthetic papers. No network in tests except a mocked resolver.
 - **Evidence:** `prop:S3`, `prop:S4`, `assume:A5`; planted-defect recall reported per check.
 
@@ -378,7 +378,7 @@ Changing this table means changing the M3 and M18 tests in the same PR.
 
 ## M10: LLM checks
 
-- **Scope:** `anonymity` (the LLM half), `scope`, `refs.use` (abstract variant), and `summary`; anchor verification; flag cards; decision records and the manifest.
+- **Scope:** `anonymity` (the LLM half), `scope`, `refs.use` (abstract variant), and `summary`; the classifier half of `injection.addressed`; `injection.effect` (the with-and-without rerun and the per-call monitors); anchor verification; flag cards; decision records and the manifest.
 - **Done when:** the manifest renders from check directories and decisions; unverifiable anchors are never shown; a flag depending on an `unresolved` decision renders as blocked.
 
 ## M11: Evaluation
