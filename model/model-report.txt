@@ -148,7 +148,7 @@ Cells marked † are set by a ruling; they show the question and the result at t
 
 ## L1 and L2: trace search over the policy and the rules (signed model, answered reading)
 Every step is taken by a role whose cell is granted (theorem gated_requires_policy); the rules decide whether it has an effect.
-### desk reject: 1356 states
+### desk reject: 1524 states
 - L2 desk reject on format: reachable: AC (own paper): refer on format → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
 - L2 desk reject on scope: reachable: AC (own paper): refer on scope → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
 - L2 desk reject on anonymity: reachable: AC (own paper): refer on anonymity → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
@@ -156,6 +156,7 @@ Every step is taken by a role whose cell is granted (theorem gated_requires_poli
 - L2 desk reject on misused citation: reachable: AC (own paper): refer on misused citation → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
 - L2 desk reject on no contribution: reachable: AC (own paper): refer on no contribution → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
 - L2 desk reject on nomination non-compliance: reachable: AC (own paper): refer on nomination non-compliance → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
+- L2 desk reject on prompt injection: reachable: AC (own paper): refer on prompt injection → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
 - L1 AC (own paper) / Keep or refer (triage): AC (own paper): refer on format
 - L1 Senior / junior PC / Give a second opinion: AC (own paper): refer on format → Senior / junior PC: agree (person 2, an AC, senior)
 - L1 Process chair / Confirm and apply a Writeback: AC (own paper): refer on nomination non-compliance → Process chair: warn the authors
