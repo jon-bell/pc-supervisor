@@ -73,6 +73,40 @@ def parseReferral (j : Json) : Except String Referral := do
          cured := ← getD j "cured" false, warned := ← getD j "warned" false,
          askedAt := ← getD j "askedAt" 0, now := ← getD j "now" 0 }
 
+def scoreKeys : List (String × Score) :=
+  [("strong-reject", .strongReject), ("reject", .reject), ("weak-reject", .weakReject), ("borderline", .borderline),
+   ("weak-accept", .weakAccept), ("accept", .accept), ("strong-accept", .strongAccept)]
+
+def dispKeys : List (String × ReqDisposition) :=
+  [("revised", .revised), ("explained", .explained), ("declined", .declined), ("no-reply", .noReply), ("disputed", .disputed)]
+
+def parseTier (j : Json) (k : String) : Except String (Option Tier) :=
+  match j.getObjVal? k with
+  | .ok (.str "senior") => pure (some .senior)
+  | .ok (.str "junior") => pure (some .junior)
+  | _ => pure none
+
+def parseMember (j : Json) : Except String Member := do
+  pure { who := ← getD j "who" 0, tier := ← parseTier j "tier", nominee := ← getD j "nominee" false,
+         accepted := ← getD j "accepted" true, consented := ← getD j "consented" true }
+
+def parsePaperNoms (j : Json) : Except String PaperNoms := do
+  let ns ← match j.getObjVal? "nominees" with
+    | .ok (.arr xs) => xs.toList.mapM fun x => do
+        pure ({ who := ← getD x "who" 0, share := ← getD x "share" 0, accepted := ← getD x "accepted" true } : Nominee)
+    | _ => pure []
+  pure { paper := ← getD j "paper" 0, nominees := ns }
+
+def parseRequest (j : Json) : Except String Request := do
+  let sentBy : Option Nat ← match j.getObjVal? "sentBy" with
+    | .ok .null => pure none
+    | .ok v => some <$> fromJson? v
+    | .error _ => pure none
+  let disp ← match j.getObjVal? "disp" with
+    | .ok (.str k) => some <$> lookupKey dispKeys k
+    | _ => pure none
+  pure { reviewer := ← getD j "reviewer" 0, sentBy, disp }
+
 def answer (j : Json) : Except String Json := do
   let q ← j.getObjValAs? String "q"
   match q with
@@ -82,6 +116,39 @@ def answer (j : Json) : Except String Json := do
     let p ← parseParams ((j.getObjVal? "mutant").toOption.getD .null)
     let ref ← parseReferral (← j.getObjVal? "referral")
     pure (Json.mkObj [("result", mayRemove p r ref)])
+  | "composition" =>
+    let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
+    let seats ← match j.getObjVal? "seats" with
+      | .ok (.arr xs) => xs.toList.mapM parseMember
+      | _ => pure []
+    pure (Json.mkObj [("result", compositionOk r seats)])
+  | "owes" =>
+    let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
+    let p ← parseParams ((j.getObjVal? "mutant").toOption.getD .null)
+    let tier ← match j.getObjVal? "tier" with
+      | .ok (.str "senior") => pure Tier.senior
+      | _ => pure Tier.junior
+    let papers ← match j.getObjVal? "papers" with
+      | .ok (.arr xs) => xs.toList.mapM parsePaperNoms
+      | _ => pure []
+    let u : Nat ← getD j "u" 0
+    pure (Json.mkObj [("result", match owes p r tier papers u with | some n => Json.num n | none => Json.null)])
+  | "earlyReject" =>
+    let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
+    let p ← parseParams ((j.getObjVal? "mutant").toOption.getD .null)
+    let scores ← match j.getObjVal? "scores" with
+      | .ok (.arr xs) => xs.toList.mapM fun x => do lookupKey scoreKeys (← x.getStr?)
+      | _ => pure []
+    let c : ERCase := { scores, bumped := ← getD j "bumped" false, windowClosed := ← getD j "windowClosed" false,
+                        acObjects := ← getD j "acObjects" false }
+    pure (Json.mkObj [("result", mayEarlyReject p r c)])
+  | "caseMayOpen" =>
+    let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
+    let p ← parseParams ((j.getObjVal? "mutant").toOption.getD .null)
+    let reqs ← match j.getObjVal? "requests" with
+      | .ok (.arr xs) => xs.toList.mapM parseRequest
+      | _ => pure []
+    pure (Json.mkObj [("result", caseMayOpen p r (← getD j "missingReview" false) reqs)])
   | other => throw s!"unknown query {other}"
 
 
