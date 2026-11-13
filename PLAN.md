@@ -13,10 +13,11 @@ This is the work breakdown for building PC Supervisor. Read [docs/concepts.md](d
 **Progress (2026-11-13, branch `m1-foundations`, all checked on the local harness; CI not yet run):**
 - **M0** done: `pcs probe`, with the settings spec §11 depends on.
 - **M1** done: Gradle scaffold, generated readings, the answers reader (agrees with Lean), settings, Clock, the HotCRP client with strict decoding, contract tests, the claim inventory, `@Covers`, the assurance report, ktlint. The Lean-in-core spike works on Linux (decision provisional, below).
-- **M2** in part: the seeder and `golden`, verified against the table through the strict client. `shadow` and `scale` remain.
+- **M2** mostly done: the seeder and `golden` (seeds in about 2 s), verified against the table through the strict client. The `shadow` (150 papers) and `scale` (4,000 papers) generators exist, with a fixed seed and reviews submitted 50 per request; neither has been seeded yet. Seeding `scale` needs the harness image rebuilt with the raised API limits (`HOTCRP_API_PER_MINUTE`, `HOTCRP_API_PER_HOUR`).
 - **M3** done: the encrypted store, the full sync (first-seen, versions, edits, deletions, unassignments, mentions, FTS), the history backfill, idempotence, and the multi-stage test.
 - **Rules ahead of their milestones:** every rule in the model is ported to `core`; all 38 cards conform under every reading, and `core`'s fault switches match the model's 10 mutants. The discussion rules (M18's engine, not its UI) fire exactly the golden table end to end.
 - **Found on the harness and fixed in the spec:** `/pc` has no per-user tags (tiers come from the appointments import); the API is rate-limited to 250 requests per window; `saveusers` takes tags as a string; response comments name their round; `/reviewhistory` needs `expand=1`; two golden rows contradicted spec §5c.
+- **Next:** seed `shadow` and time a full sync; M3a (scenario runner and evidence checker); M4 (app shell). Coverage still open: rules 3/9, properties 3/45, policy cells 0/207, conventions 5/12.
 
 ## Order
 
