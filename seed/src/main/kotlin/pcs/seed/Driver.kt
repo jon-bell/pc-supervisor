@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -146,36 +147,48 @@ class Driver(
         php("batch/assign.php", stdin = "paper,action,user\n" + s.assignments.joinToString("\n") { "${it.pid},${it.action},${it.email}" } + "\n")
 
         // rid and ordinal of each assigned review
-        // re-read on each lookup: HotCRP assigns a review's ordinal only when it is submitted
-        fun rid(pid: Int, who: String) =
-            api("GET", "reviews", mapOf("q" to "$pid"))["reviews"]!!.jsonArray.map { it.jsonObject }
-                .first { it["reviewer_email"]?.jsonPrimitive?.content == who }
+        // all review ids at once; a rating re-reads its paper, because HotCRP assigns ordinals on submission
+        val ridOf = mutableMapOf<Pair<Int, String>, Long>()
+        for (pid in s.papers.map { it.pid }.chunked(200)) {
+            api("POST", "reviews", mapOf("q" to "${pid.first()}-${pid.last()}", ":method:" to "GET"))["reviews"]!!.jsonArray.map { it.jsonObject }.forEach {
+                val who = it["reviewer_email"]?.jsonPrimitive?.content ?: return@forEach
+                ridOf[it["pid"]!!.jsonPrimitive.int to who] = it["rid"]!!.jsonPrimitive.long
+            }
+        }
+
+        fun rid(pid: Int, who: String): JsonObject =
+            api("GET", "reviews", mapOf("q" to "$pid"))["reviews"]!!.jsonArray.map {
+                it.jsonObject
+            }.first { it["reviewer_email"]?.jsonPrimitive?.content == who }
 
         val reviewTimes = mutableMapOf<Pair<Int, String>, Pair<Long, Long>>()
         val commentTimes = mutableMapOf<Long, Long>()
         val ordered = s.events.sortedBy { epoch(it.at) }
+        // reviews go in batches of 50 per request (HotCRP's rate limit, spec §1); their times are set by the time-warp
+        for (batch in ordered.filterIsInstance<SubmitReview>().chunked(50)) {
+            val body =
+                buildJsonArray {
+                    batch.forEach { ev ->
+                        add(
+                            buildJsonObject {
+                                put("pid", ev.pid)
+                                put("rid", ridOf.getValue(ev.pid to ev.reviewer))
+                                put("OveMer", ev.merit)
+                                put("RevExp", ev.expertise)
+                                put("PapSum", words(ev.words - 10))
+                                put("ComAut", words(10))
+                                put("submitted", true)
+                            },
+                        )
+                    }
+                }
+            val r = api("POST", "reviews", body = body.toString())
+            check(r["status_list"]!!.jsonArray.all { it.jsonObject["valid"] == JsonPrimitive(true) }) { "review not valid: $r" }
+            batch.forEach { ev -> epoch(ev.at).let { t -> reviewTimes[ev.pid to ev.reviewer] = t to t } }
+        }
         for (ev in ordered) {
             when (ev) {
-                is SubmitReview -> {
-                    val body =
-                        buildJsonArray {
-                            add(
-                                buildJsonObject {
-                                    put("pid", ev.pid)
-                                    put("rid", rid(ev.pid, ev.reviewer)["rid"]!!.jsonPrimitive.long)
-                                    put("OveMer", ev.merit)
-                                    put("RevExp", ev.expertise)
-                                    put("PapSum", words(ev.words - 10))
-                                    put("ComAut", words(10))
-                                    put("submitted", true)
-                                },
-                            )
-                        }
-                    val r = api("POST", "reviews", body = body.toString())
-                    check(r["status_list"]!!.jsonArray.all { it.jsonObject["valid"] == JsonPrimitive(true) }) { "review not valid: $r" }
-                    val t = epoch(ev.at)
-                    reviewTimes[ev.pid to ev.reviewer] = t to t
-                }
+                is SubmitReview -> {}
                 is ChangeScore -> {
                     val body =
                         buildJsonArray {
