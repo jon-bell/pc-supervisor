@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import pcs.core.readings.Answers
-import pcs.core.readings.QId
 import pcs.core.readings.Q2
+import pcs.core.readings.QId
 import java.nio.file.Files
 
 class AnswersTest {

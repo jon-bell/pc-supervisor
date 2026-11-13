@@ -21,17 +21,18 @@ public data class Faults(
         public val NONE: Faults = Faults()
 
         /** In the order of model/export/mutants.json. */
-        public val MUTANTS: List<Faults> = listOf(
-            Faults(secondOpinionFromAnyone = true),
-            Faults(silenceRemoves = true),
-            Faults(assignUnaccepted = true),
-            Faults(combineIgnoresQ18 = true),
-            Faults(declinedShareToUnnamed = true),
-            Faults(earlyRejectBeforeWindowCloses = true),
-            Faults(dismissedSuggestionCounts = true),
-            Faults(heuristicSendsItself = true),
-            Faults(applyWithoutDryRun = true),
-            Faults(cycleK1 = true),
-        )
+        public val MUTANTS: List<Faults> =
+            listOf(
+                Faults(secondOpinionFromAnyone = true),
+                Faults(silenceRemoves = true),
+                Faults(assignUnaccepted = true),
+                Faults(combineIgnoresQ18 = true),
+                Faults(declinedShareToUnnamed = true),
+                Faults(earlyRejectBeforeWindowCloses = true),
+                Faults(dismissedSuggestionCounts = true),
+                Faults(heuristicSendsItself = true),
+                Faults(applyWithoutDryRun = true),
+                Faults(cycleK1 = true),
+            )
     }
 }

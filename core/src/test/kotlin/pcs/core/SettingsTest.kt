@@ -11,17 +11,26 @@ class SettingsTest {
 
     @Test
     fun `every key in pcs conf example is known to the loader`() {
-        val keys = Repo.path("pcs.conf.example").toFile().readLines()
-            .map { it.trim().removePrefix("#").trim() }
-            .mapNotNull { Regex("^(PCS_[A-Z_]+)=").find(it)?.groupValues?.get(1) }
+        val keys =
+            Repo.path("pcs.conf.example").toFile().readLines()
+                .map { it.trim().removePrefix("#").trim() }
+                .mapNotNull { Regex("^(PCS_[A-Z_]+)=").find(it)?.groupValues?.get(1) }
         assertTrue(keys.size > 20, "found ${keys.size} keys")
         assertEquals(emptyList<String>(), keys.filterNot(Settings::isKnown))
     }
 
     @Test
     fun `all problems are reported at once`() {
-        val e = Settings.load(mapOf("PCS_HOTCRP_URL" to "http://conf.example.org/", "PCS_TZ" to "Mars/Base",
-            "PCS_SYNC_CHUNK" to "0", "PCS_BOGUS" to "1", "PCS_PHASE_REVIEW_DUE" to "tomorrow")).exceptionOrNull() as SettingsException
+        val e =
+            Settings.load(
+                mapOf(
+                    "PCS_HOTCRP_URL" to "http://conf.example.org/",
+                    "PCS_TZ" to "Mars/Base",
+                    "PCS_SYNC_CHUNK" to "0",
+                    "PCS_BOGUS" to "1",
+                    "PCS_PHASE_REVIEW_DUE" to "tomorrow",
+                ),
+            ).exceptionOrNull() as SettingsException
         val p = e.problems.joinToString("\n")
         for (k in listOf("PCS_HOTCRP_URL", "PCS_ANSWERS", "PCS_TZ", "PCS_SYNC_CHUNK", "PCS_BOGUS", "PCS_PHASE_REVIEW_DUE")) {
             assertTrue(k in p, "$k missing from:\n$p")

@@ -61,6 +61,7 @@ val generateReadings by tasks.registering {
         out.appendLine()
         for (q in qs) {
             val code = q["code"] as String
+
             @Suppress("UNCHECKED_CAST")
             val rs = q["readings"] as List<Map<String, String>>
             out.appendLine("/** $code: ${(q["text"] as String).replace("*/", "")} */")
@@ -72,26 +73,44 @@ val generateReadings by tasks.registering {
         }
         out.appendLine("/** The open questions, in the model's order. */")
         out.appendLine("public enum class QId(public val code: String, public val text: String, public val readings: List<ReadingValue>) {")
-        out.appendLine(qs.joinToString(",\n") { q ->
-            val code = q["code"] as String
-            "    ${code.uppercase()}(${kstr(code)}, ${kstr(q["text"] as String)}, pcs.core.readings.$code.entries.toList())"
-        } + ";")
+        out.appendLine(
+            qs.joinToString(",\n") { q ->
+                val code = q["code"] as String
+                "    ${code.uppercase()}(${kstr(code)}, ${kstr(q["text"] as String)}, pcs.core.readings.$code.entries.toList())"
+            } + ";",
+        )
         out.appendLine("    public companion object { public fun ofCode(c: String): QId? = entries.firstOrNull { it.code == c } }")
         out.appendLine("}")
         out.appendLine()
         out.appendLine("/** A reading of the whole text: one answer per question, or null where the question is unresolved. */")
         out.appendLine("public data class Readings(")
-        out.appendLine(qs.joinToString(",\n") { q -> val c = q["code"] as String; "    val ${c.lowercase()}: $c? = null" })
+        out.appendLine(
+            qs.joinToString(",\n") { q ->
+                val c = q["code"] as String
+                "    val ${c.lowercase()}: $c? = null"
+            },
+        )
         out.appendLine(") {")
         out.appendLine("    public operator fun get(q: QId): ReadingValue? = when (q) {")
-        for (q in qs) { val c = q["code"] as String; out.appendLine("        QId.${c.uppercase()} -> ${c.lowercase()}") }
+        for (q in qs) {
+            val c = q["code"] as String
+            out.appendLine("        QId.${c.uppercase()} -> ${c.lowercase()}")
+        }
         out.appendLine("    }")
         out.appendLine("    public fun with(q: QId, key: String): Readings? = when (q) {")
-        for (q in qs) { val c = q["code"] as String; out.appendLine("        QId.${c.uppercase()} -> $c.ofKey(key)?.let { copy(${c.lowercase()} = it) }") }
+        for (q in qs) {
+            val c = q["code"] as String
+            out.appendLine("        QId.${c.uppercase()} -> $c.ofKey(key)?.let { copy(${c.lowercase()} = it) }")
+        }
         out.appendLine("    }")
         out.appendLine("    /** Unresolved questions take their first reading, as the model's `Answers.base` does. */")
         out.appendLine("    public fun base(): Readings = copy(")
-        out.appendLine(qs.joinToString(",\n") { q -> val c = q["code"] as String; "        ${c.lowercase()} = ${c.lowercase()} ?: $c.entries.first()" })
+        out.appendLine(
+            qs.joinToString(",\n") { q ->
+                val c = q["code"] as String
+                "        ${c.lowercase()} = ${c.lowercase()} ?: $c.entries.first()"
+            },
+        )
         out.appendLine("    )")
         out.appendLine("}")
         val f = generatedMain.get().file("pcs/core/readings/Generated.kt").asFile
@@ -118,13 +137,24 @@ val claimsFile = layout.buildDirectory.file("claims/claims.json")
 
 val claimsInventory by tasks.registering {
     val root = rootProject.layout.projectDirectory
-    val sources = listOf("model/export/cards.json", "model/export/readings.json", "model/export/policy.json",
-        "model/export/mutants.json", "docs/concepts.md", "docs/spec.md", "PLAN.md").map { root.file(it) }
+    val sources =
+        listOf(
+            "model/export/cards.json",
+            "model/export/readings.json",
+            "model/export/policy.json",
+            "model/export/mutants.json",
+            "docs/concepts.md",
+            "docs/spec.md",
+            "PLAN.md",
+        ).map { root.file(it) }
     inputs.files(sources)
     outputs.file(claimsFile)
     doLast {
         val claims = mutableListOf<Map<String, String>>()
-        fun add(id: String, kind: String, text: String) { claims += mapOf("id" to id, "kind" to kind, "text" to text) }
+
+        fun add(id: String, kind: String, text: String) {
+            claims += mapOf("id" to id, "kind" to kind, "text" to text)
+        }
         val slurp = JsonSlurper()
         @Suppress("UNCHECKED_CAST")
         (slurp.parse(root.file("model/export/cards.json").asFile) as List<Map<String, Any>>)
@@ -135,6 +165,7 @@ val claimsInventory by tasks.registering {
         }
         @Suppress("UNCHECKED_CAST")
         val policy = slurp.parse(root.file("model/export/policy.json").asFile) as Map<String, Any>
+
         @Suppress("UNCHECKED_CAST")
         val table = ((policy["byQ4"] as List<Map<String, Any>>).first()["cells"] as List<Map<String, Any>>)
         table.forEach { c ->
@@ -197,6 +228,7 @@ val assuranceReport by tasks.registering {
         val rows = coversFiles.flatMap { f -> f.get().asFile.takeIf { it.exists() }?.readLines().orEmpty() }.map { it.split("\t") }
         // claim -> family -> outcomes
         val byClaim = rows.groupBy { it[1] }
+
         fun status(id: String): String {
             val rs = byClaim[id] ?: return "uncovered"
             return when {
@@ -208,7 +240,9 @@ val assuranceReport by tasks.registering {
         val sb = StringBuilder()
         sb.appendLine("# Assurance report")
         sb.appendLine()
-        sb.appendLine("Claims from the inventory (PLAN §A2) and the evidence the test run recorded for each. This first version counts claim coverage by family; transition, policy, mutation, and binding coverage arrive with M3a.")
+        sb.appendLine(
+            "Claims from the inventory (PLAN §A2) and the evidence the test run recorded for each. This first version counts claim coverage by family; transition, policy, mutation, and binding coverage arrive with M3a.",
+        )
         sb.appendLine()
         sb.appendLine("| Kind | Claims | Covered | Not implemented | Uncovered | Failing |")
         sb.appendLine("|---|---|---|---|---|---|")
@@ -217,7 +251,11 @@ val assuranceReport by tasks.registering {
         for ((kind, cs) in kinds.toSortedMap()) {
             val st = cs.map { status(it["id"]!!) }
             failing += st.count { it == "FAILING" }
-            sb.appendLine("| $kind | ${cs.size} | ${st.count { it.startsWith("covered") }} | ${st.count { it == "not implemented" }} | ${st.count { it == "uncovered" }} | ${st.count { it == "FAILING" }} |")
+            sb.appendLine(
+                "| $kind | ${cs.size} | ${st.count {
+                    it.startsWith("covered")
+                }} | ${st.count { it == "not implemented" }} | ${st.count { it == "uncovered" }} | ${st.count { it == "FAILING" }} |",
+            )
         }
         sb.appendLine()
         sb.appendLine("## Claims with evidence")

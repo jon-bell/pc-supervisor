@@ -20,33 +20,49 @@ public class ContractException(public val problems: List<String>) :
 public class Strict(private val where: String, private val o: JsonObject, private val problems: MutableList<String>) {
     private val used = mutableSetOf<String>()
 
-    private fun el(k: String): JsonElement? { used += k; return o[k] }
-    private fun bad(k: String, want: String, got: JsonElement?) { problems += "$where.$k: expected $want, got ${got ?: "nothing"}" }
+    private fun el(k: String): JsonElement? {
+        used += k
+        return o[k]
+    }
+
+    private fun bad(k: String, want: String, got: JsonElement?) {
+        problems += "$where.$k: expected $want, got ${got ?: "nothing"}"
+    }
 
     public fun string(k: String): String = optString(k) ?: "".also { if (o[k] == null) bad(k, "string", null) }
-    public fun optString(k: String): String? = when (val e = el(k)) {
-        null, JsonNull -> null
-        is JsonPrimitive -> if (e.isString) e.content else e.content.also { bad(k, "string", e) }
-        else -> null.also { bad(k, "string", e) }
-    }
+
+    public fun optString(k: String): String? =
+        when (val e = el(k)) {
+            null, JsonNull -> null
+            is JsonPrimitive -> if (e.isString) e.content else e.content.also { bad(k, "string", e) }
+            else -> null.also { bad(k, "string", e) }
+        }
+
     public fun long(k: String): Long = optLong(k) ?: 0L.also { if (o[k] == null) bad(k, "number", null) }
-    public fun optLong(k: String): Long? = when (val e = el(k)) {
-        null, JsonNull -> null
-        is JsonPrimitive -> e.longOrNull ?: null.also { bad(k, "number", e) }
-        else -> null.also { bad(k, "number", e) }
-    }
-    public fun optBool(k: String): Boolean? = when (val e = el(k)) {
-        null, JsonNull -> null
-        is JsonPrimitive -> e.booleanOrNull ?: null.also { bad(k, "boolean", e) }
-        else -> null.also { bad(k, "boolean", e) }
-    }
+
+    public fun optLong(k: String): Long? =
+        when (val e = el(k)) {
+            null, JsonNull -> null
+            is JsonPrimitive -> e.longOrNull ?: null.also { bad(k, "number", e) }
+            else -> null.also { bad(k, "number", e) }
+        }
+
+    public fun optBool(k: String): Boolean? =
+        when (val e = el(k)) {
+            null, JsonNull -> null
+            is JsonPrimitive -> e.booleanOrNull ?: null.also { bad(k, "boolean", e) }
+            else -> null.also { bad(k, "boolean", e) }
+        }
+
     /** A list of strings, or one bare string (HotCRP's encoding of a single flag), or absent. */
-    public fun stringsOrOne(k: String): List<String> = when (val e = el(k)) {
-        null, JsonNull -> emptyList()
-        is JsonPrimitive -> listOf(e.content)
-        is JsonArray -> e.map { (it as? JsonPrimitive)?.content ?: "".also { _ -> bad(k, "strings", e) } }
-        else -> emptyList<String>().also { bad(k, "strings", e) }
-    }
+    public fun stringsOrOne(k: String): List<String> =
+        when (val e = el(k)) {
+            null, JsonNull -> emptyList()
+            is JsonPrimitive -> listOf(e.content)
+            is JsonArray -> e.map { (it as? JsonPrimitive)?.content ?: "".also { _ -> bad(k, "strings", e) } }
+            else -> emptyList<String>().also { bad(k, "strings", e) }
+        }
+
     public fun raw(k: String): JsonElement? = el(k)
 
     /** Keys not consumed and not in [open]; [ignore] lists keys we know and deliberately don't read. */

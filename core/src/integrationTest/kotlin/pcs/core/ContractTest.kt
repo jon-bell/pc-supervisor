@@ -19,43 +19,47 @@ import java.net.URI
 @Covers("assume:A2")
 class ContractTest {
     @Test
-    fun `pc roster decodes strictly`() = runBlocking {
-        Harness.client().use { c ->
-            val pc = c.pc()
-            assertTrue(pc.any { it.email == "ac1@example.org" }, pc.toString())
+    fun `pc roster decodes strictly`() =
+        runBlocking {
+            Harness.client().use { c ->
+                val pc = c.pc()
+                assertTrue(pc.any { it.email == "ac1@example.org" }, pc.toString())
+            }
         }
-    }
 
     @Test
-    fun `assignments decode, with clearreview rows dropped`() = runBlocking {
-        Harness.client().use { c ->
-            val rows = c.assignments()
-            assertTrue(rows.any { it.pid == 1L && it.action == "metareview" && it.email == "ac1@example.org" }, rows.toString())
-            assertTrue(rows.none { it.action == "clearreview" })
+    fun `assignments decode, with clearreview rows dropped`() =
+        runBlocking {
+            Harness.client().use { c ->
+                val rows = c.assignments()
+                assertTrue(rows.any { it.pid == 1L && it.action == "metareview" && it.email == "ac1@example.org" }, rows.toString())
+                assertTrue(rows.none { it.action == "clearreview" })
+            }
         }
-    }
 
     @Test
-    fun `reviews decode strictly, with ratings and modified_at`() = runBlocking {
-        Harness.client().use { c ->
-            val rs = c.reviews(c.paperIds())
-            assertEquals(listOf(4, 4, 5), rs.map { it.rtype }.sorted())
-            val a = rs.first { it.ordinal == "A" }
-            assertEquals(listOf("short", "short", "vague"), a.ratings)
-            assertTrue(rs.filter { it.status == "complete" }.all { it.modifiedAt != null })
-            assertNotNull(a.fields["OveMer"])
+    fun `reviews decode strictly, with ratings and modified_at`() =
+        runBlocking {
+            Harness.client().use { c ->
+                val rs = c.reviews(c.paperIds())
+                assertEquals(listOf(4, 4, 5), rs.map { it.rtype }.sorted())
+                val a = rs.first { it.ordinal == "A" }
+                assertEquals(listOf("short", "short", "vague"), a.ratings)
+                assertTrue(rs.filter { it.status == "complete" }.all { it.modifiedAt != null })
+                assertNotNull(a.fields["OveMer"])
+            }
         }
-    }
 
     @Test
-    fun `comments decode strictly`() = runBlocking {
-        Harness.client().use { c ->
-            val cs = c.comments(c.paperIds())
-            assertEquals(1, cs.size)
-            assertEquals("ac1@example.org", cs[0].authorEmail)
-            assertNotNull(cs[0].modifiedAt)
+    fun `comments decode strictly`() =
+        runBlocking {
+            Harness.client().use { c ->
+                val cs = c.comments(c.paperIds())
+                assertEquals(1, cs.size)
+                assertEquals("ac1@example.org", cs[0].authorEmail)
+                assertNotNull(cs[0].modifiedAt)
+            }
         }
-    }
 }
 
 @Family("T11")
@@ -68,10 +72,11 @@ class HarnessGuardTest {
     }
 
     @Test
-    fun `errors never carry the token`() = runBlocking {
-        val bad = pcs.core.hotcrp.HotcrpClient(Harness.url, "hct_not-a-real-token", strict = true)
-        val e = assertThrows(Exception::class.java) { runBlocking { bad.pc() } }
-        assertTrue("hct_not-a-real-token" !in (e.message ?: "") && "hct_not-a-real-token" !in e.stackTraceToString())
-        bad.close()
-    }
+    fun `errors never carry the token`() =
+        runBlocking {
+            val bad = pcs.core.hotcrp.HotcrpClient(Harness.url, "hct_not-a-real-token", strict = true)
+            val e = assertThrows(Exception::class.java) { runBlocking { bad.pc() } }
+            assertTrue("hct_not-a-real-token" !in (e.message ?: "") && "hct_not-a-real-token" !in e.stackTraceToString())
+            bad.close()
+        }
 }

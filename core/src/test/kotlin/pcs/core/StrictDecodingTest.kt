@@ -12,7 +12,9 @@ class StrictDecodingTest {
         val o = Json.parseToJsonElement("""{"rid": 1, "pid": "seven", "OveMer": 3, "brand_new": true}""").jsonObject
         val problems = mutableListOf<String>()
         val s = Strict("reviews[0]", o, problems)
-        s.long("rid"); s.long("pid"); s.raw("OveMer")
+        s.long("rid")
+        s.long("pid")
+        s.raw("OveMer")
         s.finish()
         assertEquals(listOf("reviews[0].pid: expected number, got \"seven\"", "reviews[0]: unexpected key brand_new"), problems)
     }

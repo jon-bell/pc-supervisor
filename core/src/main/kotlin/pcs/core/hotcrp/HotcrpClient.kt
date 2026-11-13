@@ -56,18 +56,20 @@ public class HotcrpClient(
     }
 
     private suspend fun call(method: HttpMethod, path: String, params: Map<String, String>): String {
-        val url = URLBuilder(base.toString()).apply {
-            appendPathSegments("api", path)
-            parameters.append("pretty", "0")
-            if (method == HttpMethod.Post) parameters.append(":method:", "GET")
-            params.forEach { (k, v) -> parameters.append(k, v) }
-        }.buildString()
+        val url =
+            URLBuilder(base.toString()).apply {
+                appendPathSegments("api", path)
+                parameters.append("pretty", "0")
+                if (method == HttpMethod.Post) parameters.append(":method:", "GET")
+                params.forEach { (k, v) -> parameters.append(k, v) }
+            }.buildString()
         var wait = 500L
         repeat(5) { attempt ->
-            val resp = http.request(url) {
-                this.method = method
-                header("Authorization", "Bearer $token")
-            }
+            val resp =
+                http.request(url) {
+                    this.method = method
+                    header("Authorization", "Bearer $token")
+                }
             val code = resp.status.value
             if (resp.status.isSuccess()) return resp.bodyAsText()
             if (code != 429 && code < 500 || attempt == 4) {
@@ -100,17 +102,18 @@ public class HotcrpClient(
         val o = json.parseToJsonElement(body).jsonObject
         val problems = mutableListOf<String>()
         val list = (o["pc"] as? JsonArray) ?: JsonArray(emptyList()).also { problems += "pc: no pc list" }
-        val out = list.mapIndexed { i, e ->
-            val s = Strict("pc[$i]", e.jsonObject, problems)
-            val email = s.string("email")
-            val first = s.optString("given_name")
-            val last = s.optString("family_name")
-            val name = listOfNotNull(first, last).joinToString(" ").ifBlank { s.optString("name") }
-            val roles = s.stringsOrOne("roles")
-            val tags = s.optString("tags")?.split(' ')?.filter { it.isNotBlank() } ?: emptyList()
-            s.finish(ignore = PC_UNREAD)
-            PcMember(email, name, roles, tags)
-        }
+        val out =
+            list.mapIndexed { i, e ->
+                val s = Strict("pc[$i]", e.jsonObject, problems)
+                val email = s.string("email")
+                val first = s.optString("given_name")
+                val last = s.optString("family_name")
+                val name = listOfNotNull(first, last).joinToString(" ").ifBlank { s.optString("name") }
+                val roles = s.stringsOrOne("roles")
+                val tags = s.optString("tags")?.split(' ')?.filter { it.isNotBlank() } ?: emptyList()
+                s.finish(ignore = PC_UNREAD)
+                PcMember(email, name, roles, tags)
+            }
         (o.keys - setOf("ok", "pc", "tags", "message_list")).forEach { problems += "pc: unexpected top-level key $it" }
         check(problems)
         return out
@@ -122,22 +125,29 @@ public class HotcrpClient(
         val lines = body.lines().filter { it.isNotBlank() }
         val problems = mutableListOf<String>()
         if (lines.isEmpty() || !lines.first().startsWith("paper,action,email")) problems += "get/pcassignments: unexpected header ${lines.firstOrNull()}"
-        val rows = lines.drop(1).mapNotNull { line ->
-            val f = line.split(",")
-            val pid = f.getOrNull(0)?.toLongOrNull()
-            if (pid == null || f.size < 2) { problems += "get/pcassignments: bad row $line"; null }
-            else if (f[1] == "clearreview") null
-            else AssignmentRow(pid, f[1], f.getOrElse(2) { "" })
-        }
+        val rows =
+            lines.drop(1).mapNotNull { line ->
+                val f = line.split(",")
+                val pid = f.getOrNull(0)?.toLongOrNull()
+                if (pid == null || f.size < 2) {
+                    problems += "get/pcassignments: bad row $line"
+                    null
+                } else if (f[1] == "clearreview") {
+                    null
+                } else {
+                    AssignmentRow(pid, f[1], f.getOrElse(2) { "" })
+                }
+            }
         check(problems)
         return rows
     }
 
-    private suspend fun <T> chunked(pids: List<Long>, f: suspend (String) -> List<T>): List<T> = coroutineScope {
-        val sem = Semaphore(concurrency)
-        val ranges = pids.sorted().chunked(chunk).map { "${it.first()}-${it.last()}" }
-        ranges.map { r -> async { sem.withPermit { f(r) } } }.awaitAll().flatten()
-    }
+    private suspend fun <T> chunked(pids: List<Long>, f: suspend (String) -> List<T>): List<T> =
+        coroutineScope {
+            val sem = Semaphore(concurrency)
+            val ranges = pids.sorted().chunked(chunk).map { "${it.first()}-${it.last()}" }
+            ranges.map { r -> async { sem.withPermit { f(r) } } }.awaitAll().flatten()
+        }
 
     /** Instance settings (admin only). Read leniently: it is configuration, and its key set varies by version. */
     public suspend fun settings(): Map<String, kotlinx.serialization.json.JsonElement> {
@@ -151,36 +161,53 @@ public class HotcrpClient(
         return o["ids"]?.jsonArray?.map { (it as JsonPrimitive).content.toLong() } ?: emptyList()
     }
 
-    public suspend fun reviews(pids: List<Long>): List<Review> = chunked(pids) { range ->
-        val items = envelope("reviews", call(HttpMethod.Post, "reviews", mapOf("q" to range)), "reviews")
-        val problems = mutableListOf<String>()
-        val out = items.mapIndexed { i, e ->
-            val s = Strict("reviews[$i]", e, problems)
-            val fields = e.filterKeys { it in formFields }
-            fields.keys.forEach { s.raw(it) }
-            Review(
-                rid = s.long("rid"), pid = s.long("pid"), rtype = s.long("rtype").toInt(), status = s.optString("status") ?: "",
-                ordinal = s.optString("ordinal"), reviewerEmail = s.optString("reviewer_email"), version = s.raw("version")?.toString()?.trim('"'),
-                modifiedAt = s.optLong("modified_at"), ratings = s.stringsOrOne("ratings"), fields = fields,
-            ).also { s.finish(ignore = REVIEW_UNREAD) }
+    public suspend fun reviews(pids: List<Long>): List<Review> =
+        chunked(pids) { range ->
+            val items = envelope("reviews", call(HttpMethod.Post, "reviews", mapOf("q" to range)), "reviews")
+            val problems = mutableListOf<String>()
+            val out =
+                items.mapIndexed { i, e ->
+                    val s = Strict("reviews[$i]", e, problems)
+                    val fields = e.filterKeys { it in formFields }
+                    fields.keys.forEach { s.raw(it) }
+                    Review(
+                        rid = s.long("rid"),
+                        pid = s.long("pid"),
+                        rtype = s.long("rtype").toInt(),
+                        status = s.optString("status") ?: "",
+                        ordinal = s.optString("ordinal"),
+                        reviewerEmail = s.optString("reviewer_email"),
+                        version = s.raw("version")?.toString()?.trim('"'),
+                        modifiedAt = s.optLong("modified_at"),
+                        ratings = s.stringsOrOne("ratings"),
+                        fields = fields,
+                    ).also { s.finish(ignore = REVIEW_UNREAD) }
+                }
+            check(problems)
+            out
         }
-        check(problems)
-        out
-    }
 
-    public suspend fun comments(pids: List<Long>): List<Comment> = chunked(pids) { range ->
-        val items = envelope("comments", call(HttpMethod.Post, "comments", mapOf("q" to range)), "comments")
-        val problems = mutableListOf<String>()
-        val out = items.mapIndexed { i, e ->
-            val s = Strict("comments[$i]", e, problems)
-            Comment(
-                cid = s.long("cid"), pid = s.long("pid"), authorEmail = s.optString("author_email"), text = s.optString("text"),
-                topic = s.optString("topic"), visibility = s.optString("visibility"), response = s.optBool("response") ?: false,
-                draft = s.optBool("draft") ?: false, modifiedAt = s.optLong("modified_at"),
-                tags = s.optString("tags")?.split(' ')?.filter { it.isNotBlank() } ?: emptyList(),
-            ).also { s.finish(ignore = COMMENT_UNREAD) }
+    public suspend fun comments(pids: List<Long>): List<Comment> =
+        chunked(pids) { range ->
+            val items = envelope("comments", call(HttpMethod.Post, "comments", mapOf("q" to range)), "comments")
+            val problems = mutableListOf<String>()
+            val out =
+                items.mapIndexed { i, e ->
+                    val s = Strict("comments[$i]", e, problems)
+                    Comment(
+                        cid = s.long("cid"),
+                        pid = s.long("pid"),
+                        authorEmail = s.optString("author_email"),
+                        text = s.optString("text"),
+                        topic = s.optString("topic"),
+                        visibility = s.optString("visibility"),
+                        response = s.optBool("response") ?: false,
+                        draft = s.optBool("draft") ?: false,
+                        modifiedAt = s.optLong("modified_at"),
+                        tags = s.optString("tags")?.split(' ')?.filter { it.isNotBlank() } ?: emptyList(),
+                    ).also { s.finish(ignore = COMMENT_UNREAD) }
+                }
+            check(problems)
+            out
         }
-        check(problems)
-        out
-    }
 }
