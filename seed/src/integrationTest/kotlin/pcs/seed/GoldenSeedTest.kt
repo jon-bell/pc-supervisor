@@ -72,10 +72,10 @@ class GoldenSeedTest {
                 5 to listOf(2, 2, 2),
                 6 to listOf(4, 4, 4),
                 7 to listOf(3, 3, 4),
-                8 to listOf(3, 3, 5),
+                8 to listOf(3, 3, 4),
                 9 to listOf(3, 3, 4),
                 10 to listOf(3, 3, 4),
-                11 to listOf(3, 3, 4),
+                11 to listOf(2, 2, 2),
                 12 to listOf(2, 4, 4),
                 13 to listOf(3, 3, 4),
             )

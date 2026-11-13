@@ -221,6 +221,18 @@ class Driver(
                     "r.reviewSubmitted = $sub, r.reviewModified = $mod, r.timeDisplayed = $sub where r.paperId = $pid and c.email = '$who';\n",
             )
         }
+        // HotCRP's version history: a submitted earlier version carries the submission time; an empty
+        // one, the request time. Otherwise /reviewhistory hides their modified_at (spec §9.3).
+        for ((key, times) in reviewTimes) {
+            val (pid, who) = key
+            val (sub, _) = times
+            stmts.append(
+                "update PaperReviewHistory h join ContactInfo c on h.contactId = c.contactId set " +
+                    "h.reviewModified = if(h.reviewSubmitted > 0, $sub, ${sub - 86400 * 20 + 60}), " +
+                    "h.reviewSubmitted = if(h.reviewSubmitted > 0, $sub, h.reviewSubmitted), " +
+                    "h.timeDisplayed = if(h.reviewSubmitted > 0, $sub, h.timeDisplayed) where h.paperId = $pid and c.email = '$who';\n",
+            )
+        }
         val unsubmittedRequested = epoch(At.disc(-33))
         stmts.append("update PaperReview set timeRequested = $unsubmittedRequested where reviewSubmitted is null or reviewSubmitted = 0;\n")
         for ((cid, t) in commentTimes) {

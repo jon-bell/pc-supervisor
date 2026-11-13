@@ -233,6 +233,34 @@ public class HotcrpClient(
             out
         }
 
+    /** One review's full version history, newest first (`expand=1`; admin only; one request per review). */
+    public suspend fun reviewHistory(pid: Long, rid: Long): List<Review> {
+        val o = json.parseToJsonElement(call(HttpMethod.Get, "$pid/reviewhistory", mapOf("r" to "$rid", "expand" to "1"))).jsonObject
+        val problems = mutableListOf<String>()
+        val out = (o["versions"] as? JsonArray).orEmpty().mapIndexed { i, e -> decodeReview("reviewhistory[$i]", e.jsonObject, problems) }
+        (o.keys - setOf("ok", "pid", "rid", "versions", "message_list")).forEach { problems += "reviewhistory: unexpected top-level key $it" }
+        check(problems)
+        return out
+    }
+
+    private fun decodeReview(where: String, e: JsonObject, problems: MutableList<String>): Review {
+        val s = Strict(where, e, problems)
+        val fields = e.filterKeys { it in formFields }
+        fields.keys.forEach { s.raw(it) }
+        return Review(
+            rid = s.long("rid"),
+            pid = s.long("pid"),
+            rtype = s.optLong("rtype")?.toInt() ?: 0,
+            status = s.optString("status") ?: "",
+            ordinal = s.optString("ordinal"),
+            reviewerEmail = s.optString("reviewer_email"),
+            version = s.raw("version")?.toString()?.trim('"'),
+            modifiedAt = s.optLong("modified_at"),
+            ratings = s.stringsOrOne("ratings"),
+            fields = fields,
+        ).also { s.finish(ignore = REVIEW_UNREAD) }
+    }
+
     public suspend fun comments(pids: List<Long>): List<Comment> =
         chunked(pids) { range ->
             val items = envelope("comments", call(HttpMethod.Post, "comments", mapOf("q" to range)), "comments")

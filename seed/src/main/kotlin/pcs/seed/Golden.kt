@@ -45,10 +45,10 @@ object Golden {
             5 to Row(acIdle, listOf(r1 to 2, r4 to 2, r6 to 2)),
             6 to Row(acNormal, listOf(r2 to 4, r3 to 4, r5 to 4)),
             7 to Row(acIdle, listOf(r1 to 3, r5 to 3, r6 to 4)),
-            8 to Row(acBusy, listOf(r2 to 5, r4 to 3, r6 to 3)),
+            8 to Row(acBusy, listOf(r2 to 4, r4 to 3, r6 to 3)),
             9 to Row(acBusy, listOf(r3 to 3, r4 to 3, r5 to 4), expertise = listOf(2, 1, 2)),
             10 to Row(acBusy, listOf(r1 to 3, r5 to 3, r6 to 4)),
-            11 to Row(acNormal, listOf(r2 to 3, r3 to 3, r6 to 4)),
+            11 to Row(acNormal, listOf(r2 to 2, r3 to 2, r6 to 2)),
             12 to Row(acNormal, listOf(rSilent to 1, r4 to 4, r5 to 4)),
             13 to Row(acNormal, listOf(r1 to 3, r3 to 3, r6 to 4)),
         )
@@ -99,13 +99,14 @@ object Golden {
             c(7, r1, 4),
             c(7, r5, 6),
             c(7, r6, 13),
-            // 8: the 5-scorer (r2) never comments
+            // 8: the top scorer (r2, 4) never comments
             c(8, acBusy, 1),
             c(8, r4, 4),
             c(8, r6, 13),
             // 9: low expertise; otherwise healthy
             c(9, acBusy, 1),
             c(9, r3, 4),
+            c(9, r5, 6),
             c(9, r4, 13),
             // 10: thin review by r1
             c(10, acBusy, 1),

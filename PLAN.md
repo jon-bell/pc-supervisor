@@ -262,10 +262,10 @@ Scales follow the default form: merit 1–5 (accept side ≥ 3), expertise 1–4
 | 5 | `SILENT_DISCUSSION`, `AC_ABSENT`, `GONE_QUIET` | Merit 2/2/2. No comments at all. The last activity is review submission before 02-01. |
 | 6 | `GONE_QUIET` | Merit 4/4/4. The last comment is on day +2. |
 | 7 | `AC_ABSENT` | The AC never comments; the reviewers do. |
-| 8 | `CHAMPION_MISSING` | Merit 5/3/3. The 5 reviewer never comments. |
+| 8 | `CHAMPION_MISSING` | Merit 4/3/3. The 4 reviewer never comments. (Was 5/3/3, which is also a `SPLIT` by spec §5c's range rule; corrected 2026-11-13 when the rules were first run on it.) |
 | 9 | `LOW_EXPERTISE` | All expertise ≤ 2. |
 | 10 | `THIN_REVIEWS` | One review is 35 words and is rated `short` by both co-reviewers. |
-| 11 | `RESPONSE_UNADDRESSED` | An author response is posted on 02-09. Reviewers never comment, and the AC comments on days +1 and +12. |
+| 11 | `RESPONSE_UNADDRESSED` | Merit 2/2/2. An author response is posted on 02-09. Reviewers never comment, and the AC comments on days +1 and +12. (Merit 2/2/2 so that silent reviewers don't also fire `CHAMPION_MISSING`; corrected 2026-11-13.) |
 | 12 | `SPLIT` | Merit 2/4/4, with movement 1→2 on day +5. At the second instant (below), it also fires `DEADLINE_NO_CONSENSUS`. |
 | 13 | `REVIEW_FLAGGED` | One review is rated `disrespectful` by the AC and `short` by a co-reviewer. Otherwise healthy (that review is ≥ 200 words, so `THIN_REVIEWS` doesn't fire, because `THIN_REVIEWS` counts only `short`/`vague` ratings from **≥ 2 raters** or word count). |
 
