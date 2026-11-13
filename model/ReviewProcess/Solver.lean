@@ -17,7 +17,7 @@ import Std.Data.HashMap
 
   The algorithm is primal-dual: Dijkstra on reduced costs, then blocking flows
   (Dinic) on the zero-reduced-cost arcs. The solver is the reference that the
-  TypeScript port is tested against; its safety (A2, V1) holds by construction:
+  JVM implementation (`core`) is tested against; its safety (A2, V1) holds by construction:
   see `a2_plan_eligible`.
 -/
 namespace ReviewProcess

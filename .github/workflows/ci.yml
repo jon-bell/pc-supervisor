@@ -37,6 +37,7 @@ env:
   PCS_NOW: "2030-02-26T12:00"
   PCS_DB_PATH: ${{ github.workspace }}/data/ci.db
   PCS_DB_KEY: ci-only-not-secret
+  PCS_ANSWERS: ${{ github.workspace }}/model/answers/synthetic.txt
 
 jobs:
   ci:
@@ -62,37 +63,36 @@ jobs:
       - name: Harness API smoke test
         run: scripts/harness-smoke.sh
 
-      - uses: actions/setup-node@v4
-        if: hashFiles('package.json') != ''
+      - uses: actions/setup-java@v4
+        if: hashFiles('settings.gradle.kts') != ''
         with:
-          node-version: 22
-          cache: npm
+          distribution: temurin
+          java-version: 21
 
-      - name: Install
-        if: hashFiles('package.json') != ''
-        run: npm ci
+      - uses: gradle/actions/setup-gradle@v4
+        if: hashFiles('settings.gradle.kts') != ''
 
-      - name: Lint + typecheck
-        if: hashFiles('package.json') != ''
-        run: npm run lint && npm run typecheck
-
-      - name: Unit tests
-        if: hashFiles('package.json') != ''
-        run: npm run test:unit
+      - name: Lint, unit, property, and model-generated tests
+        if: hashFiles('settings.gradle.kts') != ''
+        run: ./gradlew check
 
       - name: Contract + integration tests (against harness)
-        if: hashFiles('package.json') != ''
-        run: set -a && . ./.env.test && set +a && npm run test:integration
+        if: hashFiles('settings.gradle.kts') != ''
+        run: set -a && . ./.env.test && set +a && ./gradlew integrationTest
 
-      - name: Playwright E2E
-        if: hashFiles('package.json') != ''
-        run: |
-          npx playwright install --with-deps chromium
-          set -a && . ./.env.test && set +a && npm run test:e2e
+      - name: UI tests (Compose, against seeded golden)
+        if: hashFiles('settings.gradle.kts') != ''
+        run: set -a && . ./.env.test && set +a && xvfb-run -a ./gradlew uiTest
+
+      - name: Upload screenshots to Argos
+        if: hashFiles('settings.gradle.kts') != '' && hashFiles('app/build/screenshots/**') != ''
+        env:
+          ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
+        run: npx --yes @argos-ci/cli upload app/build/screenshots
 
       - name: Scale scenario (nightly only)
-        if: github.event_name == 'schedule' && hashFiles('package.json') != ''
-        run: set -a && . ./.env.test && set +a && npm run test:scale
+        if: github.event_name == 'schedule' && hashFiles('settings.gradle.kts') != ''
+        run: set -a && . ./.env.test && set +a && ./gradlew scaleTest
 
       - name: Collect harness logs
         if: failure()
@@ -104,10 +104,26 @@ jobs:
           name: failure-artifacts
           path: |
             hotcrp-logs.txt
-            playwright-report/
-            test-results/
+            '**/build/reports/'
+            '**/build/test-results/' 
           if-no-files-found: ignore
 
       - name: Tear down harness
         if: always()
         run: docker compose -f hotcrp/compose.yaml down -v --remove-orphans || true
+
+  model:
+    runs-on: ripley-cloud
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Check proofs and the committed report
+        working-directory: model
+        run: |
+          lake build
+          lake exe report answers/synthetic.txt > /tmp/model-report.txt
+          diff -u model-report.txt /tmp/model-report.txt

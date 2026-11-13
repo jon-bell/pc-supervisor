@@ -1,14 +1,20 @@
-# PC Supervisor configuration. Every setting is an env var; there is no config
-# file. Copy to .env (git-ignored) and fill in. The server validates all of
-# these at startup and lists every problem at once.
+# PC Supervisor settings (docs/spec.md §4.1). Copy to pcs.conf (git-ignored),
+# keep it outside this repo, and fill in. Every key can also come from the
+# environment, which wins. Policy choices are NOT settings: they are readings
+# in the answers file (PCS_ANSWERS). The app validates everything at startup
+# and lists every problem at once.
 
 # --- HotCRP instance -------------------------------------------------------
 # Base URL of the conference (no trailing slash, no /api).
 PCS_HOTCRP_URL=https://example.hotcrp.com
-# Chair (sysadmin) API token: Account settings > Developer. Never commit.
-PCS_HOTCRP_TOKEN=
+# The chair API token lives in the OS keychain (the app asks on first run).
+# PCS_HOTCRP_TOKEN is read from the environment only for a localhost URL (tests, CI).
 # false = respect the chair's own conflicts (hide those papers).
 PCS_FORCE_SHOW=true
+
+# --- Policy -------------------------------------------------------------------
+# The answers file: one "Qn = <reading>" line per settled question (model format).
+PCS_ANSWERS=
 
 # --- Phase dates (ISO 8601, interpreted in PCS_TZ) ---------------------------
 PCS_TZ=America/New_York
@@ -25,15 +31,15 @@ PCS_NOW=
 # Who counts as a paper's area chair: meta | lead | manager | tag:<tag>
 PCS_AC_ROLE=meta
 # Reviewer tiers from PC user tags; untagged reviewers are "senior".
-PCS_TIER_TAGS=junior=junior,reciprocal=reciprocal
-# Review-form field UIDs (check with scripts/probe against the real instance).
+PCS_TIER_TAGS=junior=junior,nominee=nominee
+# Review-form field UIDs (check with `pcs probe` against the real instance).
 PCS_FIELD_MERIT=OveMer
 PCS_FIELD_EXPERTISE=RevExp
 PCS_MERIT_ACCEPT_MIN=3
 PCS_EXPERTISE_OK_MIN=3
 PCS_REVIEWS_REQUIRED=3
 
-# --- Rule thresholds and weights (defaults in src; override any) ------------
+# --- Rule thresholds and weights (defaults in core; override any) -----------
 # PCS_THRESH_SPLIT_RANGE=2
 # PCS_THRESH_STALE_DAYS=4
 # PCS_THRESH_UNRESOLVED_DAYS=5
@@ -43,11 +49,13 @@ PCS_REVIEWS_REQUIRED=3
 # PCS_RULE_SPLIT_WEIGHT=3   (etc. for every rule NAME in docs/spec.md §5c)
 
 # --- Local store ---------------------------------------------------------------
-# Default: ~/.local/share/pc-supervisor/<hotcrp-host>.db. Keep it OUT of the
-# repo and out of any synced folder.
+# Default: the OS app-data directory, <hotcrp-host>.db. Keep it OUT of the
+# repo and out of any synced folder. The SQLCipher key lives in the OS keychain.
 PCS_DB_PATH=
-# SQLCipher key. Leave empty to be prompted / read from the OS keychain.
-PCS_DB_KEY=
+
+# --- Load bands (reviews per person, per tier) ----------------------------------
+# PCS_LOAD_SENIOR_MAX=15
+# PCS_LOAD_JUNIOR_MAX=8
 
 # --- Sync ------------------------------------------------------------------------
 PCS_SYNC_INTERVAL_MIN=15
@@ -55,5 +63,7 @@ PCS_SYNC_CHUNK=200
 PCS_SYNC_CONCURRENCY=2
 PCS_HISTORY_RPS=1
 
-# --- Server ------------------------------------------------------------------------
-PCS_PORT=5317
+# --- HotCRP conventions (docs/spec.md §11) ---------------------------------------
+# PCS_TAG_TRIAGE_KEEP=pcs-keep
+# PCS_TAG_TRIAGE_REFER=pcs-refer
+# PCS_TAG_REQUEST=pcs-req

@@ -6,7 +6,7 @@ Each CI job builds and starts **its own disposable HotCRP + MariaDB with Docker 
 
 ```
 GitHub ──► ARC listener (arc-runners-jon-bell) ──► ephemeral runner pod
-                                                   ├─ runner container: node, playwright, scripts/hotcrp-up.sh
+                                                   ├─ runner container: JDK 21 + Gradle, xvfb (Compose UI tests), scripts/hotcrp-up.sh
                                                    └─ dind sidecar: hotcrp (php:8.3-apache @ HOTCRP_REF) + mariadb:10.11 (tmpfs)
 ```
 
@@ -17,15 +17,15 @@ GitHub ──► ARC listener (arc-runners-jon-bell) ──► ephemeral runner 
 | Option | Verdict |
 |---|---|
 | **A. Compose in a dind runner, per job** (chosen) | The harness is identical on a laptop and in CI (`scripts/hotcrp-up.sh`), and every run is hermetic. Changing `HOTCRP_REF` is a one-line bump. It costs ~1–2 min of image build per run, which can be cached later (below). |
-| B. Upstream-style bare metal: `setup-php` + a MariaDB `services:` container + `php -S` | This is what HotCRP's own CI does. But `php -S` is single-threaded, which hurts once Playwright and the sync run concurrently. It also behaves differently from local dev and depends on how ARC's dind handles `services:`. Rejected. |
+| B. Upstream-style bare metal: `setup-php` + a MariaDB `services:` container + `php -S` | This is what HotCRP's own CI does. But `php -S` is single-threaded, which hurts once the UI tests and the sync run concurrently. It also behaves differently from local dev and depends on how ARC's dind handles `services:`. Rejected. |
 | C. A long-lived HotCRP on Ripley k8s, reset per run by DB restore | Faster per run, but shared state means concurrent PRs collide. It's also ops we'd have to keep alive. **Use it only for exploration and scale demos** (a seeded `scale` instance a human can click around), never for per-PR CI. |
 | D. A hosted hotcrp.com test instance | No way to reset, seed with batch scripts, or warp time. Rejected. |
 
 ## Visual testing (Argos)
 
-The Playwright suite takes `argosScreenshot`s, and the reporter uploads them to Argos **only when `CI` is set**. Auth is tokenless: the Argos GitHub App is installed on the repo, and the SDK proves the job from the GitHub Actions run and job IDs. If an `ARGOS_TOKEN` secret exists, it's used instead.
+The Compose UI tests write screenshots to `app/build/screenshots`, and CI uploads them with the Argos CLI. Uploads happen **only in CI**. Auth is tokenless: the Argos GitHub App is installed on the repo, and the SDK proves the job from the GitHub Actions run and job IDs. If an `ARGOS_TOKEN` secret exists, it's used instead.
 
-Tokenless auth also requires an **Argos project linked to this repository** (app.argos-ci.com → new project → import the repo). Without one, the upload fails with `No project found`. `.github/workflows/argos-canary.yml`, which runs on manual dispatch only, screenshots the harness home page to check this setup end to end.
+Tokenless auth also requires an **Argos project linked to this repository** (app.argos-ci.com → new project → import the repo). Without one, the upload fails with `No project found`. `.github/workflows/argos-canary.yml`, which runs on manual dispatch only, screenshots the harness home page with Playwright to check this setup end to end. It is independent of the app's stack.
 
 ## Runner gotcha
 
@@ -72,5 +72,6 @@ Don't do either until build time actually hurts.
 
 | Job | Trigger | Runs |
 |---|---|---|
-| `ci` | push, PR | harness up → API smoke → (once `package.json` exists) lint, typecheck, unit, contract, seed `golden`, integration, Playwright → artifacts on failure → teardown |
+| `ci` | push, PR | harness up → API smoke → (once `settings.gradle.kts` exists) `check`, contract and integration, UI tests, Argos upload → artifacts on failure → teardown |
+| `model` | push, PR | `lake build` (checks every proof) and a diff of `model/model-report.txt` against a fresh run |
 | `nightly` | schedule + manual | the same suite against `HOTCRP_REF=master` (an early warning when upstream changes the API), plus the `scale` scenario on `ripley-cloud-large` |

@@ -2,7 +2,7 @@
 
 The conceptual design (concepts, rules, policy, properties, and examples in HUSL style) is [concepts.md](concepts.md). Where the two disagree, concepts.md wins and this file gets fixed. In concepts.md, decision records are called **rulings**.
 
-This document specifies the agent that screens submissions before review. It finds evidence for desk-reject decisions, writes structured contribution summaries for area chairs, and does it for any model on any inference engine. It extends [spec.md](spec.md) §10.4 B (the desk-reject tracker), which previously expected an external `refcheck` import. Milestones are M14–M18 in [PLAN.md](../PLAN.md).
+This document specifies the agent that screens submissions before review. It finds evidence for desk-reject decisions, writes structured contribution summaries for area chairs, and does it for any model on any inference engine. It extends [spec.md](spec.md) §10.4 B (the desk-reject tracker), which previously expected an external `refcheck` import. Milestones are M8–M12 in [PLAN.md](../PLAN.md), with triage and desk reject in M13.
 
 > **Decided:**
 > - The agent **only flags**. It never rejects, never scores, and never writes to HotCRP. Every desk-reject decision is made by people, and never by one person alone (§2).
@@ -79,7 +79,7 @@ decision(id, title, status, statement, owner_role, decided_at, source, supersede
 Each check is a directory, `agent/checks/<id>/`, containing:
 - `check.yaml`: id, version, category, `depends_on`, the inputs, the output schema reference, the evidence rule, and who is affected if it's wrong;
 - `prompt.md`, for LLM checks;
-- `schema.ts` (Zod);
+- `schema.json` (JSON Schema, from which the Kotlin output type is generated);
 - `oracle/`: synthetic and public labeled examples, plus the mutation operators that create its known positives (§7.2).
 
 The version is a content hash of the directory, so any edit is a new version.
@@ -107,47 +107,49 @@ An **agent-loop variant** (the model drives read-only tools such as `search_text
 
 ### 4.2 The interface
 
-```ts
-type DataClass = "synthetic" | "public" | "confidential";
+```kotlin
+enum class DataClass { SYNTHETIC, PUBLIC, CONFIDENTIAL }
 
 interface Engine {
-  id: string;                       // e.g. "bedrock/<model>", "openai-compat/<host>/<model>"
-  clearance: DataClass;             // §5; ceiling enforced outside the adapter
-  caps: {
-    structured: "native" | "grammar" | "tool" | "prompt";  // how JSON is guaranteed
-    pdfInput: boolean;              // accepts a PDF directly
-    maxInputTokens: number;
-    batch: boolean;                 // asynchronous batch submission
-    promptCache: boolean;
-    toolLoop: "none" | "own" | "harness";
-  };
-  call(req: CallRequest): Promise<CallResult>;
-  submitBatch?(reqs: CallRequest[]): Promise<BatchHandle>;
-  collectBatch?(h: BatchHandle): AsyncIterable<CallResult>;
+    val id: String                    // e.g. "bedrock/<model>", "openai-compat/<host>/<model>"
+    val clearance: DataClass          // §5; ceiling enforced outside the adapter
+    val caps: Caps
+    suspend fun call(req: CallRequest): CallResult
+    suspend fun submitBatch(reqs: List<CallRequest>): BatchHandle? = null   // null: no batch support
+    fun collectBatch(h: BatchHandle): Flow<CallResult> = emptyFlow()
 }
 
-interface CallRequest {
-  key: string;                      // content address (§4.4)
-  check: { id: string; version: string };
-  dataClass: DataClass;
-  system: string;                   // stable, cacheable prefix
-  parts: Part[];                    // text with anchors | pdf | reference records
-  schema: JSONSchema;               // from the check's Zod schema
-  effort?: "low" | "medium" | "high";   // mapped per provider; ignored where unsupported
-  maxOutputTokens: number;
-}
+data class Caps(
+    val structured: Structured,       // NATIVE | GRAMMAR | TOOL | PROMPT: how JSON is guaranteed
+    val pdfInput: Boolean,            // accepts a PDF directly
+    val maxInputTokens: Int,
+    val batch: Boolean,               // asynchronous batch submission
+    val promptCache: Boolean,
+    val toolLoop: ToolLoop,           // NONE | OWN | HARNESS
+)
 
-interface CallResult {
-  key: string;
-  status: "ok" | "schema_invalid" | "refusal" | "truncated" | "error";
-  output?: unknown;                 // validated against schema
-  servedModel: string;              // as reported by the provider, not as requested
-  usage: { input: number; output: number; cacheRead?: number; cacheWrite?: number };
-  costUsd: number;                  // usage × price table (env), recorded at call time
-  latencyMs: number;
-  attempts: number;
-  raw: string;                      // stored encrypted; never logged
-}
+data class CallRequest(
+    val key: String,                  // content address (§4.4)
+    val check: CheckRef,              // id + version
+    val dataClass: DataClass,
+    val system: String,               // stable, cacheable prefix
+    val parts: List<Part>,            // text with anchors | pdf | reference records
+    val schema: JsonObject,           // the check's schema.json
+    val effort: Effort? = null,       // LOW | MEDIUM | HIGH; mapped per provider, ignored where unsupported
+    val maxOutputTokens: Int,
+)
+
+data class CallResult(
+    val key: String,
+    val status: Status,               // OK | SCHEMA_INVALID | REFUSAL | TRUNCATED | ERROR
+    val output: JsonElement?,         // validated against schema
+    val servedModel: String,          // as reported by the provider, not as requested
+    val usage: Usage,                 // input, output, cacheRead, cacheWrite
+    val costUsd: BigDecimal,          // usage × price table (settings), recorded at call time
+    val latencyMs: Long,
+    val attempts: Int,
+    val raw: String,                  // stored encrypted; never logged
+)
 ```
 
 **There are no sampling parameters.** Several providers now reject `temperature` and similar settings, and nondeterminism is something we measure (§7.3), not something we try to switch off. `effort` is the only quality knob, and each adapter maps it to its provider's equivalent or drops it.
@@ -304,13 +306,13 @@ The planner (§4.4) reports which class a change falls into. Failures found in p
 ## 8. Layout
 
 ```
-agent/            npm workspace
-  src/engines/    adapters (§4.3) + dispatcher with the clearance check (§5.1)
-  src/extract/    PDF text + anchors, GROBID client, layout facts, hidden-text scan
-  src/tools/      read-only tools; exported in-process and as an MCP server
-  src/checks/     runner, anchor verification, flag-card renderer
+agent/            Gradle module (Kotlin); depends on core
+  engines/        adapters (§4.3) + dispatcher with the clearance check (§5.1)
+  extract/        PDF text + anchors (PDFBox), GROBID client, layout facts, hidden-text scan
+  tools/          read-only tools; exported in-process and as an MCP server
+  checks/runner/  runner, anchor verification, flag-card renderer
   checks/<id>/    check specs (§3.2)
   eval/           corpora manifests (no PDFs in git for non-synthetic), mutation operators, shootout + qualification
 ```
 
-The CLI commands are `pcs agent probe | plan | run | manifest | shootout | qualify | export-hotcrp`. GROBID runs as a local container next to the HotCRP harness.
+The CLI commands are `pcs agent probe | plan | run | manifest | shootout | qualify | export-hotcrp | bundle`. `pcs agent bundle` writes the encrypted screening bundle that the chairs' apps import (spec §4, §10.3). GROBID runs as a local container next to the HotCRP harness, or in-process where its native libraries support the platform.

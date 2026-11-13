@@ -12,7 +12,7 @@ The specification has six parts:
 
 The chairs sign the *views* of these parts: tables, one-sentence rules, and example cards. They never sign prompts or code.
 
-The implementation designs are [spec.md](spec.md) (sync, dashboard, modules, solver) and [agent.md](agent.md) (the screening agent). Where they disagree with this file, this file wins and they get fixed.
+The implementation designs are [spec.md](spec.md) (architecture, sync, modules, solver, HotCRP conventions) and [agent.md](agent.md) (the screening agent). Where they disagree with this file, this file wins and they get fixed.
 
 Everything here is generic. A venue's choices among the open readings (§1) are **rulings** (concept 2), kept with the instance, not in the repo.
 
@@ -89,7 +89,7 @@ Each concept owns its state and refers to others only through type parameters. T
 | #                                          | Concept             | Purpose                                                                                                                                                  | Owner                               |
 | ------------------------------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
 | **Frame**                                  |                     |                                                                                                                                                          |                                     |
-| 1                                          | **Phase**           | Move the process through its stages on schedule, so that what is allowed changes with the date                                                           | PCS (dates in env)                  |
+| 1                                          | **Phase**           | Move the process through its stages on schedule, so that what is allowed changes with the date                                                           | PCS (dates in settings)             |
 | 2                                          | **Ruling**          | Make every policy choice explicit, owned, and revisable                                                                                                  | PCS                                 |
 | **HotCRP, mirrored**                       |                     |                                                                                                                                                          |                                     |
 | 3                                          | **Person**          | Identify a person, with roles (chair, PC, AC, external) and user tags                                                                                    | HotCRP                              |
@@ -140,7 +140,7 @@ concept Phase
 purpose    move the process through its stages on schedule
 state      stages: registration < submission < screening < assignment < review
                    < early-reject < response < discussion < decision < notification
-           deadline: Stage -> Time          -- env; one function reads the clock (PCS_NOW)
+           deadline: Stage -> Time          -- settings; one function reads the clock (PCS_NOW)
 actions    tick (t)                         -- time arrives as an action
 ```
 
@@ -162,7 +162,7 @@ actions
 
 ### 3.2 HotCRP and the interface to it
 
-The HotCRP concepts (3, 5–11) are HotCRP's, and their visibility rules are HotCRP's `canSee` (see the Expedition's HotCRP worked example). PC Supervisor depends on them only through Mirror.
+The HotCRP concepts (3, 5–11) are HotCRP's, and their visibility rules are HotCRP's `canSee`. PC Supervisor depends on them only through Mirror.
 
 `Tier` is a PCS rule over HotCRP user tags (`PCS_TIER_TAGS`).
 
@@ -539,7 +539,7 @@ Y means granted. N means denied, and confirmed on a forbidden example. A dot mea
 | A2 ◆ | No plan contains a conflicted, authored, or not-on-the-PC edge | safety | property tests; differential against HotCRP's own checks |
 | A3 | No reciprocal 2-cycle survives repair, and longer cycles up to K are reported | safety | property tests |
 | A4 | Load stays within each tier's band, or the violation is reported | safety | property tests |
-| A5 | The solver's flow matches HotCRP's MinCostMaxFlow on instances without tiers | differential | M10a |
+| A5 | The solver's flow matches HotCRP's MinCostMaxFlow on instances without tiers | differential | PLAN M14 |
 | **Screening** (detail in the earlier design, unchanged) ||||
 | S1 ◆ | No single person removes a paper: an AC referral plus agreement from a different, unconflicted person, then a chair's action | safety | proved |
 | S2 ◆ | Every removal names grounds, each backed by an upheld, usable finding (desk) or by unanimous scores with no bump (early) | safety | proved |
@@ -559,7 +559,7 @@ Y means granted. N means denied, and confirmed on a forbidden example. A dot mea
 | **Confidentiality** ||||
 | C1 | Review and comment text never reaches an LLM or any third party | information flow | spec §7; no engine accepts the type |
 | C2 | Authors never learn who gave a second opinion, which engine produced a finding, or who bumped a score | relates two runs | proved; template lint |
-| C3 | Exports carry pseudonyms only, and the same key always yields the same pseudonym | safety | test (M13) |
+| C3 | Exports carry pseudonyms only, and the same key always yields the same pseudonym | safety | test (PLAN M20) |
 | **Monitors and scenarios** ||||
 | M1 | PC chairs are notified when an AC's referral or removal rate falls outside the band in their area | escalation | monitor |
 | M2 | Process chairs are notified of route gaps, stale imports, and Writeback mismatches | escalation | monitor |
@@ -632,7 +632,7 @@ scenario Q1  ~4,000 submissions, ~40 ACs, ~500 senior + junior PC plus accepted 
 assume A1    HotCRP's records (authorship, conflicts, roles, reviews) are correct -- system of record
 assume A2    HotCRP's API returns what its UI shows a chair (checked by the M0 probe and contract tests)
 assume A3    TPMS files are what the operator sent; scores, where provided, mean affinity
-assume A4    the invites sheet records the ACs' real decisions -- PCS reads it, never edits it
+assume A4    the appointments sheet records the ACs' real decisions -- PCS reads it, never edits it
 assume A5    extracted text matches what a reader sees, except hidden text, which is flagged
 assume A6    public indexes are right about which works exist (missing ≠ fabricated: Q6)
 assume A7    each engine's provider honors its recorded agreement
@@ -710,16 +710,17 @@ accountable  PC chairs: rulings on policy questions, admitted grounds, the polic
 | Concepts | Where |
 |---|---|
 | Open questions, rules, properties, examples, policy, Plan | `model/` (Lean): Readings, Model, Properties, Validate, Policy, Solver |
-| Phase, Ruling | spec §4.1, §10.1 (phase dates); agent.md §3.1 (decision records = rulings) |
+| Phase, Ruling | spec §4.1 (the answers file holds the rulings), §10.1 (phase dates); agent.md §3.1 (decision records = rulings) |
 | Mirror | spec §1–§4 (sync, snapshots, first_seen, deletions) |
-| Writeback | spec §6 (v1 actions), §10 (generated artifacts); dry run via `POST /assign?dry_run=1` |
+| Writeback | spec §6 (artifacts and their dry runs) |
+| Every non-chair action in §3.9 | spec §11 (the HotCRP trace each one leaves; HotCRP is the shared record) |
 | Import | spec §10.3 |
-| Nomination, Appointment, SubmissionLimit | spec §10.4 A, C (to be revised: nominees, not reserve designees) |
-| Screening concepts | agent.md |
+| Nomination, Appointment, SubmissionLimit | spec §10.3 (`appointments` import), §10.4 A |
+| Screening concepts | agent.md; spec §10.4 B (triage, second opinion, remedy, disposition, TriageFeedback) |
 | Affinity, Plan | spec §10.4 C, §10.5 (solver) |
 | Attention | spec §5 (rules), §10.4 D, F |
 | EarlyReject | spec §10.4 E |
-| Criterion, AccountabilityRequest, Accountability | spec §5 (signals), §10.4 D (nominee accountability); request tracking is new |
+| Criterion, AccountabilityRequest, Accountability | spec §10.4 D, §11 |
 | Pseudonym | spec §10.4 G |
 
-**Next step:** an executable model of §3 (concepts as a reducer `(State, Action) → (State, [Effect])`, rules as functions), checked against §3.11 and the properties in §3.10. It doubles as the oracle for the implementation's tests.
+The model is the oracle for the implementation's tests: the example cards become generated tests, and the Lean solver is the reference for `core`'s solver (spec §9.1, PLAN M1).
