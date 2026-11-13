@@ -14,7 +14,7 @@ This is the work breakdown for building PC Supervisor. Read [docs/spec.md](docs/
 M1 foundations ──┬── M2 seeder + golden ──┐
                  ├── M3 store + sync ─────┼── M5 server + triage UI ── M6 AC/reviewer/overview ── M7 scale ── M8 v1 actions
                  └── M4 rules engine ─────┘
-M0 probe (needs only M1's HotCRP client; Jon runs it against the live instance)
+M0 probe (needs only M1's HotCRP client; the maintainer runs it against the live instance)
 ```
 
 After M1, tracks M2, M3, and M4 can go to different people. The **golden scenario table** below is the contract between them. M2 builds it, M3 syncs it, and M4's unit tests encode its expected reasons.
@@ -58,7 +58,7 @@ The CI steps for these are already in `.github/workflows/ci.yml`. They're gated 
   - whether `modified_at` is present on reviews and comments.
 - It **prints no content**: no titles, names, emails, or text.
 - **Depends on:** the HotCRP client from M1.
-- **Done when:** it runs green against the harness in CI, and Jon has run it against the live instance and pasted the report into an issue. That report sets the env defaults (`PCS_FIELD_*`, `PCS_MERIT_ACCEPT_MIN`, `PCS_TIER_TAGS`).
+- **Done when:** it runs green against the harness in CI, and the maintainer has run it against the live instance and pasted the report into an issue. That report sets the env defaults (`PCS_FIELD_*`, `PCS_MERIT_ACCEPT_MIN`, `PCS_TIER_TAGS`).
 
 ## M1: Foundations
 
@@ -216,10 +216,40 @@ The discussion MVP ships first, on the shadow PC. These milestones implement spe
 | **M12** | Reviewing-by-tier (D) + early reject (E) | A multi-stage scenario: candidates are computed at window open; some reviewers bump within the window, others don't; at window close the lists match expectations |
 | **M13** | Process report (G) + pseudonymous export | The report renders from the `shadow` and `scale` scenarios; exported rows contain no email, only HMAC pseudonyms, stable for a given key |
 
-## Open items (Jon)
+## Phase 3: submission-screening agent ([docs/agent.md](docs/agent.md))
+
+These milestones are independent of M9–M13 except M14 → B-tracker integration. They can start as soon as M1 exists.
+
+| M | Scope | Done when |
+|---|---|---|
+| **M14** | Extraction + deterministic checks: PDF text with page anchors, local GROBID, layout facts, the hidden-text scan; `format`, `refs.doi`, the deterministic half of `anonymity`, `hidden-text`. The `synthetic` corpus with planted defects | Every planted deterministic defect is flagged with a verifying anchor, and no flags fire on clean synthetic papers. No network in tests except a mocked resolver |
+| **M15** | Engine layer: the interface, dispatcher with the clearance check, `claude-code`, `anthropic` (API / Bedrock / Foundry / Vertex), `openai-compat`, `replay`; `pcs agent probe`; content-addressed store; `pcs agent plan` | Unit tests show the dispatcher refuses every under-cleared call. CI runs all checks through `replay`. A manual run of one check on synthetic data succeeds on `claude-code` (a maintainer's login) and on one other engine, with matching schema-valid output |
+| **M16** | LLM checks: `anonymity` (LLM half), `scope`, `refs.use` (abstract variant), `summary`; anchor verification; flag cards; decision records + manifest | Manifest renders from check dirs + decisions. Unverifiable anchors are never shown. A flag depending on an `unresolved` decision renders as blocked |
+| **M17** | Evaluation: the `public` + `held-out` corpora, mutation operators, metrics of agent.md §7.3 including stability and scaffold delta, `pcs agent shootout` report | Shootout over ≥ 3 engines (incl. one self-hosted) on `held-out` produces per-check frontiers with CIs and a projected cost at `PCS_AGENT_SCALE_PAPERS` |
+| **M18** | Qualification + production path: qualification records, refusal of unqualified tuples, change classification in `plan`, batch submission, HotCRP artifact export, AC-consistency view in the B tracker | An end-to-end run on the harness's seeded conference produces tags + comment batch that pass `POST /assign?dry_run=1`; a prompt edit shows up as "needs requalification" with the flags it moves |
+| **M19** | Federated evaluation kit: one command a past venue's chair runs on their own HotCRP export or token, offline by default, with their own engine choice (deterministic only, `openai-compat` local, or their own provider account). It computes check precision and recall against recorded desk rejects, TPMS profile coverage, composition feasibility under real conflicts, the early-reject rate under each Q15 reading, and cost per paper. It emits one deterministic aggregate report (counts and rates only; cells under 5 suppressed; no IDs, titles, names, or text) that the chair reads before sending | On the seeded conference, the report contains no identifier from the input (checked by a scan of the report against every ID, title, and name in the export), every count under 5 is suppressed, and two runs give byte-identical reports with the replay engine |
+
+## Formal model ([model/](model/README.md))
+
+The Lean model of docs/concepts.md. It is independent of the milestones above and can grow alongside them.
+
+- **Done (2026-11-12):** readings for Q1–Q21 except Q9 and Q12; rules for removal, early reject, nominee obligations, composition, cycles, dry run and accountability requests; 19 theorems (two are helper lemmas); 36 example cards with the legibility check; 10 mutants; a synthetic conference.
+- **Done (2026-11-13):**
+  - The policy table (§3.9) as a function of the reading, with Q4 added. Every trace step is gated by it, and eight theorems cover it: S6, only a PC chair removes, AR2, H2, nothing leaves the system, C2, Q4 = never.
+  - The L1/L2 trace search over four subsystems: desk reject, early reject, accountability requests, appointment and Writeback. Every admitted ground, early reject, and nominee appointment is reachable; grounds the reading does not admit are unreachable.
+  - Plan as a solver: min-cost max-flow on the spec §10.5 network (primal-dual), cycle repair, and a brute-force self-check. `a2_plan_eligible` proves A2 and V1 for any flow, and A1, A3, A4 and V5 are checked on every solve. It replaces the greedy assignment in the report.
+- **Next:**
+  - Model the four direct HotCRP-write cells the trace search does not cover (PC chair, AC, junior PC chair, author), or narrow those cells.
+  - Port the solver to TypeScript (M10) and test it against this one on the same instances, as well as against HotCRP's MinCostMaxFlow (A5).
+  - Generate the TypeScript tests for the rules (M4, M10) from the cards.
+  - Add `lake build` to CI.
+  - Find a minimal set of cards for Q2.
+
+## Open items (maintainer)
 
 - Shadow PC phase dates. These are only needed for real use; CI uses synthetic dates.
 - Whether to add a post-hoc shadow-vs-real comparison (spec §5d). Not scheduled.
 - Upstream HotCRP PRs (spec §10.6): action-log and mail-log endpoints; JSON `override` fix.
-- **Questions for the TPMS operator** (drafted in the vault): can we get the score matrix, and the registration status as a CSV? What is the assignment CSV's column layout? Current price and turnaround?
+- **Questions for the TPMS operator**: can we get the score matrix, and the registration status as a CSV? What is the assignment CSV's column layout? Current price and turnaround?
+- Screening agent: which engines get `confidential` clearance (needs a settled decision on the provider agreement); where a self-hosted GPU engine runs; permission for any `confidential` evaluation corpus.
 - Make sure the `ripley-cloud-gha` App installation covers this repo (docs/ci.md, one-time setup).

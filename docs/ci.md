@@ -37,7 +37,7 @@ The stock ARC runner image (`ghcr.io/actions/actions-runner`) has the docker CLI
 - `ripley-cloud-large`: the nightly `scale` job (seeding ~10k reviews plus a full sync).
 - `ripley-cloud-ramdisk` is available if MariaDB/tmpfs I/O ever becomes the bottleneck. It shouldn't, since the DB is already on tmpfs inside the container.
 
-## One-time setup (Jon)
+## One-time setup (maintainer)
 
 1. **Done 2026-10-07** (k8s repo `485205e`, `apps/arc/install-jonbell-pc-supervisor.sh`; App access granted). Kept for reference: **register scale sets for this repo.** On a personal account, ARC scale sets are per repository: `githubConfigUrl` is a repo URL, as in `arc-runners-jon-bell-slopcoder`, `…-teleport-contest`, etc. So no existing `ripley-cloud` set will pick up `jon-bell/pc-supervisor` jobs; they queue forever. To add this repo's sets, clone slopcoder's:
 

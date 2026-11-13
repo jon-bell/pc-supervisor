@@ -7,7 +7,7 @@ These instructions are for anyone working in this repo, human or coding agent. R
 1. **Synthetic data only.** This tool reads confidential peer-review data: reviews, discussions, and reviewer identities. Nothing real may ever enter the repo, issues, PRs, CI logs, screenshots, or test fixtures. All fixtures come from `seed/` scenarios with invented names at `example.org`.
 2. **Never point code, tests, or scripts at a real HotCRP instance.** Tests run only against the harness (`scripts/hotcrp-up.sh`). Test helpers must refuse to start unless `PCS_HOTCRP_URL` is a `127.0.0.1`/`localhost` URL. The one exception is `pcs probe` (PLAN M0): it is read-only, prints no content, and the chair runs it by hand.
 3. **No writes to HotCRP outside the harness.** The app is read-only until M8, and M8's writes are dry-run-first with explicit confirmation.
-4. **No LLM or third-party service ever receives review or comment text.** Argos visual testing is the one exception, and only because it receives **harness screenshots of synthetic data, from CI**. Never run an Argos upload (`CI=1` or `ARGOS_TOKEN` set) against anything except the harness. The only outbound network calls allowed at runtime go to `PCS_HOTCRP_URL`. No telemetry, analytics, error reporters, or CDN fonts.
+4. **No LLM or third-party service ever receives review or comment text.** The screening agent ([docs/agent.md](docs/agent.md)) may send *submission* content only to engines whose clearance covers its data class. That check lives in the dispatcher, and no adapter may bypass it. Its only other network calls are to the reference-resolver allowlist (`PCS_AGENT_EGRESS`), with reference metadata only. CI and tests use the `synthetic` corpus and the `replay` engine, never a live model with non-synthetic data. Argos visual testing is the one exception, and only because it receives **harness screenshots of synthetic data, from CI**. Never run an Argos upload (`CI=1` or `ARGOS_TOKEN` set) against anything except the harness. The only outbound network calls allowed at runtime go to `PCS_HOTCRP_URL`. No telemetry, analytics, error reporters, or CDN fonts.
 5. **The token stays server-side.** It is never sent to the browser, logged, or included in error messages.
 6. **Never commit `.env*` (except `.env.example`), `*.db`, or `data/`.** These are already in `.gitignore`; don't weaken it.
 
@@ -27,6 +27,10 @@ These instructions are for anyone working in this repo, human or coding agent. R
 - **Scale:** assume 2,400 papers and 10k reviews. Do the work in SQL with indexes, use virtualized tables, and don't load all text into memory.
 - **Ported code keeps its license notice.** The assignment solver is a port of HotCRP's `lib/mincostmaxflow.php` and `src/autoassigner.php` (MIT-style, © Eddie Kohler). Keep the copyright notice and a `Ported from hotcrp@<commit>` line at the top of each ported file.
 - TypeScript strict mode. Keep dependencies minimal; justify new ones in the PR description.
+
+- **Inference goes through `agent/src/engines/`.** Checks never import a provider SDK. Claude is called through Anthropic's SDK clients, or through the `claude` CLI adapter, never through an OpenAI-compatible shim. Don't hard-code model IDs, and don't send sampling parameters.
+- **Check changes are versioned by content.** Editing a check's prompt, schema, or code makes a new version, which must be requalified before production use (agent.md §7.4). Include its `pcs agent plan` output in the PR.
+- **The concepts and the model change together.** A change to a rule, property, open question, or example card in docs/concepts.md updates `model/` in the same PR: `lake build` must pass (it checks the proofs), and `model/model-report.txt` is regenerated from `answers/synthetic.txt`. A venue's real answers file never enters the repo.
 
 ## Running things
 
@@ -63,3 +67,4 @@ Change `HOTCRP_REF` in `hotcrp/Dockerfile`, `hotcrp/compose.yaml`, and `.github/
 - [ ] New env vars are in `config.ts` and `.env.example`.
 - [ ] No real data, no non-harness URLs in tests, no new outbound calls.
 - [ ] docs/spec.md updated if behavior or the API understanding changed.
+- [ ] If docs/concepts.md changed: `model/` updated, `lake build` passes, `model/model-report.txt` regenerated.

@@ -6,6 +6,8 @@ A local, single-user dashboard for a program-committee chair. It reads the HotCR
 2. **Area chairs:** who is nudging their papers along, and who isn't?
 3. **Papers:** which ones are most likely in trouble and need a chair to step in?
 
+The conceptual design of the whole review process is [concepts.md](concepts.md). It covers the concepts, rules, policy, properties, and examples, and this spec implements it. Where the two disagree, concepts.md wins.
+
 The first deployment is a shadow PC of a few hundred papers. The design target is a large SE conference: ~2,400 papers, ~40 area chairs, ~8–10k reviews, with 2 senior PC reviews plus 1 junior or reciprocal review per paper. Moving between the two deployments must be a configuration change, not a rewrite.
 
 > **Decided:**
@@ -62,7 +64,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | Metric style | Rules that fire with a human-readable reason, rolled into a ranked attention list. No single opaque score. |
 | People views | An outlier list plus per-person drill-down. **No leaderboards.** |
 | Phase awareness | Thresholds depend on the current phase, which comes from the phase-date env vars and the clock. |
-| LLMs | None. Review text must not leave the machine. Use text heuristics only. |
+| LLMs | **None over review or comment text**: the dashboard uses text heuristics only, and review text never leaves the machine. The separate **submission-screening agent** ([agent.md](agent.md)) reads submissions, and only on inference engines cleared for their data class. |
 
 ---
 
@@ -214,7 +216,7 @@ These are human-in-the-loop only; the app never sends email.
   - The default path is outside the repo and outside any synced folder.
   - `pcs wipe` deletes it.
   - The repo holds **synthetic data only**. No real review text, names, or emails ever go into fixtures, tests, issues, or screenshots.
-- **No LLM over review text.**
+- **No LLM over review text.** The screening agent ([agent.md](agent.md)) reads submissions only, under the clearance and egress rules in agent.md §5.
 - **Wording:** "no comments yet", not "disengaged"; "no in-HotCRP activity", not "absent".
 - **Conflicts:** `PCS_FORCE_SHOW=false` hides papers the chair is conflicted with.
 
@@ -308,7 +310,7 @@ There are four tiers: `senior`, `junior`, `reserve-pool` (designated but not act
 | `tpms-assignments` | TPMS's assignment CSV, the only output a HotCRP venue is documented to receive. **The column layout is unpublished**, so the importer takes a column mapping (`--map paper=…,email=…[,round=…]`) | pid + email |
 | `tpms-scores` | The affinity matrix `paper,email,score`, with scores as floats in 0–1 (the same shape as CMT's TPMS download and openreview-matcher's `--scores`). It must be requested from the TPMS operator; whether HotCRP venues get it is **unconfirmed** | pid + email |
 | `tpms-registrations` | Reviewer registration status. TPMS has an operator-run status page with no confirmed export, so the importer accepts `email, registered[, n_papers, last_updated]` and degrades to a plain registered list. Repeated imports are diffed | email |
-| `refcheck` | Output of an external reference checker (hallucinated references, no in-field references) | pid |
+| `refcheck` | Output of an external reference checker (hallucinated references, no in-field references). Superseded by the screening agent's flags ([agent.md](agent.md)), but kept so an external tool's output can be imported | pid |
 | `do-not-invite` | The chair-to-chair do-not-invite list, stored encrypted alongside the DB | email |
 
 Imports are versioned like snapshots, so "what did the sheet say on day X" is answerable.
@@ -331,7 +333,9 @@ The PDF ZIP comes from HotCRP's own download.
 - Output: a non-compliance list with evidence, plus drafted mail-tool searches for warnings.
 
 **B. Quick-reject / desk-reject tracker**
-- A queue of `paper → signals (refcheck, AC flag, quick-reject review verdict) → AC decision → chair action → appeal status`.
+- A queue of `paper → signals (agent flags per [agent.md](agent.md), refcheck, AC flag, quick-reject review verdict) → AC triage → second opinion (one PC member; light load, not counted toward review load) → chair action (desk reject, or fix window where policy grants one) → appeal status`.
+- Desk-reject window `PCS_PHASE_DESKREJECT_DUE`, which comes before `ASSIGNMENT_DONE`. Desk rejects after it are tracked as late; under the default policy these are anonymity-only, until reviews are released.
+- **Consistency across ACs:** flag rate, triage outcomes, and desk-reject rate per AC and per topic area, with their spread. The UI shows distributions, not a ranked list of people (§7).
 - Quick-reject reviews are a dedicated review round, tracked against `QUICKREJECT_DUE`.
 - Evidence is stored with each item. An appeal state is required.
 
@@ -341,7 +345,7 @@ The PDF ZIP comes from HotCRP's own download.
 - **Conflict sanity:** same affiliation, DBLP co-authorship (optional), and **reciprocal cycles**. Because reserve reviewers are authors, detect 2-cycles (and short k-cycles, `PCS_CYCLE_MAX_K`) in the graph whose edges run from an author of paper P to a reviewer of paper P. These are surfaced for human review, never auto-acted on.
 - **TPMS round-trip:** validate an imported TPMS assignment CSV *before* it reaches HotCRP; emit a corrected HotCRP assignment CSV (seniors first, then the third slot).
 - Reserve candidates must be AC-approved in the `invites` import and absent from `do-not-invite` before they appear in any generated assignment.
-- **TPMS cannot enforce tier composition.** It maximizes affinity under per-reviewer load balancing only, and specific requirements "don't work well with TPMS assignments" (OOPSLA 2023 notes). TPMS also readily assigns undeclared conflicts, so the conflict cross-check above is mandatory. **We build our own solver** (§10.5), and TPMS output becomes one input to it: scores if available, otherwise its assignment as a warm start that gets validated.
+- **TPMS cannot enforce tier composition.** It maximizes affinity under per-reviewer load balancing only, and has no notion of per-paper composition requirements. TPMS also readily assigns undeclared conflicts, so the conflict cross-check above is mandatory. **We build our own solver** (§10.5), and TPMS output becomes one input to it: scores if available, otherwise its assignment as a warm start that gets validated.
 - **Cold-start reviewers** (no TPMS profile, which is common for junior PC members) can get local affinity scores from **openreview-expertise** (SPECTER2/MFR). It runs entirely on our machine using titles and abstracts. Its hosted API is **not** allowed, because it would send submissions to a third party.
 
 **D. Reviewing progress, by tier**
@@ -399,6 +403,12 @@ p ──(cap = reviews per paper)──► sink
 - every paper meets its composition, or it's reported;
 - no reviewer exceeds their band;
 - no conflicted edge is ever used.
+
+**Reference solver:** `model/ReviewProcess/Solver.lean` solves the same network, with the convex load cost as one source arc per unit of load (cost rising per unit for PC members, zero for a nominee up to what they owe), and is the oracle for the port: on the same instance, the port's flow value and cost must equal the Lean solver's. The Lean solver proves A2 and V1 by construction (`a2_plan_eligible`) and is checked against brute force on small instances.
+
+### 10.5a Submission-screening agent
+
+Conceptual design in [concepts.md](concepts.md) (HUSL: concepts, rules, policy, properties, examples). Implementation design in [agent.md](agent.md): checks, decision records, pluggable inference engines, clearance by data class, and the evaluation and model comparison. PLAN M14–M18.
 
 ### 10.6 Upstream HotCRP contributions (proposed as PRs, not a fork)
 - An admin endpoint for the **action log**, and one for the **mail log**. Together they would make email reminders and assignment changes visible, closing the "nudges are invisible" gap in §1.

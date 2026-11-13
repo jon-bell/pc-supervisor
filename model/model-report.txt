@@ -1,0 +1,254 @@
+# Review process: model report
+answers file: answers/synthetic.txt
+questions in the model: 20; readings of the whole text: 358318080
+answered: 8; open: 12
+not in the model (no rule depends on them yet): Q9 (who may be nominated), Q12 (withholding reviews)
+
+## Legibility: does any card depend on a question it doesn't declare?
+none
+
+## Answered questions: the cards that confirm each answer
+1. [X4] The AC accepts a nominee and classifies them senior
+    outcomes the readings then in play give: 2; the chairs' answer: fills a senior slot
+    readings left: Q14 1
+2. [P1] Two seniors and two juniors
+    outcomes the readings then in play give: 2; the chairs' answer: meets composition
+    readings left: Q13 2
+3. [P3] Two seniors and nobody else
+    outcomes the readings then in play give: 2; the chairs' answer: fails composition
+    readings left: Q13 1
+4. [E4] A self-reveal is found during review, before reviews are released
+    outcomes the readings then in play give: 2; the chairs' answer: may be desk rejected
+    readings left: Q3 4
+5. [E4b] A self-reveal is found after reviews are released
+    outcomes the readings then in play give: 2; the chairs' answer: stays in review
+    readings left: Q3 2
+6. [E4c] A scope problem is found during review
+    outcomes the readings then in play give: 2; the chairs' answer: may be desk rejected
+    readings left: Q3 1
+7. [E7] The AC refers a format violation; one senior PC member agrees
+    outcomes the readings then in play give: 2; the chairs' answer: may be desk rejected
+    readings left: Q2 2
+8. [E7b] The AC refers a format violation; another AC agrees
+    outcomes the readings then in play give: 2; the chairs' answer: stays in review
+    readings left: Q2 1
+9. [R1] Three rejects; one reviewer bumps within the window
+    outcomes the readings then in play give: 2; the chairs' answer: early rejected
+    readings left: Q16 1
+10. [R3] Reject, reject, weak reject
+    outcomes the readings then in play give: 2; the chairs' answer: early rejected
+    readings left: Q15 2
+11. [R4] Reject, weak reject, borderline
+    outcomes the readings then in play give: 2; the chairs' answer: continues to author response
+    readings left: Q15 1
+answered questions pinned to one reading by cards: 6 of 8
+- Q8 answered "exactly one nominee" is not yet confirmed by a card; it is still indistinguishable from [up to n nominees, chosen by the authors, at least one, no upper limit]. Cards that would separate it but depend on open questions: [X8 (also needs [Q19]), X9 (also needs [Q19, Q19b])]
+- Q18 answered "k once, however many papers" is not yet confirmed by a card; it is still indistinguishable from [k per nominating paper, their share of k, summed over papers, their shares summed, capped at the tier's band]. Cards that would separate it but depend on open questions: [X2 (also needs [Q7])]
+
+## Open questions: cards to bring, with the outcome under each reading
+### Q1: double-anonymity violation
+  [E3] The artifact README names the authors' lab; found in screening; no fix offered yet
+      if reject at once: the AC may not keep it; if referred, may be desk rejected
+      if fix window, then reject if uncured: the AC may keep it; if referred, stays in review
+      if the AC decides: the AC may keep it; if referred, may be desk rejected
+### Q4: when reviewers see the screening record
+  [S12] A PC member submits their review of a paper the AC referred and then kept
+      if never: they never see the screening record
+      if after their own review is in, with a feedback form on the triage: they now see the screening record and are asked for feedback on the triage
+      if always: they saw the screening record from assignment
+  [S12b] A PC member opens a paper the AC referred and then kept, before writing their review
+      if never: the screening record is hidden
+      if after their own review is in, with a feedback form on the triage: the screening record is hidden
+      if always: the screening record is shown
+### Q5: the second-opinion member reviews the paper if it stays
+  [E8] The AC refers; the second opinion disagrees
+      if the second-opinion member reviews it: stays in review; the second-opinion member reviews it
+      if they do not review it: stays in review; the second-opinion member does not review it
+### Q6: a fabricated reference is grounds on its own
+  [E6] Two references exist in no index; the AC refers; a senior agrees
+      if a fabricated reference is grounds on its own: may be desk rejected
+      if it is evidence for the AC only: stays in review
+### Q7: what an accepted nominee commits to
+  [X2] One junior is the sole nominee of 9 papers (k = 3)
+      if may be assigned, up to what they owe: the nominee may be assigned up to 3 reviews
+      if is expected to do what they owe: the nominee is expected to do 3 reviews
+### Q10: consequence of naming no nominee
+  [X1] A paper names no nominee
+      if desk reject: before any warning: may be desk rejected; after a warning that is ignored: may be desk rejected
+      if warning, then desk reject: before any warning: stays in review; after a warning that is ignored: may be desk rejected
+      if warning only: before any warning: stays in review; after a warning that is ignored: stays in review
+### Q11: consequence of a failed nominee review
+  [X6] An accepted nominee never submits; escalation exhausted
+      if desk reject the nominating papers: a case opens; the nominating papers may be desk rejected, via the two-person path
+      if recorded for the PC chairs only: a case opens; recorded for the PC chairs; no effect on papers
+      if no consequence: a case opens; no consequence
+  [X10] An author is the sole nominee of 4 papers and misses every review
+      if desk reject the nominating papers: one case listing the 4 papers; the nominating papers may be desk rejected, via the two-person path
+      if recorded for the PC chairs only: one case listing the 4 papers; recorded for the PC chairs; no effect on papers
+      if no consequence: one case listing the 4 papers; no consequence
+### Q17: a cap on submissions per author
+  [X7] An author is on 11 submissions
+      if no cap: nothing to report
+      if 9 submissions per author: 2 papers over the cap, reported to the PC chairs
+### Q19: how a paper's obligation is split across its nominees
+  [X8] A paper names two nominees and allocates two-thirds and one-third (splits it only if Q8 = up to n nominees, chosen by the authors)
+      if split equally: 1 3/6, 1 3/6 reviews
+      if split as the authors allocate: 2, 1 reviews
+      if pooled; the solver splits it: pooled: the two together owe 3 reviews
+  [X9] A paper names two nominees (split equally); the AC declines one (splits it only if Q8 = up to n nominees, chosen by the authors)
+      if split equally: the remaining nominee owes 3; the paper is short by 0
+      if split as the authors allocate: the remaining nominee owes 3; the paper is short by 0
+      if pooled; the solver splits it: the remaining nominee is pooled with the paper's obligation; the paper is short by 0
+### Q19b: a declined co-nominee's share
+  [X9] A paper names two nominees (split equally); the AC declines one (splits it only if Q8 = up to n nominees, chosen by the authors)
+      if the other nominees absorb a declined nominee's share: the remaining nominee owes 3; the paper is short by 0
+      if the paper is short by that share: the remaining nominee owes 1 3/6; the paper is short by 1 3/6
+### Q20: a quality consequence needs an earlier request
+  [C6] An accepted nominee wrote two thin reviews; nobody sent a request
+      if a quality consequence needs an earlier declined or unanswered request: no case; send a request first
+      if no earlier request needed: a quality case may open
+  [C8] A heuristic flagged a nominee's review; nobody sent it; no reply was recorded
+      if a quality consequence needs an earlier declined or unanswered request: no case; send a request first
+      if no earlier request needed: a quality case may open
+### Q21: how long engagement records are kept
+  [C7] The conference ends
+      if kept for this conference only: engagement records deleted
+      if summarized for the next chairs: a summary goes to the next chairs
+
+## Readings that break a proved property
+- Q2 = the AC alone: breaks S1, S8
+
+## Policy (concepts.md §3.9) at the answered reading
+Cells marked † are set by a ruling; they show the question and the result at this reading. A dot is denied and not yet examined.
+| Permission | Process chair | PC chair | AC (own paper) | Junior PC chair | Senior / junior PC | Accepted nominee | Author | PCS | Screening agent |
+|---|---|---|---|---|---|---|---|---|---|
+| Read HotCRP via the chair token | Y | . | N | N | N | N | N | Y (read) | N |
+| Write to HotCRP directly | N | Y (in HotCRP) | Y (in HotCRP, own papers) | Y (comments) | Y (own reviews) | Y (own reviews) | Y (own paper) | N | N |
+| Confirm and apply a Writeback | Y | Y | N | N | N | N | N | N | N |
+| See the screening findings and summary | Y | Y | Y | N | †Q4: N | †Q4: N | N | Y | N |
+| Keep or refer (triage) | . | . | Y | N | N | N | N | N | N |
+| Give a second opinion | . | . | N | N | Y (requested) | N | N | N | N |
+| Remove a paper (desk or early reject) | . | Y | N | N | N | N | N | N | N |
+| Accept a PC candidate and classify their tier | . | . | Y (in the sheet, own area) | N | N | N | N | N | N |
+| See nomination patterns across an author's papers | Y | Y | N | N | N | N | N | Y | N |
+| Solve and export a Plan | Y | . | N | N | N | N | N | N | N |
+| See affinity scores and plan reports | Y | Y | Y (own papers) | N | N | N | N | Y | N |
+| See reviewer identities | Y | Y | Y | Y (junior reviews) | †HotCRP setting: N | †HotCRP setting: N | N | Y | N |
+| See review text | Y | Y | Y | Y (junior reviews) | †HotCRP setting: N | †HotCRP setting: N | Y (after release) | Y (local, encrypted) | N |
+| Coach a junior review (HotCRP comment) | . | . | Y | Y | N | N | N | N | N |
+| Set the review criteria | . | Y | N | N | N | N | N | N | N |
+| Suggest an accountability request | . | . | Y (own papers) | Y (junior reviews) | N | N | N | Y (heuristics) | N |
+| Send a request, remind, and record its disposition | . | . | Y (own papers) | Y (junior reviews; escalations) | N | N | N | N | N |
+| See a reviewer's engagement record | . | †Q21: Y | †Q21: Y (own requests) | †Q21: Y (junior reviewers) | Y (own only) | Y (own only) | N | Y (local, encrypted) | N |
+| Open or uphold an Accountability case | Y (open) | Y (uphold) | N | N | N | N | N | Y (open) | N |
+| Settle a ruling | Y (process) | Y (policy) | N | N | N | N | N | N | N |
+| Route checks to engines; record qualifications | Y | . | N | N | N | N | N | N | N |
+| See per-AC consistency views | Y | Y | N | N | N | N | N | Y | N |
+| Send anything outside the system | N | N | N | N | N | N | N | N | N |
+
+## L1 and L2: trace search over the policy and the rules (signed model, answered reading)
+Every step is taken by a role whose cell is granted (theorem gated_requires_policy); the rules decide whether it has an effect.
+### desk reject: 1356 states
+- L2 desk reject on format: reachable: AC (own paper): refer on format → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
+- L2 desk reject on scope: reachable: AC (own paper): refer on scope → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
+- L2 desk reject on anonymity: reachable: AC (own paper): refer on anonymity → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
+- L2 desk reject on fabricated reference: reachable: AC (own paper): refer on fabricated reference → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
+- L2 desk reject on misused citation: reachable: AC (own paper): refer on misused citation → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
+- L2 desk reject on no contribution: reachable: AC (own paper): refer on no contribution → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
+- L2 desk reject on nomination non-compliance: reachable: AC (own paper): refer on nomination non-compliance → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
+- L1 AC (own paper) / Keep or refer (triage): AC (own paper): refer on format
+- L1 Senior / junior PC / Give a second opinion: AC (own paper): refer on format → Senior / junior PC: agree (person 2, an AC, senior)
+- L1 Process chair / Confirm and apply a Writeback: AC (own paper): refer on nomination non-compliance → Process chair: warn the authors
+- L1 PC chair / Confirm and apply a Writeback: AC (own paper): refer on nomination non-compliance → PC chair: warn the authors
+- L1 PC chair / Remove a paper (desk or early reject): AC (own paper): refer on format → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
+### early reject: 39 states
+- L2 early reject: reachable: Senior / junior PC: submit an initial review (reject) → Senior / junior PC: submit an initial review (reject) → Senior / junior PC: submit an initial review (reject) → PC chair: early reject
+- L1 Senior / junior PC / Write to HotCRP directly: Senior / junior PC: submit an initial review (reject)
+- L1 Accepted nominee / Write to HotCRP directly: Accepted nominee: submit an initial review (reject)
+- L1 PC chair / Remove a paper (desk or early reject): Senior / junior PC: submit an initial review (reject) → Senior / junior PC: submit an initial review (reject) → Senior / junior PC: submit an initial review (reject) → PC chair: early reject
+### accountability requests: 3576 states
+- L2 a reviewer recorded as engaged: reachable: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (revised)
+- L2 a reviewer recorded as not engaged: reachable: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (declined)
+- L2 a quality case upheld: reachable: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (declined) → Process chair: open a quality case → PC chair: uphold the case
+- L1 PC chair / Set the review criteria: PC chair: set the review criteria
+- L1 AC (own paper) / Suggest an accountability request: AC (own paper): suggest a request
+- L1 Junior PC chair / Suggest an accountability request: Junior PC chair: suggest a request
+- L1 PCS / Suggest an accountability request: PCS: suggest a request
+- L1 AC (own paper) / Coach a junior review (HotCRP comment): AC (own paper): coach the review
+- L1 Junior PC chair / Coach a junior review (HotCRP comment): Junior PC chair: coach the review
+- L1 AC (own paper) / Send a request, remind, and record its disposition: PC chair: set the review criteria → AC (own paper): send a request citing the criteria
+- L1 Junior PC chair / Send a request, remind, and record its disposition: PC chair: set the review criteria → Junior PC chair: send a request citing the criteria
+- L1 Senior / junior PC / Write to HotCRP directly: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies
+- L1 Accepted nominee / Write to HotCRP directly: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Accepted nominee: the reviewer replies
+- L1 Process chair / Open or uphold an Accountability case: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (declined) → Process chair: open a quality case
+- L1 PCS / Open or uphold an Accountability case: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (declined) → PCS: open a quality case
+- L1 PC chair / Open or uphold an Accountability case: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (declined) → Process chair: open a quality case → PC chair: uphold the case
+### appointment and assignment: 52 states
+- L2 a nominee appointed and assigned in HotCRP: reachable: AC (own paper): accept the nominee and classify them senior → the nominee consents → Process chair: sync HotCRP → Process chair: solve the plan → Process chair: dry-run the assignment upload → Process chair: confirm the upload → Process chair: apply the upload
+- L1 AC (own paper) / Accept a PC candidate and classify their tier: AC (own paper): accept the nominee and classify them senior
+- L1 Process chair / Read HotCRP via the chair token: Process chair: sync HotCRP
+- L1 PCS / Read HotCRP via the chair token: PCS: sync HotCRP
+- L1 Process chair / Solve and export a Plan: Process chair: sync HotCRP → Process chair: solve the plan
+- L1 Process chair / Confirm and apply a Writeback: Process chair: sync HotCRP → Process chair: solve the plan → Process chair: confirm the upload
+- L1 PC chair / Confirm and apply a Writeback: Process chair: sync HotCRP → Process chair: solve the plan → PC chair: confirm the upload
+granted cells: 60; exercised by a trace: 22; L2 failures: 0
+granted cells on a modeled action that no trace exercises (each is a gap in the model or a cell to deny):
+- PC chair / Write to HotCRP directly: Y (in HotCRP)
+- AC (own paper) / Write to HotCRP directly: Y (in HotCRP, own papers)
+- Junior PC chair / Write to HotCRP directly: Y (comments)
+- Author / Write to HotCRP directly: Y (own paper)
+granted visibility and configuration cells (no action in the model; enforced by views and the information-flow properties): 34
+
+## Mutation of the signed specification (at the answered reading)
+- second opinion from anyone, including the AC: killed by cards [E9]; properties [S1]
+- silence removes (no answer in 72 h counts as agreement): killed by cards [E11]; properties [S1, S8]
+- assign someone the AC hasn't accepted: killed by cards [X5]; properties [V1]
+- combine ignores the Q18 reading: SURVIVES — equivalent to the signed model at this reading for every card; card(s) [X2] would kill it if Q18 = k per nominating paper
+- a declined nominee's share moves to someone the authors didn't name: killed by properties [V2] — equivalent to the signed model at this reading for every card; card(s) [X9] would kill it if Q8 = up to n nominees, chosen by the authors
+- early reject before the window closes: SURVIVES — equivalent to the signed model at this reading for every card; card(s) [R2] would kill it if Q16 = reviewers may bump within a window
+- a dismissed suggestion counts against the reviewer: killed by cards [C4]; properties [AR4]
+- a heuristic suggestion is sent without an AC: killed by cards [C8]; properties [AR2]
+- apply without a dry run: killed by cards [P5]; properties [H2]
+- cycle-free with K = 1: killed by cards [P4]; properties [A3]
+mutants: 10; not killed by any card at this reading: 3
+
+## Consequences on a synthetic conference (the Plan solver: min-cost max-flow, spec §10.5)
+solver self-check: 300 small random instances against brute force, 0 disagreements
+network: top 25 candidates per paper slot by affinity, in the paper's area and the two neighboring areas; up to 3 rounds of cycle repair. Unfilled slots are what no assignment can fill from these candidates under the load bands.
+scale: 4000 papers, 20 areas, 450 senior and 300 junior PC, nominees accepted 80%, classified senior 35%; bands: senior 15, junior 8; k = 3
+- the answered reading: composed 3599/4000 (89%); senior slots unfilled 550; third slots unfilled 44; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 7051, nominees at or above what they owe 91%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 178 before repair, 220 edges forbidden, 1 left; load-band violations 0; candidate edges 198290, objective 24624
+- if Q14 = a nominee never fills a senior slot: composed 2160/4000 (54%); senior slots unfilled 1250; third slots unfilled 1600; senior reviews needed 8000 vs capacity 6750; accepted nominees 2512, mean owed 3, reviews by nominees 0, nominees at or above what they owe 0%, max nominee load 0; reviews outside the paper's area 759; reciprocal 2-cycles 10 before repair, 10 edges forbidden, 0 left; load-band violations 0; candidate edges 199919, objective 74098
+- if Q13 = exactly one junior: composed 3599/4000 (89%); senior slots unfilled 550; third slots unfilled 44; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 7051, nominees at or above what they owe 91%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 178 before repair, 220 edges forbidden, 1 left; load-band violations 0; candidate edges 198290, objective 24624
+- if Q13 = zero to two juniors: composed 3610/4000 (90%); senior slots unfilled 550; third slots unfilled 0; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 3300, nominees at or above what they owe 43%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 38 before repair, 45 edges forbidden, 0 left; load-band violations 0; candidate edges 198465, objective 24045
+- if Q13 = exactly one, a junior or a nominee: composed 3599/4000 (89%); senior slots unfilled 550; third slots unfilled 44; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 7051, nominees at or above what they owe 91%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 178 before repair, 220 edges forbidden, 1 left; load-band violations 0; candidate edges 198290, objective 24624
+- if Q18 = k per nominating paper: composed 3712/4000 (92%); senior slots unfilled 413; third slots unfilled 3; senior reviews needed 8000 vs capacity 10947; accepted nominees 2512, mean owed 3 4/6, reviews by nominees 8083, nominees at or above what they owe 83%, max nominee load 6; reviews outside the paper's area 0; reciprocal 2-cycles 249 before repair, 300 edges forbidden, 1 left; load-band violations 0; candidate edges 198210, objective 18294
+- if Q18 = their share of k, summed over papers: composed 3712/4000 (92%); senior slots unfilled 413; third slots unfilled 3; senior reviews needed 8000 vs capacity 10947; accepted nominees 2512, mean owed 3 4/6, reviews by nominees 8083, nominees at or above what they owe 83%, max nominee load 6; reviews outside the paper's area 0; reciprocal 2-cycles 249 before repair, 300 edges forbidden, 1 left; load-band violations 0; candidate edges 198210, objective 18294
+- if Q18 = their shares summed, capped at the tier's band: composed 3712/4000 (92%); senior slots unfilled 413; third slots unfilled 3; senior reviews needed 8000 vs capacity 10947; accepted nominees 2512, mean owed 3 4/6, reviews by nominees 8083, nominees at or above what they owe 83%, max nominee load 6; reviews outside the paper's area 0; reciprocal 2-cycles 249 before repair, 300 edges forbidden, 1 left; load-band violations 0; candidate edges 198210, objective 18294
+early reject, share of papers whose initial reviews are all negative:
+- reject or strong reject: 0%
+- weak reject or below: 11%
+- anything below the accept side: 31%
+
+## Proved in Lean (ReviewProcess/Properties.lean), for every reading unless noted
+- S1 two-person removal (unless Q2 = the AC alone): s1_two_person, s1_removal
+- S8 silence never removes; only a chair removes: s8_only_remove, s8_only_chair
+- S9 removal only at a stage Q3 allows; none after release unless Q3 says any stage: s9_stage, s9_after_release
+- S10 the Q1 fix window is honored: s10_remedy
+- Q6 evidence-only reading: a fabricated reference alone never removes: q6_evidence_only
+- E-1 early reject only on all-negative reviews, no objection, window closed: e1_early_reject
+- V1 only accepted, consented, unconflicted non-authors are eligible: v1_eligible
+- Q14 nominee-not-senior: two non-nominee seniors per composed paper: q14_two_real_seniors
+- V2 (part) a declined share never moves to an unnamed reviewer: v2_no_unnamed
+- H2 nothing applied without a passing dry run: h2_dry_run
+- AR2 every counted request was sent by a person: ar2_sent_by_person
+- AR4 suggestions never change the engagement record: ar4_dispositions_only
+- AR5 no-reply only after reminder, due date, and grace: ar5_no_reply
+- AR6 under Q20 = yes, a quality case needs an earlier unanswered or declined request: ar6_request_first
+- Policy: every trace step is by a role whose cell is granted: gated_requires_policy, env_has_no_perms
+- S6 the screening agent is granted nothing: s6_agent_granted_nothing
+- S1/S8 only a PC chair removes: only_pc_chair_removes
+- AR2 only an AC or the junior PC chair sends requests: only_people_send_requests
+- H2 only chairs apply a Writeback; PCS never writes HotCRP: only_chairs_apply, pcs_never_writes
+- Nothing leaves the system: nothing_outside; C2 authors see no findings or identities: authors_see_no_findings
+- S12 under Q4 = never, no reviewer sees the screening record: q4_never_hides
+- A2/V1 for the solver: every planned edge is eligible and unforbidden, whatever the flow: a2_plan_eligible

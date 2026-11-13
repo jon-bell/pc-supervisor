@@ -1,0 +1,16 @@
+# Answers for a synthetic venue. Real venues keep their answers file outside
+# this repo and pass its path: lake exe report /path/to/answers.txt
+# Format: <question> = <reading key>; omit a question to leave it open.
+Q2 = ac-plus-senior
+Q3 = any-until-release
+Q8 = one
+Q13 = one-or-two-juniors
+Q14 = tier-decides
+Q15 = reject-or-weak
+Q16 = no-window
+Q18 = once
+
+scale.papers = 4000
+scale.areas = 20
+scale.seniors = 450
+scale.juniors = 300

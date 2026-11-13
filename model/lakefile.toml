@@ -1,0 +1,10 @@
+name = "ReviewProcess"
+version = "0.1.0"
+defaultTargets = ["ReviewProcess", "report"]
+
+[[lean_lib]]
+name = "ReviewProcess"
+
+[[lean_exe]]
+name = "report"
+root = "Report"
