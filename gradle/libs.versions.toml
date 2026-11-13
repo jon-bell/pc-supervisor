@@ -1,0 +1,25 @@
+[versions]
+kotlin = "2.4.21"
+serialization = "1.13.0"
+coroutines = "1.11.0"
+ktor = "3.6.1"
+sqlite-crypt = "3.53.4.0"
+keyring = "1.0.4"
+junit = "6.1.3"
+jqwik = "1.10.2"
+
+[libraries]
+serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
+sqlite-crypt = { module = "io.github.willena:sqlite-jdbc", version.ref = "sqlite-crypt" }
+keyring = { module = "com.github.javakeyring:java-keyring", version.ref = "keyring" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+jqwik = { module = "net.jqwik:jqwik", version.ref = "jqwik" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

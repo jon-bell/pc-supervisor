@@ -78,7 +78,7 @@ Every claim has a stable, namespaced ID, and every test names the claims it is e
 
 | Namespace | Source | Count today |
 |---|---|---|
-| `prop:` | concepts §3.10 properties (`prop:S1`, `prop:AR5`, `prop:Q1`) | 46 |
+| `prop:` | concepts §3.10 properties (`prop:S1`, `prop:AR5`, `prop:Q1`) | 45 |
 | `card:` | concepts §3.11 example cards (`card:X9`, `card:C3`), one claim per card and reading | 38 cards |
 | `rule:` | concepts §3.8 rules (`rule:may-remove`, `rule:owes`, `rule:composition`) | ~10 |
 | `cell:` | concepts §3.9 policy cells (`cell:ac/triage`), one per role and permission | 207 (9 roles × 23) |
