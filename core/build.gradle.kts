@@ -301,3 +301,6 @@ testing {
         }
     }
 }
+
+// ktlint reads the main source set, which includes the generated readings.
+tasks.matching { it.name.startsWith("runKtlint") }.configureEach { dependsOn(generateReadings) }
