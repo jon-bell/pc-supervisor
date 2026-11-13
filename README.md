@@ -22,7 +22,7 @@ Each chair runs their own copy. It syncs from the HotCRP API into an encrypted l
 
 ## Development
 
-You need Docker (with Compose v2), JDK 21, and, for the model, Lean (`elan`).
+You need Docker (with Compose v2), JDK 25, and, for the model, Lean (`elan`).
 
 ```bash
 scripts/hotcrp-up.sh        # throwaway HotCRP + MariaDB at http://127.0.0.1:8080

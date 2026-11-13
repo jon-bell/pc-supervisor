@@ -6,7 +6,7 @@ Each CI job builds and starts **its own disposable HotCRP + MariaDB with Docker 
 
 ```
 GitHub ──► ARC listener (arc-runners-jon-bell) ──► ephemeral runner pod
-                                                   ├─ runner container: JDK 21 + Gradle, xvfb (Compose UI tests), scripts/hotcrp-up.sh
+                                                   ├─ runner container: JDK 25 + Gradle, xvfb (Compose UI tests), scripts/hotcrp-up.sh
                                                    └─ dind sidecar: hotcrp (php:8.3-apache @ HOTCRP_REF) + mariadb:10.11 (tmpfs)
 ```
 

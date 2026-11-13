@@ -40,7 +40,7 @@ After M1, four tracks can go to different people: harness-side work (M2, M3), th
 
 ## Repo layout and the Gradle task contract
 
-Use Gradle (Kotlin DSL) with a version catalog, Kotlin on JDK 21, and one module per row of spec §4.
+Use Gradle (Kotlin DSL) with a version catalog, Kotlin on JDK 25, and one module per row of spec §4.
 
 ```
 core/     sync, store, rules, solver, Writeback, answers reader, imports (no UI imports)
@@ -334,7 +334,7 @@ Changing this table means changing the M3 and M18 tests in the same PR.
     - Stability: fonts bundled in the app; animations not auto-advanced; `PCS_NOW` pinned; a fixed window size and display scale; relative times and sync timestamps masked.
     - The card gallery: one screen per card, rendered under the answered reading, as its own Argos build (`--build-name cards`).
     - Watch the Argos plan's monthly screenshot quota; the visual set is curated, not exhaustive.
-  - A release workflow that builds signed installers for macOS (notarized), Windows, and Linux with `jpackage`.
+  - A release workflow that builds installers with `jpackage`: macOS signed with the Developer ID and notarized, on the attached macOS runner; Windows packaged as MSIX for Microsoft Store submission (the Store re-signs it); Linux unsigned.
   - The app driver and the view reader (§A4): chair actions through test tags, and each screen read back into a structured observation, checked in both directions.
 - **Done when:** two consecutive CI runs upload identical Linux screenshots (no Argos diff); the card gallery build contains every card; a UI test opens the app on synced `golden`, shows the paper table, and reaches HotCRP's URL for pid 4; an unresolved question in the answers file appears on the settings screen with its blocked features; Argos screenshots are stable across two consecutive CI runs; the release workflow produces an installer for each OS that starts and opens a harness DB.
 
@@ -488,9 +488,6 @@ The Lean model of docs/concepts.md. It grows alongside the milestones, and every
 - **Questions for the TPMS operator**: can we get the score matrix, and the registration status as a CSV? What is the assignment CSV's column layout? Current price and turnaround?
 - Screening agent: which engines get `confidential` clearance (needs a settled decision on the provider agreement); where a self-hosted GPU engine runs; permission for any `confidential` evaluation corpus.
 - Make sure the `ripley-cloud-gha` App installation covers this repo (docs/ci.md, one-time setup).
-- Code-signing identities for the installers: an Apple Developer ID (for notarization) and a Windows signing certificate. Needed by M4's release workflow.
+- Attach the maintainer's macOS CI runner to the repo and store the Developer ID signing and notarization credentials as CI secrets (M4's release workflow). Windows needs a Microsoft Store developer account, not a certificate.
 - Kotlin + Compose vs. Java 21 + JavaFX: Kotlin is the default; switching is cheap until M4 starts.
-- **ACs as paper managers in HotCRP** (spec §11): the conventions need it, and it gives ACs HotCRP's administrator powers on their own papers (assignments, deadlines, seeing hidden tags and admin comments). Alternatives are weaker: plain tags leak referrals to the whole PC, and chair-only tags can't be set by ACs.
-- **Accountability requests leave HotCRP** for email, because a comment can't be addressed to one reviewer; the request and its disposition are tracked in hidden tags. Is email from the AC's own client acceptable?
-- **Q5 meets HotCRP's one-review-per-person rule** (spec §11): a second-opinion member can't already review the paper, and under Q5 = "yes" their screen review must later move to the normal round. Worth a word with the chairs when Q5 is settled.
-- JDK 21 vs. JDK 25 (current LTS): 25 gives the final foreign-function API for the Lean-in-core library and is the better long-term target; only 21 is installed on the build machine today.
+- **Decided 2026-11-13:** ACs are metareviewers and PC chairs are the paper administrators; requests to reviewers go through HotCRP's mail tool; Q5 = the second-opinion member reviews a kept paper (their screen review is unsubmitted automatically); JDK 25; macOS signing in CI, Windows through the Store. Spec §11 marks the conventions that ACs-not-managers breaks (*redesign*: triage, findings, request dispositions); each needs a harness check before M5.

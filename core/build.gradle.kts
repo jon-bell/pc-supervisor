@@ -7,7 +7,7 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
     explicitApi()
     compilerOptions { allWarningsAsErrors.set(true) }
 }
@@ -123,6 +123,9 @@ sourceSets.main { kotlin.srcDir(generatedMain) }
 tasks.named("compileKotlin") { dependsOn(generateReadings) }
 
 // ---- Tests --------------------------------------------------------------------------
+
+// JNA loads the Lean-in-core library; JDK 25 warns unless native access is granted
+tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAMED") }
 
 tasks.test {
     useJUnitPlatform { includeEngines("junit-jupiter", "jqwik") }
