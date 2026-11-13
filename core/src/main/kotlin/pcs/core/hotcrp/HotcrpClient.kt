@@ -51,6 +51,7 @@ public class HotcrpClient(
         // Keys HotCRP returns that the sync deliberately doesn't read, as observed on the harness
         // at the pinned HOTCRP_REF. Anything else unexpected is drift (ContractTest).
         val PC_UNREAD = setOf("affiliation")
+        val PAPER_UNREAD = setOf("abstract", "contacts", "object", "submission", "submitted", "submitted_at", "topics", "options", "final", "tags")
         val REVIEW_UNREAD = setOf("blind", "draft", "editable", "modified_at_text", "object", "reviewer", "user_rating", "round", "submitted")
         val COMMENT_UNREAD =
             setOf(
@@ -76,8 +77,9 @@ public class HotcrpClient(
                 if (method == HttpMethod.Post) parameters.append(":method:", "GET")
                 params.forEach { (k, v) -> parameters.append(k, v) }
             }.buildString()
-        var wait = 500L
-        repeat(5) { attempt ->
+        var wait = 1000L
+        val attempts = 8
+        repeat(attempts) { attempt ->
             val resp =
                 http.request(url) {
                     this.method = method
@@ -85,11 +87,13 @@ public class HotcrpClient(
                 }
             val code = resp.status.value
             if (resp.status.isSuccess()) return resp.bodyAsText()
-            if (code != 429 && code < 500 || attempt == 4) {
+            if (code != 429 && code < 500 || attempt == attempts - 1) {
                 throw IllegalStateException("HotCRP $path: HTTP $code") // never include the URL's auth or the token
             }
-            delay(wait)
-            wait *= 2
+            // HotCRP rate-limits the API: honor Retry-After when given, else back off exponentially (capped)
+            val retryAfter = resp.headers["Retry-After"]?.toLongOrNull()?.times(1000)
+            delay(minOf(retryAfter ?: wait, 60_000L))
+            wait = minOf(wait * 2, 60_000L)
         }
         error("unreachable")
     }
@@ -173,6 +177,35 @@ public class HotcrpClient(
         val o = json.parseToJsonElement(body).jsonObject
         return o["ids"]?.jsonArray?.map { (it as JsonPrimitive).content.toLong() } ?: emptyList()
     }
+
+    public suspend fun papers(pids: List<Long>): List<PaperRecord> =
+        chunked(pids) { range ->
+            val items = envelope("papers", call(HttpMethod.Post, "papers", mapOf("q" to range)), "papers")
+            val problems = mutableListOf<String>()
+            val out =
+                items.mapIndexed { i, e ->
+                    val s = Strict("papers[$i]", e, problems)
+                    val authors =
+                        (s.raw("authors") as? JsonArray).orEmpty().mapIndexed { j, a ->
+                            val sa = Strict("papers[$i].authors[$j]", a.jsonObject, problems)
+                            sa.optString("email").orEmpty().also {
+                                sa.finish(ignore = setOf("first", "last", "given_name", "family_name", "affiliation", "orcid", "name"))
+                            }
+                        }
+                    val conflicts = (s.raw("pc_conflicts") as? JsonObject).orEmpty().mapValues { (it.value as? JsonPrimitive)?.content ?: it.value.toString() }
+                    PaperRecord(
+                        pid = s.long("pid"),
+                        title = s.optString("title"),
+                        status = s.optString("status"),
+                        decision = s.optString("decision"),
+                        authors = authors,
+                        pcConflicts = conflicts,
+                        modifiedAt = s.optLong("modified_at"),
+                    ).also { s.finish(ignore = PAPER_UNREAD) }
+                }
+            check(problems)
+            out
+        }
 
     public suspend fun reviews(pids: List<Long>): List<Review> =
         chunked(pids) { range ->

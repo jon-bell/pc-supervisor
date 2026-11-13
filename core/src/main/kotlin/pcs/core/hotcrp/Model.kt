@@ -36,3 +36,14 @@ public data class Comment(
 ) {
     val response: Boolean get() = responseRound != null
 }
+
+public data class PaperRecord(
+    val pid: Long,
+    val title: String?,
+    val status: String?,
+    val decision: String?,
+    val authors: List<String>,
+    /** PC member email → conflict type, as HotCRP reports it. */
+    val pcConflicts: Map<String, String>,
+    val modifiedAt: Long?,
+)

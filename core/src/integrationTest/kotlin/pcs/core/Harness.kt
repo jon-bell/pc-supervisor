@@ -16,5 +16,5 @@ object Harness {
     }
     private val token: String by lazy { System.getenv("PCS_HOTCRP_TOKEN") ?: error("PCS_HOTCRP_TOKEN not set") }
 
-    fun client(strict: Boolean = true): HotcrpClient = HotcrpClient(url, token, chunk = 2, strict = strict)
+    fun client(strict: Boolean = true): HotcrpClient = HotcrpClient(url, token, chunk = 5, strict = strict)
 }

@@ -36,7 +36,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 
 | Need | Endpoint | Notes |
 |---|---|---|
-| Paper list, status, decision, tags | `GET /search?q=all&f=…&format=csv` · `GET /papers` | `f` takes display fields: `title status decision tags lead shepherd manager reviewers revstat`. The default scope `t=s` covers submitted papers only, so pass `t=all` when you need drafts and withdrawn papers. |
+| Paper list, status, decision, authors, PC conflicts | `GET /papers?q=<pid range>` | `pid title status decision authors[] pc_conflicts{email: type} modified_at`, plus fields we don't read (abstract, submission, contacts). One call gives what the sync needs, including conflicts; `GET /search?q=all&t=all` gives the id list. **Verified** (2026-11-13). |
 | Who's assigned what, by role | `GET /searchaction?action=get/pcassignments&q=all` | CSV `paper,action,email,title`. Actions are `metareview`, `primaryreview`, `secondaryreview`, `pcreview`, `lead`, `shepherd`, plus a leading `clearreview` row per paper. **Verified.** |
 | Reviews: scores, text, status, type, reviewer | `GET /reviews?q=all` | Fields: `rid pid rtype status ordinal reviewer_email version`, plus one field per review-form UID. In the default form those are `OveMer RevExp PapSum ComAut ComPC`; read the real UIDs from the instance. `rtype` 1 ext · 2 PC · 3 secondary · 4 primary · 5 metareview. `status` is empty/acknowledged/draft/delivered/approved/complete. **Verified.** |
 | Review edit history | `GET /{p}/reviewhistory?r=…` | Admin-only, one review per call. **Used for backfill only** (§4). In steady state we diff our own snapshots. |
@@ -47,6 +47,9 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | Ratings of reviews | **included in `GET /reviews`** (`ratings` field) | Flags: `good needswork short vague narrow disrespectful wrong`. Encoding: a sorted **multiset** of flags (`["short","short","vague"]` means 2 raters said short and 1 said vague); a bare string for a single flag; absent when unrated. **No rater identity and no timestamp, even for chairs.** Raters must be able to see the review (co-reviewers after submitting, or the metareviewer), and nobody can rate their own review. Per-review `GET /{p}/reviewrating` exists but isn't needed. `rate:<flag>` works in searches. **Verified.** |
 
 **API facts that differ from what the docs suggest (from the harness):**
+
+- **The API is rate-limited: 250 requests per window**, announced in `x-ratelimit-limit`, `x-ratelimit-remaining`, and `x-ratelimit-reset`, with `Retry-After` on a 429 (30 s on the harness). The client honors `Retry-After` and otherwise backs off exponentially, capped at 60 s. Bulk calls in pid-range chunks fit easily (a 4,000-paper sync is about 70 requests); the one-request-per-review `/reviewhistory` backfill must stay well under the limit, which `PCS_HISTORY_RPS` already does.
+- **An author response is a comment whose `response` is the round's name** (`"1"` for the unnamed round), not a boolean, and comment `tags` may be a list.
 
 - **Review `version` is an opaque version tag, not a counter.** Seen values: 269888, 455859, 157921. Detect change by inequality only, never by ordering.
 - **Review `modified_at` is admin-visible, but HotCRP suppresses it when `reviewModified <= timeRequested`, which includes a review requested and submitted in the same second.** That matters for seeding (§9.3). In production, treat a missing `modified_at` as "unknown" and fall back to `first_seen_at`.

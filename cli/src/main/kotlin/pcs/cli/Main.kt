@@ -13,8 +13,10 @@ import kotlin.system.exitProcess
 fun main(args: Array<String>) {
     when (args.firstOrNull()) {
         "probe" -> probe()
+        "sync" -> sync()
+        "wipe" -> wipe()
         else -> {
-            System.err.println("usage: pcs probe")
+            System.err.println("usage: pcs probe | sync | wipe")
             exitProcess(2)
         }
     }
@@ -98,4 +100,46 @@ fun probe() {
             )
         }
     }
+}
+
+private fun harnessSettings(): Pair<Settings, String> {
+    val env = System.getenv()
+    val conf = env["PCS_CONF"]?.let { Path.of(it) }?.takeIf(Files::exists)?.let(Settings::readConf).orEmpty()
+    val settings =
+        try {
+            Settings.load(env + mapOf("PCS_ANSWERS" to (env["PCS_ANSWERS"] ?: "unused")), conf).getOrThrow()
+        } catch (e: SettingsException) {
+            System.err.println(e.message)
+            exitProcess(1)
+        }
+    val token =
+        env["PCS_HOTCRP_TOKEN"]?.takeIf { settings.isLocalHarness }
+            ?: error("the token comes from the OS keychain for a real instance (not yet wired; M4); set PCS_HOTCRP_TOKEN only for the local harness")
+    return settings to token
+}
+
+private fun dbPath(s: Settings): Path = s.dbPath ?: Path.of(System.getProperty("user.home"), ".local/share/pc-supervisor/${s.hotcrpUrl.host}.db")
+
+/** PLAN M3: one full sync into the encrypted store. */
+fun sync() {
+    val (settings, token) = harnessSettings()
+    val key =
+        System.getenv("PCS_DB_KEY")?.takeIf { settings.isLocalHarness }
+            ?: error("the DB key comes from the OS keychain (M4); PCS_DB_KEY only for the local harness")
+    val path = dbPath(settings)
+    Files.createDirectories(path.parent)
+    pcs.core.store.Store.open(path, key).use { store ->
+        HotcrpClient(settings.hotcrpUrl, token, chunk = settings.syncChunk, concurrency = settings.syncConcurrency, strict = false).use { c ->
+            val counts = runBlocking { pcs.core.store.Sync(store, pcs.core.time.Clock.fromSettings(settings.now)).run(c) }
+            println("synced into $path: new ${counts.newRows}, changed ${counts.changed}, gone ${counts.gone}")
+            if (c.drift.isNotEmpty()) println("contract drift recorded in sync_run: ${c.drift.size} problems")
+        }
+    }
+}
+
+/** Deletes the local store (spec §7). */
+fun wipe() {
+    val (settings, _) = harnessSettings()
+    val path = dbPath(settings)
+    if (Files.deleteIfExists(path)) println("deleted $path") else println("nothing at $path")
 }

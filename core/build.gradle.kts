@@ -290,6 +290,7 @@ testing {
                     val coversInt = layout.buildDirectory.dir("covers-integration")
                     doFirst { coversInt.get().asFile.deleteRecursively() }
                     finalizedBy(assuranceReport)
+                    mustRunAfter(":seed:integrationTest") // MirrorTest changes the seeded harness
                     dependsOn(claimsInventory)
                     systemProperty("pcs.repoRoot", rootProject.projectDir.absolutePath)
                     systemProperty("pcs.claimsFile", claimsFile.get().asFile.absolutePath)
