@@ -233,3 +233,29 @@ val assuranceReport by tasks.registering {
     }
 }
 tasks.test { finalizedBy(assuranceReport) }
+
+// ---- Integration tests against the harness (PLAN §A5 T11; never a real instance) -------------
+
+testing {
+    suites {
+        register<JvmTestSuite>("integrationTest") {
+            useJUnitJupiter(libs.versions.junit.get())
+            dependencies {
+                implementation(project())
+                implementation(testFixtures(project()))
+                implementation(libs.serialization.json)
+                implementation(libs.coroutines.core)
+            }
+            targets.all {
+                testTask.configure {
+                    dependsOn(claimsInventory)
+                    systemProperty("pcs.repoRoot", rootProject.projectDir.absolutePath)
+                    systemProperty("pcs.claimsFile", claimsFile.get().asFile.absolutePath)
+                    systemProperty("pcs.coversDir", layout.buildDirectory.dir("covers-integration").get().asFile.absolutePath)
+                    listOf("PCS_HOTCRP_URL", "PCS_HOTCRP_TOKEN").forEach { k -> System.getenv(k)?.let { environment(k, it) } }
+                    outputs.upToDateWhen { false }
+                }
+            }
+        }
+    }
+}
