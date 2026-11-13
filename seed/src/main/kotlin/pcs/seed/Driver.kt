@@ -74,7 +74,13 @@ class Driver(
                 form -> b.header("Content-Type", "application/x-www-form-urlencoded").method(method, HttpRequest.BodyPublishers.ofString(body))
                 else -> b.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(body))
             }.build()
-        val resp = http.send(req, HttpResponse.BodyHandlers.ofString())
+        var resp = http.send(req, HttpResponse.BodyHandlers.ofString())
+        repeat(6) {
+            // the harness keeps HotCRP's rate limits (spec §1): wait out a 429
+            if (resp.statusCode() != 429) return@repeat
+            Thread.sleep((resp.headers().firstValue("Retry-After").orElse("5").toLong() * 1000).coerceAtMost(60_000))
+            resp = http.send(req, HttpResponse.BodyHandlers.ofString())
+        }
         val o = json.parseToJsonElement(resp.body()).jsonObject
         check(resp.statusCode() in 200..299 && o["ok"] == JsonPrimitive(true)) { "$method $path: HTTP ${resp.statusCode()} ${resp.body().take(400)}" }
         return o

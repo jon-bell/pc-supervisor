@@ -13,6 +13,7 @@ import java.net.URI
  * T11: every endpoint the sync reads, decoded strictly against the seeded harness
  * (scripts/harness-smoke.sh). A surprise from HotCRP fails here, not in production.
  */
+@org.junit.jupiter.api.Order(2)
 @Family("T11")
 @Covers("assume:A2")
 class ContractTest {

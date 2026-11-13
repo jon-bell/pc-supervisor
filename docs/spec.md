@@ -48,7 +48,7 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 
 **API facts that differ from what the docs suggest (from the harness):**
 
-- **The API is rate-limited: 250 requests per window**, announced in `x-ratelimit-limit`, `x-ratelimit-remaining`, and `x-ratelimit-reset`, with `Retry-After` on a 429 (30 s on the harness). The client honors `Retry-After` and otherwise backs off exponentially, capped at 60 s. Bulk calls in pid-range chunks fit easily (a 4,000-paper sync is about 70 requests); the one-request-per-review `/reviewhistory` backfill must stay well under the limit, which `PCS_HISTORY_RPS` already does.
+- **The API is rate-limited**, by default to **250 requests per minute and 5,000 per hour** per user (`apiRefreshAmount2`/`apiRefreshWindow2` and `apiRefreshAmount`/`apiRefreshWindow` in HotCRP's options; a hosted instance may set others). Responses carry `x-ratelimit-limit`, `x-ratelimit-remaining`, and `x-ratelimit-reset`, and a 429 carries `Retry-After`. The harness keeps HotCRP's defaults unless `HOTCRP_API_PER_MINUTE` or `HOTCRP_API_PER_HOUR` is set. The client honors `Retry-After` and otherwise backs off exponentially, capped at 60 s. Bulk calls in pid-range chunks fit easily (a 4,000-paper sync is about 70 requests); the one-request-per-review `/reviewhistory` backfill must stay well under the limit, which `PCS_HISTORY_RPS` already does.
 - **An author response is a comment whose `response` is the round's name** (`"1"` for the unnamed round), not a boolean, and comment `tags` may be a list.
 
 - **Review `version` is an opaque version tag, not a counter.** Seen values: 269888, 455859, 157921. Detect change by inequality only, never by ordering.
@@ -478,21 +478,27 @@ Conceptual design in [concepts.md](concepts.md) (HUSL: concepts, rules, policy, 
 
 ## 11. HotCRP conventions: where each role acts
 
-Each chair's copy of PC Supervisor derives the shared process state from HotCRP, so every action by someone other than a chair must leave a trace in HotCRP (or in the appointments sheet) that the sync can read. This table is generated from the policy table (concepts §3.9; `model/ReviewProcess/Policy.lean`): every granted cell on an action has a row. Mechanisms marked *verify* depend on HotCRP visibility settings and are confirmed on the harness in PLAN M5 before anything relies on them.
+Each chair's copy of PC Supervisor derives the shared process state from HotCRP, so every action by someone other than a chair must leave a trace in HotCRP (or in the appointments sheet) that the sync can read. This table follows the policy table (concepts §3.9; `model/ReviewProcess/Policy.lean`): every granted cell on an action has a row.
 
-| Action (concepts §3.9) | Who | Trace in HotCRP | Read by |
+**Two instance settings make the conventions work, verified on the harness (2026-11-13, `ConventionsTest`):**
+- **Each AC is the manager of their papers** (HotCRP's per-paper administrator role), in addition to metareviewer. Only administrators, including a paper's manager, can set or see hidden tags and admin-visibility comments; a metareviewer who isn't the manager can do neither. This gives ACs HotCRP's administrator powers on their own papers (an open decision; PLAN, open items).
+- **`tag_hidden = pcs-*`**, so PC Supervisor's tags are seen only by chairs and the paper's manager: not by reviewers, other ACs, or authors. An AC can't set them on a paper they don't manage, and a reviewer can't set them at all.
+
+HotCRP facts the table depends on (verified): tag values are **numbers only**; private `~` tags are invisible even to chairs, so they can't carry shared state; chair-only `~~` tags can be set and seen only by chairs, even a paper's manager can't; and a comment's visibility is one of four levels (admin only, PC, reviewers, authors), with **no way to address one reviewer**.
+
+| Action (concepts §3.9) | Who | Trace in HotCRP | Status |
 |---|---|---|---|
-| Keep or refer (Triage) | AC | tag on the paper, `pcs-keep` or `pcs-refer-<ground>`, as a tag only chairs and the paper's managers can see (*verify*) | sync → triage state |
-| See the screening findings | AC | an admin-visibility comment rendered from the bundle, posted through Writeback (*verify* that the paper's AC sees it) | — |
-| Give a second opinion | PC member | a review in a dedicated round (`screen`) whose form has one field (agree / disagree, reason). The round doesn't count toward load (S11) | sync → SecondOpinion |
-| Remedy | process chair | a mail-tool notice and a `pcs-remedy-due` tag; the cure is a new PDF version | sync → Remedy |
-| Remove (desk or early reject) | PC chair | the decision, applied from a Writeback decision CSV | sync → Disposition |
-| Accept and classify a PC candidate | AC | the appointments sheet (Import), then PC membership and tier tags through Writeback | import → Appointment |
-| Coach a junior review | AC, junior PC chair | a comment on the paper | sync |
-| Send an accountability request | AC, junior PC chair | a comment on the paper visible to that reviewer (*verify*: HotCRP comments go to all of a paper's reviewers, so the request text names criteria only, never the reviewer's shortcomings), plus a per-request tag `pcs-req-<n>` | sync → AccountabilityRequest |
-| Record a request's disposition | AC, junior PC chair | the tag's value, e.g. `pcs-req-3#revised` (*verify* tag values) | sync → engagement record |
-| Uphold an Accountability case | PC chair | a chair-only tag `~~pcs-case-<n>` with its outcome as the value | sync → Accountability |
-| Submit or revise a review, reply to a request | PC member, nominee | the review or a comment | sync |
-| Fix a violation (Remedy) | author | a new submission version | sync |
+| Keep or refer (Triage) | AC | hidden tag on the paper, `pcs-keep` or `pcs-refer-<ground>`, set by the AC as manager | verified |
+| See the screening findings | AC | an admin-visibility comment rendered from the bundle, posted through Writeback; the managing AC sees it, reviewers and other ACs don't | verified |
+| Give a second opinion | PC member | a review in a dedicated round (`screen`) whose form has one field (agree / disagree, reason). PC Supervisor's own solver excludes it from load (S11), so HotCRP's load counts don't matter | *verify* (round-specific form) |
+| Remedy | process chair | a mail-tool notice and a hidden `pcs-remedy-due` tag; the cure is a new PDF version | *verify* |
+| Remove (desk or early reject) | PC chair | the decision, applied from a Writeback decision CSV | decision API verified by the seeder; CSV *verify* |
+| Accept and classify a PC candidate | AC | the appointments sheet (Import), then PC membership and tier tags through Writeback | user tags verified as writable (§9.3) but not readable through the API (§1) |
+| Coach a junior review | AC, junior PC chair | a reviewer-visible comment on the paper, which **every** reviewer of the paper sees | verified; coaching is therefore public to the paper's reviewers |
+| Send an accountability request | AC, junior PC chair | **not a HotCRP comment** (no per-reviewer visibility). The AC sends PC Supervisor's drafted request by email, and records it as a hidden tag `pcs-req-<review ordinal><n>` (e.g. `pcs-req-C1#0`) on the paper | tag verified; email is outside HotCRP |
+| Record a request's disposition | AC, junior PC chair | the tag's numeric value: 1 revised, 2 explained, 3 declined, 4 no reply, 5 disputed | verified (text values are rejected) |
+| Uphold an Accountability case | PC chair | a chair-only tag `~~pcs-case-<n>`, its value the outcome code | verified |
+| Submit or revise a review, reply to a request | PC member, nominee | the review; a reply to a request goes to the AC by email, and the AC records its disposition | review verified |
+| Fix a violation (Remedy) | author | a new submission version | *verify* |
 
-The tag names are configuration (`PCS_TAG_*`), with the defaults above. A trace that doesn't parse is reported on the sync screen; it is never guessed at.
+The tag names are configuration (`PCS_TAG_*`), with the defaults above. A trace that doesn't parse, or a PC Supervisor tag written by someone the convention doesn't allow, is reported on the sync screen; it is never guessed at.

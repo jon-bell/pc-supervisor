@@ -26,6 +26,7 @@ import java.time.Instant
  * PLAN M3 against the harness seeded with `golden` (it runs after the seed tests and changes the
  * harness in stage 2). Expected values come from the golden scenario and the stage-2 changes.
  */
+@Order(1)
 @Family("T11")
 @Covers("prop:H3")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -61,7 +62,12 @@ class MirrorTest {
                     b.POST(HttpRequest.BodyPublishers.noBody())
                 }
             ).build()
-        val r = http.send(req, HttpResponse.BodyHandlers.ofString())
+        var r = http.send(req, HttpResponse.BodyHandlers.ofString())
+        repeat(6) {
+            if (r.statusCode() != 429) return@repeat
+            Thread.sleep((r.headers().firstValue("Retry-After").orElse("5").toLong() * 1000).coerceAtMost(60_000))
+            r = http.send(req, HttpResponse.BodyHandlers.ofString())
+        }
         check(r.statusCode() == 200 && r.body().contains("\"ok\":true")) { "$path: ${r.body().take(300)}" }
     }
 

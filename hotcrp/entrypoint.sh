@@ -18,6 +18,9 @@ cat > conf/options.php <<PHP
 \$Opt["longName"] = "${HOTCRP_LONG_NAME}";
 \$Opt["paperSite"] = "${HOTCRP_SITE_URL}";
 \$Opt["sendEmail"] = false;
+// API rate limits: HotCRP's defaults unless the harness is told otherwise.
+\$Opt["apiRefreshAmount"] = ${HOTCRP_API_PER_HOUR:-5000};
+\$Opt["apiRefreshAmount2"] = ${HOTCRP_API_PER_MINUTE:-250};
 \$Opt["emailFrom"] = "noreply@example.org";
 \$Opt["docstore"] = "/var/www/html/filestore";
 \$Opt["contactName"] = "Test Admin";

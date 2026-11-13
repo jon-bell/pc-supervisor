@@ -28,6 +28,8 @@ services:
       HOTCRP_DB_USER: ${HOTCRP_DB_USER:-hotcrp}
       HOTCRP_DB_PASSWORD: ${HOTCRP_DB_PASSWORD:-hotcrp}
       HOTCRP_SITE_URL: http://localhost:${HOTCRP_PORT:-8080}
+      HOTCRP_API_PER_MINUTE: ${HOTCRP_API_PER_MINUTE:-250}
+      HOTCRP_API_PER_HOUR: ${HOTCRP_API_PER_HOUR:-5000}
     ports:
       - "127.0.0.1:${HOTCRP_PORT:-8080}:80"
     healthcheck:
