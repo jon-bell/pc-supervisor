@@ -76,6 +76,13 @@ jobs:
         if: hashFiles('settings.gradle.kts') != ''
         run: ./gradlew check
 
+      - name: Fresh harness, seeded with golden
+        if: hashFiles('settings.gradle.kts') != ''
+        run: |
+          docker compose -f hotcrp/compose.yaml down -v --remove-orphans
+          scripts/hotcrp-up.sh
+          set -a && . ./.env.test && set +a && ./gradlew :seed:run --args=golden
+
       - name: Contract + integration tests (against harness)
         if: hashFiles('settings.gradle.kts') != ''
         run: set -a && . ./.env.test && set +a && ./gradlew integrationTest

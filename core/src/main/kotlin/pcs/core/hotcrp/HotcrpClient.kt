@@ -52,7 +52,20 @@ public class HotcrpClient(
         // at the pinned HOTCRP_REF. Anything else unexpected is drift (ContractTest).
         val PC_UNREAD = setOf("affiliation")
         val REVIEW_UNREAD = setOf("blind", "draft", "editable", "modified_at_text", "object", "reviewer", "user_rating", "round", "submitted")
-        val COMMENT_UNREAD = setOf("author", "author_pseudonym", "blind", "editable", "modified_at_text", "object", "ordinal", "by_author", "by_shepherd")
+        val COMMENT_UNREAD =
+            setOf(
+                "author",
+                "author_pseudonym",
+                "blind",
+                "editable",
+                "modified_at_text",
+                "object",
+                "ordinal",
+                "by_author",
+                "by_shepherd",
+                "author_pseudonymous",
+                "word_count",
+            )
     }
 
     private suspend fun call(method: HttpMethod, path: String, params: Map<String, String>): String {
@@ -201,10 +214,10 @@ public class HotcrpClient(
                         text = s.optString("text"),
                         topic = s.optString("topic"),
                         visibility = s.optString("visibility"),
-                        response = s.optBool("response") ?: false,
+                        responseRound = s.optString("response"),
                         draft = s.optBool("draft") ?: false,
                         modifiedAt = s.optLong("modified_at"),
-                        tags = s.optString("tags")?.split(' ')?.filter { it.isNotBlank() } ?: emptyList(),
+                        tags = s.tags("tags"),
                     ).also { s.finish(ignore = COMMENT_UNREAD) }
                 }
             check(problems)

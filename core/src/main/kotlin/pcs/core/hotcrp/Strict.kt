@@ -65,6 +65,15 @@ public class Strict(private val where: String, private val o: JsonObject, privat
 
     public fun raw(k: String): JsonElement? = el(k)
 
+    /** Tags: a list of strings, or one space-separated string, or absent. */
+    public fun tags(k: String): List<String> =
+        when (val e = el(k)) {
+            null, JsonNull -> emptyList()
+            is JsonPrimitive -> e.content.split(' ').filter { it.isNotBlank() }
+            is JsonArray -> e.map { (it as? JsonPrimitive)?.content ?: "".also { _ -> bad(k, "tags", e) } }
+            else -> emptyList<String>().also { bad(k, "tags", e) }
+        }
+
     /** Keys not consumed and not in [open]; [ignore] lists keys we know and deliberately don't read. */
     public fun finish(open: (String) -> Boolean = { false }, ignore: Set<String> = emptySet()) {
         val extra = o.keys - used - ignore

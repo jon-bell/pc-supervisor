@@ -28,8 +28,11 @@ public data class Comment(
     val text: String?,
     val topic: String?,
     val visibility: String?,
-    val response: Boolean,
+    /** The response round's name for an author response (`"1"` for the unnamed round); null for a discussion comment. */
+    val responseRound: String?,
     val draft: Boolean,
     val modifiedAt: Long?,
     val tags: List<String>,
-)
+) {
+    val response: Boolean get() = responseRound != null
+}
