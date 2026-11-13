@@ -491,4 +491,5 @@ The Lean model of docs/concepts.md. It grows alongside the milestones, and every
 - Kotlin + Compose vs. Java 21 + JavaFX: Kotlin is the default; switching is cheap until M4 starts.
 - **ACs as paper managers in HotCRP** (spec §11): the conventions need it, and it gives ACs HotCRP's administrator powers on their own papers (assignments, deadlines, seeing hidden tags and admin comments). Alternatives are weaker: plain tags leak referrals to the whole PC, and chair-only tags can't be set by ACs.
 - **Accountability requests leave HotCRP** for email, because a comment can't be addressed to one reviewer; the request and its disposition are tracked in hidden tags. Is email from the AC's own client acceptable?
+- **Q5 meets HotCRP's one-review-per-person rule** (spec §11): a second-opinion member can't already review the paper, and under Q5 = "yes" their screen review must later move to the normal round. Worth a word with the chairs when Q5 is settled.
 - JDK 21 vs. JDK 25 (current LTS): 25 gives the final foreign-function API for the Lean-in-core library and is the better long-term target; only 21 is installed on the build machine today.
