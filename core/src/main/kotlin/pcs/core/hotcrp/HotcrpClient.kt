@@ -51,7 +51,7 @@ public class HotcrpClient(
         // Keys HotCRP returns that the sync deliberately doesn't read, as observed on the harness
         // at the pinned HOTCRP_REF. Anything else unexpected is drift (ContractTest).
         val PC_UNREAD = setOf("affiliation")
-        val PAPER_UNREAD = setOf("abstract", "contacts", "object", "submission", "submitted", "submitted_at", "topics", "options", "final", "tags")
+        val PAPER_UNREAD = setOf("abstract", "contacts", "object", "submission", "submitted", "submitted_at", "topics", "options", "final")
         val REVIEW_UNREAD = setOf("blind", "draft", "editable", "modified_at_text", "object", "reviewer", "user_rating", "round", "submitted")
         val COMMENT_UNREAD =
             setOf(
@@ -201,6 +201,7 @@ public class HotcrpClient(
                         authors = authors,
                         pcConflicts = conflicts,
                         modifiedAt = s.optLong("modified_at"),
+                        tags = s.tags("tags"),
                     ).also { s.finish(ignore = PAPER_UNREAD) }
                 }
             check(problems)

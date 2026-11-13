@@ -219,24 +219,26 @@ public class Sync(private val store: Store, private val clock: Clock) {
         g: MutableMap<String, Int>,
     ) {
         val have =
-            c.query("SELECT pid, title, status, decision, authors, pc_conflicts FROM paper WHERE gone_at IS NULL") {
+            c.query("SELECT pid, title, status, decision, authors, pc_conflicts, tags FROM paper WHERE gone_at IS NULL") {
                 it.getLong(1) to
-                    (2..6).map { i -> it.getString(i) }
+                    (2..7).map { i -> it.getString(i) }
             }.toMap()
         for (p in papers) {
             val authors = JsonArray(p.authors.map { JsonPrimitive(it) }).toString()
             val conf = JsonObject(p.pcConflicts.mapValues { JsonPrimitive(it.value) }).toString()
-            val row = listOf(p.title, p.status, p.decision, authors, conf)
+            val tags = JsonArray(p.tags.sorted().map { JsonPrimitive(it) }).toString()
+            val row = listOf(p.title, p.status, p.decision, authors, conf, tags)
             val prev = have[p.pid]
             if (prev == null) {
                 c.exec(
-                    "INSERT INTO paper(pid,title,status,decision,authors,pc_conflicts,first_seen_at,last_seen_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(pid) DO UPDATE SET gone_at=NULL",
+                    "INSERT INTO paper(pid,title,status,decision,authors,pc_conflicts,tags,first_seen_at,last_seen_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(pid) DO UPDATE SET gone_at=NULL",
                     p.pid,
                     p.title,
                     p.status,
                     p.decision,
                     authors,
                     conf,
+                    tags,
                     now,
                     now,
                 )
@@ -244,12 +246,13 @@ public class Sync(private val store: Store, private val clock: Clock) {
             } else {
                 if (prev != row) bump(ch, "paper")
                 c.exec(
-                    "UPDATE paper SET title=?, status=?, decision=?, authors=?, pc_conflicts=?, last_seen_at=? WHERE pid=?",
+                    "UPDATE paper SET title=?, status=?, decision=?, authors=?, pc_conflicts=?, tags=?, last_seen_at=? WHERE pid=?",
                     p.title,
                     p.status,
                     p.decision,
                     authors,
                     conf,
+                    tags,
                     now,
                     p.pid,
                 )

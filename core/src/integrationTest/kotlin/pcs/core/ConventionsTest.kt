@@ -155,4 +155,27 @@ class ConventionsTest {
             )
         }
     }
+
+    @Test
+    @Covers("conv:1", "conv:9", "conv:10")
+    fun `round trip - traces written in HotCRP by an AC and a chair are decoded by core after a sync`() {
+        assertTrue(ok(setTags(ac, pid, "pcs-refer-scope pcs-req-B1#3")))
+        assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("~~pcs-case-2#4", Charsets.UTF_8))))
+        val db = java.nio.file.Files.createTempFile("pcs-conv", ".db").also { java.nio.file.Files.delete(it) }
+        pcs.core.store.Store.open(db, "test-only-key").use { store ->
+            kotlinx.coroutines.runBlocking { Harness.client().use { pcs.core.store.Sync(store, pcs.core.time.Clock.System).run(it) } }
+            val tags =
+                store.conn.createStatement().use { st ->
+                    st.executeQuery("SELECT tags FROM paper WHERE pid = $pid").use {
+                        it.next()
+                        it.getString(1)
+                    }
+                }
+            val traces = pcs.core.rules.Conventions.decode(pid.toLong(), Json.parseToJsonElement(tags).jsonArray.map { it.jsonPrimitive.content })
+            assertTrue(pcs.core.rules.Trace.Refer(pid.toLong(), pcs.core.rules.Ground.SCOPE) in traces, traces.toString())
+            assertTrue(pcs.core.rules.Trace.RequestSent(pid.toLong(), "B", 1, pcs.core.rules.ReqDisposition.DECLINED) in traces, traces.toString())
+            assertTrue(pcs.core.rules.Trace.Case(pid.toLong(), 2, 4) in traces, traces.toString())
+            assertTrue(traces.none { it is pcs.core.rules.Trace.Unparsed }, traces.toString())
+        }
+    }
 }

@@ -46,4 +46,6 @@ public data class PaperRecord(
     /** PC member email → conflict type, as HotCRP reports it. */
     val pcConflicts: Map<String, String>,
     val modifiedAt: Long?,
+    /** Tags as the viewer sees them, `name#value`; a chair sees hidden and chair-only tags. */
+    val tags: List<String> = emptyList(),
 )
