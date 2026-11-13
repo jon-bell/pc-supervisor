@@ -186,15 +186,15 @@ tasks.test {
 
 val assuranceReport by tasks.registering {
     dependsOn(claimsInventory)
-    mustRunAfter(tasks.test)
-    val coversFile = layout.buildDirectory.file("covers/covers.tsv")
+    mustRunAfter(tasks.test, tasks.named("integrationTest"))
+    val coversFiles = listOf("covers", "covers-integration").map { layout.buildDirectory.file("$it/covers.tsv") }
     val out = rootProject.layout.buildDirectory.file("reports/assurance.md")
     outputs.file(out)
     outputs.upToDateWhen { false }
     doLast {
         @Suppress("UNCHECKED_CAST")
         val claims = JsonSlurper().parse(claimsFile.get().asFile) as List<Map<String, String>>
-        val rows = coversFile.get().asFile.takeIf { it.exists() }?.readLines().orEmpty().map { it.split("\t") }
+        val rows = coversFiles.flatMap { f -> f.get().asFile.takeIf { it.exists() }?.readLines().orEmpty() }.map { it.split("\t") }
         // claim -> family -> outcomes
         val byClaim = rows.groupBy { it[1] }
         fun status(id: String): String {
@@ -249,6 +249,9 @@ testing {
             }
             targets.all {
                 testTask.configure {
+                    val coversInt = layout.buildDirectory.dir("covers-integration")
+                    doFirst { coversInt.get().asFile.deleteRecursively() }
+                    finalizedBy(assuranceReport)
                     dependsOn(claimsInventory)
                     systemProperty("pcs.repoRoot", rootProject.projectDir.absolutePath)
                     systemProperty("pcs.claimsFile", claimsFile.get().asFile.absolutePath)

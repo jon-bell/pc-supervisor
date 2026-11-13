@@ -140,7 +140,7 @@ class MayRemoveLiveOracleProperties {
         }
     }
 
-    @Property(tries = 2000)
+    @Property(tries = 10000)
     fun `the Kotlin rule gives the oracle's answer`(@ForAll("readings") r: Readings, @ForAll("referrals") ref: Referral) {
         if (!LiveOracle.available) return
         tries.incrementAndGet()

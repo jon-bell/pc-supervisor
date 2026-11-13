@@ -139,6 +139,12 @@ public class HotcrpClient(
         ranges.map { r -> async { sem.withPermit { f(r) } } }.awaitAll().flatten()
     }
 
+    /** Instance settings (admin only). Read leniently: it is configuration, and its key set varies by version. */
+    public suspend fun settings(): Map<String, kotlinx.serialization.json.JsonElement> {
+        val o = json.parseToJsonElement(call(HttpMethod.Get, "settings", emptyMap())).jsonObject
+        return (o["settings"] as? JsonObject).orEmpty()
+    }
+
     public suspend fun paperIds(): List<Long> {
         val body = call(HttpMethod.Get, "search", mapOf("q" to "all", "t" to "all"))
         val o = json.parseToJsonElement(body).jsonObject
