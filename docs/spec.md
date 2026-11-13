@@ -41,7 +41,8 @@ Auth is a bearer token: *Account settings → Developer* on a real instance, or 
 | Reviews: scores, text, status, type, reviewer | `GET /reviews?q=all` | Fields: `rid pid rtype status ordinal reviewer_email version`, plus one field per review-form UID. In the default form those are `OveMer RevExp PapSum ComAut ComPC`; read the real UIDs from the instance. `rtype` 1 ext · 2 PC · 3 secondary · 4 primary · 5 metareview. `status` is empty/acknowledged/draft/delivered/approved/complete. **Verified.** |
 | Review edit history | `GET /{p}/reviewhistory?r=…` | Admin-only, one review per call. **Used for backfill only** (§4). In steady state we diff our own snapshots. |
 | Discussion comments | `GET /comments?q=all` | `cid pid author_email text topic visibility response draft modified_at tags by_author by_shepherd`. **Verified**, including `actas`-authored comments and `@mention` detection. |
-| PC roster + user tags | `GET /pc` | Roles and visible user tags. Tiers (junior / reciprocal) come from user tags. |
+| PC roster | `GET /pc` | Name, email, affiliation, and `roles: "chair"` for chairs. **No per-user tags** (verified on the harness, 2026-11-13): the top-level `tags` key lists the tags in use, and a member's tags appear only as `color_classes`, for tags that have a color. Tiers therefore come from the `appointments` import (§10.2). |
+| Instance settings | `GET /settings` | Admin only. `pcs probe` reports the rating and tag-visibility settings §11 depends on. **Verified.** |
 | Activity feed | `GET /events` | Pre-rendered HTML, 10 per page. **Don't use it.** |
 | Ratings of reviews | **included in `GET /reviews`** (`ratings` field) | Flags: `good needswork short vague narrow disrespectful wrong`. Encoding: a sorted **multiset** of flags (`["short","short","vague"]` means 2 raters said short and 1 said vague); a bare string for a single flag; absent when unrated. **No rater identity and no timestamp, even for chairs.** Raters must be able to see the review (co-reviewers after submitting, or the metareviewer), and nobody can rate their own review. Per-review `GET /{p}/reviewrating` exists but isn't needed. `rate:<flag>` works in searches. **Verified.** |
 
@@ -99,7 +100,7 @@ fts(text)                                              -- FTS5 over review_text 
 ```
 
 - **Area chairs** are the reviewers holding `rtype` 5 on a paper, so a paper can have co-ACs. The AC's own metareview status comes straight from that review's `status`. `PCS_AC_ROLE` (§4.1) allows `lead`, `manager`, or `tag:<name>` in case a future instance encodes ACs differently.
-- **Tiers** come from user tags (`PCS_TIER_TAGS`). Junior and reciprocal reviewers get their own outlier lists, because reciprocal reviewers are the group most likely to drop out.
+- **Tiers** come from the `appointments` import, the source of truth for AC classification (§10.2). HotCRP's API doesn't return per-user tags, so the tier tags PC Supervisor writes to HotCRP (through Writeback) are for HotCRP's own searches and colors; the mirror checks them only where a tier tag has a color and so appears in `color_classes`. Junior and nominee reviewers get their own outlier lists, because nominees are the group most likely to drop out.
 - **Mentions:** parse `@Name` / `@email` out of comment text, resolve them against the roster, and store the emails.
 - **Deletions and unassignments** are detected by absence in a full sync. Record them; don't silently drop rows.
 
@@ -317,7 +318,7 @@ Scenarios are declarative files: PC members (with tags), papers, assignments, an
    - For a review: `timeRequested ≤ reviewModified`, `reviewSubmitted`, and `timeDisplayed`. Otherwise `modified_at` disappears from the API.
    - For a comment: `timeModified`, `timeDisplayed`, `timeNotified`.
 
-Open item: the user-JSON keys for **name and tags** in `saveusers.php` didn't take in the smoke test (`tags` and `given_name` were ignored). Check `batch/saveusers.php` / `UserStatus` for the right keys.
+User JSON keys (resolved 2026-11-13): `saveusers.php` passes JSON through HotCRP's CSV parser, so the keys are CSV columns. `firstName` and `lastName` work; `tags` must be a **space-separated string** (an array is silently ignored, which is what the smoke test hit); `given_name` in JSON crashes the batch at this commit, so use `firstName`.
 
 Scenarios to ship:
 
@@ -353,7 +354,7 @@ The modules activate by phase. **Single cycle (decided).** There is no resubmiss
 
 ### 10.2 Tiers
 
-A PC member's tier is `senior` or `junior`, as their AC classified them, and they joined as invited, self-nominated, or a reciprocal nominee (concepts `Tier`). Both come from PC user tags (`PCS_TIER_TAGS`). Accepted nominees are **added to the PC**, not requested as external reviewers, because HotCRP can't change an external reviewer's round without a new request. Which slot a nominee fills follows Q14.
+A PC member's tier is `senior` or `junior`, as their AC classified them, and they joined as invited, self-nominated, or a reciprocal nominee (concepts `Tier`). Both come from the `appointments` import. PC Supervisor writes them to HotCRP as user tags (`PCS_TIER_TAGS`) through Writeback, so HotCRP searches and colors can use them, but it can't read them back through the API (§1). Accepted nominees are **added to the PC**, not requested as external reviewers, because HotCRP can't change an external reviewer's round without a new request. Which slot a nominee fills follows Q14.
 
 ### 10.3 Imported data (local files, `pcs import <kind> <file>`)
 
@@ -468,6 +469,7 @@ Conceptual design in [concepts.md](concepts.md) (HUSL: concepts, rules, policy, 
 ### 10.6 Upstream HotCRP contributions (proposed as PRs, not a fork)
 - An admin endpoint for the **action log**, and one for the **mail log**. Together they would make email reminders and assignment changes visible, closing the "nudges are invisible" gap in §1.
 - `POST /reviews`: honor `override` for JSON bodies, not just text uploads.
+- `GET /pc`: include each member's user tags for viewers who can see them (chairs), so the mirror can read tiers back from HotCRP instead of relying on `color_classes`.
 
 ---
 
