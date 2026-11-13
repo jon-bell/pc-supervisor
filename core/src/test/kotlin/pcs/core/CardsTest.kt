@@ -10,16 +10,36 @@ import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 import pcs.core.readings.Q1
+import pcs.core.readings.Q17
+import pcs.core.readings.Q21
+import pcs.core.readings.Q4
 import pcs.core.readings.Q5
+import pcs.core.readings.Q7
+import pcs.core.readings.Q8
 import pcs.core.readings.QId
 import pcs.core.readings.Readings
+import pcs.core.rules.Accountability
+import pcs.core.rules.Change
 import pcs.core.rules.DeskReject
+import pcs.core.rules.ERCase
+import pcs.core.rules.EarlyReject
 import pcs.core.rules.Faults
 import pcs.core.rules.Ground
+import pcs.core.rules.Member
+import pcs.core.rules.Nominations
+import pcs.core.rules.Nominee
 import pcs.core.rules.Opinion
+import pcs.core.rules.PaperFacts
+import pcs.core.rules.PaperNoms
+import pcs.core.rules.Pc
 import pcs.core.rules.Referral
+import pcs.core.rules.ReqDisposition
+import pcs.core.rules.Request
+import pcs.core.rules.Score
 import pcs.core.rules.Stage
+import pcs.core.rules.Suggestion
 import pcs.core.rules.Tier
+import pcs.core.rules.WritebackRule
 import pcs.testing.CoversLog
 import java.nio.file.Files
 
@@ -41,7 +61,7 @@ class CardsTest {
         Referral(ac = 1, ground = g, opinions = ops, stage = st, remedyOffered = true, remedyDue = 10, now = 20)
 
     private fun removable(r: Readings, ref: Referral) =
-        yesNo(DeskReject.mayRemove(Faults.NONE, r, ref), "may be desk rejected", "stays in review")
+        yesNo(DeskReject.mayRemove(f, r, ref), "may be desk rejected", "stays in review")
 
     /** Card id → its outcome under a reading, rendered as the model renders it. */
     private val implemented: Map<String, (Readings) -> String> =
@@ -72,7 +92,122 @@ class CardsTest {
             },
             "E9" to { r -> removable(r, refAt(Ground.FORMAT, Stage.SCREENING, listOf(senior(1, isAc = true)))) },
             "E11" to { r -> removable(r, refAt(Ground.FORMAT, Stage.SCREENING, emptyList()).copy(askedAt = 0, now = 80)) },
+            // nominations
+            "X2" to { r ->
+                val ns = (0L until 9L).map { PaperNoms(it, listOf(Nominee(7))) }
+                "the nominee ${showOwes(r, Nominations.owes(f, r.q18!!, r.q19!!, r.q19b!!, Tier.JUNIOR, ns, 7))} reviews"
+            },
+            "X4" to { r ->
+                yesNo(
+                    Pc.fillsSenior(r.q14!!, Member(7, Tier.SENIOR, nominee = true)),
+                    "fills a senior slot",
+                    "fills only the third slot; the paper still needs two other seniors",
+                )
+            },
+            "X5" to { _ -> yesNo(Pc.eligible(f, Member(7, Tier.JUNIOR, nominee = true, accepted = false), PaperFacts()), "assignable", "never assigned") },
+            "X6" to
+                { r ->
+                    "a case ${yesNo(
+                        Accountability.caseMayOpen(f, r.q20!!, true, emptyList()),
+                        "opens",
+                        "does not open",
+                    )}; ${Accountability.consequence(r.q11!!)}"
+                },
+            "X7" to { r -> if (r.q17 == Q17.N_9) "2 papers over the cap, reported to the PC chairs" else "nothing to report" },
+            "X8" to { r ->
+                if (r.q8 == Q8.ONE) {
+                    "not allowed: one nominee per paper"
+                } else {
+                    when (val ss = Nominations.paperShares(f, r.q19!!, r.q19b!!, PaperNoms(1, listOf(Nominee(7, share = 4), Nominee(8, share = 2))))) {
+                        null -> "pooled: the two together owe 3 reviews"
+                        else -> ss.joinToString(", ") { Nominations.showSixths(it.second) } + " reviews"
+                    }
+                }
+            },
+            "X9" to { r ->
+                if (r.q8 == Q8.ONE) {
+                    "not allowed: one nominee per paper"
+                } else {
+                    val pn = PaperNoms(1, listOf(Nominee(7, share = 3), Nominee(8, share = 3, accepted = false)))
+                    val mine =
+                        when (val ss = Nominations.paperShares(f, r.q19!!, r.q19b!!, pn)) {
+                            null -> "the remaining nominee is pooled with the paper's obligation"
+                            else -> "the remaining nominee owes ${Nominations.showSixths(ss.filter { it.first == 7L }.sumOf { it.second })}"
+                        }
+                    val moved = yesNo(Nominations.movedToUnnamed(f, r.q19b, pn), "; the declined share moves to an unnamed reviewer", "")
+                    "$mine; the paper is short by ${Nominations.showSixths(Nominations.paperShortfall(f, r.q19, r.q19b, pn))}$moved"
+                }
+            },
+            "X10" to { r -> "one case listing the 4 papers; ${Accountability.consequence(r.q11!!)}" },
+            // assignment
+            "P1" to { r -> comp(r, listOf(Member(1, Tier.SENIOR), Member(2, Tier.SENIOR), Member(3, Tier.JUNIOR), Member(4, Tier.JUNIOR))) },
+            "P2" to { r -> comp(r, listOf(Member(1, Tier.SENIOR), Member(2, Tier.SENIOR), Member(3, Tier.JUNIOR, nominee = true))) },
+            "P3" to { r -> comp(r, listOf(Member(1, Tier.SENIOR), Member(2, Tier.SENIOR))) },
+            "P4" to { _ ->
+                val authorOf = { x: Long ->
+                    if (x == 1L) {
+                        listOf(10L)
+                    } else if (x == 2L) {
+                        listOf(20L)
+                    } else {
+                        emptyList()
+                    }
+                }
+                "${Pc.twoCycles(f, listOf(10L to 2L, 20L to 1L), authorOf)} reciprocal 2-cycle(s) found and broken"
+            },
+            "P5" to { _ -> yesNo(WritebackRule.mayApply(f, Change(dryRunOk = false, confirmed = true)), "applied", "refused") },
+            // early reject
+            "R1" to { r ->
+                er(r, ERCase(listOf(Score.REJECT, Score.REJECT, Score.REJECT), bumped = true, windowClosed = true), "continues to author response")
+            },
+            "R2" to { r -> er(r, ERCase(listOf(Score.REJECT, Score.REJECT, Score.REJECT)), "waits for the window to close") },
+            "R3" to { r -> er(r, ERCase(listOf(Score.REJECT, Score.REJECT, Score.WEAK_REJECT), windowClosed = true), "continues to author response") },
+            "R4" to { r -> er(r, ERCase(listOf(Score.REJECT, Score.WEAK_REJECT, Score.BORDERLINE), windowClosed = true), "continues to author response") },
+            // accountability requests
+            "C1" to { _ -> eng(Accountability.engagement(f, listOf(Request(5, sentBy = 1, replied = true, disp = ReqDisposition.REVISED)), emptyList(), 5)) },
+            "C3" to { _ ->
+                val q = Request(5, sentBy = 1, remindedAt = 50)
+                "no-reply may be recorded at hour 90: ${Accountability.mayDispose(
+                    q,
+                    ReqDisposition.NO_REPLY,
+                    90,
+                )}; at hour 97: ${Accountability.mayDispose(q, ReqDisposition.NO_REPLY, 97)}"
+            },
+            "C4" to { _ -> eng(Accountability.engagement(f, emptyList(), listOf(Suggestion(5, dismissed = true)), 5)) },
+            "C6" to { r -> yesNo(Accountability.caseMayOpen(f, r.q20!!, false, emptyList()), "a quality case may open", "no case; send a request first") },
+            "C8" to { r ->
+                yesNo(
+                    Accountability.caseMayOpen(f, r.q20!!, false, listOf(Request(5, sentBy = null, disp = ReqDisposition.NO_REPLY))),
+                    "a quality case may open",
+                    "no case; send a request first",
+                )
+            },
+            "C7" to { r -> if (r.q21 == Q21.THIS_CONFERENCE) "engagement records deleted" else "a summary goes to the next chairs" },
+            // screening record (Q4)
+            "S12" to { r ->
+                when (r.q4!!) {
+                    Q4.NEVER -> "they never see the screening record"
+                    Q4.AFTER_OWN_REVIEW -> "they now see the screening record and are asked for feedback on the triage"
+                    Q4.ALWAYS -> "they saw the screening record from assignment"
+                }
+            },
+            "S12b" to { r -> if (r.q4 == Q4.ALWAYS) "the screening record is shown" else "the screening record is hidden" },
         )
+
+    /** The fault switch the evaluators run under: none for the signed model, one mutant in the mutation test. */
+    private var f = Faults.NONE
+
+    private fun showOwes(r: Readings, o: Int?): String =
+        when (o) {
+            null -> "pooled with the paper's other nominees"
+            else -> (if (r.q7 == Q7.UP_TO_MAX) "may be assigned up to " else "is expected to do ") + Nominations.showSixths(o)
+        }
+
+    private fun comp(r: Readings, seats: List<Member>) = yesNo(Pc.compositionOk(r.q13!!, r.q14!!, seats), "meets composition", "fails composition")
+
+    private fun er(r: Readings, c: ERCase, no: String) = yesNo(EarlyReject.mayEarlyReject(f, r.q15!!, r.q16!!, c), "early rejected", no)
+
+    private fun eng(p: Pair<Int, Int>) = "engaged ${p.first}, not engaged ${p.second}"
 
     @TestFactory
     fun cards(): List<DynamicTest> {
@@ -102,6 +237,43 @@ class CardsTest {
                     reading.forEach { (q, v) -> CoversLog.record("card:$id [$label]", "q:$q=${v.jsonPrimitive.content}", if (pass) "pass" else "fail", "T1") }
                     assertEquals(expected, outcome, "card $id under $label")
                 }
+            }
+        }
+    }
+
+    /**
+     * Specification mutants (PLAN §A8): under each of `core`'s fault switches, every card gives the
+     * outcome the model gives under the same mutant, so the switches are the model's mutants.
+     */
+    @TestFactory
+    fun mutants(): List<DynamicTest> {
+        val cards = Json.parseToJsonElement(Files.readString(Repo.path("model/export/cards.json"))).jsonArray
+        return Faults.MUTANTS.mapIndexed { i, fault ->
+            DynamicTest.dynamicTest("mutant $i matches the model's") {
+                val bad = mutableListOf<String>()
+                var differs = 0
+                for (c in cards) {
+                    val id = c.jsonObject["id"]!!.jsonPrimitive.content
+                    for (case in c.jsonObject["cases"]!!.jsonArray) {
+                        val o = case.jsonObject
+                        val want = o["underMutant"]!!.jsonArray[i].jsonPrimitive.content
+                        if (want != o["outcome"]!!.jsonPrimitive.content) differs++
+                        f = fault
+                        val got =
+                            try {
+                                implemented.getValue(id)(readingOf(o["reading"]!!.jsonObject))
+                            } finally {
+                                f = Faults.NONE
+                            }
+                        if (got != want) bad += "card $id ${o["reading"]}: got '$got', model '$want'"
+                    }
+                }
+                CoversLog.record("mutant $i", "mutant:$i", if (bad.isEmpty()) "pass" else "fail", "T1")
+                assertEquals(
+                    emptyList<String>(),
+                    bad.take(3),
+                    "${bad.size} card cases differ from the model under mutant $i ($differs cases where the model's mutant changes an outcome)",
+                )
             }
         }
     }

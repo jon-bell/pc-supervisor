@@ -23,7 +23,8 @@ def cardsJson : Json :=
     let cases := combos (c.deps.map fun q => (q, List.range q.count))
     Json.mkObj [("id", c.id), ("text", c.text), ("deps", Json.arr (c.deps.toArray.map (Json.str ·.code))),
       ("cases", Json.arr <| cases.toArray.map fun xs =>
-        Json.mkObj [("reading", readingObj xs), ("outcome", c.outcome {} (withAll {} xs))])]
+        Json.mkObj [("reading", readingObj xs), ("outcome", c.outcome {} (withAll {} xs)),
+          ("underMutant", Json.arr (mutants.toArray.map fun m => Json.str (c.outcome m.params (withAll {} xs))))])]
 
 def roleKey : Role → String
   | .processChair => "process-chair" | .pcChair => "pc-chair" | .ac => "ac" | .juniorPcChair => "junior-pc-chair"
