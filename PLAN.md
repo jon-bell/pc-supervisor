@@ -10,6 +10,14 @@ This is the work breakdown for building PC Supervisor. Read [docs/concepts.md](d
 
 **Stack (decided 2026-11-13):** a desktop app on the JVM, in Kotlin with Compose Multiplatform. HotCRP is the shared record (spec §2, §11). The earlier TypeScript plan is retired; nothing of it was built.
 
+**Progress (2026-11-13, branch `m1-foundations`, all checked on the local harness; CI not yet run):**
+- **M0** done: `pcs probe`, with the settings spec §11 depends on.
+- **M1** done: Gradle scaffold, generated readings, the answers reader (agrees with Lean), settings, Clock, the HotCRP client with strict decoding, contract tests, the claim inventory, `@Covers`, the assurance report, ktlint. The Lean-in-core spike works on Linux (decision provisional, below).
+- **M2** in part: the seeder and `golden`, verified against the table through the strict client. `shadow` and `scale` remain.
+- **M3** done: the encrypted store, the full sync (first-seen, versions, edits, deletions, unassignments, mentions, FTS), the history backfill, idempotence, and the multi-stage test.
+- **Rules ahead of their milestones:** every rule in the model is ported to `core`; all 38 cards conform under every reading, and `core`'s fault switches match the model's 10 mutants. The discussion rules (M18's engine, not its UI) fire exactly the golden table end to end.
+- **Found on the harness and fixed in the spec:** `/pc` has no per-user tags (tiers come from the appointments import); the API is rate-limited to 250 requests per window; `saveusers` takes tags as a string; response comments name their round; `/reviewhistory` needs `expand=1`; two golden rows contradicted spec §5c.
+
 ## Order
 
 Milestones follow the order in which the review process needs them, so the pieces a conference needs first are built first: nominations and screening at submission, then assignment, then reviewing, then discussion.
