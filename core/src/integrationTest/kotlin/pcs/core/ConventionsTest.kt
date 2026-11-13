@@ -33,7 +33,6 @@ class ConventionsTest {
     private val token = System.getenv("PCS_HOTCRP_TOKEN")!!
     private val ac = "ac-normal@example.org" // AC of 2, 6, 11, 12, 13
     private val pid = 13
-    private val otherPid = 3 // ac-busy's paper
 
     private fun api(method: String, path: String, params: Map<String, String> = emptyMap(), form: String? = null, json: String? = null): JsonObject {
         val q = (params + ("pretty" to "0") + ("notify" to "0")).entries.joinToString("&") { "${it.key}=${URLEncoder.encode(it.value, Charsets.UTF_8)}" }
@@ -87,57 +86,125 @@ class ConventionsTest {
         check(p.waitFor() == 0) { p.inputStream.bufferedReader().readText() }
     }
 
+    // ACs are metareviewers only; the chairs are the paper administrators (spec §11, decided 2026-11-13)
     @BeforeAll
     fun conventions() {
-        harness("batch/settings.php", "save", "-e", """{"tag_hidden":"pcs-*"}""")
-        harness("batch/assign.php", stdin = "paper,action,user\n$pid,manager,$ac\n")
+        harness(
+            "batch/settings.php",
+            "save",
+            "-e",
+            """{"tag_hidden":"pcs-*","review":[{"name":"screen"}],"review_visibility_pc":"after_review",""" +
+                """"rf":[{"id":"s90","name":"Triage","type":"radio","required":false,"visibility":"admin","condition":"round:screen",""" +
+                """"values":[{"name":"Keep","symbol":1},{"name":"Refer: format","symbol":2},{"name":"Refer: scope","symbol":3}]},""" +
+                """{"id":"s01","condition":"round:unnamed"},{"id":"s02","condition":"round:unnamed"}]}""",
+        )
+    }
+
+    private fun assign(vararg rows: String) = api("POST", "assign", json = rows.joinToString(",", "[", "]"))
+
+    private fun reviewsSeenBy(who: String?, p: Int) =
+        api("GET", "$p/reviews", if (who == null) emptyMap() else mapOf("actas" to who))["reviews"]?.jsonArray?.map { it.jsonObject }.orEmpty()
+
+    private fun JsonObject.str(k: String) = this[k]?.let { if (it is kotlinx.serialization.json.JsonNull) null else it.jsonPrimitive.content }
+
+    private fun reviewersOf(p: Int) = reviewsSeenBy(null, p).filter { it.str("rtype") != "5" }
+
+    private fun outsider(p: Int): String {
+        val onPaper = reviewsSeenBy(null, p).mapNotNull { it.str("reviewer_email") }.toSet()
+        val pc = api("GET", "pc")["pc"]!!.jsonArray.map { it.jsonObject.str("email")!! }
+        return pc.first { it !in onPaper && !it.startsWith("admin") && !it.startsWith("ac-") }
     }
 
     @Test
     @Covers("conv:1")
-    fun `triage - the AC (as manager) sets a hidden tag that only chairs and that AC see`() {
-        assertTrue(ok(setTags(ac, pid, "pcs-refer-format")))
-        assertTrue("pcs-refer-format#0" in tagsSeenBy(ac, pid))
-        assertTrue("pcs-refer-format#0" in tagsSeenBy(null, pid), "the chair token reads it")
-        for (who in listOf("r1@example.org", "r3@example.org", "r6@example.org", "ac-busy@example.org", "author13@example.org")) {
-            assertFalse(tagsSeenBy(who, pid).any { it.startsWith("pcs-") }, "$who must not see PC Supervisor's tags")
+    fun `triage - the AC records keep or refer in a screen-round metareview that only the chairs and that AC read`() {
+        assertTrue(ok(assign("""{"pid":$pid,"action":"metareview","user":"$ac","round":"screen"}""")))
+        val mine = reviewsSeenBy(ac, pid).single { it.str("rtype") == "5" && it.str("reviewer_email") == ac }
+        assertEquals("screen", mine.str("round"))
+        val saved = api("POST", "$pid/review", mapOf("r" to mine.str("rid")!!, "actas" to ac), json = """{"object":"review","Tri":3,"status":"complete"}""")
+        assertTrue(ok(saved), saved.toString())
+        val chairView = reviewsSeenBy(null, pid).single { it.str("reviewer_email") == ac }
+        assertEquals("complete", chairView.str("status"))
+        assertEquals("3", chairView.str("Tri"), "the chair reads the AC's triage")
+        for (who in reviewersOf(pid).mapNotNull { it.str("reviewer_email") } + outsider(pid) + "ac-busy@example.org") {
+            assertFalse(reviewsSeenBy(who, pid).any { it.containsKey("Tri") }, "$who must not read the triage field")
         }
     }
 
     @Test
     @Covers("conv:1")
-    fun `forged trace - an AC can't set a PC Supervisor tag on a paper they don't manage, nor can a reviewer`() {
-        assertFalse(ok(setTags(ac, otherPid, "pcs-refer-scope")))
-        assertFalse(ok(setTags("r3@example.org", pid, "pcs-refer-scope")))
+    fun `triage - the chair mirrors it into a hidden tag that ACs and reviewers neither set nor see`() {
+        assertTrue(ok(api("POST", "$pid/tags", form = "addtags=pcs-refer-scope")))
+        assertTrue("pcs-refer-scope#0" in tagsSeenBy(null, pid))
+        for (who in listOf(ac, "r1@example.org", "r3@example.org", "ac-busy@example.org", "author13@example.org")) {
+            assertFalse(tagsSeenBy(who, pid).any { it.startsWith("pcs-") }, "$who must not see PC Supervisor's tags")
+        }
+        assertFalse(ok(setTags(ac, pid, "pcs-keep")), "an AC isn't an administrator, so can't forge a trace")
+        assertFalse(ok(setTags("r3@example.org", pid, "pcs-keep")))
+    }
+
+    @Test
+    @Covers("conv:2")
+    fun `screening findings - a reviewer-visible comment reaches the AC, and reviewers only after their own review, until the chair hides it`() {
+        val r = api("POST", "$pid/comment", json = """{"text":"Synthetic screening record.","visibility":"rev"}""")
+        assertTrue(ok(r), r.toString())
+        val cid = r["comment"]!!.jsonObject.str("cid")!!
+
+        fun sees(who: String) = api("GET", "$pid/comments", mapOf("actas" to who))["comments"]?.jsonArray?.any { it.jsonObject.str("cid") == cid } ?: false
+        assertTrue(sees(ac), "the AC sees it before writing their metareview")
+        for (rev in reviewersOf(pid)) {
+            val who = rev.str("reviewer_email")!!
+            assertEquals(rev.str("status") == "complete", sees(who), "$who (${rev.str("status")})")
+        }
+        assertFalse(sees(outsider(pid)))
+        assertFalse(sees("ac-busy@example.org"))
+        val hidden = api("POST", "$pid/comment", mapOf("c" to cid), json = """{"text":"Synthetic screening record.","visibility":"admin"}""")
+        assertTrue(ok(hidden), hidden.toString())
+        assertFalse(sees(ac), "after triage the chair can withdraw it to admin visibility")
+    }
+
+    @Test
+    @Covers("conv:3", "conv:1")
+    fun `second opinion under Q5 - the chair unsubmits the screen review and moves it to the normal round`() {
+        val member = outsider(pid)
+        assertTrue(ok(assign("""{"pid":$pid,"action":"pcreview","user":"$member","round":"screen"}""")))
+        val rid = reviewsSeenBy(null, pid).single { it.str("reviewer_email") == member }.str("rid")!!
+        val saved =
+            api(
+                "POST",
+                "$pid/review",
+                mapOf("r" to rid, "actas" to member),
+                json = """{"object":"review","ComPC":"Synthetic second opinion.","status":"complete"}""",
+            )
+        assertTrue(ok(saved), saved.toString())
+        assertEquals("complete", reviewsSeenBy(null, pid).single { it.str("reviewer_email") == member }.str("status"))
+        val moved =
+            assign(
+                """{"pid":$pid,"action":"unsubmitreview","user":"$member"}""",
+                """{"pid":$pid,"action":"pcreview","user":"$member","round":"unnamed"}""",
+            )
+        assertTrue(ok(moved), moved.toString())
+        val after = reviewsSeenBy(null, pid).single { it.str("reviewer_email") == member }
+        assertEquals("draft", after.str("status"))
+        assertEquals(null, after.str("round"), "back in the unnamed round, so the member now writes their full review")
+        assertEquals("Synthetic second opinion.", after.str("ComPC")?.trim(), "the screen text is kept")
     }
 
     @Test
     @Covers("conv:9")
     fun `tag values are numbers - dispositions need numeric codes`() {
-        assertTrue(ok(setTags(ac, pid, "pcs-req-C1#2")))
-        assertFalse(ok(setTags(ac, pid, "pcs-req-C2#revised")))
+        assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("pcs-req-C1#2", Charsets.UTF_8))))
+        assertFalse(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("pcs-req-C2#revised", Charsets.UTF_8))))
         assertTrue("pcs-req-C1#2" in tagsSeenBy(null, pid))
     }
 
     @Test
     @Covers("conv:10")
-    fun `chair-only tags - only chairs set or see them, even a manager can't`() {
+    fun `chair-only tags - only chairs set or see them`() {
         assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("~~pcs-case-1#1", Charsets.UTF_8))))
         assertFalse(ok(setTags(ac, pid, "~~pcs-case-2#1")))
         assertFalse(tagsSeenBy(ac, pid).any { it.startsWith("~~") })
         assertTrue("~~pcs-case-1#1" in tagsSeenBy(null, pid))
-    }
-
-    @Test
-    @Covers("conv:2")
-    fun `screening findings - an admin comment reaches the managing AC and nobody else`() {
-        assertTrue(ok(api("POST", "$pid/comment", json = """{"text":"Synthetic screening record.","visibility":"admin"}""")))
-
-        fun adminCommentsSeenBy(who: String, p: Int) =
-            api("GET", "$p/comments", mapOf("actas" to who))["comments"]?.jsonArray?.count { it.jsonObject["visibility"]?.jsonPrimitive?.content == "admin" }
-                ?: 0
-        assertTrue(adminCommentsSeenBy(ac, pid) >= 1)
-        for (who in listOf("r1@example.org", "r3@example.org", "ac-busy@example.org")) assertEquals(0, adminCommentsSeenBy(who, pid), who)
     }
 
     @Test
@@ -158,8 +225,8 @@ class ConventionsTest {
 
     @Test
     @Covers("conv:1", "conv:9", "conv:10")
-    fun `round trip - traces written in HotCRP by an AC and a chair are decoded by core after a sync`() {
-        assertTrue(ok(setTags(ac, pid, "pcs-refer-scope pcs-req-B1#3")))
+    fun `round trip - traces the chairs write in HotCRP are decoded by core after a sync`() {
+        assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("pcs-refer-scope pcs-req-B1#3", Charsets.UTF_8))))
         assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("~~pcs-case-2#4", Charsets.UTF_8))))
         val db = java.nio.file.Files.createTempFile("pcs-conv", ".db").also { java.nio.file.Files.delete(it) }
         pcs.core.store.Store.open(db, "test-only-key").use { store ->

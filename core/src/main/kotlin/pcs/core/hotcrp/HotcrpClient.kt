@@ -36,7 +36,8 @@ public class HotcrpClient(
     private val token: String,
     private val chunk: Int = 200,
     private val concurrency: Int = 2,
-    private val formFields: Set<String> = setOf("OveMer", "RevExp", "PapSum", "ComAut", "ComPC"),
+    // the default form, plus the screen round's triage field (spec §11)
+    private val formFields: Set<String> = setOf("OveMer", "RevExp", "PapSum", "ComAut", "ComPC", "Tri"),
     public val strict: Boolean = true,
 ) : AutoCloseable {
     private val http = HttpClient(CIO) { expectSuccess = false }
@@ -52,7 +53,7 @@ public class HotcrpClient(
         // at the pinned HOTCRP_REF. Anything else unexpected is drift (ContractTest).
         val PC_UNREAD = setOf("affiliation")
         val PAPER_UNREAD = setOf("abstract", "contacts", "object", "submission", "submitted", "submitted_at", "topics", "options", "final")
-        val REVIEW_UNREAD = setOf("blind", "draft", "editable", "modified_at_text", "object", "reviewer", "user_rating", "round", "submitted")
+        val REVIEW_UNREAD = setOf("blind", "draft", "editable", "modified_at_text", "object", "reviewer", "user_rating", "round", "submitted", "my_request")
         val COMMENT_UNREAD =
             setOf(
                 "author",
