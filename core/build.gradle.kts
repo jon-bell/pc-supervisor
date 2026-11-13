@@ -27,6 +27,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.jqwik)
+    testImplementation(libs.jna)
     testImplementation(libs.serialization.json)
     testRuntimeOnly(libs.junit.launcher)
 }
