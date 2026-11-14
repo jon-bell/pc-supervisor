@@ -67,6 +67,8 @@ public class HotcrpClient(
                 "by_shepherd",
                 "author_pseudonymous",
                 "word_count",
+                // set on comments the reading token wrote (observed on the harness for chair-posted comments)
+                "viewer_owned",
             )
     }
 
