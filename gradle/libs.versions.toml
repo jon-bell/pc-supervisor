@@ -11,6 +11,7 @@ jna = "5.19.1"
 slf4j = "2.0.17"
 pdfbox = "3.0.8"
 snakeyaml-engine = "3.2"
+anthropic = "3.8.0"
 compose = "1.12.2"
 roborazzi = "1.79.0"
 
@@ -28,6 +29,11 @@ jqwik = { module = "net.jqwik:jqwik", version.ref = "jqwik" }
 slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 snakeyaml-engine = { module = "org.snakeyaml:snakeyaml-engine", version.ref = "snakeyaml-engine" }
+anthropic-java = { module = "com.anthropic:anthropic-java", version.ref = "anthropic" }
+anthropic-bedrock = { module = "com.anthropic:anthropic-java-bedrock", version.ref = "anthropic" }
+anthropic-vertex = { module = "com.anthropic:anthropic-java-vertex", version.ref = "anthropic" }
+anthropic-foundry = { module = "com.anthropic:anthropic-java-foundry", version.ref = "anthropic" }
+ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 roborazzi-compose-desktop = { module = "io.github.takahirom.roborazzi:roborazzi-compose-desktop", version.ref = "roborazzi" }
 

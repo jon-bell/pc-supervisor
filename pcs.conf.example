@@ -73,3 +73,35 @@ PCS_HISTORY_RPS=1
 # PCS_TAG_TRIAGE_KEEP=pcs-keep
 # PCS_TAG_TRIAGE_REFER=pcs-refer
 # PCS_TAG_REQUEST=pcs-req
+
+# --- Screening agent: inference engines (docs/agent.md §4.3, §5) -------------------
+# Engines are declared entirely here; no model id is hard-coded and no credential is stored here.
+# An engine's CLEARANCE is the highest data class it may receive; the dispatcher refuses any
+# call above it before any I/O. confidential needs CLEARANCE_DECISION naming a settled decision.
+# A claude-code engine defaults to public (a personal login is a development credential).
+# PCS_ENGINES=dev,ci,selfhost-a
+# PCS_ENGINE_dev_ADAPTER=claude-code
+# PCS_ENGINE_dev_MODEL=<model id>
+# PCS_ENGINE_dev_COMMAND=claude
+# PCS_ENGINE_ci_ADAPTER=replay
+# PCS_ENGINE_ci_REPLAY_OF=dev                 # serve recordings made as engine `dev`
+# PCS_ENGINE_ci_RECORDINGS=agent/build/recordings
+# PCS_ENGINE_ci_CLEARANCE=synthetic
+# PCS_ENGINE_api_ADAPTER=anthropic
+# PCS_ENGINE_api_PLATFORM=api                 # api | bedrock | vertex | foundry
+# PCS_ENGINE_api_MODEL=<model id>
+# PCS_ENGINE_api_REGION=<region>              # bedrock, vertex
+# PCS_ENGINE_api_PROJECT=<project>            # vertex
+# PCS_ENGINE_api_RESOURCE=<resource>          # foundry
+# PCS_ENGINE_api_BASE_URL=<url>               # optional; the only host this engine may reach
+# PCS_ENGINE_api_API_KEY_ENV=<VAR>            # name of the env var holding the key, if not the SDK default
+# PCS_ENGINE_selfhost-a_ADAPTER=openai-compat
+# PCS_ENGINE_selfhost-a_BASE_URL=http://gpu.example.org:8000/v1
+# PCS_ENGINE_selfhost-a_MODEL=<model id>
+# PCS_ENGINE_selfhost-a_STRUCTURED=json_schema   # json_schema | guided | tool | prompt
+# PCS_ENGINE_<id>_CLEARANCE=synthetic|public|confidential
+# PCS_ENGINE_<id>_CLEARANCE_DECISION=<decision id>
+# PCS_ENGINE_<id>_PRICE_IN=0                  # USD per 1M tokens; also _PRICE_OUT, _PRICE_CACHE_READ, _PRICE_CACHE_WRITE
+# PCS_ENGINE_<id>_CONCURRENCY=4               # _RPM and _TPM are read but not yet enforced
+# PCS_CHECK_<check>_ENGINE=<engine id>        # production routing (set from the shootout)
+# PCS_AGENT_EGRESS=doi.org,api.crossref.org,api.openalex.org,export.arxiv.org,arxiv.org   # reference resolver allowlist

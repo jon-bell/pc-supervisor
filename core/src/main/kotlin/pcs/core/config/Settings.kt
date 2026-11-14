@@ -75,6 +75,10 @@ public data class Settings(
                 Regex("PCS_LOAD_[A-Z]+_MAX"),
                 Regex("PCS_TAG_[A-Z_]+"),
                 Regex("PCS_AGENT_[A-Z_]+"),
+                // Screening engines (agent.md §4.3): PCS_ENGINES, one PCS_ENGINE_<id>_* block per engine, PCS_CHECK_<check>_ENGINE routing.
+                Regex("PCS_ENGINES"),
+                Regex("PCS_ENGINE_[A-Za-z0-9-]+_[A-Z_]+"),
+                Regex("PCS_CHECK_[a-z0-9.-]+_ENGINE"),
             )
 
         public fun isKnown(key: String): Boolean = key in KNOWN || PATTERNS.any { it.matches(key) }
