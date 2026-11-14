@@ -25,6 +25,12 @@ env:
   HOTCRP_REF: ${{ inputs.hotcrp_ref || (github.event_name == 'schedule' && 'master') || '60f693f88b9a0ef9e34b11af957a513f1c122690' }}
   COMPOSE_PROJECT_NAME: pcs-${{ github.run_id }}-${{ github.run_attempt }}
   HOTCRP_PORT: "8080"
+  # The runner suite replays every witness trace through the API. At HotCRP's
+  # default 5,000 requests per hour it runs for over an hour and then gets 429s;
+  # with these limits it takes about two minutes. CI therefore no longer
+  # exercises the client's 429 back-off; that needs its own test (PLAN to-do).
+  HOTCRP_API_PER_HOUR: "100000"
+  HOTCRP_API_PER_MINUTE: "5000"
   # Phase dates for the synthetic conference. Seed scenarios are written
   # relative to these, and PCS_NOW pins the clock so rule output is stable.
   PCS_TZ: America/New_York
