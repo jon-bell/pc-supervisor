@@ -79,12 +79,16 @@ public data class Settings(
                 "PCS_CYCLE_MAX_K",
                 "PCS_EARLYREJECT_WINDOW_H",
                 "PCS_SCORE_MAP",
+                "PCS_REQUEST_DUE_H",
+                "PCS_FIELD_WEAKNESS",
+                "PCS_FIELDS_REQUIRED",
                 "PCS_SOLVER_TOPK",
                 "PCS_CONFERENCES",
             )
         public val PATTERNS: List<Regex> =
             listOf(
                 Regex("PCS_PHASE_[A-Z_]+"),
+                Regex("PCS_CRITERION_[0-9]+"),
                 Regex("PCS_IMPORT_FRESH_[A-Z_]+_DAYS"),
                 Regex("PCS_RULE_[A-Z_]+_WEIGHT"),
                 Regex("PCS_THRESH_[A-Z_]+"),

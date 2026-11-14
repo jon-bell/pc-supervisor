@@ -271,6 +271,7 @@ public class Sync(private val store: Store, private val clock: Clock) {
                     p.pid,
                 )
             }
+            TagSeen.record(c, p.pid, p.tags, now)
         }
         for (pid in have.keys - papers.map { it.pid }.toSet()) {
             c.exec("UPDATE paper SET gone_at=? WHERE pid=?", now, pid)

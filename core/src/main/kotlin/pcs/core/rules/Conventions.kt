@@ -14,6 +14,13 @@ public sealed interface Trace {
     /** An accountability request about review [ordinal] (its [n]th), with its disposition if recorded (value 0 = sent). */
     public data class RequestSent(val pid: Long, val ordinal: String, val n: Int, val disposition: ReqDisposition?) : Trace
 
+    /** The reminder for request [n] about review [ordinal] was sent (a chair records it; its time is when a sync first saw the tag). */
+    public data class Reminder(val pid: Long, val ordinal: String, val n: Int) : Trace
+
+    /**
+     * A chair-only case trace on a paper the case lists: [n] is the nominee's HotCRP contact id, and [outcome] 0 is
+     * recorded, 1 upheld and 2 dismissed (spec §11).
+     */
     public data class Case(val pid: Long, val n: Int, val outcome: Int) : Trace
 
     /** The fix window offered on an anonymity violation closes at [dueEpoch] (seconds, a whole hour: the tag holds hours); a chair's mail-tool notice goes with it. */
@@ -91,6 +98,7 @@ public object Conventions {
     private fun REMEDY_HOURS(epochSeconds: Long): Long = Math.floorDiv(epochSeconds + 3599, 3600L)
 
     private val req = Regex("""pcs-req-([A-Z]+)([0-9]+)""")
+    private val remind = Regex("""pcs-remind-([A-Z]+)([0-9]+)""")
     private val case = Regex("""~~pcs-case-([0-9]+)""")
 
     /** Decode one paper's tags (`name#value`). Tags not starting with `pcs-` or `~~pcs-` are someone else's and ignored. */
@@ -114,6 +122,7 @@ public object Conventions {
                         Trace.Unparsed(pid, t)
                     }
                 }
+                remind.matches(name) -> remind.matchEntire(name)!!.let { Trace.Reminder(pid, it.groupValues[1], it.groupValues[2].toInt()) }
                 case.matches(name) && value != null -> Trace.Case(pid, case.matchEntire(name)!!.groupValues[1].toInt(), value)
                 else -> Trace.Unparsed(pid, t)
             }
@@ -125,6 +134,7 @@ public object Conventions {
             is Trace.Keep -> "pcs-keep"
             is Trace.Refer -> "pcs-refer-${t.ground.key}"
             is Trace.RequestSent -> "pcs-req-${t.ordinal}${t.n}#${t.disposition?.let { d -> DISPOSITION_CODES.entries.first { it.value == d }.key } ?: 0}"
+            is Trace.Reminder -> "pcs-remind-${t.ordinal}${t.n}"
             is Trace.Case -> "~~pcs-case-${t.n}#${t.outcome}"
             is Trace.RemedyDue -> "pcs-remedy-due#${REMEDY_HOURS(t.dueEpoch)}"
             is Trace.Warned -> "pcs-warned"

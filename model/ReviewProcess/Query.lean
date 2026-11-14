@@ -198,7 +198,7 @@ def answer (j : Json) : Except String Json := do
       | .ok (.arr xs) => xs.toList.mapM fun x => do
           pure ({ paper := ← getD x "paper" 0, owed := ← getD x "owed" 0, done := ← getD x "done" 0 } : Share)
       | _ => pure []
-    pure (Json.mkObj [("cases", Json.num (casesFor ss : Nat)), ("papers", Json.arr ((unmetPapers ss).toArray.map fun (n : Nat) => Json.num n))])
+    pure (Json.mkObj [("result", Json.mkObj [("cases", Json.num (casesFor ss : Nat)), ("papers", Json.arr ((unmetPapers ss).toArray.map fun (n : Nat) => Json.num n))])])
   | "eligible" =>
     let p ← parseParams ((j.getObjVal? "mutant").toOption.getD .null)
     let m ← parseMember (← j.getObjVal? "member")

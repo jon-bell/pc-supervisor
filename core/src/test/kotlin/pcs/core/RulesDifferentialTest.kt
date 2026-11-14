@@ -12,6 +12,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -29,6 +30,7 @@ import pcs.core.rules.Pc
 import pcs.core.rules.ReqDisposition
 import pcs.core.rules.Request
 import pcs.core.rules.Score
+import pcs.core.rules.Share
 import pcs.core.rules.Tier
 import pcs.testing.Covers
 import pcs.testing.Family
@@ -132,6 +134,17 @@ class RulesDifferentialTest {
             val r = readings(q)
             val scores = (q["scores"] as JsonArray).map { Score.valueOf(it.jsonPrimitive.content.uppercase().replace('-', '_')) }
             EarlyReject.mayEarlyReject(faults(q), r.q15!!, r.q16!!, ERCase(scores, q.b("bumped"), q.b("windowClosed"), q.b("acObjects")))
+        }
+
+    @Test
+    @Covers("card:X10")
+    fun `accountability case listing (X10)`() =
+        check("caseListing", { it.jsonObject }) { q ->
+            val shares = q.arr("shares").map { Share(it.l("paper"), it.l("owed").toInt(), it.l("done").toInt()) }
+            kotlinx.serialization.json.buildJsonObject {
+                put("cases", Accountability.casesFor(shares))
+                put("papers", JsonArray(Accountability.unmetPapers(shares).map { JsonPrimitive(it) }))
+            }
         }
 
     @Test
