@@ -54,7 +54,7 @@ def actionsJson : Json :=
           ("perm", match s.perm a with | some p => Json.str (permKey p) | none => Json.null)]),
       ("observations", Json.arr <| obs.toArray.map fun (k, t, rs) =>
         Json.mkObj [("key", k), ("type", t), ("readers", Json.arr (rs.toArray.map Json.str))])]
-  Json.arr #[sys deskSys deskDesc deskObservations, sys earlySys earlyDesc earlyObservations, sys accSys accDesc accObservations, sys pcSys pcDesc []]
+  Json.arr #[sys deskSys deskDesc deskObservations, sys earlySys earlyDesc earlyObservations, sys accSys accDesc accObservations, sys pcSys pcDesc pcObservations]
 
 def transitionsJson (a : Answers) : Json :=
   let base := a.base
@@ -81,6 +81,9 @@ def earlyReadings (a : Answers) : List (String × Reading × Bool) :=
 
 def earlyTracesJson (a : Answers) : Json :=
   Json.arr <| ((earlyReadings a).flatMap fun (tag, r, cells) => earlyTraces tag r cells).toArray.map ETrace.json
+
+def pcTracesJson (a : Answers) : Json :=
+  Json.arr <| (pcTraces "signed" a.base).toArray.map PTrace.json
 
 /-- Accountability traces under both readings of Q20: the first carries the first use of each granted cell. -/
 def accReadings (a : Answers) : List (String × Reading × Bool) :=
@@ -112,10 +115,11 @@ def main (args : List String) : IO Unit := do
   let a := parseAnswers (← IO.FS.readFile "answers/synthetic.txt")
   write "traces-desk.json" (tracesJson a)
   write "traces-early.json" (earlyTracesJson a)
+  write "traces-appt.json" (pcTracesJson a)
   write "traces-acc.json" (accTracesJson a)
   IO.FS.writeFile s!"{dir}/transitions-acc.json" ((accTransitionsJson a).compress ++ "\n")
   IO.FS.writeFile s!"{dir}/transitions-desk.json" ((transitionsJson a).compress ++ "\n")
   write "answers-synthetic.json" (Json.mkObj [
     ("given", Json.arr (a.given.toArray.map fun (q, i) => Json.arr #[q.code, (q.labels.getD i ("?", "?")).1])),
     ("errors", Json.arr (a.errors.toArray.map Json.str))])
-  IO.println s!"wrote {dir}/: readings.json ({QId.all.length} questions), cards.json ({cards.length} cards), policy.json, actions.json, mutants.json, binding-mutants.json, traces-desk.json, traces-early.json, traces-acc.json, transitions-acc.json"
+  IO.println s!"wrote {dir}/: readings.json ({QId.all.length} questions), cards.json ({cards.length} cards), policy.json, actions.json, mutants.json, binding-mutants.json, traces-desk.json, traces-early.json, traces-appt.json, traces-acc.json, transitions-acc.json"

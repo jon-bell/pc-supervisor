@@ -2,6 +2,11 @@ package pcs.core.session
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import pcs.core.assignment.Assignment
+import pcs.core.assignment.AssignmentData
+import pcs.core.assignment.AssignmentInput
+import pcs.core.assignment.AssignmentSettings
+import pcs.core.assignment.SolveReport
 import pcs.core.config.Settings
 import pcs.core.config.SettingsException
 import pcs.core.earlyreject.DecisionArtifact
@@ -13,6 +18,7 @@ import pcs.core.earlyreject.ErWindow
 import pcs.core.earlyreject.MailDraft
 import pcs.core.hotcrp.HotcrpClient
 import pcs.core.hotcrp.HotcrpLinks
+import pcs.core.imports.Imports
 import pcs.core.readings.Answers
 import pcs.core.secrets.Accounts
 import pcs.core.secrets.Keychain
@@ -84,6 +90,13 @@ public sealed interface EarlyRejectState {
     public data class Blocked(val reasons: List<String>) : EarlyRejectState
 
     public data class Ready(val report: ErReport, val mail: MailDraft, val decisions: DecisionArtifact) : EarlyRejectState
+}
+
+/** What the assignment screen can show: the solve report, or what blocks it. */
+public sealed interface AssignmentState {
+    public data class Blocked(val reasons: List<String>) : AssignmentState
+
+    public data class Ready(val report: SolveReport) : AssignmentState
 }
 
 /** What the last sync recorded (spec §3 `sync_run`). */
@@ -177,6 +190,22 @@ public class Session private constructor(
         val acc = pcs.core.accountability.AccLoader.load(store, clock.now(), tiers, settings.fieldMerit)
         val report = data.report(readings, f)
         return pcs.core.accountability.AccountabilityPlan.compute(acc, cfg, readings, report.obligations, f)
+    }
+
+    /**
+     * The assignment plan from the mirror and the latest imports (spec §10.4 C, §10.5): the solve report and its bulk-assign CSV, or what blocks it
+     * (Q13, Q14 or the nominee questions unresolved, or no affinity import). Nothing here writes to HotCRP.
+     */
+    public fun assignment(): AssignmentState =
+        when (val i = AssignmentData(store, Imports(store, clock)).build(answers().readings, AssignmentSettings.of(settings))) {
+            is AssignmentInput.Blocked -> AssignmentState.Blocked(i.reasons)
+            is AssignmentInput.Ready -> AssignmentState.Ready(Assignment.report(i.build))
+        }
+
+    /** Drafts the plan's bulk-assign CSV as a Writeback artifact; nothing reaches HotCRP until it is dry-run, confirmed and applied. Returns the artifact's id. */
+    public fun draftAssignment(): Long {
+        val state = assignment() as? AssignmentState.Ready ?: throw IllegalStateException("the assignment plan is blocked")
+        return writeback().draft(state.report.csv.toArtifact())
     }
 
     /** Writeback (spec §6) for this conference: the only way the app changes HotCRP. */

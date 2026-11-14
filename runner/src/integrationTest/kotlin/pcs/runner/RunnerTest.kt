@@ -61,6 +61,27 @@ class RunnerTest {
     }
 
     @Test
+    @Covers("prop:L2", "prop:V1", "prop:H1", "prop:H2", "rule:eligible", "cell:pc-member/classify", "cell:pc-member/apply-writeback")
+    fun `the appointment and assignment traces run against the harness and agree with the model`() {
+        val all = Session.apptTraces()
+        assertTrue(all.size >= 12, "expected the appointment traces, found ${all.size}")
+        val specs = System.getenv("PCS_TRACE_ONLY")?.let { only -> all.filter { only in it.id } } ?: all
+        val runner = Session.runner
+        val pids = runner.createPapers(specs.size)
+        val failures = mutableListOf<String>()
+        for ((spec, pid) in specs.zip(pids)) {
+            val res = runner.run(spec, pid)
+            check(res.skipped == null) { "${spec.id}: ${res.skipped}" }
+            runner.write("traces/" + spec.id.replace('/', '_') + ".json", res.record)
+            val outcome = if (res.mismatches.isEmpty()) "pass" else "fail"
+            spec.claims.forEach { CoversLog.record(spec.id, it, outcome, spec.family) }
+            res.mismatches.forEach { failures += "${spec.id}: $it" }
+        }
+        assertEquals(emptyList<String>(), failures)
+        assertEquals(emptyList<String>(), runner.allViolations(), "the boundary observer saw something it must not")
+    }
+
+    @Test
     @Covers("prop:AR1", "prop:AR2", "prop:AR4", "prop:AR5", "prop:AR6", "prop:V4", "card:C1", "card:C2", "card:C3", "card:C4", "card:C5")
     fun `the accountability witness traces run against the harness and agree with the model`() {
         val all = Session.accTraces()

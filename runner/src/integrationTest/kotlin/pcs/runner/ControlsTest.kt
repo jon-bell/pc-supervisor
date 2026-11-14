@@ -21,7 +21,7 @@ import pcs.testing.Family
 @Order(2)
 @Family("T7")
 class ControlsTest {
-    private val specs by lazy { (Session.traces() + Session.earlyTraces() + Session.accTraces()).associateBy { it.id } }
+    private val specs by lazy { (Session.traces() + Session.earlyTraces() + Session.accTraces() + Session.apptTraces()).associateBy { it.id } }
 
     @Test
     @Covers("prop:H4", "prop:H5", "prop:C1")
@@ -29,7 +29,7 @@ class ControlsTest {
         val runner = Session.runner
         val second = specs.getValue("desk/signed/cell-pc-member-second-opinion")
         val silence = specs.getValue("desk/signed/silence-does-not-remove")
-        val needed = 14
+        val needed = 16
         val pids = runner.createPapers(needed).iterator()
         val controls = mutableListOf<JsonObject>()
 
@@ -90,6 +90,17 @@ class ControlsTest {
             impl = Faults.MUTANTS[7],
         )
 
+        // the assignment mutant: a nominee who has not consented, planned anyway (model mutant 2); the model leaves them out, the mutant core plans them
+        negative(
+            "core with the 'assign unaccepted' mutant",
+            "core",
+            "spec:assign-unaccepted",
+            specs.getValue("appt/signed/unconsented-never-planned"),
+            impl = Faults.MUTANTS[2],
+        )
+        // and the same trace, unmutated, as the positive control for the plan's binding
+        positive("the plan binding leaves out a nominee who has not consented", "core", specs.getValue("appt/signed/unconsented-never-planned"))
+
         controls += Controls.observerControls(Session.harness, Session.token)
         runner.write(
             "controls.json",
@@ -104,6 +115,7 @@ class ControlsTest {
                             JsonPrimitive("spec:early-reject-before-close"),
                             JsonPrimitive("spec:dismissed-suggestion-counts"),
                             JsonPrimitive("spec:heuristic-sends-itself"),
+                            JsonPrimitive("spec:assign-unaccepted"),
                         ),
                     ),
                 )

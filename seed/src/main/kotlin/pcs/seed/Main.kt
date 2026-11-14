@@ -10,6 +10,7 @@ val scenarios: Map<String, () -> Scenario> =
         "early-reject" to { EarlyRejectScenario.scenario },
         "accountability" to { AccountabilityScenario.scenario },
         "nomination" to { Nomination.scenario },
+        "assignment" to { AssignScenario.scenario },
         "shadow" to { Generated.scenario("shadow", Generated.SHADOW) },
         "scale" to { Generated.scenario("scale", Generated.SCALE) },
     )

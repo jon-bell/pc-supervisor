@@ -36,6 +36,7 @@ import java.time.format.DateTimeFormatter
 enum class TabName(val label: String) {
     Papers("Papers"),
     Reviews("Reviews"),
+    Assignment("Assignment"),
     EarlyReject("Early reject"),
     Accountability("Accountability"),
     Writeback("Writeback"),
@@ -109,6 +110,12 @@ fun ConferenceScreen(shell: Shell, session: Session, onSwitch: () -> Unit) {
                     tab = TabName.Writeback
                 }
             TabName.Reviews -> ReviewsView(session, shell.opener, version)
+            TabName.Assignment ->
+                AssignmentView(session, shell.opener, version) { id ->
+                    selectedArtifact = id
+                    version++
+                    tab = TabName.Writeback
+                }
             TabName.EarlyReject -> EarlyRejectView(session, shell.opener, version)
             TabName.Accountability -> AccountabilityView(session, shell.opener, version) { version++ }
             TabName.Writeback -> WritebackScreen(session, shell.opener, version, selectedArtifact, { selectedArtifact = it }, { version++ })

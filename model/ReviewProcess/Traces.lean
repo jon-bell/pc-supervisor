@@ -121,6 +121,8 @@ inductive Verdict
   | cell (role : Role) (perm : Perm)
   | refused
   | denied
+  | appointed
+  | notPlanned
   /-- The final state's observation `key` is `value` (compressed JSON). -/
   | observed (key : String) (value : String)
 
@@ -139,6 +141,8 @@ def Verdict.json : Verdict → Json
   | .cell ro pm => Json.mkObj [("kind", "cell"), ("role", roleKey ro), ("perm", permKey pm)]
   | .refused => Json.mkObj [("kind", "refused")]
   | .denied => Json.mkObj [("kind", "denied")]
+  | .appointed => Json.mkObj [("kind", "appointed")]
+  | .notPlanned => Json.mkObj [("kind", "not-planned")]
   | .observed k v => Json.mkObj [("kind", "observed"), ("key", k), ("value", v)]
 
 /-- Does the verdict hold of this replay? `outcomes` are the model's effective flags per step. -/
@@ -152,6 +156,7 @@ def Verdict.holds (v : Verdict) (ms : List Move) (outcomes : List Bool) (final :
   | .refused => outcomes.getLast? == some false
   | .denied => outcomes.getLast? == some false
   | .observed _ _ => false
+  | .appointed | .notPlanned => false
 
 def verdictOfJson (j : Json) : Except String Verdict := do
   match ← j.getObjValAs? String "kind" with
@@ -165,6 +170,8 @@ def verdictOfJson (j : Json) : Except String Verdict := do
   | "early-removed" => .ok .earlyRemoved
   | "refused" => .ok .refused
   | "denied" => .ok .denied
+  | "appointed" => .ok .appointed
+  | "not-planned" => .ok .notPlanned
   | "observed" => .ok (.observed (← j.getObjValAs? String "key") (← j.getObjValAs? String "value"))
   | k => .error s!"unknown verdict kind {k}"
 
@@ -302,7 +309,7 @@ def Verdict.holdsEarly (v : Verdict) (ms : List EMove) (outcomes : List Bool) (f
       | some m, some true => m.role == some ro && earlySys.perm m.act == some pm
       | _, _ => false
   | .refused | .denied => outcomes.getLast? == some false
-  | .removed _ | .observed _ _ => false
+  | .removed _ | .appointed | .notPlanned | .observed _ _ => false
 
 structure ETrace where
   id : String
@@ -358,6 +365,104 @@ def earlyTraces (tag : String) (r : Reading) (cells : Bool) : List ETrace :=
        mk "no-window-no-bump" ["prop:E-1"] (three .reject .reject .reject ++ [mem .bump]) .refused]
   removed.toList ++ uses ++ windowed ++ always
 
+
+/-! ### Appointment and assignment -/
+
+/-- The observations of the appointment-and-assignment subsystem, with the readers that must each produce them.
+    The nominee is the one person the trace is about; `in-plan` is whether the plan `core` solved has an edge to them. -/
+def pcObservations : List (String × String × List String) :=
+  [("accepted", "bool", ["state"]), ("tier", "string?", ["state"]), ("consented", "bool", ["state"]),
+   ("synced", "bool", ["state"]), ("solved", "bool", ["state"]), ("in-plan", "bool", ["state"]),
+   ("dry-run-ok", "bool", ["state"]), ("confirmed", "bool", ["state"]),
+   ("applied", "bool", ["hotcrp", "state"]), ("nominee-assigned", "bool", ["hotcrp", "state"])]
+
+def pcObserve (_r : Reading) (s : PcSt) : Json :=
+  Json.mkObj
+    [("accepted", s.accepted), ("tier", tierKey s.tier), ("consented", s.consented), ("synced", s.synced),
+     ("solved", s.solved), ("in-plan", s.inPlan), ("dry-run-ok", s.dryRunOk), ("confirmed", s.confirmed),
+     ("applied", s.applied), ("nominee-assigned", s.applied && s.inPlan)]
+
+def pcActOfJson (j : Json) : Except String PcAct := do
+  let key ← j.getObjValAs? String "key"
+  let ps := (j.getObjVal? "params").toOption.getD Json.null
+  match key with
+  | "classify" =>
+    match parseTier? ((ps.getObjVal? "tier").toOption.getD Json.null) with
+    | some t => .ok (.classify t)
+    | none => .error "classify needs a tier"
+  | "consent" => .ok .consent | "sync" => .ok .sync | "solve" => .ok .solve | "dry-run" => .ok .dryRun
+  | "confirm" => .ok .confirm | "apply" => .ok .apply
+  | k => .error s!"unknown appointment action {k}"
+
+structure PMove where
+  role : Option Role
+  act : PcAct
+
+def pstepJson (r : Reading) (after : PcSt) (m : PMove) (effective : Bool) : Json :=
+  Json.mkObj [("role", match m.role with | some ro => Json.str (roleKey ro) | none => Json.null),
+    ("action", descJson (pcDesc m.act)), ("label", showMove pcSys (m.role, m.act)),
+    ("effective", effective), ("expect", pcObserve r after)]
+
+def replayPc (p : Params) (r : Reading) (ms : List PMove) : List (Json × PcSt) × PcSt := Id.run do
+  let mut s : PcSt := pcSys.init
+  let mut out := []
+  for m in ms do
+    match gated pcSys p r s (m.role, m.act) with
+    | some s' => out := out ++ [(pstepJson r s' m true, s')]; s := s'
+    | none => out := out ++ [(pstepJson r s m false, s)]
+  return (out, s)
+
+def Verdict.holdsPc (v : Verdict) (ms : List PMove) (outcomes : List Bool) (final : PcSt) : Bool :=
+  match v with
+  | .appointed => final.applied && final.inPlan
+  | .notPlanned => final.solved && !final.inPlan
+  | .cell ro pm => match ms.getLast?, outcomes.getLast? with
+      | some m, some true => m.role == some ro && pcSys.perm m.act == some pm
+      | _, _ => false
+  | .refused | .denied => outcomes.getLast? == some false
+  | .removed _ | .earlyRemoved | .observed _ _ => false
+
+structure PTrace where
+  id : String
+  family : String
+  claims : List String
+  reading : Reading
+  moves : List PMove
+  verdict : Verdict
+
+def PTrace.json (t : PTrace) : Json :=
+  let (steps, final) := replayPc {} t.reading t.moves
+  let outcomes := steps.map fun (j, _) => ((j.getObjValAs? Bool "effective").toOption.getD false)
+  Json.mkObj [("id", t.id), ("subsystem", pcSys.name), ("family", t.family),
+    ("claims", Json.arr (t.claims.toArray.map Json.str)),
+    ("reading", readingJson t.reading), ("steps", Json.arr (steps.toArray.map (·.1))),
+    ("verdict", Json.mkObj [("claimed", t.verdict.json), ("holds", t.verdict.holdsPc t.moves outcomes final)]),
+    ("final", pcObserve t.reading final)]
+
+/-- Witness traces for appointing a nominee and putting them in the plan: a nominee appointed and assigned in
+    HotCRP (L2, in each tier), the people the plan must leave out (V1: not consented, not classified), the order
+    the Writeback upload needs (sync, solve, dry run, confirm, apply), and the roles that may not act (T6). -/
+def pcTraces (tag : String) (r : Reading) : List PTrace :=
+  let ac (a : PcAct) : PMove := ⟨some .ac, a⟩
+  let chair (a : PcAct) : PMove := ⟨some .processChair, a⟩
+  let env (a : PcAct) : PMove := ⟨none, a⟩
+  let mem (a : PcAct) : PMove := ⟨some .pcMember, a⟩
+  let mk (id : String) (fam : String) (claims : List String) (moves : List PMove) (v : Verdict) : PTrace :=
+    { id := s!"appt/{tag}/{id}", family := fam, claims := claims, reading := r, moves := moves, verdict := v }
+  let upload : List PMove := [chair .dryRun, chair .confirm, chair .apply]
+  let ready (t : Tier) : List PMove := [ac (.classify t), env .consent, chair .sync, chair .solve]
+  [ mk "appointed-senior" "T5" ["prop:L2", "prop:V1", "rule:eligible"] (ready .senior ++ upload) .appointed,
+    mk "appointed-junior" "T5" ["prop:L2", "prop:V1", "rule:eligible"] (ready .junior ++ upload) .appointed,
+    mk "consent-first" "T5" ["prop:L2"] ([env .consent, ac (.classify .junior), chair .sync, chair .solve] ++ upload) .appointed,
+    mk "unconsented-never-planned" "T5" ["prop:V1", "rule:eligible"] [ac (.classify .junior), chair .sync, chair .solve] .notPlanned,
+    mk "unclassified-never-planned" "T5" ["prop:V1", "rule:eligible"] [env .consent, chair .sync, chair .solve] .notPlanned,
+    mk "others-still-assigned" "T5" ["prop:V1", "prop:H1"] ([chair .sync, chair .solve] ++ upload) .notPlanned,
+    mk "solve-needs-sync" "T5" ["prop:H1"] [ac (.classify .junior), env .consent, chair .solve] .refused,
+    mk "confirm-needs-dry-run" "T5" ["prop:H1"] (ready .junior ++ [chair .confirm]) .refused,
+    mk "apply-needs-dry-run" "T5" ["prop:H1", "prop:H2"] (ready .junior ++ [chair .apply]) .refused,
+    mk "apply-needs-confirm" "T5" ["prop:H1", "prop:H2"] (ready .junior ++ [chair .dryRun, chair .apply]) .refused,
+    mk "pc-member-cannot-classify" "T6" ["cell:pc-member/classify"] [mem (.classify .junior)] .denied,
+    mk "pc-member-cannot-apply" "T6" ["cell:pc-member/apply-writeback"] (ready .junior ++ [chair .dryRun, chair .confirm, mem .apply]) .denied ]
 
 /-! ### Accountability requests -/
 
@@ -422,7 +527,7 @@ def Verdict.holdsAcc (r : Reading) (v : Verdict) (ms : List AMove) (outcomes : L
       | _, _ => false
   | .refused | .denied => outcomes.getLast? == some false
   | .observed k val => ((accObserve r final).getObjVal? k).toOption.any fun j => j.compress == val
-  | .removed _ | .earlyRemoved => false
+  | .removed _ | .earlyRemoved | .appointed | .notPlanned => false
 
 structure ATrace where
   id : String

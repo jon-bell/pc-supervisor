@@ -201,22 +201,21 @@ class ScenarioRunner(
                 put("modelMutant", JsonNull)
                 put("implementationFault", implFaultName?.let { JsonPrimitive(it) } ?: JsonNull)
                 put("bindingMutant", faults.name?.let { JsonPrimitive(it) } ?: JsonNull)
-                put(
-                    "provenance",
-                    provenance(
-                        when (spec.subsystem) {
-                            "early reject" -> "early"
-                            "accountability requests" -> "acc"
-                            else -> "desk"
-                        },
-                    ),
-                )
+                put("provenance", provenance(exportOf(spec.subsystem)))
                 put("steps", JsonArray(steps))
                 put("verdict", spec.verdict)
                 put("boundary", boundary(eventsBefore))
             }
         return RunResult(record, mismatches)
     }
+
+    private fun exportOf(subsystem: String) =
+        when (subsystem) {
+            "early reject" -> "early"
+            "appointment and assignment" -> "appt"
+            "accountability requests" -> "acc"
+            else -> "desk"
+        }
 
     /** The runner's own comparison (the checker re-derives it from the model): outcome and every reader's value against the export. */
     private fun compare(n: Int, st: StepSpec, outcome: Outcome, observed: JsonObject): List<String> {

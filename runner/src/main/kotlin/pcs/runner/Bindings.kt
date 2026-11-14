@@ -36,13 +36,6 @@ import pcs.core.store.Sync
 import pcs.core.time.Clock
 import pcs.runner.model.AccountabilityRequestsAction
 import pcs.runner.model.AppointmentAndAssignmentAction
-import pcs.runner.model.AppointmentAndAssignmentApply
-import pcs.runner.model.AppointmentAndAssignmentClassify
-import pcs.runner.model.AppointmentAndAssignmentConfirm
-import pcs.runner.model.AppointmentAndAssignmentConsent
-import pcs.runner.model.AppointmentAndAssignmentDryRun
-import pcs.runner.model.AppointmentAndAssignmentSolve
-import pcs.runner.model.AppointmentAndAssignmentSync
 import pcs.runner.model.DeskRejectAction
 import pcs.runner.model.DeskRejectAdvance
 import pcs.runner.model.DeskRejectClockObs
@@ -239,7 +232,7 @@ class World(
             is DeskRejectAction -> desk(a, role)
             is EarlyRejectAction -> early(a, role)
             is AccountabilityRequestsAction -> acc.perform(a, role)
-            is AppointmentAndAssignmentAction -> unboundAppointment(a)
+            is AppointmentAndAssignmentAction -> appointment.perform(a, role)
         }
 
     private fun desk(a: DeskRejectAction, role: String?): Outcome =
@@ -386,14 +379,6 @@ class World(
                 }
         }
 
-    private fun unboundAppointment(a: AppointmentAndAssignmentAction): Nothing =
-        when (a) {
-            is AppointmentAndAssignmentClassify, is AppointmentAndAssignmentConsent, is AppointmentAndAssignmentSync,
-            is AppointmentAndAssignmentSolve, is AppointmentAndAssignmentDryRun, is AppointmentAndAssignmentConfirm,
-            is AppointmentAndAssignmentApply,
-            -> throw UnboundAction(a, "M7/M15 (appointment and assignment)")
-        }
-
     // ---- `core` standing in for the chair's UI actions (the chair token) --------------------------------
 
     /** PC Supervisor reads the AC's triage and mirrors it into the hidden tag (spec §11, conv:1). */
@@ -436,6 +421,7 @@ class World(
     val role = RoleReader()
     val earlyHotcrp = EarlyHotcrpReader()
     val earlyState = EarlyStateReader()
+    val appointment = AppointmentBinding(this)
 
     /** What HotCRP holds, as a chair. */
     inner class HotcrpReader {
@@ -590,6 +576,7 @@ class World(
     /** Every observation of [subsystem], from every reader the model names for it. */
     fun observe(subsystem: String = "desk reject"): JsonObject {
         if (subsystem == "early reject") return observeEarly()
+        if (subsystem == "appointment and assignment") return appointment.observe()
         if (subsystem == "accountability requests") return acc.observe()
         return observeDesk()
     }
