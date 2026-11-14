@@ -122,6 +122,15 @@ val generateReadings by tasks.registering {
 sourceSets.main { kotlin.srcDir(generatedMain) }
 tasks.named("compileKotlin") { dependsOn(generateReadings) }
 
+// The example cards and the policy table ship with core: the app's card gallery and the settings
+// screen's "what it blocks" read them (PLAN M4).
+tasks.named<ProcessResources>("processResources") {
+    from(modelExport) {
+        include("cards.json", "policy.json")
+        into("pcs/model")
+    }
+}
+
 // ---- Tests --------------------------------------------------------------------------
 
 // JNA loads the Lean-in-core library; JDK 25 warns unless native access is granted

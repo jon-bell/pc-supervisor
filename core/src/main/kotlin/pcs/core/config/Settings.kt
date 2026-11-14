@@ -65,6 +65,7 @@ public data class Settings(
                 "PCS_CYCLE_MAX_K",
                 "PCS_EARLYREJECT_WINDOW_H",
                 "PCS_SOLVER_TOPK",
+                "PCS_CONFERENCES",
             )
         public val PATTERNS: List<Regex> =
             listOf(
