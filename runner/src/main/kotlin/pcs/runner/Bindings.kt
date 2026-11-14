@@ -201,7 +201,16 @@ class World(
     }
 
     fun sync() {
-        runBlocking { HotcrpClient(api.base, token, chunk = 100, strict = true).use { Sync(store, clock).run(it) } }
+        // the harness keeps HotCRP's rate limits: when the client has given up on a 429, wait a minute and sync again
+        repeat(6) { attempt ->
+            try {
+                runBlocking { HotcrpClient(api.base, token, chunk = 100, strict = true).use { Sync(store, clock).run(it) } }
+                return
+            } catch (e: IllegalStateException) {
+                if (attempt == 5 || e.message?.contains("HTTP 429") != true) throw e
+                Thread.sleep(60_000)
+            }
+        }
     }
 
     // ---- the HotCRP actor ---------------------------------------------------------------
