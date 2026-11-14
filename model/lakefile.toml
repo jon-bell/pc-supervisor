@@ -16,3 +16,7 @@ root = "Export"
 [[lean_exe]]
 name = "oracle"
 root = "Oracle"
+
+[[lean_exe]]
+name = "check-evidence"
+root = "CheckEvidence"

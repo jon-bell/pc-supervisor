@@ -26,15 +26,6 @@ def cardsJson : Json :=
         Json.mkObj [("reading", readingObj xs), ("outcome", c.outcome {} (withAll {} xs)),
           ("underMutant", Json.arr (mutants.toArray.map fun m => Json.str (c.outcome m.params (withAll {} xs))))])]
 
-def roleKey : Role → String
-  | .processChair => "process-chair" | .pcChair => "pc-chair" | .ac => "ac" | .juniorPcChair => "junior-pc-chair"
-  | .pcMember => "pc-member" | .nominee => "nominee" | .author => "author" | .pcs => "pcs" | .agent => "agent"
-
-def permKey (p : Perm) : String :=
-  -- camelCase constructor name to kebab-case
-  let s := (toString (repr p)).replace "ReviewProcess.Perm." ""
-  String.join (s.toList.map fun ch => if ch.isUpper then "-" ++ (toString ch.toLower) else toString ch)
-
 def cellJson : Cell → Json
   | .y s => Json.mkObj [("kind", "granted"), ("scope", s)]
   | .n => Json.mkObj [("kind", "denied")]
@@ -54,10 +45,21 @@ def policyJson : Json :=
     ("byQ4", Json.arr tables.toArray)]
 
 def actionsJson : Json :=
-  let sys {σ α : Type} (s : Sys σ α) : Json :=
-    Json.mkObj [("subsystem", s.name), ("actions", Json.arr <| s.acts.toArray.map fun a =>
-      Json.mkObj [("action", s.showAct a), ("perm", match s.perm a with | some p => Json.str (permKey p) | none => Json.null)])]
-  Json.arr #[sys deskSys, sys earlySys, sys accSys, sys pcSys]
+  -- `key` and `args` are the binding vocabulary (Traces.lean); the JVM build generates the action
+  -- types from them, so an action added here breaks the bindings' exhaustive `when` until it is bound.
+  let sys {σ α : Type} (s : Sys σ α) (desc : α → ActDesc) (obs : List (String × String × List String)) : Json :=
+    Json.mkObj [("subsystem", s.name),
+      ("actions", Json.arr <| s.acts.toArray.map fun a =>
+        Json.mkObj [("action", s.showAct a), ("key", (desc a).1), ("args", Json.mkObj (desc a).2),
+          ("perm", match s.perm a with | some p => Json.str (permKey p) | none => Json.null)]),
+      ("observations", Json.arr <| obs.toArray.map fun (k, t, rs) =>
+        Json.mkObj [("key", k), ("type", t), ("readers", Json.arr (rs.toArray.map Json.str))])]
+  Json.arr #[sys deskSys deskDesc deskObservations, sys earlySys earlyDesc [], sys accSys accDesc [], sys pcSys pcDesc []]
+
+def tracesJson (a : Answers) : Json :=
+  let base := a.base
+  let fix := base.set .q1 (indexIn (QId.q1.labels.map (·.1)) "fix-window")
+  Json.arr <| (deskTraces "signed" base ++ deskTraces "fix-window" fix).toArray.map Trace.json
 
 def mutantsJson : Json :=
   Json.arr <| mutants.toArray.map fun m => Json.str m.name
@@ -71,9 +73,11 @@ def main (args : List String) : IO Unit := do
   write "policy.json" policyJson
   write "actions.json" actionsJson
   write "mutants.json" mutantsJson
+  write "binding-mutants.json" bindingMutantsJson
   -- the Lean parse of the synthetic answers file, for the JVM parser-agreement test
   let a := parseAnswers (← IO.FS.readFile "answers/synthetic.txt")
+  write "traces-desk.json" (tracesJson a)
   write "answers-synthetic.json" (Json.mkObj [
     ("given", Json.arr (a.given.toArray.map fun (q, i) => Json.arr #[q.code, (q.labels.getD i ("?", "?")).1])),
     ("errors", Json.arr (a.errors.toArray.map Json.str))])
-  IO.println s!"wrote {dir}/: readings.json ({QId.all.length} questions), cards.json ({cards.length} cards), policy.json, actions.json, mutants.json"
+  IO.println s!"wrote {dir}/: readings.json ({QId.all.length} questions), cards.json ({cards.length} cards), policy.json, actions.json, mutants.json, binding-mutants.json, traces-desk.json"
