@@ -53,9 +53,20 @@ public class HotcrpClient(
         // at the pinned HOTCRP_REF. Anything else unexpected is drift (ContractTest).
         val PC_UNREAD = setOf("affiliation")
         val PAPER_UNREAD = setOf("abstract", "contacts", "object", "submission", "submitted", "submitted_at", "topics", "options", "final")
-        val REVIEW_UNREAD = setOf("blind", "draft", "editable", "modified_at_text", "object", "reviewer", "user_rating", "submitted",
+        val REVIEW_UNREAD =
+            setOf(
+                "blind",
+                "draft",
+                "editable",
+                "modified_at_text",
+                "object",
+                "reviewer",
+                "user_rating",
+                "submitted",
                 // the ids of fields a review's round hides (the screen round hides the normal fields, spec §11)
-                "hidden_fields", "my_request")
+                "hidden_fields",
+                "my_request",
+            )
         val COMMENT_UNREAD =
             setOf(
                 "author",

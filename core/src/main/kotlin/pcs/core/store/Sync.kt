@@ -36,7 +36,8 @@ public class Sync(private val store: Store, private val clock: Clock) {
         val comments = client.comments(pids)
         val pcTags = client.pcTags
         // instance settings the conventions rely on (spec §11); a token that can't read them leaves the fact unknown
-        val tagHidden = runCatching { client.settings()["tag_hidden"]?.toString() }.getOrNull()
+        val instance = runCatching { client.settings() }.getOrNull()?.takeIf { it.isNotEmpty() }
+        val tagHidden = instance?.let { it["tag_hidden"]?.toString() ?: "" }
         val now = clock.now().epochSecond
         val newRows = mutableMapOf<String, Int>().withDefault { 0 }
         val changed = mutableMapOf<String, Int>().withDefault { 0 }
