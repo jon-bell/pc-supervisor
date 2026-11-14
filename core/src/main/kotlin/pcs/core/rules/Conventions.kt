@@ -22,6 +22,9 @@ public sealed interface Trace {
     /** The authors were warned about a nomination non-compliance (Q10). */
     public data class Warned(val pid: Long) : Trace
 
+    /** The paper's AC objects to an early reject (concepts EarlyReject.ac_objects); the chair records it as this tag. */
+    public data class EarlyObjection(val pid: Long) : Trace
+
     public data class Unparsed(val pid: Long, val tag: String) : Trace
 }
 
@@ -50,6 +53,7 @@ public object Conventions {
                 name == "pcs-keep" -> Trace.Keep(pid)
                 name == "pcs-remedy-due" && epoch != null -> Trace.RemedyDue(pid, epoch)
                 name == "pcs-warned" -> Trace.Warned(pid)
+                name == "pcs-er-object" -> Trace.EarlyObjection(pid)
                 name.startsWith("pcs-refer-") -> Ground.ofKey(name.removePrefix("pcs-refer-"))?.let { Trace.Refer(pid, it) } ?: Trace.Unparsed(pid, t)
                 req.matches(name) && value != null -> {
                     val m = req.matchEntire(name)!!
@@ -73,6 +77,7 @@ public object Conventions {
             is Trace.Case -> "~~pcs-case-${t.n}#${t.outcome}"
             is Trace.RemedyDue -> "pcs-remedy-due#${t.dueEpoch}"
             is Trace.Warned -> "pcs-warned"
+            is Trace.EarlyObjection -> "pcs-er-object"
             is Trace.Unparsed -> t.tag
         }
 }

@@ -5,7 +5,23 @@ import pcs.core.readings.Q16
 
 // Early reject (concepts §3.6; model/ReviewProcess/Model.lean).
 
-public enum class Score(public val rank: Int) { STRONG_REJECT(0), REJECT(1), WEAK_REJECT(2), BORDERLINE(3), WEAK_ACCEPT(4), ACCEPT(5), STRONG_ACCEPT(6) }
+public enum class Score(public val rank: Int) {
+    STRONG_REJECT(0),
+    REJECT(1),
+    WEAK_REJECT(2),
+    BORDERLINE(3),
+    WEAK_ACCEPT(4),
+    ACCEPT(5),
+    STRONG_ACCEPT(6),
+    ;
+
+    /** The model's key (`weak-reject`), as in the answers file, the settings, and the exported traces. */
+    public val key: String get() = name.lowercase().replace('_', '-')
+
+    public companion object {
+        public fun ofKey(k: String): Score? = entries.firstOrNull { it.key == k }
+    }
+}
 
 public data class ERCase(val scores: List<Score>, val bumped: Boolean = false, val windowClosed: Boolean = false, val acObjects: Boolean = false)
 

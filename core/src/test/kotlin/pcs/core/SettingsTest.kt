@@ -50,4 +50,17 @@ class SettingsTest {
         assertTrue(Settings.load(mapOf("PCS_HOTCRP_URL" to "http://127.0.0.1:8080", "PCS_ANSWERS" to "a", "PCS_HOTCRP_TOKEN" to "t")).isSuccess)
         assertTrue(Settings.load(ok, mapOf("PCS_DB_KEY" to "k")).isFailure)
     }
+
+    @Test
+    fun `the early-reject window and the score map have defaults, and a bad map is reported`() {
+        val d = Settings.load(ok).getOrThrow()
+        assertEquals(48, d.earlyRejectWindowH)
+        assertEquals(pcs.core.rules.Score.WEAK_REJECT, d.scoreScale.of(2))
+        val s = Settings.load(ok + ("PCS_EARLYREJECT_WINDOW_H" to "24") + ("PCS_SCORE_MAP" to "1:reject, 2:weak-reject,3:borderline")).getOrThrow()
+        assertEquals(24, s.earlyRejectWindowH)
+        assertEquals(pcs.core.rules.Score.BORDERLINE, s.scoreScale.of(3))
+        assertEquals(null, s.scoreScale.of(4))
+        val e = Settings.load(ok + ("PCS_SCORE_MAP" to "1:rejected")).exceptionOrNull() as SettingsException
+        assertTrue(e.problems.single().startsWith("PCS_SCORE_MAP: unknown score rejected"), e.problems.toString())
+    }
 }

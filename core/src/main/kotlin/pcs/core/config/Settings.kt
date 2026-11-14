@@ -2,6 +2,7 @@ package pcs.core.config
 
 import pcs.core.imports.ImportKind
 import pcs.core.phases.Phases
+import pcs.core.rules.ScoreScale
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -29,6 +30,10 @@ public data class Settings(
     val meritAcceptMin: Int,
     val expertiseOkMin: Int,
     val reviewsRequired: Int,
+    /** Hours of Q16's last-word window when `PCS_PHASE_EARLYREJECT_CLOSE` doesn't fix its end (`PCS_EARLYREJECT_WINDOW_H`). */
+    val earlyRejectWindowH: Int,
+    /** Merit values on the model's score scale (`PCS_SCORE_MAP`), for Q15. */
+    val scoreScale: ScoreScale,
     val dbPath: Path?,
     val syncIntervalMin: Int,
     val syncChunk: Int,
@@ -71,6 +76,7 @@ public data class Settings(
                 "PCS_PSEUDONYM_KEY",
                 "PCS_CYCLE_MAX_K",
                 "PCS_EARLYREJECT_WINDOW_H",
+                "PCS_SCORE_MAP",
                 "PCS_SOLVER_TOPK",
                 "PCS_CONFERENCES",
             )
@@ -168,6 +174,7 @@ public data class Settings(
                         parts[0].trim() to parts[1].trim()
                     }
                 } ?: emptyMap()
+            val scoreScale = parse("PCS_SCORE_MAP", ScoreScale.HOTCRP_DEFAULT) { ScoreScale.parse(it) } ?: ScoreScale.HOTCRP_DEFAULT
             val loadMax =
                 m.filterKeys { Regex("PCS_LOAD_[A-Z]+_MAX").matches(it) }
                     .mapKeys { it.key.removePrefix("PCS_LOAD_").removeSuffix("_MAX").lowercase() }
@@ -205,6 +212,8 @@ public data class Settings(
                     meritAcceptMin = int("PCS_MERIT_ACCEPT_MIN", 3),
                     expertiseOkMin = int("PCS_EXPERTISE_OK_MIN", 3),
                     reviewsRequired = int("PCS_REVIEWS_REQUIRED", 3, min = 1),
+                    earlyRejectWindowH = int("PCS_EARLYREJECT_WINDOW_H", 48, min = 1),
+                    scoreScale = scoreScale,
                     dbPath = m["PCS_DB_PATH"]?.let { Path.of(it) },
                     syncIntervalMin = int("PCS_SYNC_INTERVAL_MIN", 15, min = 1),
                     syncChunk = int("PCS_SYNC_CHUNK", 200, min = 1),
