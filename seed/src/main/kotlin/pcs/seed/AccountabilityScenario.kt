@@ -50,7 +50,27 @@ object AccountabilityScenario {
     private val reviews =
         words.flatMap { (pid, ws) ->
             ws.mapIndexedNotNull { i, w ->
-                if (w == 0) null else SubmitReview(pid, reviewers.getValue(pid)[i], merit = if (w < 150) 2 else 3, expertise = 3, words = w, at = day(-1.0 + (pid - 300) * 0.01 + i * 0.001))
+                if (w ==
+                    0
+                ) {
+                    null
+                } else {
+                    SubmitReview(
+                        pid,
+                        reviewers.getValue(pid)[i],
+                        merit =
+                            if (w <
+                                150
+                            ) {
+                                2
+                            } else {
+                                3
+                            },
+                        expertise = 3,
+                        words = w,
+                        at = day(-1.0 + (pid - 300) * 0.01 + i * 0.001),
+                    )
+                }
             }
         }
 

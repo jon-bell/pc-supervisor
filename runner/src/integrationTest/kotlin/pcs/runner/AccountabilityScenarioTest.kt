@@ -66,7 +66,11 @@ class AccountabilityScenarioTest {
     private val clock = Clock { now }
     private lateinit var due: Instant
     private val readings = Readings().base().with(QId.Q20, "yes")!!.with(QId.Q11, "reject-own-papers")!!
-    private val criteria = listOf(Criterion(1, "backs each weakness with evidence", setOf("thin")), Criterion(2, "tells the authors what would change the reviewer's mind", setOf("thin", "rated")))
+    private val criteria =
+        listOf(
+            Criterion(1, "backs each weakness with evidence", setOf("thin")),
+            Criterion(2, "tells the authors what would change the reviewer's mind", setOf("thin", "rated")),
+        )
 
     private fun at(hours: Long) = due.plus(Duration.ofHours(hours))
 
@@ -106,7 +110,11 @@ class AccountabilityScenarioTest {
         return byReviewer.filterValues { it != 0 to 0 }
     }
 
-    private fun engagement(r: AccountabilityReport) = r.engagement.filter { it.engaged + it.notEngaged > 0 }.associate { it.reviewer to (it.engaged to it.notEngaged) }
+    private fun engagement(r: AccountabilityReport) =
+        r.engagement.filter { it.engaged + it.notEngaged > 0 }.associate {
+            it.reviewer to
+                (it.engaged to it.notEngaged)
+        }
 
     @BeforeAll
     fun seed() {
@@ -132,18 +140,25 @@ class AccountabilityScenarioTest {
         val s = AccountabilityScenario
         // ---- the review deadline has passed a day ago: progress, the nominee view, the coaching queue, and the suggestions the metadata gives
         var r = report()
-        val ord = store.conn.createStatement().use { st ->
-            st.executeQuery("SELECT pid, email, ordinal FROM review WHERE pid BETWEEN 301 AND 303 AND ordinal IS NOT NULL").use { rs ->
-                buildMap { while (rs.next()) put(rs.getLong(1) to rs.getString(2), rs.getString(3)) }
+        val ord =
+            store.conn.createStatement().use { st ->
+                st.executeQuery("SELECT pid, email, ordinal FROM review WHERE pid BETWEEN 301 AND 303 AND ordinal IS NOT NULL").use { rs ->
+                    buildMap { while (rs.next()) put(rs.getLong(1) to rs.getString(2), rs.getString(3)) }
+                }
             }
-        }
         assertEquals("B", ord[301L to s.junior1], "the scenario's ordinals follow submission order: $ord")
         assertEquals("C", ord[301L to s.nominee])
         assertEquals(listOf(303L), r.nomineeOutstanding.map { it.pid }, "the nominee's review of 303 was never submitted")
         assertEquals(1L, r.nomineeOutstanding.single().lateDays)
         assertEquals(listOf(301L to "B", 301L to "C", 302L to "C"), r.coaching.map { it.pid to it.ordinal })
         assertEquals(listOf(301L to "B", 301L to "C", 302L to "C"), r.suggestions.map { it.pid to it.ordinal })
-        assertTrue(r.suggestions.all { it.status == SuggestionStatus.OPEN && it.criteria == listOf(1, 2) && it.reasons.single().contains("below the depth floor") })
+        assertTrue(
+            r.suggestions.all {
+                it.status == SuggestionStatus.OPEN &&
+                    it.criteria == listOf(1, 2) &&
+                    it.reasons.single().contains("below the depth floor")
+            },
+        )
 
         // ---- AR4: the AC dismisses the suggestion for 302C; nothing reaches HotCRP and the record is unchanged
         AccLocal.dismiss(store, 302, "C", s.ac, now)
@@ -154,7 +169,17 @@ class AccountabilityScenarioTest {
 
         // ---- the AC sends requests on 301B and 301C (a chair sends the mail from HotCRP; PC Supervisor drafts it and records it)
         now = at(48)
-        val draft = AccDrafts.draft(r.suggestions.single { it.pid == 301L && it.ordinal == "B" }, listOf(1, 2), criteria, "I would value a second look.", 48, null)
+        val draft =
+            AccDrafts.draft(
+                r.suggestions.single {
+                    it.pid == 301L && it.ordinal == "B"
+                },
+                listOf(1, 2),
+                criteria,
+                "I would value a second look.",
+                48,
+                null,
+            )
         assertTrue(draft.body.contains("1. backs each weakness with evidence") && !draft.body.contains("CANARY"))
         record(AccDrafts.recordSent(301, "B"))
         record(AccDrafts.recordSent(301, "C"))
@@ -169,7 +194,17 @@ class AccountabilityScenarioTest {
         // ---- 301B's reviewer revises the review; the next sync sees it, and the AC records the disposition
         now = sent.plus(Duration.ofHours(5))
         val rid = api.reviews(301, actas = s.junior1).first { it.str("reviewer_email") == s.junior1 }.str("rid")!!
-        check(api.ok(api.call("POST", "301/review", mapOf("r" to rid), actas = s.junior1, json = """{"object":"review","PapSum":"Synthetic revised summary.","status":"complete"}""")))
+        check(
+            api.ok(
+                api.call(
+                    "POST",
+                    "301/review",
+                    mapOf("r" to rid),
+                    actas = s.junior1,
+                    json = """{"object":"review","PapSum":"Synthetic revised summary.","status":"complete"}""",
+                ),
+            ),
+        )
         sync()
         r = report()
         assertEquals(ReqStatus.REPLIED, r.requests.single { it.ordinal == "B" }.status)

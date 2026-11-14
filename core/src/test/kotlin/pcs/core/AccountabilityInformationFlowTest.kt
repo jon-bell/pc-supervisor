@@ -44,7 +44,16 @@ class AccountabilityInformationFlowTest {
         val papers = (1L..4L).toList()
         val reviewers = listOf("s1@example.org", "j1@example.org", "n1@example.org")
 
-        data class R(val pid: Long, val who: String, val ordinal: String, val words: Int, val merit: Int, val ratings: List<String>, val fields: Set<String>, val late: Boolean)
+        data class R(
+            val pid: Long,
+            val who: String,
+            val ordinal: String,
+            val words: Int,
+            val merit: Int,
+            val ratings: List<String>,
+            val fields: Set<String>,
+            val late: Boolean,
+        )
 
         val reviews =
             papers.flatMap { p ->

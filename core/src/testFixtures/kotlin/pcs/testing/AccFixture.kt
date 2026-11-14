@@ -52,15 +52,13 @@ public class AccFixture(public val store: Store) {
     ): Long {
         val rid = nextRid++
         val scores = if (merit == null) "{}" else "{\"OveMer\":$merit}"
-        sql(
-            "INSERT INTO review(rid,pid,email,rtype,status,ordinal,vtag,scores,word_count,ratings,first_seen_at,first_complete_seen_at,last_seen_at,round) VALUES($rid,$pid,'${esc(
-                who,
-            )}',$rtype,'$status',${ordinal?.let {
-                "'$it'"
-            } ?: "NULL"},'v0','$scores',$words,'${ratings.joinToString(",", "[", "]") {
-                "\"$it\""
-            }}',0,${firstCompleteAt ?: "NULL"},0,${round?.let { "'$it'" } ?: "NULL"})",
-        )
+        val cols = "rid,pid,email,rtype,status,ordinal,vtag,scores,word_count,ratings,first_seen_at,first_complete_seen_at,last_seen_at,round"
+        val ratingJson = ratings.joinToString(",", "[", "]") { "\"$it\"" }
+        val ord = ordinal?.let { "'$it'" } ?: "NULL"
+        val rnd = round?.let { "'$it'" } ?: "NULL"
+        val who2 = esc(who)
+        val vals = "$rid,$pid,'$who2',$rtype,'$status',$ord,'v0','$scores',$words,'$ratingJson',0,${firstCompleteAt ?: "NULL"},0,$rnd"
+        sql("INSERT INTO review($cols) VALUES($vals)")
         versionSeenAt.forEachIndexed {
             i,
             at,
