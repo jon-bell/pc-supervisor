@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <text>
+    <back>
+      <div type="references">
+        <listBibl>
+          <biblStruct xml:id="b0">
+            <analytic>
+              <title level="a" type="main">Lorem ipsum dolor sit amet</title>
+              <author><persName><forename type="first">Kaerun</forename><surname>Zeltham</surname></persName></author>
+              <author><persName><forename type="first">Bio</forename><surname>Mavosel</surname></persName></author>
+              <idno type="DOI">10.9999/pcs.synth.00000001</idno>
+            </analytic>
+            <monogr>
+              <title level="j">Journal of Synthetic Studies</title>
+              <imprint><date type="published" when="2014" /></imprint>
+            </monogr>
+          </biblStruct>
+          <biblStruct xml:id="b1">
+            <analytic>
+              <title level="a" type="main">Consectetur adipiscing elit sed do</title>
+              <author><persName><forename type="first">Tolior</forename><surname>Vanrem</surname></persName></author>
+            </analytic>
+            <monogr>
+              <title level="j">Journal of Synthetic Studies</title>
+              <imprint><date type="published" when="2009-05" /></imprint>
+            </monogr>
+          </biblStruct>
+        </listBibl>
+      </div>
+    </back>
+  </text>
+</TEI>

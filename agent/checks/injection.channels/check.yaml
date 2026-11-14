@@ -1,0 +1,15 @@
+id: injection.channels
+version: content-hash  # computed by the build from this directory plus the code files below
+category: deterministic
+depends_on: [injection.policy]
+inputs: [extraction.channels]
+schema: schema.json
+grounds: [prompt-injection]
+evidence: >-
+  Flag with the channel key and the text. Scripts, embedded files, annotations and form values are signals on their own; metadata and bookmarks fire only when they address an AI reader.
+affected: >-
+  The authors, if a tool wrote the channel; the review process otherwise.
+code:
+  - src/main/kotlin/pcs/agent/checks/InjectionChecks.kt
+  - src/main/kotlin/pcs/agent/checks/AddressedPatterns.kt
+  - src/main/kotlin/pcs/agent/extract/Channels.kt

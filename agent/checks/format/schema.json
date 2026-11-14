@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "format findings",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "check",
+      "version",
+      "severity",
+      "vectors",
+      "message",
+      "anchor"
+    ],
+    "properties": {
+      "check": {
+        "const": "format"
+      },
+      "version": {
+        "type": "string"
+      },
+      "ground": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "format",
+          "scope",
+          "anonymity",
+          "fabricated-reference",
+          "misused-citation",
+          "no-contribution",
+          "nomination-noncompliance",
+          "prompt-injection",
+          null
+        ]
+      },
+      "severity": {
+        "enum": [
+          "INFO",
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ]
+      },
+      "vectors": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "enum": [
+            "page-count",
+            "page-size",
+            "margins",
+            "font-size",
+            "font-family"
+          ]
+        }
+      },
+      "message": {
+        "type": "string"
+      },
+      "quote": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "anchor": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "channel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "end": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "region": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
+      },
+      "measured": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "detail": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  }
+}

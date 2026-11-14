@@ -108,6 +108,40 @@ def parseRequest (j : Json) : Except String Request := do
     | _ => pure none
   pure { reviewer := ← getD j "reviewer" 0, sentBy, disp }
 
+/-- Min-cost max-flow with lower bounds, on top of `minCostMaxFlow` (PLAN M14, prop:A5).
+    Arcs are (from, to, lower, capacity, cost) with nonnegative costs, none into `s` or out of `t`,
+    and no lower bound on an arc out of `s`. Lower bounds become demands met from a super source and
+    sink; the flow value is bought with a pre-saturated `t → s` arc of cost `-M` (`M` beats every
+    real cost), so its cancellation arc `s → t` has the positive cost `M`. Returns whether the lower
+    bounds can be met, the maximum flow value, and its minimum cost. -/
+def boundedFlow (n s t : Nat) (arcs : Array (Nat × Nat × Int × Int × Int)) : Bool × Int × Int := Id.run do
+  let sp := n
+  let tp := n + 1
+  let mut u0 : Int := 0
+  let mut big : Int := 1
+  let mut fixed : Int := 0
+  let mut bal : Array Int := Array.replicate n 0
+  let mut red : Array (Nat × Nat × Int × Int) := #[]
+  for (u, v, lo, cap, c) in arcs do
+    if u == s then u0 := u0 + cap
+    big := big + cap * c
+    fixed := fixed + lo * c
+    bal := bal.modify v (· + lo) |>.modify u (· - lo)
+    red := red.push (u, v, cap - lo, c)
+  bal := bal.modify s (· + u0) |>.modify t (· - u0)
+  red := red.push (s, t, u0, big)
+  let cancel := red.size - 1
+  let mut need : Int := 0
+  for x in [0:n] do
+    if bal[x]! > 0 then
+      red := red.push (sp, x, bal[x]!, 0)
+      need := need + bal[x]!
+    else if bal[x]! < 0 then
+      red := red.push (x, tp, -bal[x]!, 0)
+  let (f, flow, total) := minCostMaxFlow (Flow.build (n + 2) red) sp tp
+  let y := f.cap[2 * cancel + 1]!
+  return (flow == need, u0 - y, total - big * y + fixed)
+
 def answer (j : Json) : Except String Json := do
   let q ← j.getObjValAs? String "q"
   match q with
@@ -143,6 +177,15 @@ def answer (j : Json) : Except String Json := do
     let c : ERCase := { scores, bumped := ← getD j "bumped" false, windowClosed := ← getD j "windowClosed" false,
                         acObjects := ← getD j "acObjects" false }
     pure (Json.mkObj [("result", mayEarlyReject p r c)])
+  | "minCostMaxFlow" =>
+    let n : Nat ← j.getObjValAs? Nat "n"
+    let s : Nat ← j.getObjValAs? Nat "s"
+    let t : Nat ← j.getObjValAs? Nat "t"
+    let rows : Array (Array Int) ← j.getObjValAs? (Array (Array Int)) "arcs"
+    let arcs ← rows.mapM fun r =>
+      if r.size == 5 then pure (r[0]!.toNat, r[1]!.toNat, r[2]!, r[3]!, r[4]!) else throw "arc must be [from,to,lower,cap,cost]"
+    let (ok, flow, cost) := boundedFlow n s t arcs
+    pure (Json.mkObj [("feasible", ok), ("flow", toJson flow), ("cost", toJson cost)])
   | "caseMayOpen" =>
     let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
     let p ← parseParams ((j.getObjVal? "mutant").toOption.getD .null)

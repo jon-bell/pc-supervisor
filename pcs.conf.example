@@ -29,6 +29,25 @@ PCS_PHASE_RESPONSE_CLOSE=
 PCS_PHASE_DISCUSSION_OPEN=2027-01-22T00:00
 PCS_PHASE_DISCUSSION_CLOSE=2027-02-05T23:59
 PCS_PHASE_DECISIONS_DUE=2027-02-07T23:59
+# The other phase dates (spec §10.1), all optional; a date left out is skipped, not defaulted.
+# A deadline closes its phase at that instant. EARLYREJECT and RESPONSE are windows: open at
+# _OPEN, closed from _CLOSE.
+# PCS_PHASE_REGISTRATION_DUE=
+# PCS_PHASE_SUBMISSION_DUE=
+# PCS_PHASE_DESKREJECT_DUE=
+# PCS_PHASE_APPOINTMENTS_DUE=
+# PCS_PHASE_ASSIGNMENT_DONE=
+# PCS_PHASE_EARLYREJECT_OPEN=
+# PCS_PHASE_EARLYREJECT_CLOSE=
+# --- Imports (spec §10.3) -----------------------------------------------------
+# Days after which an import of a kind is reported stale (`pcs import status`). Defaults:
+# appointments 7, tpms-registrations 14, tpms-assignments 30, tpms-scores 30, screening-bundle 3, refcheck 7.
+# PCS_IMPORT_FRESH_APPOINTMENTS_DAYS=7
+# PCS_IMPORT_FRESH_TPMS_REGISTRATIONS_DAYS=14
+# PCS_IMPORT_FRESH_TPMS_ASSIGNMENTS_DAYS=30
+# PCS_IMPORT_FRESH_TPMS_SCORES_DAYS=30
+# PCS_IMPORT_FRESH_SCREENING_BUNDLE_DAYS=3
+# PCS_IMPORT_FRESH_REFCHECK_DAYS=7
 # Pin "now" (tests, or replaying a past state). Unset = real clock.
 PCS_NOW=
 
@@ -73,3 +92,35 @@ PCS_HISTORY_RPS=1
 # PCS_TAG_TRIAGE_KEEP=pcs-keep
 # PCS_TAG_TRIAGE_REFER=pcs-refer
 # PCS_TAG_REQUEST=pcs-req
+
+# --- Screening agent: inference engines (docs/agent.md §4.3, §5) -------------------
+# Engines are declared entirely here; no model id is hard-coded and no credential is stored here.
+# An engine's CLEARANCE is the highest data class it may receive; the dispatcher refuses any
+# call above it before any I/O. confidential needs CLEARANCE_DECISION naming a settled decision.
+# A claude-code engine defaults to public (a personal login is a development credential).
+# PCS_ENGINES=dev,ci,selfhost-a
+# PCS_ENGINE_dev_ADAPTER=claude-code
+# PCS_ENGINE_dev_MODEL=<model id>
+# PCS_ENGINE_dev_COMMAND=claude
+# PCS_ENGINE_ci_ADAPTER=replay
+# PCS_ENGINE_ci_REPLAY_OF=dev                 # serve recordings made as engine `dev`
+# PCS_ENGINE_ci_RECORDINGS=agent/build/recordings
+# PCS_ENGINE_ci_CLEARANCE=synthetic
+# PCS_ENGINE_api_ADAPTER=anthropic
+# PCS_ENGINE_api_PLATFORM=api                 # api | bedrock | vertex | foundry
+# PCS_ENGINE_api_MODEL=<model id>
+# PCS_ENGINE_api_REGION=<region>              # bedrock, vertex
+# PCS_ENGINE_api_PROJECT=<project>            # vertex
+# PCS_ENGINE_api_RESOURCE=<resource>          # foundry
+# PCS_ENGINE_api_BASE_URL=<url>               # optional; the only host this engine may reach
+# PCS_ENGINE_api_API_KEY_ENV=<VAR>            # name of the env var holding the key, if not the SDK default
+# PCS_ENGINE_selfhost-a_ADAPTER=openai-compat
+# PCS_ENGINE_selfhost-a_BASE_URL=http://gpu.example.org:8000/v1
+# PCS_ENGINE_selfhost-a_MODEL=<model id>
+# PCS_ENGINE_selfhost-a_STRUCTURED=json_schema   # json_schema | guided | tool | prompt
+# PCS_ENGINE_<id>_CLEARANCE=synthetic|public|confidential
+# PCS_ENGINE_<id>_CLEARANCE_DECISION=<decision id>
+# PCS_ENGINE_<id>_PRICE_IN=0                  # USD per 1M tokens; also _PRICE_OUT, _PRICE_CACHE_READ, _PRICE_CACHE_WRITE
+# PCS_ENGINE_<id>_CONCURRENCY=4               # _RPM and _TPM are read but not yet enforced
+# PCS_CHECK_<check>_ENGINE=<engine id>        # production routing (set from the shootout)
+# PCS_AGENT_EGRESS=doi.org,api.crossref.org,api.openalex.org,export.arxiv.org,arxiv.org   # reference resolver allowlist

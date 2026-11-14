@@ -1,0 +1,37 @@
+[
+  {
+    "operator": "author-name",
+    "vector": "author-name",
+    "description": "The authors' names are added under the title."
+  },
+  {
+    "operator": "affiliation",
+    "vector": "affiliation",
+    "description": "An affiliation line is added."
+  },
+  {
+    "operator": "repository-owner",
+    "vector": "repository-owner",
+    "description": "A repository URL carries an author's handle."
+  },
+  {
+    "operator": "author-domain",
+    "vector": "author-domain",
+    "description": "A contact address uses an author's domain."
+  },
+  {
+    "operator": "acknowledgments",
+    "vector": "acknowledgments",
+    "description": "An acknowledgments section is added."
+  },
+  {
+    "operator": "metadata-author",
+    "vector": "metadata-author-name",
+    "description": "The PDF Author field names an author."
+  },
+  {
+    "operator": "self-reference",
+    "vector": "self-reference",
+    "description": "A sentence points to the authors' earlier tool."
+  }
+]

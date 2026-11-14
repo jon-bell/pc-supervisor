@@ -1,0 +1,3 @@
+pid,check,version,ground,engine,status,bundle_hash,anchors
+12,format,a1b2c3,,deterministic,clean,h-0001,
+40,anonymity,d4e5f6,self-reference,deterministic,flagged,h-0001,"[{""page"":1,""quote"":""in our earlier work""}]"

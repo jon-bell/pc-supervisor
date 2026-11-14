@@ -1,0 +1,14 @@
+id: format
+version: content-hash  # computed by the build from this directory plus the code files below
+category: deterministic
+depends_on: [format.limits]
+inputs: [extraction.layout]
+schema: schema.json
+grounds: [format]
+evidence: >-
+  Flag with the measured values (page count, page size, margin, body size or font); a margin or font finding quotes the text it measured, anchored on its page.
+affected: >-
+  The authors, whose paper is removed if the limits are misread.
+code:
+  - src/main/kotlin/pcs/agent/checks/FormatCheck.kt
+  - src/main/kotlin/pcs/agent/extract/PdfExtractor.kt

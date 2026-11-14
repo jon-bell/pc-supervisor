@@ -1,0 +1,14 @@
+id: refs.doi
+version: content-hash  # computed by the build from this directory plus the code files below
+category: deterministic
+depends_on: [Q6]
+inputs: [extraction.references, resolver]
+schema: schema.json
+grounds: [fabricated-reference]
+evidence: >-
+  Flag with the bibliography entry quoted at its page anchor. A missing DOI is INFO, never a flag. Whether a flag is grounds depends on Q6.
+affected: >-
+  The authors, if a real reference is not in the index (assume A6); the AC otherwise.
+code:
+  - src/main/kotlin/pcs/agent/checks/RefsDoiCheck.kt
+  - src/main/kotlin/pcs/agent/extract/References.kt

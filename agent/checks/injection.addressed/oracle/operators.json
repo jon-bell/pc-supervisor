@@ -1,0 +1,13 @@
+[
+  {
+    "operator": "visible",
+    "vector": "visible",
+    "description": "An instruction to the AI reader in the visible text."
+  },
+  {
+    "operator": "paper-about-prompt-injection",
+    "vector": "none",
+    "description": "A paper about prompt injection that quotes payloads in its visible text.",
+    "control": true
+  }
+]

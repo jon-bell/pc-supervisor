@@ -1,0 +1,5 @@
+email,origin,nominated_by,area,ac_email,decision,tier,consent,on_pc_at
+ada.sample@example.org,invited,,testing,ac.one@example.org,accept,senior,yes,2026-12-01
+ben.sample@example.org,nominee,"12;40",analysis,ac.one@example.org,accept,junior,yes,2026-12-03T09:00
+cara.sample@example.org,self-nominated,,fuzzing,ac.two@example.org,pending,,,
+dev.sample@example.org,nominee,7,security,ac.two@example.org,decline,,no,

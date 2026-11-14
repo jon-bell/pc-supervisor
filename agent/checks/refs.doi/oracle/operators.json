@@ -1,0 +1,23 @@
+[
+  {
+    "operator": "corrupt-doi",
+    "vector": "doi-not-found",
+    "description": "One character of a DOI is changed."
+  },
+  {
+    "operator": "nonexistent-reference",
+    "vector": "doi-not-found",
+    "description": "A plausible reference with an unregistered DOI is added."
+  },
+  {
+    "operator": "mismatched-title",
+    "vector": "doi-mismatch",
+    "description": "An entry keeps its DOI but gets a different title."
+  },
+  {
+    "operator": "missing-doi-resolvable-title",
+    "vector": "none",
+    "description": "A reference without a DOI whose title resolves in the index.",
+    "control": true
+  }
+]

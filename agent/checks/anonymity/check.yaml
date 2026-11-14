@@ -1,0 +1,14 @@
+id: anonymity
+version: content-hash  # computed by the build from this directory plus the code files below
+category: deterministic
+depends_on: [Q1]
+inputs: [extraction.text, extraction.channels, authors]
+schema: schema.json
+grounds: [anonymity]
+evidence: >-
+  Flag with the anchored span (page and range, or the metadata channel). The check matches the author list; it never infers identity. Self-referencing phrasing is a signal without a ground.
+affected: >-
+  The authors, if a name in the text is a coincidence; the venue's blind review otherwise.
+code:
+  - src/main/kotlin/pcs/agent/checks/AnonymityCheck.kt
+  - src/main/kotlin/pcs/agent/extract/TextNorm.kt
