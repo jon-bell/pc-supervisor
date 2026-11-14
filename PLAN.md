@@ -147,7 +147,7 @@ Every claim has a stable, namespaced ID, and every test names the claims it is e
 | Namespace | Source | Count today |
 |---|---|---|
 | `prop:` | concepts §3.10 properties (`prop:S1`, `prop:AR5`, `prop:Q1`) | 45 |
-| `card:` | concepts §3.11 example cards (`card:X9`, `card:C3`), one claim per card and reading | 38 cards |
+| `card:` | concepts §3.11 example cards (`card:X9`, `card:C3`), one claim per card and reading | 39 cards |
 | `rule:` | concepts §3.8 rules (`rule:may-remove`, `rule:owes`, `rule:composition`) | ~10 |
 | `cell:` | concepts §3.9 policy cells (`cell:ac/triage`), one per role and permission | 207 (9 roles × 23) |
 | `conv:` | spec §11 HotCRP conventions, one per row | 12 |
@@ -192,7 +192,7 @@ A binding maps a model action to something done to the real system, and a model 
 
 | Family | Evidence for | Generated from | Runs against | Count, roughly |
 |---|---|---|---|---|
-| **T1 Cards** | `card:*`, `q:*` | the exported cards: one test per card and per reading that changes its outcome | `core` (fast), then as a scenario end to end | 38 cards × their readings |
+| **T1 Cards** | `card:*`, `q:*` | the exported cards: one test per card and per reading that changes its outcome | `core` (fast), then as a scenario end to end | 39 cards × their readings |
 | **T2 Rule differential** | `rule:*` | jqwik generators over each rule's inputs and every reading; the oracle gives the expected output | `core` | 10⁴ inputs per rule per CI run, 10⁶ nightly |
 | **T3 Model-based traces** | safety `prop:*` | bounded-exhaustive and random traces from the trace search; after each step, compare every observation with the model's; at the end, check every proved property on the recorded trace with the Lean predicate | the full stack: harness + sync + `core` + app | every transition of each subsystem, plus 10³ random walks nightly |
 | **T4 Paired runs** | relational `prop:*` (S7, S11, C2, AR3, AR4) | pairs of traces that differ only in the secret (who gave the opinion; the review text; whether a suggestion was dismissed); compare the stated observer's view | the full stack | ≥ 200 pairs per property per night |

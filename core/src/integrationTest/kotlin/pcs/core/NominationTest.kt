@@ -133,7 +133,7 @@ class NominationTest {
         assertEquals(Compliance.OK, r.paper(105).compliance.decided)
         assertEquals(Compliance.UNREGISTERED, r.paper(106).compliance.decided, "its only nominee is not registered with the matching system")
         assertEquals(Compliance.UNREGISTERED, r.paper(112).compliance.decided)
-        assertEquals(listOf(104L, 106L, 112L), r.noncompliant.map { it.pid })
+        assertEquals(listOf(104L, 106L, 112L), r.noncompliant.map { it.pid }.filter { it in 101..117 })
         // Q10 on paper 104: before any warning, then after the chair's warning is written and synced
         for ((q10, expected) in mapOf("desk-reject" to true, "warn-then-reject" to false, "warn-only" to false)) {
             assertEquals(Resolved.Decided(expected), report(answered(q10 = q10)).paper(104).referable, q10)
@@ -216,7 +216,7 @@ class NominationTest {
         // nothing was withdrawn: all 17 papers are still in HotCRP
         val live =
             store.conn.createStatement().use { st ->
-                st.executeQuery("SELECT count(*) FROM paper WHERE pid >= 101 AND gone_at IS NULL").use { rs ->
+                st.executeQuery("SELECT count(*) FROM paper WHERE pid BETWEEN 101 AND 117 AND gone_at IS NULL").use { rs ->
                     rs.next()
                     rs.getInt(1)
                 }
