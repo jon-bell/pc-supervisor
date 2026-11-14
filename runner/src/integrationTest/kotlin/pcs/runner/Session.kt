@@ -42,4 +42,6 @@ object Session {
     fun traces(): List<TraceSpec> = TraceSpec.load(repo.resolve("model/export/traces-desk.json"))
 
     fun earlyTraces(): List<TraceSpec> = TraceSpec.load(repo.resolve("model/export/traces-early.json"))
+
+    fun accTraces(): List<TraceSpec> = TraceSpec.load(repo.resolve("model/export/traces-acc.json"))
 }

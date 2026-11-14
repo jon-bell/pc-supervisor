@@ -137,8 +137,8 @@ public object AccountabilityPlan {
                         remindedAt != null -> ReqStatus.REMINDED
                         else -> ReqStatus.SENT
                     },
-                    t.disposition == null && AccFlow.mayRemind(q, nowH),
-                    t.disposition == null && Accountability.mayDispose(q, ReqDisposition.NO_REPLY, nowH),
+                    AccFlow.mayRemind(q, nowH),
+                    Accountability.mayDispose(q, ReqDisposition.NO_REPLY, nowH),
                     noReplyFrom,
                 )
             }.sortedWith(compareBy({ it.pid }, { it.ordinal }, { it.n }))
@@ -256,7 +256,7 @@ public object AccountabilityPlan {
                     caseNotes,
                 )
             }
-        return AccountabilityReport(progress, outstanding, coaching, suggestions, requests, engagement, cases, cfg.criteria, notes, input.acsByPaper)
+        return AccountabilityReport(progress, outstanding, coaching, suggestions, requests, engagement, cases, cfg.criteria, notes, input.acsByPaper, modelReqs)
     }
 
     /** Which readings the report's cases turn on: Q11 (consequence), Q20 (quality needs a request), Q21 (the record's life). */

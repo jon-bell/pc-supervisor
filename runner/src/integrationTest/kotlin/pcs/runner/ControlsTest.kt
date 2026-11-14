@@ -21,7 +21,7 @@ import pcs.testing.Family
 @Order(2)
 @Family("T7")
 class ControlsTest {
-    private val specs by lazy { (Session.traces() + Session.earlyTraces()).associateBy { it.id } }
+    private val specs by lazy { (Session.traces() + Session.earlyTraces() + Session.accTraces()).associateBy { it.id } }
 
     @Test
     @Covers("prop:H4", "prop:H5", "prop:C1")
@@ -29,7 +29,7 @@ class ControlsTest {
         val runner = Session.runner
         val second = specs.getValue("desk/signed/cell-pc-member-second-opinion")
         val silence = specs.getValue("desk/signed/silence-does-not-remove")
-        val needed = 12
+        val needed = 14
         val pids = runner.createPapers(needed).iterator()
         val controls = mutableListOf<JsonObject>()
 
@@ -73,13 +73,30 @@ class ControlsTest {
             impl = Faults.MUTANTS[5],
         )
 
+        // the accountability mutants (model mutants 6 and 7): a dismissed suggestion counted as a failed engagement, and a
+        // heuristic suggestion counted as a request nobody sent; the model's engagement record and `sent` say otherwise
+        negative(
+            "core with the 'dismissed suggestion counts' mutant",
+            "core",
+            "spec:dismissed-suggestion-counts",
+            specs.getValue("acc/q20-needs-request/dismissed-leaves-no-trace"),
+            impl = Faults.MUTANTS[6],
+        )
+        negative(
+            "core with the 'heuristic sends itself' mutant",
+            "core",
+            "spec:heuristic-sends-itself",
+            specs.getValue("acc/q20-needs-request/heuristic-does-not-send"),
+            impl = Faults.MUTANTS[7],
+        )
+
         controls += Controls.observerControls(Session.harness, Session.token)
         runner.write(
             "controls.json",
             buildJsonObject {
                 put("kind", "controls")
                 put("controls", JsonArray(controls))
-                put("requiredSpecMutants", JsonArray(listOf(JsonPrimitive("spec:silence-removes"), JsonPrimitive("spec:early-reject-before-close"))))
+                put("requiredSpecMutants", JsonArray(listOf(JsonPrimitive("spec:silence-removes"), JsonPrimitive("spec:early-reject-before-close"), JsonPrimitive("spec:dismissed-suggestion-counts"), JsonPrimitive("spec:heuristic-sends-itself"))))
             },
         )
     }

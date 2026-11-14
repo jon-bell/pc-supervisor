@@ -86,9 +86,9 @@ public data class AccRequest(
     val revised: Boolean,
     val disposition: ReqDisposition?,
     val status: ReqStatus,
-    /** The AC may send the one reminder: after the due date, no reply, none sent yet (model `accRule.remind`). */
+    /** The model's rule for the one reminder, whatever is recorded: after the due date, no reply, none sent yet (`accRule.remind`). Offer it only while [disposition] is null. */
     val mayRemind: Boolean,
-    /** "No reply" may be recorded: reminded, and past the due date plus the grace period (AR5). */
+    /** The model's rule for "no reply" (AR5): reminded, and past the due date plus the grace period. Offer it only while [disposition] is null. */
     val mayNoReply: Boolean,
     /** When "no reply" first becomes available; null if no reminder has been recorded yet. */
     val noReplyFrom: Instant?,
@@ -154,6 +154,8 @@ public data class AccountabilityReport(
     val notes: List<String>,
     /** Each paper's ACs (its metareviewers) by email: the AC who sent a request is the paper's AC. */
     val acPapers: Map<Long, Set<String>> = emptyMap(),
+    /** The rules' view of the requests: what a person sent, and each open suggestion as a request nobody sent (so the model's mutants show). */
+    val modelRequests: List<pcs.core.rules.Request> = emptyList(),
 ) {
     /**
      * Who sees a reviewer's engagement record (Q21, policy cell `see-engagement`): the PC chairs see all; an AC the

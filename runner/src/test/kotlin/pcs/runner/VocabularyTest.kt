@@ -55,6 +55,21 @@ class VocabularyTest {
     }
 
     @Test
+    fun `the accountability traces carry every observation of the subsystem`() {
+        val traces = TraceSpec.load(repo.resolve("model/export/traces-acc.json"))
+        assertTrue(traces.any { it.id == "acc/q20-needs-request/dismissed-leaves-no-trace" })
+        assertTrue(traces.any { it.id == "acc/q20-needs-request/heuristic-does-not-send" })
+        val obs = pcs.runner.model.accountabilityRequestsObservations.map { it.first }.toSet()
+        for (t in traces) {
+            assertEquals("accountability requests", t.subsystem)
+            for (s in t.steps) {
+                ModelActions.parse(s.subsystem, s.key, s.args, s.label)
+                assertEquals(obs, s.expect.keys, "${t.id}: ${s.label}")
+            }
+        }
+    }
+
+    @Test
     fun `the exported traces use only actions the generated types know, and carry every observation`() {
         val traces = TraceSpec.load(repo.resolve("model/export/traces-desk.json"))
         assertTrue(traces.any { it.id == "desk/signed/remove-format" })
