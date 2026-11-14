@@ -34,7 +34,7 @@ class CardGalleryUiTest {
     @Test
     fun `every card in the export has a screen that says what the model says`() {
         val cards = ModelExport.cards
-        assertEquals(39, cards.size, "the model exports 39 example cards")
+        assertEquals(41, cards.size, "the model exports 41 example cards")
         runUi {
             var current by mutableStateOf(cards.first())
             setContent {
