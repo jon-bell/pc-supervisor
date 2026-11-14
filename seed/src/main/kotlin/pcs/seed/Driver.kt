@@ -77,8 +77,8 @@ class Driver(
             }.build()
         var resp = http.send(req, HttpResponse.BodyHandlers.ofString())
         repeat(40) {
-            // the harness keeps HotCRP's rate limits (spec §1): wait out a 429
-            if (resp.statusCode() != 429 && !resp.body().trimStart().startsWith("<")) return@repeat // an HTML error page is the harness struggling, not an answer
+            // the harness keeps HotCRP's rate limits (spec §1): wait out a 429; an HTML error page is the harness struggling, not an answer
+            if (resp.statusCode() != 429 && !resp.body().trimStart().startsWith("<")) return@repeat
             Thread.sleep((resp.headers().firstValue("Retry-After").orElse("5").toLong() * 1000).coerceAtMost(60_000))
             resp = http.send(req, HttpResponse.BodyHandlers.ofString())
         }
