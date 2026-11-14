@@ -133,11 +133,22 @@ jobs:
         if: hashFiles('app/build.gradle.kts') != ''
         run: set -a && . ./.env.test && set +a && xvfb-run -a ./gradlew uiTest
 
+      - name: Set up Node for the Argos CLI
+        if: hashFiles('app/build/screenshots/**') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Upload screenshots to Argos
         if: hashFiles('settings.gradle.kts') != '' && hashFiles('app/build/screenshots/**') != ''
         env:
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-        run: npx --yes @argos-ci/cli upload app/build/screenshots
+        run: |
+          if [ -z "$ARGOS_TOKEN" ]; then
+            echo "::notice::ARGOS_TOKEN is not set; skipping the screenshot upload"
+            exit 0
+          fi
+          npx --yes @argos-ci/cli upload app/build/screenshots
 
       - name: Scale scenario (nightly only)
         if: github.event_name == 'schedule' && hashFiles('settings.gradle.kts') != ''
