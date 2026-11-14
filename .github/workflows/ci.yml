@@ -87,6 +87,13 @@ jobs:
         if: hashFiles('settings.gradle.kts') != ''
         run: set -a && . ./.env.test && set +a && ./gradlew integrationTest
 
+      - name: Fresh harness for the UI tests (the integration tests change golden)
+        if: hashFiles('app/build.gradle.kts') != ''
+        run: |
+          docker compose -p pcs -f hotcrp/compose.yaml down -v --remove-orphans
+          scripts/hotcrp-up.sh
+          set -a && . ./.env.test && set +a && ./gradlew :seed:run --args=golden
+
       - name: UI tests (Compose, against seeded golden)
         if: hashFiles('app/build.gradle.kts') != ''
         run: set -a && . ./.env.test && set +a && xvfb-run -a ./gradlew uiTest
