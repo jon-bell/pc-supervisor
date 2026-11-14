@@ -1,0 +1,128 @@
+name: Release
+
+# Builds the installers (PLAN M4): macOS signed and notarized on the attached macOS runner, Windows as
+# MSIX for Microsoft Store submission (the Store re-signs it, so no certificate here), Linux unsigned.
+# Secrets and variables are referenced by name only; nothing here prints one.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ripley-cloud
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build the .deb
+        run: ./gradlew :app:packageReleaseDeb
+      - name: The installed app starts (headless check; no window, no keychain)
+        run: |
+          deb=$(ls app/build/compose/binaries/main-release/deb/*.deb)
+          dpkg-deb -x "$deb" /tmp/pcs-root
+          PCS_CONFERENCES=/tmp/pcs-none /tmp/pcs-root/opt/pc-supervisor/bin/pc-supervisor --smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-supervisor-linux
+          path: app/build/compose/binaries/main-release/deb/*.deb
+
+  macos:
+    # the maintainer's runner, which holds nothing but what these steps import
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 60
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Import the Developer ID certificate into a temporary keychain
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          kc="$RUNNER_TEMP/pcs-release.keychain-db"
+          echo "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$kc"
+          security set-keychain-settings -lut 3600 "$kc"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$kc"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$kc"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$kc"
+          security list-keychains -d user -s "$kc" login.keychain-db
+          rm "$RUNNER_TEMP/cert.p12"
+      - name: Build, sign, and notarize the .dmg
+        env:
+          PCS_MAC_SIGN: "true"
+          PCS_MAC_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          PCS_APPLE_ID: ${{ secrets.APPLE_ID }}
+          PCS_APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          PCS_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: ./gradlew :app:packageReleaseDmg :app:notarizeReleaseDmg
+      - name: The signed app starts and its signature verifies
+        run: |
+          app="app/build/compose/binaries/main-release/app/pc-supervisor.app"
+          codesign --verify --deep --strict "$app"
+          PCS_CONFERENCES=/tmp/pcs-none "$app/Contents/MacOS/pc-supervisor" --smoke
+      - name: Lean FFI library on macOS (the model-in-core decision is provisional until this builds; PLAN M4)
+        continue-on-error: true
+        run: |
+          (cd model && lake build && ffi/build.sh)
+      - name: Remove the temporary keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/pcs-release.keychain-db" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-supervisor-macos
+          path: app/build/compose/binaries/main-release/dmg/*.dmg
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build the app image
+        run: ./gradlew :app:createReleaseDistributable
+      - name: The app starts (headless check; no window, no keychain)
+        shell: bash
+        run: |
+          PCS_CONFERENCES="$RUNNER_TEMP/pcs-none" "app/build/compose/binaries/main-release/app/pc-supervisor/pc-supervisor.exe" --smoke
+      - name: Pack the MSIX for Microsoft Store submission (the Store signs it)
+        shell: pwsh
+        env:
+          MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
+          MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
+          MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          $ver = "0.4.0.0"
+          $root = "app/build/compose/binaries/main-release/app/pc-supervisor"
+          $manifest = (Get-Content packaging/windows/AppxManifest.xml -Raw) `
+            -replace '@IDENTITY_NAME@', $env:MSIX_IDENTITY_NAME `
+            -replace '@PUBLISHER@', $env:MSIX_PUBLISHER `
+            -replace '@PUBLISHER_DISPLAY_NAME@', $env:MSIX_PUBLISHER_DISPLAY_NAME `
+            -replace '@VERSION@', $ver
+          Set-Content -Path "$root/AppxManifest.xml" -Value $manifest -Encoding utf8
+          Copy-Item -Recurse packaging/windows/Assets "$root/Assets" -ErrorAction SilentlyContinue
+          $makeappx = (Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/bin/*/x64/makeappx.exe" | Sort-Object FullName | Select-Object -Last 1).FullName
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          & $makeappx pack /d $root /p "dist/pc-supervisor.msix" /o
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-supervisor-windows-msix
+          path: dist/pc-supervisor.msix

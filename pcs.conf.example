@@ -12,6 +12,11 @@ PCS_HOTCRP_URL=https://example.hotcrp.com
 # false = respect the chair's own conflicts (hide those papers).
 PCS_FORCE_SHOW=true
 
+# The app lists every <id>.conf in this directory as a conference, each with its own
+# encrypted store and keychain entries. Read from the environment only (it says where
+# conference files are, so it can't live in one). Default: <OS app data>/conferences.
+# PCS_CONFERENCES=
+
 # --- Policy -------------------------------------------------------------------
 # The answers file: one "Qn = <reading>" line per settled question (model format).
 PCS_ANSWERS=
@@ -49,7 +54,8 @@ PCS_REVIEWS_REQUIRED=3
 # PCS_RULE_SPLIT_WEIGHT=3   (etc. for every rule NAME in docs/spec.md §5c)
 
 # --- Local store ---------------------------------------------------------------
-# Default: the OS app-data directory, <hotcrp-host>.db. Keep it OUT of the
+# Default: the OS app-data directory, <conference id>.db for the app (the conference
+# file's name) and <hotcrp-host>.db for the CLI. Keep it OUT of the
 # repo and out of any synced folder. The SQLCipher key lives in the OS keychain.
 PCS_DB_PATH=
 
