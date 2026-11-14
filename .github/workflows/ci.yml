@@ -87,6 +87,24 @@ jobs:
         if: hashFiles('settings.gradle.kts') != ''
         run: set -a && . ./.env.test && set +a && ./gradlew integrationTest
 
+      # The scenario runner's evidence records (PLAN M3a, §A6): the model, not the Kotlin test code, decides
+      # whether each recorded run agrees with the specification, and whether each binding control did its job.
+      - name: Install elan
+        if: hashFiles('runner/build.gradle.kts') != ''
+        run: |
+          if ! command -v lake >/dev/null 2>&1; then
+            curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Re-derive every verdict from the evidence records
+        if: hashFiles('runner/build.gradle.kts') != ''
+        working-directory: model
+        run: |
+          export PATH="$HOME/.elan/bin:$PATH"
+          lake build
+          lake exe check-evidence ../runner/build/evidence
+
       - name: Fresh harness for the UI tests (the integration tests change golden)
         if: hashFiles('app/build.gradle.kts') != ''
         run: |
@@ -119,6 +137,7 @@ jobs:
           path: |
             hotcrp-logs.txt
             '**/build/reports/'
+            runner/build/evidence/
             '**/build/test-results/' 
           if-no-files-found: ignore
 

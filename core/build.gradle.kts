@@ -244,7 +244,11 @@ val assuranceReport by tasks.registering {
     mustRunAfter(tasks.test, tasks.named("integrationTest"))
     val coversFiles =
         listOf("covers", "covers-integration").map { layout.buildDirectory.file("$it/covers.tsv") } +
-            listOf("covers", "covers-ui").map { project(":app").layout.buildDirectory.file("$it/covers.tsv") }
+            listOf("covers", "covers-ui").map { project(":app").layout.buildDirectory.file("$it/covers.tsv") } +
+            listOf("covers", "covers-integration").map { project(":runner").layout.buildDirectory.file("$it/covers.tsv") }
+    val evidenceTraces = project(":runner").layout.buildDirectory.dir("evidence/traces")
+    val transitionsFile = rootProject.layout.projectDirectory.file("model/export/transitions-desk.json")
+    val policyFile = rootProject.layout.projectDirectory.file("model/export/policy.json")
     val out = rootProject.layout.buildDirectory.file("reports/assurance.md")
     outputs.file(out)
     outputs.upToDateWhen { false }
@@ -267,11 +271,11 @@ val assuranceReport by tasks.registering {
         sb.appendLine("# Assurance report")
         sb.appendLine()
         sb.appendLine(
-            "Claims from the inventory (PLAN §A2) and the evidence the test run recorded for each. This first version counts claim coverage by family; transition, policy, mutation, and binding coverage arrive with M3a.",
+            "Claims from the inventory (PLAN §A2) and the evidence the test run recorded for each. It lists the test families that covered each kind of claim, then policy and transition coverage. Mutation and residual-risk columns arrive later.",
         )
         sb.appendLine()
-        sb.appendLine("| Kind | Claims | Covered | Not implemented | Uncovered | Failing |")
-        sb.appendLine("|---|---|---|---|---|---|")
+        sb.appendLine("| Kind | Claims | Covered | Not implemented | Uncovered | Failing | Families |")
+        sb.appendLine("|---|---|---|---|---|---|---|")
         val kinds = claims.groupBy { it["kind"]!! }
         var failing = 0
         for ((kind, cs) in kinds.toSortedMap()) {
@@ -280,8 +284,99 @@ val assuranceReport by tasks.registering {
             sb.appendLine(
                 "| $kind | ${cs.size} | ${st.count {
                     it.startsWith("covered")
-                }} | ${st.count { it == "not implemented" }} | ${st.count { it == "uncovered" }} | ${st.count { it == "FAILING" }} |",
+                }} | ${st.count { it == "not implemented" }} | ${st.count { it == "uncovered" }} | ${st.count { it == "FAILING" }} | ${
+                    cs.flatMap { c ->
+                        (byClaim[c["id"]!!] ?: emptyList()).filter { it[2] == "pass" }.map { it[0] }
+                    }.distinct().sorted().joinToString(" ").ifEmpty { "-" }
+                } |",
             )
+        }
+        sb.appendLine()
+
+        // ---- policy coverage (PLAN §A7): granted cells on modeled actions need T5, denied ones T6 ----
+        @Suppress("UNCHECKED_CAST")
+        val policy = JsonSlurper().parse(policyFile.asFile) as Map<String, Any>
+
+        @Suppress("UNCHECKED_CAST")
+        val modeled = (policy["modeledPerms"] as List<String>).toSet()
+
+        @Suppress("UNCHECKED_CAST")
+        val cells = ((policy["byQ4"] as List<Map<String, Any>>).first()["cells"] as List<Map<String, Any>>).filter { it["perm"] in modeled }
+
+        fun cellKind(c: Map<String, Any>) = (c["cell"] as Map<*, *>)["kind"] as String
+
+        fun families(c: Map<String, Any>) = (byClaim["cell:${c["role"]}/${c["perm"]}"] ?: emptyList()).filter { it[2] == "pass" }.map { it[0] }.toSet()
+        val granted = cells.filter { cellKind(it) == "granted" }
+        val denied = cells.filter { cellKind(it) == "denied" }
+        sb.appendLine("## Policy coverage")
+        sb.appendLine()
+        sb.appendLine("Cells on modeled actions (PLAN §A7). Visibility cells, with no modeled action, are enforced by T7 and not counted here.")
+        sb.appendLine()
+        sb.appendLine("| Cells | Count | Covered | Family required |")
+        sb.appendLine("|---|---|---|---|")
+        sb.appendLine("| granted | ${granted.size} | ${granted.count { "T5" in families(it) }} | T5 |")
+        sb.appendLine("| denied | ${denied.size} | ${denied.count { "T6" in families(it) }} | T6 |")
+        sb.appendLine()
+
+        // ---- transition coverage (PLAN §A7): the model's desk-reject transitions that an evidence record takes ----
+        sb.appendLine("## Transition coverage")
+        sb.appendLine()
+        if (!transitionsFile.asFile.exists() || !evidenceTraces.get().asFile.exists()) {
+            sb.appendLine("No evidence records in this run (run the integration tests against the harness).")
+        } else {
+            @Suppress("UNCHECKED_CAST")
+            val tr = JsonSlurper().parse(transitionsFile.asFile) as Map<String, Any>
+
+            @Suppress("UNCHECKED_CAST")
+            val readings = tr["readings"] as List<Map<String, Any>>
+            val records =
+                evidenceTraces.get().asFile.listFiles { f -> f.extension == "json" }.orEmpty().map { JsonSlurper().parse(it) as Map<String, Any?> }
+                    .filter { it["bindingMutant"] == null && it["implementationFault"] == null }
+
+            fun key(obs: Map<String, Any?>) = obs.toSortedMap().entries.joinToString("|") { "${it.key}=${groovy.json.JsonOutput.toJson(it.value)}" }
+
+            fun move(step: Map<String, Any?>): String {
+                @Suppress("UNCHECKED_CAST")
+                val a = step["action"] as Map<String, Any?>
+
+                @Suppress("UNCHECKED_CAST")
+                val ps = (a["params"] as Map<String, Any?>).toSortedMap().entries.joinToString(",") { "${it.key}=${it.value ?: "null"}" }
+                return "${step["role"] ?: "env"}|${a["key"]}|$ps"
+            }
+            sb.appendLine("| Subsystem | Reading | Transitions | Taken by evidence | Share |")
+            sb.appendLine("|---|---|---|---|---|")
+            for (rd in readings) {
+                val tag = rd["reading"] as String
+
+                @Suppress("UNCHECKED_CAST")
+                val states = rd["states"] as List<String>
+
+                @Suppress("UNCHECKED_CAST")
+                val all =
+                    (rd["transitions"] as List<List<Any>>).map {
+                        "${states[(it[0] as Number).toInt()]}>>${it[1]}>>${states[(it[2] as Number).toInt()]}"
+                    }.toSet()
+                val taken = mutableSetOf<String>()
+                for (r in records) {
+                    @Suppress("UNCHECKED_CAST")
+                    val q1 = (r["reading"] as Map<String, String>)["Q1"]
+                    if ((if (q1 == "fix-window") "fix-window" else "signed") != tag) continue
+                    var from = rd["initial"] as String
+
+                    @Suppress("UNCHECKED_CAST")
+                    for (st in r["steps"] as List<Map<String, Any?>>) {
+                        @Suppress("UNCHECKED_CAST")
+                        val obs = (st["observed"] as Map<String, Map<String, Any?>>).mapValues { it.value.values.first() }
+                        val to = key(obs)
+                        if (st["outcome"] == "effective") taken += "$from>>${move(st)}>>$to"
+                        from = to
+                    }
+                }
+                val hit = taken.count { it in all }
+                sb.appendLine("| desk reject | $tag | ${all.size} | $hit | ${"%.1f".format(100.0 * hit / all.size)}% |")
+            }
+            sb.appendLine()
+            sb.appendLine("Only witness traces run in M3a. Bounded-exhaustive traces (every transition of each subsystem below 10^4 states) arrive with T3.")
         }
         sb.appendLine()
         sb.appendLine("## Claims with evidence")

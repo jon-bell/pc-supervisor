@@ -16,6 +16,12 @@ public sealed interface Trace {
 
     public data class Case(val pid: Long, val n: Int, val outcome: Int) : Trace
 
+    /** The fix window offered on an anonymity violation closes at [dueEpoch] (seconds); a chair's mail-tool notice goes with it. */
+    public data class RemedyDue(val pid: Long, val dueEpoch: Long) : Trace
+
+    /** The authors were warned about a nomination non-compliance (Q10). */
+    public data class Warned(val pid: Long) : Trace
+
     public data class Unparsed(val pid: Long, val tag: String) : Trace
 }
 
@@ -38,9 +44,12 @@ public object Conventions {
         tags.mapNotNull { t ->
             val name = t.substringBefore('#')
             val value = t.substringAfter('#', "0").toDoubleOrNull()?.toInt()
+            val epoch = t.substringAfter('#', "0").toDoubleOrNull()?.toLong()
             if (!name.startsWith("pcs-") && !name.startsWith("~~pcs-")) return@mapNotNull null
             when {
                 name == "pcs-keep" -> Trace.Keep(pid)
+                name == "pcs-remedy-due" && epoch != null -> Trace.RemedyDue(pid, epoch)
+                name == "pcs-warned" -> Trace.Warned(pid)
                 name.startsWith("pcs-refer-") -> Ground.ofKey(name.removePrefix("pcs-refer-"))?.let { Trace.Refer(pid, it) } ?: Trace.Unparsed(pid, t)
                 req.matches(name) && value != null -> {
                     val m = req.matchEntire(name)!!
@@ -62,6 +71,8 @@ public object Conventions {
             is Trace.Refer -> "pcs-refer-${t.ground.key}"
             is Trace.RequestSent -> "pcs-req-${t.ordinal}${t.n}#${t.disposition?.let { d -> DISPOSITION_CODES.entries.first { it.value == d }.key } ?: 0}"
             is Trace.Case -> "~~pcs-case-${t.n}#${t.outcome}"
+            is Trace.RemedyDue -> "pcs-remedy-due#${t.dueEpoch}"
+            is Trace.Warned -> "pcs-warned"
             is Trace.Unparsed -> t.tag
         }
 }

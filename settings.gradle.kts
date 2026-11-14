@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 rootProject.name = "pc-supervisor"
 
 // Modules are added by the milestone that first needs them (PLAN.md): agent (M8).
-include("core", "cli", "seed", "app")
+include("core", "cli", "seed", "app", "runner")

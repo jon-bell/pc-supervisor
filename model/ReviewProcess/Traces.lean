@@ -210,6 +210,36 @@ def deskTraces (tag : String) (r : Reading) : List Trace :=
                 ⟨some .ac, .remove⟩], verdict := .denied }
   goals ++ uses ++ [silence, junior, authorRefer, acRemove]
 
+/-- A canonical string for an observation: keys sorted, values compressed. The report matches evidence by it. -/
+def obsKey (j : Json) : String :=
+  match j with
+  | .obj kvs => "|".intercalate (kvs.toList.map fun (k, v) => s!"{k}={v.compress}")
+  | _ => j.compress
+
+/-- A canonical string for a move: role, action key, parameters sorted. -/
+def moveKey (role : Option Role) (d : ActDesc) : String :=
+  let sorted := d.2.toArray.qsort (fun a b => a.1 < b.1) |>.toList
+  let pstr := ",".intercalate (sorted.map fun (k, v) => s!"{k}={match v with | Json.str t => t | _ => v.compress}")
+  s!"{match role with | some ro => roleKey ro | none => "env"}|{d.1}|{pstr}"
+
+/-- Every effective transition of the desk-reject subsystem under a reading, as indices into a state table
+    and a move table: the assurance report's transition coverage is the share evidence records take. -/
+def deskTransitions (r : Reading) : List String × List (Nat × String × Nat) := Id.run do
+  let e := explore deskSys {} r
+  let moves : List (Option Role × DeskAct) :=
+    deskSys.acts.flatMap fun a => match deskSys.perm a with
+      | some _ => Role.all.map fun role => (some role, a)
+      | none => [(none, a)]
+  let keys := e.states.toList.map fun s => obsKey (deskObserve r s)
+  let idx : Std.HashMap String Nat := keys.zipIdx.foldl (fun m (k, i) => m.insertIfNew k i) {}
+  let mut out := []
+  for (s, i) in e.states.toList.zipIdx do
+    for m in moves do
+      match gated deskSys {} r s m with
+      | some s' => out := out ++ [(i, moveKey m.1 (deskDesc m.2), idx.getD (obsKey (deskObserve r s')) 0)]
+      | none => pure ()
+  return (keys, out)
+
 /-! ### Binding mutants (PLAN §A8) -/
 
 /-- Faults in the test code that would make a broken system look correct. `milestone` is where

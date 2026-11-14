@@ -56,6 +56,16 @@ def actionsJson : Json :=
         Json.mkObj [("key", k), ("type", t), ("readers", Json.arr (rs.toArray.map Json.str))])]
   Json.arr #[sys deskSys deskDesc deskObservations, sys earlySys earlyDesc [], sys accSys accDesc [], sys pcSys pcDesc []]
 
+def transitionsJson (a : Answers) : Json :=
+  let base := a.base
+  let fix := base.set .q1 (indexIn (QId.q1.labels.map (·.1)) "fix-window")
+  let one (tag : String) (r : Reading) : Json :=
+    let (states, ts) := deskTransitions r
+    Json.mkObj [("reading", tag), ("initial", obsKey (deskObserve r deskSys.init)),
+      ("states", Json.arr (states.toArray.map Json.str)),
+      ("transitions", Json.arr (ts.toArray.map fun (f, m, t) => Json.arr #[Json.num f, Json.str m, Json.num t]))]
+  Json.mkObj [("subsystem", deskSys.name), ("readings", Json.arr #[one "signed" base, one "fix-window" fix])]
+
 def tracesJson (a : Answers) : Json :=
   let base := a.base
   let fix := base.set .q1 (indexIn (QId.q1.labels.map (·.1)) "fix-window")
@@ -77,6 +87,7 @@ def main (args : List String) : IO Unit := do
   -- the Lean parse of the synthetic answers file, for the JVM parser-agreement test
   let a := parseAnswers (← IO.FS.readFile "answers/synthetic.txt")
   write "traces-desk.json" (tracesJson a)
+  IO.FS.writeFile s!"{dir}/transitions-desk.json" ((transitionsJson a).compress ++ "\n")
   write "answers-synthetic.json" (Json.mkObj [
     ("given", Json.arr (a.given.toArray.map fun (q, i) => Json.arr #[q.code, (q.labels.getD i ("?", "?")).1])),
     ("errors", Json.arr (a.errors.toArray.map Json.str))])

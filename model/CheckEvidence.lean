@@ -69,6 +69,10 @@ def traceDisagreements (rec : Json) : Except String (List String) := do
 def checkTraceRecord (rec : Json) : Except String (List String) := do
   let bad ← traceDisagreements rec
   let claimedHolds := (getObj (getObj rec "verdict") "holds").getBool?.toOption.getD false
+  -- the boundary log: nothing but the harness, and no canary anywhere it must not be (PLAN §A6)
+  let violations := getArr (getObj rec "boundary") "violations"
+  let bad := bad ++ violations.toList.map fun v => s!"boundary violation: {v.getStr?.toOption.getD (v.compress)}"
+  let bad := if (getObj rec "boundary") == Json.null then bad ++ ["the record has no boundary log"] else bad
   pure (if claimedHolds then bad else bad ++ ["the claimed verdict does not hold in the model"])
 
 def requiredPositive : List String :=
