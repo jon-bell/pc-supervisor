@@ -111,7 +111,8 @@ fts(text)                                              -- FTS5 over review_text 
 
 ```
 answers(qid, reading, file_hash, loaded_at)                  -- rulings, from the answers file (§4.1)
-import_run(id, source, at, file_hash, rows, row_errors JSON) -- versioned imports (§10.3)
+import_run(id, kind, source, at, file_hash, rows, status ok|rejected, row_errors JSON, mapping JSON, assumption)
+  import_row(run_id, row_no, key, data JSON)           -- versioned imports (§10.3); a rejected run has errors and no rows
 finding(pid, check, version, ground, anchors JSON, engine, status, bundle_hash)  -- from the screening bundle
 artifact(id, kind, body, purpose, drafted_at, dry_run JSON,
          confirmed_by, confirmed_at, applied_at, observed_at, mismatch JSON)    -- Writeback
@@ -164,6 +165,7 @@ Configuration comes from three sources, and startup validates all of them and li
 | `PCS_ANSWERS` | Path to the answers file | required |
 | `PCS_TZ` | Time zone for phase dates and display | `America/New_York` |
 | `PCS_PHASE_*` | Phase dates (§10.1) | required for the phases in use |
+| `PCS_IMPORT_FRESH_<KIND>_DAYS` | Days before an import of a kind is reported stale (§10.3) | appointments 7, tpms-registrations 14, tpms-assignments 30, tpms-scores 30, screening-bundle 3, refcheck 7 |
 | `PCS_NOW` | Pin the clock | unset = real time |
 | `PCS_AC_ROLE` | `meta` \| `lead` \| `manager` \| `tag:<t>` | `meta` |
 | `PCS_TIER_TAGS` | e.g. `junior=junior,nominee=nominee`; untagged PC members are senior | empty |
@@ -370,12 +372,22 @@ A PC member's tier is `senior` or `junior`, as their AC classified them, and the
 | `screening-bundle` | The screening agent's output (agent.md): findings with anchors, the manifest, and qualification records | pid |
 | `refcheck` | Output of an external reference checker. Superseded by the screening agent, but kept so an external tool's output can be imported | pid |
 
-Imports are versioned like snapshots, so "what did the sheet say on day X" is answerable. An import takes all rows or none, and reports row-level errors.
+Imports are versioned like snapshots, so "what did the sheet say on day X" is answerable (`Imports.asOf`: the latest accepted version imported at or before that instant). An import takes all rows or none, and reports row-level errors; a rejected file is recorded with its errors and no rows, and the previous version stays current. A rejected attempt never refreshes a stale import.
+
+How the importer reads each kind (CSV with a header row; column names match case-insensitively; unknown columns are errors, except in `tpms-assignments`, where the layout is the operator's):
+- `appointments`: all nine columns. `origin` is `invited`, `self-nominated`, or `nominee`; `nominated_by` is paper numbers separated by `;`; `decision` is `accept`/`decline`/`pending`; `tier` may be blank unless the decision is `accept`; `consent` is yes/no/blank; `on_pc_at` is an ISO date or date-time or blank. Keyed by email (lowercased), no duplicates.
+- `tpms-assignments`: `paper` and `email` (and optional `round`), after `--map`. Keyed by `paper|email`.
+- `tpms-scores`: `paper,email,score`, score a number in 0–1. Keyed by `paper|email`.
+- `tpms-registrations`: `email` alone means registered; otherwise `registered` is yes/no. Keyed by email.
+- `screening-bundle`: findings as CSV, one row per finding: `pid,check,version,ground,engine,status,bundle_hash[,anchors]`, anchors a JSON array. Keyed by `pid|check|ground`. The manifest and qualification records arrive with M12.
+- `refcheck`: `pid,reference,status[,detail]`, status `verified`/`mismatch`/`not-found`/`unchecked`. Keyed by `pid|reference`.
+
+**Staleness (concepts M2).** `pcs import status` lists each kind as fresh, stale (older than its `PCS_IMPORT_FRESH_<KIND>_DAYS`), or never imported. `tpms-*` imports rest on assumption A3 and `appointments` on A4; each import records which in `import_run.assumption`.
 
 **Exports to TPMS** (`pcs export tpms <dir>`). TPMS has no API, no HotCRP integration, and no chair self-service; data is exchanged as files with the operator. The tool prepares:
 - the PC list with emails;
 - the HotCRP conflicts CSV;
-- one load-group file per tier and load band;
+- one load-group file per tier and load band (`load-<tier>-max<N>.csv`, tiers from the latest `appointments` import, senior if absent);
 - the reviews-per-paper target.
 
 The PDF ZIP comes from HotCRP's own download.

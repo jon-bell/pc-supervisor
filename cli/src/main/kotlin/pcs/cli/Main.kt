@@ -15,9 +15,13 @@ fun main(args: Array<String>) {
         "probe" -> probe()
         "sync" -> sync()
         "wipe" -> wipe()
+        "import" -> importCmd(args.drop(1))
+        "export" -> exportCmd(args.drop(1))
         "agent" -> agent(args.drop(1))
         else -> {
-            System.err.println("usage: pcs probe | sync | wipe | agent check|probe|plan|run")
+            System.err.println(
+                "usage: pcs probe | sync | wipe | import <kind> <file> [--map col=name,...] | import status | export tpms <dir> | agent check|probe|plan|run",
+            )
             exitProcess(2)
         }
     }
@@ -135,6 +139,97 @@ fun sync() {
             println("synced into $path: new ${counts.newRows}, changed ${counts.changed}, gone ${counts.gone}")
             if (c.drift.isNotEmpty()) println("contract drift recorded in sync_run: ${c.drift.size} problems")
         }
+    }
+}
+
+private fun offlineStore(): Triple<Settings, pcs.core.store.Store, pcs.core.time.Clock> {
+    val env = System.getenv()
+    val conf = env["PCS_CONF"]?.let { Path.of(it) }?.takeIf(Files::exists)?.let(Settings::readConf).orEmpty()
+    val settings =
+        try {
+            Settings.load(env + mapOf("PCS_ANSWERS" to (env["PCS_ANSWERS"] ?: "unused")), conf).getOrThrow()
+        } catch (e: SettingsException) {
+            System.err.println(e.message)
+            exitProcess(1)
+        }
+    val key =
+        env["PCS_DB_KEY"]?.takeIf { settings.isLocalHarness }
+            ?: error("the DB key comes from the OS keychain (M4); PCS_DB_KEY only for the local harness")
+    val path = dbPath(settings)
+    Files.createDirectories(path.parent)
+    return Triple(settings, pcs.core.store.Store.open(path, key), pcs.core.time.Clock.fromSettings(settings.now))
+}
+
+/**
+ * PLAN M6, spec §10.3: `pcs import <kind> <file> [--map col=name,...]` imports a file as a new
+ * version (all rows or none; a rejected file prints its row errors and exits 1), and
+ * `pcs import status` lists each kind's freshness and the current phase.
+ */
+fun importCmd(args: List<String>) {
+    val kinds = pcs.core.imports.ImportKind.entries.joinToString("|") { it.id }
+    val (settings, store, clock) = offlineStore()
+    store.use {
+        val imports = pcs.core.imports.Imports(store, clock)
+        if (args.firstOrNull() == "status") {
+            println("phase: ${settings.phaseModel.current(clock.now())} at ${clock.now()}")
+            imports.staleness(settings.importFreshDays).forEach { println(it.describe()) }
+            return
+        }
+        val kind = args.getOrNull(0)?.let(pcs.core.imports.ImportKind::ofId)
+        if (kind == null || args.size < 2) {
+            System.err.println("usage: pcs import ($kinds) <file> [--map col=name,...] | pcs import status")
+            exitProcess(2)
+        }
+        var mapping = emptyMap<String, String>()
+        var i = 2
+        while (i < args.size) {
+            if (args[i] == "--map") {
+                mapping =
+                    args.getOrNull(++i).orEmpty().split(",").filter { it.isNotBlank() }.associate {
+                        it.substringBefore("=").trim() to it.substringAfter("=", "").trim()
+                    }
+            } else {
+                System.err.println("unknown option ${args[i]}")
+                exitProcess(2)
+            }
+            i++
+        }
+        val file = Path.of(args[1])
+        when (val r = imports.import(kind, Files.readAllBytes(file), file.fileName.toString(), mapping)) {
+            is pcs.core.imports.ImportResult.Accepted -> {
+                val run = r.run
+                println("imported ${run.rows} ${kind.id} rows as version ${run.id} (sha256 ${run.fileHash.take(12)}, at ${run.at})")
+                kind.assumption?.let { println("rests on assumption ${it.label}: ${it.text}") }
+                val prev = imports.before(run)
+                if (prev != null) {
+                    val d = imports.diff(prev, imports.snapshotOf(run)!!)
+                    println("since version ${prev.run.id}: ${d.added.size} added, ${d.removed.size} removed, ${d.changed.size} changed")
+                }
+            }
+            is pcs.core.imports.ImportResult.Rejected -> {
+                System.err.println("nothing imported: ${r.errors.size} problems in ${file.fileName}")
+                r.errors.take(50).forEach { System.err.println("  line ${it.line}${it.column?.let { c -> " [$c]" } ?: ""}: ${it.message}") }
+                if (r.errors.size > 50) System.err.println("  ... and ${r.errors.size - 50} more")
+                exitProcess(1)
+            }
+        }
+    }
+}
+
+/** `pcs export tpms <dir>` (spec §10.3): the files a chair sends the TPMS operator. */
+fun exportCmd(args: List<String>) {
+    if (args.firstOrNull() != "tpms" || args.size != 2) {
+        System.err.println("usage: pcs export tpms <dir>")
+        exitProcess(2)
+    }
+    val (settings, store, clock) = offlineStore()
+    store.use {
+        val r =
+            pcs.core.imports.TpmsExport(
+                store,
+                pcs.core.imports.Imports(store, clock),
+            ).write(Path.of(args[1]), settings.loadMax, settings.reviewsRequired, clock.now())
+        println("wrote ${r.files.joinToString()} to ${r.dir} (${r.pcMembers} PC members, ${r.conflicts} conflicts)")
     }
 }
 

@@ -1,5 +1,7 @@
 package pcs.core.config
 
+import pcs.core.imports.ImportKind
+import pcs.core.phases.Phases
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -34,9 +36,14 @@ public data class Settings(
     val historyRps: Int,
     val forceShow: Boolean,
     val loadMax: Map<String, Int>,
+    /** Days after which an import of each kind is stale (`PCS_IMPORT_FRESH_<KIND>_DAYS`, spec §10.3). */
+    val importFreshDays: Map<ImportKind, Int>,
     val raw: Map<String, String>,
 ) {
     public val isLocalHarness: Boolean get() = isLocalhost(hotcrpUrl)
+
+    /** The phase logic over [phases] (spec §10.1). Ask it about `Clock.now()`. */
+    public val phaseModel: Phases get() = Phases(phases)
 
     public companion object {
         /** Keys the loader knows, beyond the patterned ones (`PCS_PHASE_*`, `PCS_RULE_*`, ...). */
@@ -70,6 +77,7 @@ public data class Settings(
         public val PATTERNS: List<Regex> =
             listOf(
                 Regex("PCS_PHASE_[A-Z_]+"),
+                Regex("PCS_IMPORT_FRESH_[A-Z_]+_DAYS"),
                 Regex("PCS_RULE_[A-Z_]+_WEIGHT"),
                 Regex("PCS_THRESH_[A-Z_]+"),
                 Regex("PCS_LOAD_[A-Z]+_MAX"),
@@ -144,6 +152,8 @@ public data class Settings(
                     null
                 }
             val phases = m.filterKeys { it.startsWith("PCS_PHASE_") }.mapNotNull { (k, v) -> instant(k, v)?.let { k.removePrefix("PCS_PHASE_") to it } }.toMap()
+            for (k in phases.keys) if (k !in Phases.KEYS) errors += "PCS_PHASE_$k: unknown phase date (spec §10.1)"
+            Phases(phases).windowProblems().forEach { errors += it }
             val now = m["PCS_NOW"]?.let { instant("PCS_NOW", it) }
             val acRole =
                 parse("PCS_AC_ROLE", "meta") { s ->
@@ -162,6 +172,16 @@ public data class Settings(
                 m.filterKeys { Regex("PCS_LOAD_[A-Z]+_MAX").matches(it) }
                     .mapKeys { it.key.removePrefix("PCS_LOAD_").removeSuffix("_MAX").lowercase() }
                     .mapValues { (k, _) -> int("PCS_LOAD_${k.uppercase()}_MAX", 0, min = 1) }
+            val importFreshDays =
+                m.filterKeys { Regex("PCS_IMPORT_FRESH_[A-Z_]+_DAYS").matches(it) }.mapNotNull { (k, _) ->
+                    val kind = ImportKind.entries.firstOrNull { it.freshnessKey == k }
+                    if (kind == null) {
+                        errors += "$k: no such import kind (${ImportKind.entries.joinToString { it.freshnessKey }})"
+                        null
+                    } else {
+                        kind to int(k, kind.defaultFreshDays, min = 1)
+                    }
+                }.toMap()
             for (k in listOf("PCS_HOTCRP_TOKEN", "PCS_DB_KEY")) {
                 if (k in env &&
                     url != null &&
@@ -192,6 +212,7 @@ public data class Settings(
                     historyRps = int("PCS_HISTORY_RPS", 1, min = 1),
                     forceShow = bool("PCS_FORCE_SHOW", true),
                     loadMax = mapOf("senior" to 15, "junior" to 8) + loadMax,
+                    importFreshDays = importFreshDays,
                     raw = m,
                 )
             return if (errors.isEmpty()) Result.success(s) else Result.failure(SettingsException(errors))

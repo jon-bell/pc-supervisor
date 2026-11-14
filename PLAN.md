@@ -383,6 +383,24 @@ Changing this table means changing the M3 and M18 tests in the same PR.
 - **Scope:** the phase dates of spec §10.1 and their phase logic; `pcs import` for every kind in spec §10.3, versioned, all rows or none; `pcs export tpms`.
 - **Done when:** each import kind round-trips from fixture CSVs; a malformed CSV produces a row-level error report and no partial import; "what did the sheet say on day X" is answered by a test at two `PCS_NOW` values.
 - **Evidence:** `prop:M2` (stale imports); `assume:A3`, `assume:A4` recorded with their owners.
+- **Progress (2026-11-14, branch `m6-imports`):** done locally, `./gradlew check` green (CI not run).
+  - **Built (all in `core`, plus CLI):**
+    - `phases/Phases.kt`: `Phase` (REGISTRATION, SUBMISSION, DESKREJECT, APPOINTMENTS, ASSIGNMENT, REVIEWING, POST_REVIEW, DISCUSSION, DECISIONS, CLOSED) and `Window` (EARLY_REJECT, RESPONSE) over the `PCS_PHASE_*` dates; `Settings.phaseModel`; the loader now rejects an unknown `PCS_PHASE_*` key and a window that closes before it opens.
+    - `imports/`: CSV reader, the six kinds of spec §10.3, `Imports` (import, `asOf`, `latest`, `before`, `runs`, `diff`, `staleness`), `TpmsExport`. Migration `004-imports.sql` (`import_run`, `import_row`); migrations 001-003 untouched.
+    - CLI: `pcs import <kind> <file> [--map col=name,...]`, `pcs import status`, `pcs export tpms <dir>`. Settings: `PCS_IMPORT_FRESH_<KIND>_DAYS` (in the loader and `pcs.conf.example`).
+  - **Evidence:**
+    - `ImportsTest`: every kind round-trips from fixtures under `core/src/test/resources/pcs/imports`; `appointments-bad.csv` and `tpms-scores-bad.csv` give row-level errors, no rows, earlier version still current; the as-of test at two clock values (and one second either side of an import); staleness at the limit, one second past it, missing, override, and rejected attempts not refreshing (`prop:M2`). `PhasesTest`: every deadline boundary, windows, time zone and DST, `PCS_NOW`, skipped dates. `CsvTest`, `TpmsExportTest`.
+    - `@Covers`: `prop:M2`, `assume:A3`, `assume:A4`.
+    - CLI smoke by hand against a scratch store: import, rejected import (8 errors listed, exit 1), status, export.
+  - **Assumptions recorded:** A3 (TPMS files are what the operator sent) owner **process chairs**; A4 (the appointments sheet records the ACs' real decisions) owner **PC chairs**. Both are in `Assumptions` (core), printed by `pcs import`, and stored on every `import_run`. The owners are my reading of concepts §3.12 "accountable"; the chairs should confirm.
+  - **Ambiguities resolved:**
+    - Phase dates are deadlines: at the instant itself the phase has ended. Unset dates are skipped. Out-of-order deadlines are reported by `Phases.orderProblems()` but not rejected (appointments might legitimately follow assignment).
+    - `screening-bundle` has no format in agent.md; it is imported as a findings CSV matching spec §3 `finding`. `refcheck`'s columns are my choice (`pid,reference,status[,detail]`).
+    - Appointment `origin` values (`invited`, `self-nominated`, `nominee`) and "accepted needs a tier" are my reading of spec §10.2.
+    - Rejected attempts are stored in `import_run` (status `rejected`, with errors) so the audit trail shows them; as-of reads ignore them.
+    - Staleness: each kind has a default freshness in days; "never imported" is reported separately from "stale". `prop:M2` covers the staleness report only; notifying process chairs from the app is M4/M20 UI work, and Writeback mismatches and route gaps belong to their milestones.
+    - TPMS export: `pc.csv`, `conflicts.csv` (PC members only), `load-<tier>-max<N>.csv`, `reviews-per-paper.txt`. A PC member with no appointments row is senior.
+  - **Not done:** an import screen in the app; the screening-bundle manifest and qualification records (M12); the TPMS column mapping for `tpms-registrations` (no confirmed layout).
 
 ## M7: Nominations and appointments (spec §10.4 A)
 

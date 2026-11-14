@@ -1,0 +1,5 @@
+paper,email,score
+12,ada.sample@example.org,0.91
+12,ben.sample@example.org,1.7
+forty,ada.sample@example.org,0.2
+40,ada.sample@example.org,NaN
