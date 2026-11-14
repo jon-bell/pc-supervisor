@@ -22,7 +22,20 @@ public sealed interface Trace {
     /** The authors were warned about a nomination non-compliance (Q10). */
     public data class Warned(val pid: Long) : Trace
 
+    /** The AC's triage in a screen-round metareview (the `Triage` review field, spec §11). */
+    public data class Triage(val pid: Long, val reviewer: String, val choice: TriageChoice) : Trace
+
+    /** A screening-findings comment posted through Writeback (spec §11): [cid], authored by [author]. */
+    public data class Findings(val pid: Long, val cid: Long, val author: String?) : Trace
+
     public data class Unparsed(val pid: Long, val tag: String) : Trace
+}
+
+/** What the triage field says: keep the paper, or refer it on a ground. */
+public sealed interface TriageChoice {
+    public data object Keep : TriageChoice
+
+    public data class Refer(val ground: Ground) : TriageChoice
 }
 
 public object Conventions {
@@ -35,6 +48,36 @@ public object Conventions {
             4 to ReqDisposition.NO_REPLY,
             5 to ReqDisposition.DISPUTED,
         )
+
+    /** First line of a screening-findings comment (spec §11). */
+    public const val FINDINGS_MARKER: String = "[pcs:findings]"
+
+    /**
+     * The `Triage` field's radio values (spec §11): 1 is keep, and 2, 3, ... are the grounds in the
+     * model's order (2 format, 3 scope, 4 anonymity, ...). The instance's field must use these symbols.
+     */
+    public fun decodeTriage(code: Int): TriageChoice? =
+        when {
+            code == 1 -> TriageChoice.Keep
+            code >= 2 && code - 2 < Ground.entries.size -> TriageChoice.Refer(Ground.entries[code - 2])
+            else -> null
+        }
+
+    public fun encodeTriage(c: TriageChoice): Int =
+        when (c) {
+            TriageChoice.Keep -> 1
+            is TriageChoice.Refer -> 2 + c.ground.ordinal
+        }
+
+    /** A comment is a trace only if it opens with a `[pcs:` marker: the findings marker parses, any other `[pcs:` opening doesn't. */
+    public fun decodeComment(pid: Long, cid: Long, author: String?, text: String): Trace? {
+        val first = text.lineSequence().firstOrNull()?.trim().orEmpty()
+        return when {
+            first == FINDINGS_MARKER -> Trace.Findings(pid, cid, author)
+            first.startsWith("[pcs:") -> Trace.Unparsed(pid, first)
+            else -> null
+        }
+    }
 
     private val req = Regex("""pcs-req-([A-Z]+)([0-9]+)""")
     private val case = Regex("""~~pcs-case-([0-9]+)""")
@@ -74,5 +117,6 @@ public object Conventions {
             is Trace.RemedyDue -> "pcs-remedy-due#${t.dueEpoch}"
             is Trace.Warned -> "pcs-warned"
             is Trace.Unparsed -> t.tag
+            is Trace.Triage, is Trace.Findings -> throw IllegalArgumentException("a review field or comment, not a tag: $t")
         }
 }

@@ -19,6 +19,8 @@ public data class Review(
     val ratings: List<String>,
     /** Review-form fields by UID (OveMer, RevExp, ...): their set depends on the instance's form. */
     val fields: Map<String, JsonElement>,
+    /** The review round's name (`screen` for a triage or second opinion, spec §11); null in the unnamed round. */
+    val round: String? = null,
 )
 
 public data class Comment(

@@ -53,7 +53,9 @@ public class HotcrpClient(
         // at the pinned HOTCRP_REF. Anything else unexpected is drift (ContractTest).
         val PC_UNREAD = setOf("affiliation")
         val PAPER_UNREAD = setOf("abstract", "contacts", "object", "submission", "submitted", "submitted_at", "topics", "options", "final")
-        val REVIEW_UNREAD = setOf("blind", "draft", "editable", "modified_at_text", "object", "reviewer", "user_rating", "round", "submitted", "my_request")
+        val REVIEW_UNREAD = setOf("blind", "draft", "editable", "modified_at_text", "object", "reviewer", "user_rating", "submitted",
+                // the ids of fields a review's round hides (the screen round hides the normal fields, spec §11)
+                "hidden_fields", "my_request")
         val COMMENT_UNREAD =
             setOf(
                 "author",
@@ -117,6 +119,11 @@ public class HotcrpClient(
         return list
     }
 
+    /** The tags HotCRP lists on `/pc` (those in use on users, not who has them; spec §1), as of the last [pc] call. */
+    @Volatile
+    public var pcTags: List<String> = emptyList()
+        private set
+
     public suspend fun pc(): List<PcMember> {
         val body = call(HttpMethod.Get, "pc", emptyMap())
         val o = json.parseToJsonElement(body).jsonObject
@@ -136,6 +143,7 @@ public class HotcrpClient(
             }
         (o.keys - setOf("ok", "pc", "tags", "message_list")).forEach { problems += "pc: unexpected top-level key $it" }
         check(problems)
+        pcTags = (o["tags"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content }
         return out
     }
 
@@ -231,6 +239,7 @@ public class HotcrpClient(
                         modifiedAt = s.optLong("modified_at"),
                         ratings = s.stringsOrOne("ratings"),
                         fields = fields,
+                        round = s.optString("round"),
                     ).also { s.finish(ignore = REVIEW_UNREAD) }
                 }
             check(problems)
@@ -262,6 +271,7 @@ public class HotcrpClient(
             modifiedAt = s.optLong("modified_at"),
             ratings = s.stringsOrOne("ratings"),
             fields = fields,
+            round = s.optString("round"),
         ).also { s.finish(ignore = REVIEW_UNREAD) }
     }
 

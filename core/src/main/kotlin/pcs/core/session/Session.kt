@@ -108,6 +108,9 @@ public class Session private constructor(
             }
         }
 
+    /** Writeback (spec §6) for this conference: the only way the app changes HotCRP. */
+    public fun writeback(): pcs.core.writeback.Writeback = pcs.core.writeback.Writeback(store, clock, settings.hotcrpUrl, token())
+
     public fun lastSync(): SyncRun? =
         store.conn.createStatement().use { s ->
             s.executeQuery("SELECT finished_at, counts, errors FROM sync_run WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1").use {

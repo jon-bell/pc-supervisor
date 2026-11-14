@@ -34,6 +34,9 @@ public class Sync(private val store: Store, private val clock: Clock) {
         val papers = client.papers(pids)
         val reviews = client.reviews(pids)
         val comments = client.comments(pids)
+        val pcTags = client.pcTags
+        // instance settings the conventions rely on (spec §11); a token that can't read them leaves the fact unknown
+        val tagHidden = runCatching { client.settings()["tag_hidden"]?.toString() }.getOrNull()
         val now = clock.now().epochSecond
         val newRows = mutableMapOf<String, Int>().withDefault { 0 }
         val changed = mutableMapOf<String, Int>().withDefault { 0 }
@@ -45,6 +48,8 @@ public class Sync(private val store: Store, private val clock: Clock) {
 
         store.tx { c ->
             persons(c, pc, now, ::bump, newRows, changed, gone)
+            fact(c, "pc_tags", pcTags.joinToString(" "), now)
+            if (tagHidden != null) fact(c, "tag_hidden", tagHidden, now)
             papers(c, papers, now, ::bump, newRows, changed, gone)
 
             // assignments
@@ -86,7 +91,7 @@ public class Sync(private val store: Store, private val clock: Clock) {
                 val complete = rv.status == "complete"
                 if (prev == null) {
                     c.exec(
-                        "INSERT INTO review(rid,pid,email,rtype,status,ordinal,vtag,modified_at,scores,word_count,ratings,first_seen_at,first_complete_seen_at,last_seen_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        "INSERT INTO review(rid,pid,email,rtype,status,ordinal,vtag,modified_at,scores,word_count,ratings,first_seen_at,first_complete_seen_at,last_seen_at,round) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         rv.rid,
                         rv.pid,
                         rv.reviewerEmail,
@@ -101,6 +106,7 @@ public class Sync(private val store: Store, private val clock: Clock) {
                         now,
                         if (complete) now else null,
                         now,
+                        rv.round,
                     )
                     bump(newRows, "review")
                 } else {
@@ -111,7 +117,7 @@ public class Sync(private val store: Store, private val clock: Clock) {
                         bump(newRows, "rating_change")
                     }
                     c.exec(
-                        "UPDATE review SET pid=?,email=?,rtype=?,status=?,ordinal=?,vtag=?,modified_at=?,scores=?,word_count=?,ratings=?,first_complete_seen_at=?,last_seen_at=?,gone_at=NULL WHERE rid=?",
+                        "UPDATE review SET pid=?,email=?,rtype=?,status=?,ordinal=?,vtag=?,modified_at=?,scores=?,word_count=?,ratings=?,first_complete_seen_at=?,last_seen_at=?,round=?,gone_at=NULL WHERE rid=?",
                         rv.pid,
                         rv.reviewerEmail,
                         rv.rtype,
@@ -124,6 +130,7 @@ public class Sync(private val store: Store, private val clock: Clock) {
                         ratings,
                         firstComplete?.toLong() ?: if (complete) now else null,
                         now,
+                        rv.round,
                         rv.rid,
                     )
                 }
@@ -157,6 +164,8 @@ public class Sync(private val store: Store, private val clock: Clock) {
 
             commentsSync(c, comments, pc, now, ::bump, newRows, changed, gone)
         }
+        // Writeback (H2): every applied artifact must now show its effect, or be flagged
+        pcs.core.writeback.Ledger.observe(store, now)
         val counts = SyncCounts(newRows.toMap(), changed.toMap(), gone.toMap())
         store.conn.prepareStatement("INSERT INTO sync_run(started_at,finished_at,now_used,counts,errors) VALUES(?,?,?,?,?)").use { st ->
             st.setLong(1, started)
@@ -167,6 +176,10 @@ public class Sync(private val store: Store, private val clock: Clock) {
             st.executeUpdate()
         }
         return counts
+    }
+
+    private fun fact(c: Connection, k: String, v: String, now: Long) {
+        c.exec("INSERT INTO instance_fact(k,v,read_at) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, read_at=excluded.read_at", k, v, now)
     }
 
     private fun persons(

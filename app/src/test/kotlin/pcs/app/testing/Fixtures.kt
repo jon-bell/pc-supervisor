@@ -1,8 +1,8 @@
 package pcs.app.testing
 
 import pcs.app.UrlOpener
-import pcs.core.config.Settings
 import pcs.core.secrets.Keychain
+import pcs.testing.LocalHarness
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -39,9 +39,7 @@ object Fixtures {
     fun harness(): Pair<URI, String> {
         val url = System.getenv("PCS_HOTCRP_URL") ?: error("PCS_HOTCRP_URL is not set: start the harness and load .env.test (see AGENTS.md)")
         val token = System.getenv("PCS_HOTCRP_TOKEN") ?: error("PCS_HOTCRP_TOKEN is not set")
-        val uri = URI(url)
-        check(Settings.isLocalhost(uri)) { "UI tests run only against the local harness, not $url" }
-        return uri to token
+        return LocalHarness.require(url) to token
     }
 
     /** Writes `<id>.conf` into [dir]: a conference with its own store file next to it. */

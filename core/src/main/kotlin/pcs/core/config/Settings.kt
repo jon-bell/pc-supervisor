@@ -39,6 +39,8 @@ public data class Settings(
     /** Days after which an import of each kind is stale (`PCS_IMPORT_FRESH_<KIND>_DAYS`, spec §10.3). */
     val importFreshDays: Map<ImportKind, Int>,
     val raw: Map<String, String>,
+    /** The tag a chair puts on a set that needs the chairs' attention (`PCS_TAG_CHAIR_ATTENTION`, spec §6). */
+    val tagChairAttention: String = "chair-attention",
 ) {
     public val isLocalHarness: Boolean get() = isLocalhost(hotcrpUrl)
 
@@ -214,6 +216,10 @@ public data class Settings(
                     loadMax = mapOf("senior" to 15, "junior" to 8) + loadMax,
                     importFreshDays = importFreshDays,
                     raw = m,
+                    tagChairAttention =
+                        (m["PCS_TAG_CHAIR_ATTENTION"] ?: "chair-attention").also {
+                            if (!Regex("[A-Za-z0-9_.-]+").matches(it)) errors += "PCS_TAG_CHAIR_ATTENTION: not a HotCRP tag name: $it"
+                        },
                 )
             return if (errors.isEmpty()) Result.success(s) else Result.failure(SettingsException(errors))
         }
