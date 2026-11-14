@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import pcs.core.config.Settings
 import pcs.core.config.SettingsException
 import pcs.core.hotcrp.HotcrpClient
+import pcs.core.nominations.Resolved
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.system.exitProcess
@@ -17,6 +18,7 @@ fun main(args: Array<String>) {
         "wipe" -> wipe()
         "import" -> importCmd(args.drop(1))
         "export" -> exportCmd(args.drop(1))
+        "nominations" -> nominationsCmd()
         "agent" -> agent(args.drop(1))
         else -> {
             System.err.println(
@@ -213,6 +215,59 @@ fun importCmd(args: List<String>) {
                 exitProcess(1)
             }
         }
+    }
+}
+
+/**
+ * `pcs nominations` (spec §10.4 A): per-paper nominee checks, what each person owes, patterns, the submission
+ * cap, and the membership drafts the latest appointments sheet would produce, under the answers file. A result
+ * that turns on an open question prints what each reading would give.
+ */
+fun nominationsCmd() {
+    val (settings, store, clock) = offlineStore()
+    store.use {
+        val data = pcs.core.nominations.NominationData(store, pcs.core.imports.Imports(store, clock))
+        val answers = pcs.core.readings.Answers.read(settings.answersPath)
+        val input = data.input()
+        val r = pcs.core.nominations.NominationRules.build(input, answers.readings)
+
+        fun <T> show(x: Resolved<T>, f: (T) -> String): String =
+            when (x) {
+                is Resolved.Decided -> f(x.value)
+                is Resolved.Open ->
+                    "open on ${x.by.joinToString { it.code }}: " +
+                        x.cases.joinToString("; ") { (m, v) -> m.entries.joinToString(",") { "${it.key.code}=${it.value}" } + " -> " + f(v) }
+            }
+        println("# nominations: ${input.papers.size} papers, ${input.sheet.size} sheet rows")
+        println("## papers that are not compliant")
+        r.noncompliant.forEach { p ->
+            println(
+                "#${p.pid}: ${show(p.compliance) { it.key }}; referable on nomination-noncompliance: ${p.referable?.let { x ->
+                    show(x) { b -> b.toString() }
+                }}",
+            )
+        }
+        println("## what people owe (reviews)")
+        r.obligations.filter { it.papers.isNotEmpty() }.forEach { o ->
+            println(
+                "${o.email}: ${show(o.owes) {
+                    pcs.core.nominations.NominationRules.show(it)
+                }} over papers ${o.papers}${if (o.provisional) " (provisional: a nominee is pending)" else ""}",
+            )
+        }
+        println("## patterns for the PC chairs (a signal, never a ground)")
+        r.patterns.forEach { println("${it.author}: always nominates someone else, a junior, on papers ${it.papers}; ${it.consequence}") }
+        println("## authors over the submission cap")
+        println(
+            show(r.capCases) { cs ->
+                if (cs.isEmpty()) "none" else cs.joinToString("; ") { "${it.email}: ${it.papers.size} papers, ${it.over} over (${it.papers})" }
+            },
+        )
+        println("## problems in the sheet")
+        r.anomalies.forEach { println("${it.subject}: ${it.message}") }
+        val plan = pcs.core.nominations.Appointments.plan(input, settings.tierTags)
+        println("## membership drafts: ${plan.drafts.size} candidates are accepted, classified, consenting and not yet on the PC")
+        plan.drafts.forEach { println("${it.email} tags=${it.tags}") }
     }
 }
 

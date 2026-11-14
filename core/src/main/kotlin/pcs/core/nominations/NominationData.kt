@@ -6,6 +6,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import pcs.core.imports.ImportKind
 import pcs.core.imports.Imports
 import pcs.core.readings.Readings
+import pcs.core.rules.Faults
 import pcs.core.rules.Tier
 import pcs.core.store.Store
 import pcs.core.store.query
@@ -49,5 +50,5 @@ public class NominationData(private val store: Store, private val imports: Impor
         return NominationInput(papers, sheet, pc, registered, acs)
     }
 
-    public fun report(r: Readings): NominationReport = NominationRules.build(input(), r)
+    public fun report(r: Readings, faults: Faults = Faults.NONE): NominationReport = NominationRules.build(input(), r, faults)
 }

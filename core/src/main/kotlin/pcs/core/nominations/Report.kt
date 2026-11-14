@@ -3,6 +3,7 @@ package pcs.core.nominations
 import pcs.core.readings.QId
 import pcs.core.readings.Readings
 import pcs.core.rules.Compliance
+import pcs.core.rules.Faults
 import pcs.core.rules.Nominations
 import pcs.core.rules.Nominee
 import pcs.core.rules.PaperNoms
@@ -149,7 +150,7 @@ public object NominationRules {
         return sheet to anomalies
     }
 
-    public fun build(input: NominationInput, r: Readings): NominationReport {
+    public fun build(input: NominationInput, r: Readings, faults: Faults = Faults.NONE): NominationReport {
         val ids = HashMap<String, Long>()
         val (sheet, demoted) = effective(input)
 
@@ -206,7 +207,7 @@ public object NominationRules {
                     } else {
                         Resolved.of(r, listOf(QId.Q10)) { rr -> Nominations.mayRefer(rr.q10!!, warned) }
                     }
-                val shortfall = Resolved.of(r, SHARE_QS) { rr -> Nominations.paperShortfall(pcs.core.rules.Faults.NONE, rr.q19!!, rr.q19b!!, pn) }
+                val shortfall = Resolved.of(r, SHARE_QS) { rr -> Nominations.paperShortfall(faults, rr.q19!!, rr.q19b!!, pn) }
                 PaperCheck(p.pid, p.title, statuses, compliance, referable, warned, shortfall, notes)
             }
 
@@ -222,7 +223,7 @@ public object NominationRules {
                 val accepted = cand?.decision == Decision.ACCEPT
                 val owes =
                     Resolved.of(r, OWES_QS) { rr ->
-                        Nominations.owes(pcs.core.rules.Faults.NONE, rr.q18!!, rr.q19!!, rr.q19b!!, tier ?: Tier.JUNIOR, allNoms, id(e))
+                        Nominations.owes(faults, rr.q18!!, rr.q19!!, rr.q19b!!, tier ?: Tier.JUNIOR, allNoms, id(e))
                     }
                 Obligation(e, tier, mine, accepted, owes, mine.any { it in provisionalPids })
             }

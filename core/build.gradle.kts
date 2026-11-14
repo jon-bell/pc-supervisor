@@ -410,6 +410,7 @@ testing {
             dependencies {
                 implementation(project())
                 implementation(testFixtures(project()))
+                implementation(project(":seed")) // the nomination scenario (PLAN M7)
                 implementation(libs.serialization.json)
                 implementation(libs.coroutines.core)
             }
