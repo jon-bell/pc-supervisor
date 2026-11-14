@@ -68,4 +68,18 @@ class VocabularyTest {
         val refer = ModelActions.parse("desk reject", "refer", mapOf("ground" to kotlinx.serialization.json.JsonPrimitive("scope")), "refer on scope")
         assertEquals(DeskRejectRefer("scope", "refer on scope"), refer)
     }
+
+    @Test
+    fun `the appointment traces carry every observation of the subsystem`() {
+        val traces = TraceSpec.load(repo.resolve("model/export/traces-appt.json"))
+        assertTrue(traces.any { it.id == "appt/signed/appointed-senior" })
+        val obs = pcs.runner.model.appointmentAndAssignmentObservations.map { it.first }.toSet()
+        for (t in traces) {
+            assertEquals("appointment and assignment", t.subsystem)
+            for (s in t.steps) {
+                ModelActions.parse(s.subsystem, s.key, s.args, s.label)
+                assertEquals(obs, s.expect.keys, "${t.id}: ${s.label}")
+            }
+        }
+    }
 }

@@ -65,8 +65,12 @@ class AssignmentTest {
     private val answers: Readings =
         Answers.parse("Q8=up-to-n\nQ13=one-junior\nQ14=tier-decides\nQ18=once\nQ19=equal\nQ19b=others-absorb").readings
 
-    private fun build(r: Readings = answers, faults: Faults = Faults.NONE): AssignmentBuild =
-        (AssignmentData(store, imports).build(r, settings, faults) as AssignmentInput.Ready).build
+    /** The scenario's papers only: the harness holds the golden papers and others too, which have their own tests. */
+    private fun build(r: Readings = answers, faults: Faults = Faults.NONE): AssignmentBuild {
+        val b = (AssignmentData(store, imports).build(r, settings, faults) as AssignmentInput.Ready).build
+        val papers = b.input.papers.filter { it.pid in 201L..212L }
+        return AssignmentBuild(b.input.copy(papers = papers), b.config, b.emailOf, b.tierOf, b.sources, b.tpmsAssignment, b.notes, b.settings)
+    }
 
     private fun email(local: String) = "$local@example.org"
 
@@ -187,6 +191,39 @@ class AssignmentTest {
         assertTrue(left.any { it.papers.toSet() == setOf(201L, 202L) }, "#201 and #202 still review each other")
         assertTrue(Planner.audit(b.input, b.config, k1).any { it.startsWith("A3") })
         assertEquals(0, Planner.solve(b.input, b.config).let { Cycles.find(it.edges, b.input.papers, b.input.pinned, 3) }.size)
+    }
+
+    @Test
+    @Order(3)
+    @Covers(
+        "prop:V5",
+        "prop:V2",
+        "rule:load",
+        "q:Q18=once",
+        "q:Q18=per-paper",
+        "q:Q18=share-weighted",
+        "q:Q18=capped-at-band",
+        "q:Q19=equal",
+        "q:Q19=authors-allocate",
+        "q:Q19=solver",
+    )
+    fun `under every reading of Q18 and Q19 a nominee is within a review of what they owe or the plan says why, and never above it`() {
+        for (q18 in listOf("once", "per-paper", "share-weighted", "capped-at-band")) {
+            for (q19 in listOf("equal", "authors-allocate", "solver")) {
+                val r = Answers.parse("Q8=up-to-n\nQ13=one-junior\nQ14=tier-decides\nQ18=$q18\nQ19=$q19\nQ19b=others-absorb").readings
+                val b = build(r)
+                val plan = Planner.solve(b.input, b.config)
+                assertEquals(emptyList<String>(), Planner.audit(b.input, b.config, plan), "$q18 / $q19")
+                assertEquals(2, plan.nominees.size, "$q18 / $q19")
+                for (n in plan.nominees) {
+                    val reviewer = b.input.reviewers.first { it.who == n.who }
+                    assertTrue(n.load <= reviewer.cap, "$q18 / $q19: ${b.email(n.who)} has ${n.load} of a band of ${reviewer.cap}")
+                    assertTrue(n.withinOne || n.reason != null, "$q18 / $q19: ${b.email(n.who)} is short with no reason")
+                    // what they owe, in whole reviews, caps their load (V2)
+                    n.owedSixths?.let { assertTrue(n.load <= (it + 5) / 6, "$q18 / $q19: ${b.email(n.who)} has more than they owe") }
+                }
+            }
+        }
     }
 
     @Test

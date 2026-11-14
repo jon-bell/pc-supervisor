@@ -166,7 +166,17 @@
     "args": {},
     "action": "uphold the case"}]},
  {"subsystem": "appointment and assignment",
-  "observations": [],
+  "observations":
+  [{"type": "bool", "readers": ["state"], "key": "accepted"},
+   {"type": "string?", "readers": ["state"], "key": "tier"},
+   {"type": "bool", "readers": ["state"], "key": "consented"},
+   {"type": "bool", "readers": ["state"], "key": "synced"},
+   {"type": "bool", "readers": ["state"], "key": "solved"},
+   {"type": "bool", "readers": ["state"], "key": "in-plan"},
+   {"type": "bool", "readers": ["state"], "key": "dry-run-ok"},
+   {"type": "bool", "readers": ["state"], "key": "confirmed"},
+   {"type": "bool", "readers": ["hotcrp", "state"], "key": "applied"},
+   {"type": "bool", "readers": ["hotcrp", "state"], "key": "nominee-assigned"}],
   "actions":
   [{"perm": "classify",
     "key": "classify",

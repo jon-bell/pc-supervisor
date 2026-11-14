@@ -431,7 +431,7 @@ def pcRule (p : Params) (_ : Reading) (s : PcSt) (_ : Option Role) : PcAct → O
                                            consented := s.consented } {} }
       else none
   | .dryRun => if s.solved && !s.dryRunOk then some { s with dryRunOk := true } else none
-  | .confirm => if s.solved && !s.confirmed then some { s with confirmed := true } else none
+  | .confirm => if s.solved && s.dryRunOk && !s.confirmed then some { s with confirmed := true } else none
   | .apply => if !s.applied && s.solved && mayApply p { dryRunOk := s.dryRunOk, confirmed := s.confirmed }
       then some { s with applied := true } else none
 
