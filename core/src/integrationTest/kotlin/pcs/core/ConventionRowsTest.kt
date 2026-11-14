@@ -130,7 +130,7 @@ class ConventionRowsTest {
             assertFalse(Hotcrp.ok(Hotcrp.api("POST", "$pid/tags", actas = who, form = "addtags=pcs-remedy-due%232000000000")), "$who must not set it")
         }
         sync()
-        val tags = Json_tags(pid)
+        val tags = jsonTags(pid)
         assertTrue(Trace.RemedyDue(pid, 1_893_456_000) in Conventions.decode(pid, tags), tags.toString())
     }
 
@@ -145,10 +145,10 @@ class ConventionRowsTest {
             assertFalse(Hotcrp.ok(Hotcrp.api("POST", "$pid/tags", actas = who, form = "addtags=pcs-warned")), "$who must not set it")
         }
         sync()
-        assertTrue(Trace.Warned(pid) in Conventions.decode(pid, Json_tags(pid)))
+        assertTrue(Trace.Warned(pid) in Conventions.decode(pid, jsonTags(pid)))
     }
 
-    private fun Json_tags(pid: Long): List<String> =
+    private fun jsonTags(pid: Long): List<String> =
         store.conn.createStatement().use { st ->
             st.executeQuery("SELECT tags FROM paper WHERE pid = $pid").use { rs ->
                 rs.next()
@@ -196,7 +196,7 @@ class ConventionRowsTest {
     @Test
     @Order(6)
     @Covers("conv:8")
-    fun `accountability request - the mail tool previews through the API for any PC member, but only the web page sends, so PC Supervisor drafts and a chair sends`() {
+    fun `accountability request - the mail tool previews through the API, only the web page sends, so a chair sends a drafted text`() {
         val pid = 3L
         // the preview endpoint: chair and AC may use it, an author may not
         for (who in listOf(null, "ac-normal@example.org", "r1@example.org")) {

@@ -24,7 +24,10 @@ public object FirstActions {
      */
     public fun nudge(pid: Long, outstandingOrdinals: List<String>, visibility: String = "rev"): CommentArtifact {
         val which = outstandingOrdinals.sorted().joinToString(", ") { "review $it" }
-        val text = "Reminder from the PC chairs: $which for this paper ${if (outstandingOrdinals.size == 1) "is" else "are"} not submitted yet. Please submit when you can, or let us know if you need more time."
+        val verb = if (outstandingOrdinals.size == 1) "is" else "are"
+        val text =
+            "Reminder from the PC chairs: $which for this paper $verb not submitted yet. " +
+                "Please submit when you can, or let us know if you need more time."
         return CommentArtifact(pid, text, visibility)
     }
 }
