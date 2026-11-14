@@ -170,7 +170,19 @@ val claimsInventory by tasks.registering {
         val slurp = JsonSlurper()
         @Suppress("UNCHECKED_CAST")
         (slurp.parse(root.file("model/export/cards.json").asFile) as List<Map<String, Any>>)
-            .forEach { add("card:${it["id"]}", "card", it["text"] as String) }
+            .forEach {
+                add("card:${it["id"]}", "card", it["text"] as String)
+                // T12: the card gallery renders every card (PLAN M4)
+                add("view:card-${it["id"]}", "view", "the card gallery shows card ${it["id"]}")
+            }
+        // T12: one claim per screen of the app; a milestone that adds a screen adds its claim here
+        mapOf(
+            "unlock" to "the keychain unlock screen",
+            "picker" to "the conference picker",
+            "papers" to "the paper table",
+            "reviews" to "the review table",
+            "settings" to "the settings screen: readings, unresolved questions, what they block",
+        ).forEach { (k, v) -> add("view:$k", "view", v) }
         @Suppress("UNCHECKED_CAST")
         (slurp.parse(root.file("model/export/readings.json").asFile) as List<Map<String, Any>>).forEach { q ->
             (q["readings"] as List<Map<String, String>>).forEach { add("q:${q["code"]}=${it["key"]}", "reading", it["desc"]!!) }
@@ -230,7 +242,9 @@ tasks.test {
 val assuranceReport by tasks.registering {
     dependsOn(claimsInventory)
     mustRunAfter(tasks.test, tasks.named("integrationTest"))
-    val coversFiles = listOf("covers", "covers-integration").map { layout.buildDirectory.file("$it/covers.tsv") }
+    val coversFiles =
+        listOf("covers", "covers-integration").map { layout.buildDirectory.file("$it/covers.tsv") } +
+            project(":app").layout.buildDirectory.file("covers/covers.tsv")
     val out = rootProject.layout.buildDirectory.file("reports/assurance.md")
     outputs.file(out)
     outputs.upToDateWhen { false }

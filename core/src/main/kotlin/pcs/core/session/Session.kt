@@ -46,7 +46,8 @@ public object AppDirs {
     }
 
     /** The conference files: `PCS_CONFERENCES`, else `<app data>/conferences`. */
-    public fun conferences(env: Map<String, String>): Path = env["PCS_CONFERENCES"]?.takeIf { it.isNotEmpty() }?.let(Path::of) ?: data(env).resolve("conferences")
+    public fun conferences(env: Map<String, String>): Path =
+        env["PCS_CONFERENCES"]?.takeIf { it.isNotEmpty() }?.let(Path::of) ?: data(env).resolve("conferences")
 }
 
 /** The conference picker's source: every `*.conf` in the conferences directory (spec §4.1). */

@@ -10,7 +10,11 @@ public class HotcrpLinks(private val base: URI) {
     public fun paper(pid: Long): String = "$root/paper/$pid"
 
     /** A submitted review has an ordinal (`/review/4A`); an unsubmitted one is addressed by its id. */
-    public fun review(pid: Long, ordinal: String?, rid: Long): String = if (ordinal.isNullOrEmpty()) "$root/review?p=$pid&r=$rid" else "$root/review/$pid$ordinal"
+    public fun review(
+        pid: Long,
+        ordinal: String?,
+        rid: Long,
+    ): String = if (ordinal.isNullOrEmpty()) "$root/review?p=$pid&r=$rid" else "$root/review/$pid$ordinal"
 
     public fun search(q: String): String = "$root/search?q=" + URLEncoder.encode(q, Charsets.UTF_8).replace("+", "%20")
 }

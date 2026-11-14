@@ -14,3 +14,4 @@ data/
 *.db
 *.db-*
 .jqwik-database
+app/visual-baselines/
