@@ -9,6 +9,7 @@ val scenarios: Map<String, () -> Scenario> =
         "golden" to { Golden.scenario },
         "early-reject" to { EarlyRejectScenario.scenario },
         "nomination" to { Nomination.scenario },
+        "assignment" to { AssignScenario.scenario },
         "shadow" to { Generated.scenario("shadow", Generated.SHADOW) },
         "scale" to { Generated.scenario("scale", Generated.SCALE) },
     )

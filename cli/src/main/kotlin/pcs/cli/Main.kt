@@ -19,10 +19,11 @@ fun main(args: Array<String>) {
         "import" -> importCmd(args.drop(1))
         "export" -> exportCmd(args.drop(1))
         "nominations" -> nominationsCmd()
+        "assign" -> assignCmd(args.drop(1))
         "agent" -> agent(args.drop(1))
         else -> {
             System.err.println(
-                "usage: pcs probe | sync | wipe | import <kind> <file> [--map col=name,...] | import status | export tpms <dir> | agent check|probe|plan|run",
+                "usage: pcs probe | sync | wipe | import <kind> <file> [--map col=name,...] | import status | export tpms <dir> | nominations | assign [--csv <file>] | agent check|probe|plan|run",
             )
             exitProcess(2)
         }
@@ -268,6 +269,43 @@ fun nominationsCmd() {
         val plan = pcs.core.nominations.Appointments.plan(input, settings.tierTags)
         println("## membership drafts: ${plan.drafts.size} candidates are accepted, classified, consenting and not yet on the PC")
         plan.drafts.forEach { println("${it.email} tags=${it.tags}") }
+    }
+}
+
+/**
+ * `pcs assign [--csv <file>]` (spec §10.4 C, §10.5): solves the assignment plan from the mirror and the latest imports under the answers file, and
+ * prints the solve report. `--csv` writes the bulk-assign CSV, which a chair applies through Writeback's dry run (the app's Assignment tab drafts it).
+ * Nothing is written to HotCRP.
+ */
+fun assignCmd(args: List<String>) {
+    val csvPath = args.indexOf("--csv").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
+    if (args.isNotEmpty() && args.first() != "--csv" || args.contains("--csv") && csvPath == null) {
+        System.err.println("usage: pcs assign [--csv <file>]")
+        exitProcess(2)
+    }
+    val (settings, store, clock) = offlineStore()
+    store.use {
+        val answers = pcs.core.readings.Answers.read(settings.answersPath)
+        when (
+            val i =
+                pcs.core.assignment.AssignmentData(store, pcs.core.imports.Imports(store, clock))
+                    .build(answers.readings, pcs.core.assignment.AssignmentSettings.of(settings))
+        ) {
+            is pcs.core.assignment.AssignmentInput.Blocked -> {
+                System.err.println("the plan is blocked:")
+                i.reasons.forEach { System.err.println("  - $it") }
+                exitProcess(1)
+            }
+            is pcs.core.assignment.AssignmentInput.Ready -> {
+                val report = pcs.core.assignment.Assignment.report(i.build)
+                print(report.render())
+                if (csvPath != null) {
+                    Files.writeString(Path.of(csvPath), report.csv.toCsv())
+                    println("wrote ${report.csv.rows.size} rows to $csvPath")
+                }
+                if (report.audit.isNotEmpty()) exitProcess(3)
+            }
+        }
     }
 }
 

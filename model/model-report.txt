@@ -184,14 +184,14 @@ Every step is taken by a role whose cell is granted (theorem gated_requires_poli
 - L1 Process chair / Open or uphold an Accountability case: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (declined) → Process chair: open a quality case
 - L1 PCS / Open or uphold an Accountability case: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (declined) → PCS: open a quality case
 - L1 PC chair / Open or uphold an Accountability case: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (declined) → Process chair: open a quality case → PC chair: uphold the case
-### appointment and assignment: 52 states
+### appointment and assignment: 44 states
 - L2 a nominee appointed and assigned in HotCRP: reachable: AC (own paper): accept the nominee and classify them senior → the nominee consents → Process chair: sync HotCRP → Process chair: solve the plan → Process chair: dry-run the assignment upload → Process chair: confirm the upload → Process chair: apply the upload
 - L1 AC (own paper) / Accept a PC candidate and classify their tier: AC (own paper): accept the nominee and classify them senior
 - L1 Process chair / Read HotCRP via the chair token: Process chair: sync HotCRP
 - L1 PCS / Read HotCRP via the chair token: PCS: sync HotCRP
 - L1 Process chair / Solve and export a Plan: Process chair: sync HotCRP → Process chair: solve the plan
-- L1 Process chair / Confirm and apply a Writeback: Process chair: sync HotCRP → Process chair: solve the plan → Process chair: confirm the upload
-- L1 PC chair / Confirm and apply a Writeback: Process chair: sync HotCRP → Process chair: solve the plan → PC chair: confirm the upload
+- L1 Process chair / Confirm and apply a Writeback: Process chair: sync HotCRP → Process chair: solve the plan → Process chair: dry-run the assignment upload → Process chair: confirm the upload
+- L1 PC chair / Confirm and apply a Writeback: Process chair: sync HotCRP → Process chair: solve the plan → Process chair: dry-run the assignment upload → PC chair: confirm the upload
 granted cells: 60; exercised by a trace: 22; L2 failures: 0
 granted cells on a modeled action that no trace exercises (each is a gap in the model or a cell to deny):
 - PC chair / Write to HotCRP directly: Y (in HotCRP)
