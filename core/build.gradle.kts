@@ -183,6 +183,7 @@ val claimsInventory by tasks.registering {
             "papers" to "the paper table",
             "reviews" to "the review table",
             "settings" to "the settings screen: readings, unresolved questions, what they block",
+            "early-reject" to "the early-reject screen: candidates, bump status, AC objections, the mail search, the decision artifact",
             "writeback" to "the Writeback review screen: HotCRP's dry-run diff and the confirmation (PLAN M5)",
             "report" to "the sync report: Writeback mismatches and traces that don't parse or were forged (PLAN M5)",
         ).forEach { (k, v) -> add("view:$k", "view", v) }

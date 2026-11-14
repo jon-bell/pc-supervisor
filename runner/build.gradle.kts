@@ -190,6 +190,7 @@ testing {
             dependencies {
                 implementation(project())
                 implementation(project(":core"))
+                implementation(project(":seed")) // the early-reject scenario is seeded from within the test, after the suites that assert golden
                 implementation(testFixtures(project(":core")))
                 implementation(libs.serialization.json)
                 implementation(libs.coroutines.core)

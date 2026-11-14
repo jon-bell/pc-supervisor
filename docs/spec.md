@@ -428,8 +428,10 @@ The PDF ZIP comes from HotCRP's own download.
 - **Accountability cases** about accepted nominees: a missing review, or under Q20 a quality problem after an earlier declined or unanswered request (AR6). The consequence follows Q11, always through the two-person path (V4).
 
 **E. Early reject** (concepts EarlyReject)
-- Candidates: papers whose initial reviews are all negative under Q15, each shown with its discussion signals.
-- Under Q16's bump window: a drafted mail-tool search for "re-read and bump within N hours" (`PCS_EARLYREJECT_WINDOW_H`, default 48), and window tracking from snapshots. At close, list the candidates bumped, those not, and the reviewers who never responded.
+- Candidates: papers whose initial reviews are all negative under Q15, each shown with its discussion signals. "Initial" means the mirror's snapshot at the window's opening (`PCS_PHASE_EARLYREJECT_OPEN`): each review's latest version seen at or before it, so the mirror must have synced (or backfilled the review history) by then. Which merit values are negative is `PCS_SCORE_MAP` (default: HotCRP's own Overall merit form).
+- Under Q16's bump window: a drafted mail-tool search for "re-read and bump within N hours" (`PCS_EARLYREJECT_WINDOW_H`, default 48, unless `PCS_PHASE_EARLYREJECT_CLOSE` fixes the end), and window tracking from snapshots: a reviewer bumps if a review version seen after the opening and before the close has a different merit value from the version before it (a deadline: a version seen at the close instant is outside). At close, list the candidates bumped, those not, and the reviewers who never responded (no score change and no comment in the window).
+- An AC's objection is the hidden paper tag `pcs-er-object`, which a chair records at the AC's request; it blocks the removal (E-1).
+- The artifacts are data and PC Supervisor sends nothing: the mail draft (a paper search, subject, and body for HotCRP's Mail tool, with `%NUMBER%` and `%TITLE%` filled in by HotCRP) and the decision artifact (a bulk-assignment CSV `paper,action,decision` for the confirmed papers, an author notice that names no reviewer and no bump (C2), and the search for it). Applying the decisions is Writeback's (M5).
 - Removal follows E-1: every initial review negative at the time of removal, the window closed, no AC objection, and a chair's action.
 
 **F. Discussion and decisions:** §5, plus tier-aware participation (do junior reviewers and nominees comment?).

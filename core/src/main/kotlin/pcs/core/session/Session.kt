@@ -4,6 +4,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import pcs.core.config.Settings
 import pcs.core.config.SettingsException
+import pcs.core.earlyreject.DecisionArtifact
+import pcs.core.earlyreject.EarlyRejectArtifacts
+import pcs.core.earlyreject.EarlyRejectPlan
+import pcs.core.earlyreject.ErConfig
+import pcs.core.earlyreject.ErReport
+import pcs.core.earlyreject.ErWindow
+import pcs.core.earlyreject.MailDraft
 import pcs.core.hotcrp.HotcrpClient
 import pcs.core.hotcrp.HotcrpLinks
 import pcs.core.readings.Answers
@@ -72,6 +79,13 @@ public object Conferences {
 /** A secret the session needs is not in the keychain. The message names the account, never a value. */
 public class MissingSecretException(message: String) : IllegalStateException(message)
 
+/** What the early-reject screen can show: the plan and its artifacts, or what blocks it. */
+public sealed interface EarlyRejectState {
+    public data class Blocked(val reasons: List<String>) : EarlyRejectState
+
+    public data class Ready(val report: ErReport, val mail: MailDraft, val decisions: DecisionArtifact) : EarlyRejectState
+}
+
 /** What the last sync recorded (spec §3 `sync_run`). */
 public data class SyncRun(val finishedAt: java.time.Instant, val counts: String, val driftProblems: Int)
 
@@ -107,6 +121,33 @@ public class Session private constructor(
                 Sync(store, clock).run(c)
             }
         }
+
+    /**
+     * Early reject at the clock's now (spec §10.4 E): the candidates, the mail draft, and the decision artifact, or why they
+     * can't be computed yet (Q15 or Q16 unresolved, or no window date). Nothing here writes to HotCRP or sends mail.
+     */
+    public fun earlyReject(): EarlyRejectState {
+        val readings = answers().readings
+        val blocked =
+            listOfNotNull(
+                if (readings.q15 == null) "Q15 (what counts as a negative initial review) is unresolved" else null,
+                if (readings.q16 == null) "Q16 (a last word before early reject) is unresolved" else null,
+                if (settings.phases[pcs.core.phases.Window.EARLY_REJECT.open] == null) "PCS_PHASE_EARLYREJECT_OPEN is not set" else null,
+            )
+        if (blocked.isNotEmpty()) return EarlyRejectState.Blocked(blocked)
+        val q16 = readings.q16!!
+        val window = ErWindow.of(settings.phases, q16, settings.earlyRejectWindowH)!!
+        val cfg = ErConfig(readings.q15!!, q16, settings.scoreScale, settings.fieldMerit, settings.reviewsRequired)
+        val report = EarlyRejectPlan.compute(store, cfg, window, clock.now())
+        return EarlyRejectState.Ready(report, EarlyRejectArtifacts.mailDraft(report, zoneName = settings.zone.id), EarlyRejectArtifacts.decisions(report))
+    }
+
+    /** Drafts the early-reject decisions the chair confirmed (default: every ready paper) as a Writeback artifact; nothing reaches HotCRP until it is confirmed and applied. Returns the artifact's id. */
+    public fun draftEarlyRejectDecisions(confirmed: Set<Long>? = null): Long {
+        val state = earlyReject() as? EarlyRejectState.Ready ?: throw IllegalStateException("early reject is blocked")
+        val art = EarlyRejectArtifacts.decisions(state.report, confirmed ?: state.report.ready.map { it.pid }.toSet())
+        return writeback().draft(art.toWriteback())
+    }
 
     /** Writeback (spec §6) for this conference: the only way the app changes HotCRP. */
     public fun writeback(): pcs.core.writeback.Writeback = pcs.core.writeback.Writeback(store, clock, settings.hotcrpUrl, token())

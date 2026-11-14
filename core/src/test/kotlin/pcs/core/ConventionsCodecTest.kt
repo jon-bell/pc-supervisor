@@ -21,7 +21,7 @@ class ConventionsCodecTest {
         val traces =
             listOf(Trace.Keep(1)) + Ground.entries.map { Trace.Refer(1, it) } +
                 (listOf<ReqDisposition?>(null) + ReqDisposition.entries).mapIndexed { i, d -> Trace.RequestSent(1, "C", i + 1, d) } +
-                listOf(Trace.Case(1, 3, 2), Trace.RemedyDue(1, 1_893_456_000), Trace.Warned(1))
+                listOf(Trace.Case(1, 3, 2), Trace.RemedyDue(1, 1_893_456_000), Trace.Warned(1), Trace.EarlyObjection(1))
         for (t in traces) assertEquals(listOf(t), Conventions.decode(1, listOf(asHotcrp(Conventions.encode(t)))), Conventions.encode(t))
     }
 

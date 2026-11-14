@@ -39,6 +39,8 @@ PCS_PHASE_DECISIONS_DUE=2027-02-07T23:59
 # PCS_PHASE_ASSIGNMENT_DONE=
 # PCS_PHASE_EARLYREJECT_OPEN=
 # PCS_PHASE_EARLYREJECT_CLOSE=
+# Q16's last-word window, when _EARLYREJECT_CLOSE is not set: hours after _EARLYREJECT_OPEN (default 48).
+# PCS_EARLYREJECT_WINDOW_H=48
 # --- Imports (spec §10.3) -----------------------------------------------------
 # Days after which an import of a kind is reported stale (`pcs import status`). Defaults:
 # appointments 7, tpms-registrations 14, tpms-assignments 30, tpms-scores 30, screening-bundle 3, refcheck 7.
@@ -62,6 +64,10 @@ PCS_FIELD_EXPERTISE=RevExp
 PCS_MERIT_ACCEPT_MIN=3
 PCS_EXPERTISE_OK_MIN=3
 PCS_REVIEWS_REQUIRED=3
+# How the overall-merit values read on the model's scale, for Q15 (what counts as a negative review):
+# <merit>:<score> pairs; scores are strong-reject, reject, weak-reject, borderline, weak-accept, accept, strong-accept.
+# Default is HotCRP's own Overall merit form.
+# PCS_SCORE_MAP=1:reject,2:weak-reject,3:weak-accept,4:accept,5:strong-accept
 
 # --- Rule thresholds and weights (defaults in core; override any) -----------
 # PCS_THRESH_SPLIT_RANGE=2

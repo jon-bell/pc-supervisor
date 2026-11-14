@@ -35,6 +35,9 @@ data class Rate(val pid: Int, val reviewer: String, val rater: String, val flags
 
 data class SetDecision(val pid: Int, val decision: String, override val at: At) : Event
 
+/** A hidden or ordinary tag added to a paper by the chair (the seeder's chair token). */
+data class AddTag(val pid: Int, val tag: String, override val at: At) : Event
+
 data class Scenario(
     val name: String,
     val pc: List<PcUser>,

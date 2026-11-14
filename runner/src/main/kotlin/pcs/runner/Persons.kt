@@ -20,6 +20,10 @@ object Persons {
 
     fun byEmail(email: String): Person? = opinionGivers.firstOrNull { it.email == email }
 
+    /** Reviewers of the early-reject traces: PC members for the model's "pc-member" role, and nominees (any user will do for HotCRP). */
+    val EARLY_PC_MEMBERS = listOf("r3@example.org", "r4@example.org", "r5@example.org")
+    val EARLY_NOMINEES = listOf("n-laggard@example.org", "r6@example.org", "r1@example.org")
+
     /** Users that stand for the model's roles when an action is attempted as that role. */
     const val PC_MEMBER_OUTSIDER = "r2@example.org"
     const val NOMINEE_OUTSIDER = "n-laggard@example.org"

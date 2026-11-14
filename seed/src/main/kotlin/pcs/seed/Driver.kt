@@ -76,12 +76,13 @@ class Driver(
                 else -> b.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(body))
             }.build()
         var resp = http.send(req, HttpResponse.BodyHandlers.ofString())
-        repeat(6) {
-            // the harness keeps HotCRP's rate limits (spec §1): wait out a 429
-            if (resp.statusCode() != 429) return@repeat
+        repeat(40) {
+            // the harness keeps HotCRP's rate limits (spec §1): wait out a 429; an HTML error page is the harness struggling, not an answer
+            if (resp.statusCode() != 429 && !resp.body().trimStart().startsWith("<")) return@repeat
             Thread.sleep((resp.headers().firstValue("Retry-After").orElse("5").toLong() * 1000).coerceAtMost(60_000))
             resp = http.send(req, HttpResponse.BodyHandlers.ofString())
         }
+        check(!resp.body().trimStart().startsWith("<")) { "$method $path: HTTP ${resp.statusCode()} gave HTML: ${resp.body().take(200)}" }
         val o = json.parseToJsonElement(resp.body()).jsonObject
         check(resp.statusCode() in 200..299 && o["ok"] == JsonPrimitive(true)) { "$method $path: HTTP ${resp.statusCode()} ${resp.body().take(400)}" }
         return o
@@ -227,6 +228,7 @@ class Driver(
                     )
                 }
                 is SetDecision -> api("POST", "${ev.pid}/decision", mapOf("decision" to ev.decision))
+                is AddTag -> api("POST", "${ev.pid}/tags", body = "addtags=" + URLEncoder.encode(ev.tag, Charsets.UTF_8), form = true)
             }
         }
 
@@ -271,6 +273,9 @@ class Driver(
                 "DISCUSSION_OPEN" to "2030-02-12T00:00",
                 "DISCUSSION_CLOSE" to "2030-03-01T23:59",
                 "DECISIONS_DUE" to "2030-03-03T23:59",
+                // the early-reject window (concepts EarlyReject): after review-due, 48 hours
+                "EARLYREJECT_OPEN" to "2030-02-02T00:00",
+                "EARLYREJECT_CLOSE" to "2030-02-04T00:00",
             ).mapValues { LocalDateTime.parse(it.value) }
     }
 }
