@@ -227,6 +227,7 @@ class Driver(
                     )
                 }
                 is SetDecision -> api("POST", "${ev.pid}/decision", mapOf("decision" to ev.decision))
+                is AddTag -> api("POST", "${ev.pid}/tags", body = "addtags=" + URLEncoder.encode(ev.tag, Charsets.UTF_8), form = true)
             }
         }
 
@@ -271,6 +272,9 @@ class Driver(
                 "DISCUSSION_OPEN" to "2030-02-12T00:00",
                 "DISCUSSION_CLOSE" to "2030-03-01T23:59",
                 "DECISIONS_DUE" to "2030-03-03T23:59",
+                // the early-reject window (concepts EarlyReject): after review-due, 48 hours
+                "EARLYREJECT_OPEN" to "2030-02-02T00:00",
+                "EARLYREJECT_CLOSE" to "2030-02-04T00:00",
             ).mapValues { LocalDateTime.parse(it.value) }
     }
 }
