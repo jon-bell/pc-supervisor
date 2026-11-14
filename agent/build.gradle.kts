@@ -17,8 +17,18 @@ dependencies {
     implementation(libs.pdfbox)
     // check.yaml (agent.md §3.2). Apache-2.0, no transitive dependencies.
     implementation(libs.snakeyaml.engine)
+    // Engine layer (agent.md §4): the coroutine API, Ktor for openai-compat, and Anthropic's official Java SDK
+    // (first-party API plus the Bedrock, Vertex, and Foundry backends, which are configuration only here).
+    implementation(libs.coroutines.core)
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.anthropic.java)
+    implementation(libs.anthropic.bedrock)
+    implementation(libs.anthropic.vertex)
+    implementation(libs.anthropic.foundry)
 
     testImplementation(testFixtures(project(":core")))
+    testImplementation(libs.ktor.client.mock)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.launcher)

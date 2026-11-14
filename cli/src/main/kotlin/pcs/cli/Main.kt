@@ -17,7 +17,7 @@ fun main(args: Array<String>) {
         "wipe" -> wipe()
         "agent" -> agent(args.drop(1))
         else -> {
-            System.err.println("usage: pcs probe | sync | wipe | agent check <pdf>")
+            System.err.println("usage: pcs probe | sync | wipe | agent check|probe|plan|run")
             exitProcess(2)
         }
     }
@@ -152,8 +152,16 @@ fun wipe() {
  * no reference resolver is configured, so `refs.doi` reports "unverified" for what it cannot look up.
  */
 fun agent(args: List<String>) {
+    val cli = pcs.agent.engines.AgentCli(System.getenv())
+    when (args.firstOrNull()) {
+        "probe" -> exitProcess(cli.probe(args.getOrNull(1)))
+        "plan" -> exitProcess(cli.plan(args.drop(1)))
+        "run" -> exitProcess(cli.run(args.drop(1)))
+    }
     if (args.firstOrNull() != "check" || args.size < 2) {
-        System.err.println("usage: pcs agent check <pdf> [--authors authors.json] [--ocr [image]] [--grobid url]")
+        System.err.println(
+            "usage: pcs agent check <pdf> [--authors authors.json] [--ocr [image]] [--grobid url] | probe [engine] | plan <pdf>... [--llm-check dir]... | run <pdf>... [--llm-check dir]...",
+        )
         exitProcess(2)
     }
     val pdf = Path.of(args[1])
