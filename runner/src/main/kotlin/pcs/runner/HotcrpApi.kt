@@ -43,7 +43,7 @@ class HotcrpApi(val base: URI, private val token: String) {
                 else -> b.method(method, HttpRequest.BodyPublishers.noBody())
             }.build()
         // the harness keeps HotCRP's rate limits: wait out a 429 as the production client does
-        repeat(8) {
+        repeat(40) {
             val r = http.send(req, HttpResponse.BodyHandlers.ofString())
             if (r.statusCode() != 429) return Json.parseToJsonElement(r.body()).jsonObject
             Thread.sleep((r.headers().firstValue("Retry-After").orElse("5").toLong() * 1000).coerceAtMost(60_000))

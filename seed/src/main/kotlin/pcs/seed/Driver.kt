@@ -76,12 +76,13 @@ class Driver(
                 else -> b.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(body))
             }.build()
         var resp = http.send(req, HttpResponse.BodyHandlers.ofString())
-        repeat(6) {
+        repeat(40) {
             // the harness keeps HotCRP's rate limits (spec §1): wait out a 429
-            if (resp.statusCode() != 429) return@repeat
+            if (resp.statusCode() != 429 && !resp.body().trimStart().startsWith("<")) return@repeat // an HTML error page is the harness struggling, not an answer
             Thread.sleep((resp.headers().firstValue("Retry-After").orElse("5").toLong() * 1000).coerceAtMost(60_000))
             resp = http.send(req, HttpResponse.BodyHandlers.ofString())
         }
+        check(!resp.body().trimStart().startsWith("<")) { "$method $path: HTTP ${resp.statusCode()} gave HTML: ${resp.body().take(200)}" }
         val o = json.parseToJsonElement(resp.body()).jsonObject
         check(resp.statusCode() in 200..299 && o["ok"] == JsonPrimitive(true)) { "$method $path: HTTP ${resp.statusCode()} ${resp.body().take(400)}" }
         return o
