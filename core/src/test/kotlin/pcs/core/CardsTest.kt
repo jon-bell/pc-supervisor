@@ -156,7 +156,11 @@ class CardsTest {
             },
             "X10" to { r ->
                 val shares = (0L until 4L).map { Share(10 + it, owed = 1, done = 0) }
-                "${yesNo(Accountability.casesFor(shares) == 1, "one case", "no case")} listing the ${Accountability.unmetPapers(shares).size} papers; ${Accountability.consequence(r.q11!!)}"
+                "${yesNo(
+                    Accountability.casesFor(shares) == 1,
+                    "one case",
+                    "no case",
+                )} listing the ${Accountability.unmetPapers(shares).size} papers; ${Accountability.consequence(r.q11!!)}"
             },
             // assignment
             "P1" to { r -> comp(r, listOf(Member(1, Tier.SENIOR), Member(2, Tier.SENIOR), Member(3, Tier.JUNIOR), Member(4, Tier.JUNIOR))) },
@@ -196,7 +200,9 @@ class CardsTest {
             "C4" to { _ -> eng(Accountability.engagement(f, emptyList(), listOf(Suggestion(5, dismissed = true)), 5)) },
             "C5" to { _ ->
                 val e = eng(Accountability.engagement(f, listOf(Request(5, sentBy = 1, replied = true, disp = ReqDisposition.DISPUTED)), emptyList(), 5))
-                "a junior's request goes to ${Accountability.escalationTarget(Tier.JUNIOR)}, anyone else's to ${Accountability.escalationTarget(Tier.SENIOR)}; $e"
+                "a junior's request goes to ${Accountability.escalationTarget(
+                    Tier.JUNIOR,
+                )}, anyone else's to ${Accountability.escalationTarget(Tier.SENIOR)}; $e"
             },
             "C6" to { r -> yesNo(Accountability.caseMayOpen(f, r.q20!!, false, emptyList()), "a quality case may open", "no case; send a request first") },
             "C8" to { r ->

@@ -29,7 +29,14 @@ import java.nio.file.Files
  */
 @Family("T3")
 class AccountabilityTransitionsTest {
-    private val dispCodes = mapOf(1 to ReqDisposition.REVISED, 2 to ReqDisposition.EXPLAINED, 3 to ReqDisposition.DECLINED, 4 to ReqDisposition.NO_REPLY, 5 to ReqDisposition.DISPUTED)
+    private val dispCodes =
+        mapOf(
+            1 to ReqDisposition.REVISED,
+            2 to ReqDisposition.EXPLAINED,
+            3 to ReqDisposition.DECLINED,
+            4 to ReqDisposition.NO_REPLY,
+            5 to ReqDisposition.DISPUTED,
+        )
 
     private fun state(v: List<Int>): AccSt =
         AccSt(
@@ -39,7 +46,15 @@ class AccountabilityTransitionsTest {
             coached = v[3] == 1,
             req =
                 if (v[4] == 1) {
-                    Request(7, sentBy = v[5].toLong().takeIf { it != 0L }, due = v[6].toLong(), remindedAt = v[7].toLong().takeIf { it >= 0 }, replied = v[8] == 1, disp = dispCodes[v[9]])
+                    Request(
+                        7,
+                        sentBy = v[5].toLong().takeIf { it != 0L },
+                        due = v[6].toLong(),
+                        remindedAt = v[7].toLong().takeIf { it >= 0 },
+                        replied =
+                            v[8] == 1,
+                        disp = dispCodes[v[9]],
+                    )
                 } else {
                     null
                 },
@@ -130,7 +145,13 @@ class AccountabilityTransitionsTest {
                     // AR1: a request is sent only once the PC chairs have set the criteria list
                     if (s.req == null && got.req != null && !s.criteria) fail("prop:AR1", "sent without criteria in state $i")
                     // AR2: a request exists, and a disposition is recorded, only by a role holding the send cell
-                    if ((s.req == null && got.req != null) || s.req?.disp != got.req?.disp) if (role !in sendRoles) fail("prop:AR2", "$role changed a request in state $i")
+                    if ((s.req == null && got.req != null) ||
+                        s.req?.disp != got.req?.disp
+                    ) {
+                        if (role !in sendRoles) {
+                            fail("prop:AR2", "$role changed a request in state $i")
+                        }
+                    }
                     // AR5: "no reply" only after a reminder and the due date plus the grace period
                     if (got.req?.disp == ReqDisposition.NO_REPLY && s.req?.disp == null) {
                         val q = s.req!!

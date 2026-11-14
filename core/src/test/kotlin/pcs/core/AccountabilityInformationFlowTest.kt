@@ -34,7 +34,8 @@ import kotlin.random.Random
 @Family("T4")
 class AccountabilityInformationFlowTest {
     private val due = Instant.parse("2030-03-01T00:00:00Z")
-    private val criteria = listOf(Criterion(1, "backs each weakness with evidence", setOf("thin", "negative-no-weakness")), Criterion(2, "on time", setOf("late")))
+    private val criteria =
+        listOf(Criterion(1, "backs each weakness with evidence", setOf("thin", "negative-no-weakness")), Criterion(2, "on time", setOf("late")))
     private val cfg = AccConfig(criteria, 48, SignalConfig(minWords = 150, weaknessField = "Wea", requiredFields = setOf("PapSum"), reviewDue = due))
     private val tiers = Tiers(mapOf("j1@example.org" to PersonTier(Tier.JUNIOR, false), "n1@example.org" to PersonTier(Tier.JUNIOR, true)))
 
@@ -48,7 +49,22 @@ class AccountabilityInformationFlowTest {
         val reviews =
             papers.flatMap { p ->
                 reviewers.mapIndexed { i, who ->
-                    R(p, who, "ABC"[i].toString(), 40 + rnd.nextInt(400), 1 + rnd.nextInt(4), if (rnd.nextInt(4) == 0) listOf("short", "vague") else emptyList(), setOf("PapSum", "Wea", "ComAut").filter { rnd.nextInt(3) != 0 }.toSet(), rnd.nextInt(5) == 0)
+                    R(
+                        p,
+                        who,
+                        "ABC"[i].toString(),
+                        40 + rnd.nextInt(400),
+                        1 + rnd.nextInt(4),
+                        if (rnd.nextInt(4) ==
+                            0
+                        ) {
+                            listOf("short", "vague")
+                        } else {
+                            emptyList()
+                        },
+                        setOf("PapSum", "Wea", "ComAut").filter { rnd.nextInt(3) != 0 }.toSet(),
+                        rnd.nextInt(5) == 0,
+                    )
                 }
             }
         val requests = reviews.filter { rnd.nextInt(5) == 0 }.map { Triple(it.pid, it.ordinal, rnd.nextInt(6)) }
@@ -59,8 +75,20 @@ class AccountabilityInformationFlowTest {
 
     private fun store(w: World, text: (World.R, String) -> String, dismissed: Boolean, slot: Int = 0): Store {
         val s =
-            pool.getOrPut(slot) { Store.open(java.nio.file.Files.createTempFile("pcs-flow", ".db").also { java.nio.file.Files.delete(it); it.toFile().deleteOnExit() }, "test-only-key") }
-        for (t in listOf("person", "paper", "review", "review_version", "review_text", "comment", "tag_seen", "acc_dismissal")) s.conn.createStatement().use { it.executeUpdate("DELETE FROM $t") }
+            pool.getOrPut(slot) {
+                Store.open(
+                    java.nio.file.Files.createTempFile("pcs-flow", ".db").also {
+                        java.nio.file.Files.delete(it)
+                        it.toFile().deleteOnExit()
+                    },
+                    "test-only-key",
+                )
+            }
+        for (t in listOf("person", "paper", "review", "review_version", "review_text", "comment", "tag_seen", "acc_dismissal")) {
+            s.conn.createStatement().use {
+                it.executeUpdate("DELETE FROM $t")
+            }
+        }
         val fx = AccFixture(s)
         for (who in w.reviewers) fx.person(who, who)
         fx.person("ac@example.org")
@@ -71,7 +99,19 @@ class AccountabilityInformationFlowTest {
         for (r in w.reviews) {
             val late = if (r.late) due.epochSecond + 86400 else due.epochSecond - 86400
             // the word count and which fields are filled are the structure; what the text says is the secret
-            fx.review(r.pid, r.who, ordinal = r.ordinal, words = r.words, merit = r.merit, ratings = r.ratings, firstCompleteAt = late, texts = r.fields.associateWith { f -> text(r, f) })
+            fx.review(
+                r.pid,
+                r.who,
+                ordinal = r.ordinal,
+                words = r.words,
+                merit = r.merit,
+                ratings = r.ratings,
+                firstCompleteAt = late,
+                texts =
+                    r.fields.associateWith { f ->
+                        text(r, f)
+                    },
+            )
         }
         for ((p, o, _) in w.requests) fx.tagSeen(p, "pcs-req-${o}1", "0", 5)
         if (dismissed) for (r in w.reviews) AccLocal.dismiss(s, r.pid, r.ordinal, "chair", due)
@@ -94,7 +134,11 @@ class AccountabilityInformationFlowTest {
             assertEquals(a.progress, b.progress, "seed $i")
             if (a.suggestions.isNotEmpty()) nonEmpty++
             // a canary in the text reaches nothing the module produces, drafts included
-            val out = b.toString() + b.suggestions.mapNotNull { s -> if (s.criteria.isEmpty()) null else AccDrafts.draft(s, s.criteria, criteria, "my words", 48, null).toString() }.joinToString()
+            val out =
+                b.toString() +
+                    b.suggestions.mapNotNull { s ->
+                        if (s.criteria.isEmpty()) null else AccDrafts.draft(s, s.criteria, criteria, "my words", 48, null).toString()
+                    }.joinToString()
             assertFalse(out.contains("CANARY"), "seed $i")
         }
         assertTrue(nonEmpty > 150, "the worlds should mostly have suggestions: $nonEmpty")
@@ -114,7 +158,10 @@ class AccountabilityInformationFlowTest {
             if (open.engagement.isNotEmpty()) withRecords++
             // negative control: the specification mutant "a dismissed suggestion counts" makes the two worlds differ
             if (w.requests.isEmpty()) {
-                assertTrue(report(store(w, { _, _ -> "text" }, dismissed = true, slot = 1), Faults(dismissedSuggestionCounts = true)).engagement.isNotEmpty() || dismissed.suggestions.none { it.status.name == "DISMISSED" })
+                assertTrue(
+                    report(store(w, { _, _ -> "text" }, dismissed = true, slot = 1), Faults(dismissedSuggestionCounts = true)).engagement.isNotEmpty() ||
+                        dismissed.suggestions.none { it.status.name == "DISMISSED" },
+                )
             }
         }
         assertTrue(withRecords > 100, "$withRecords")
@@ -145,7 +192,11 @@ class AccountabilityInformationFlowTest {
         val dir = Repo.path("core/src/main/kotlin/pcs/core/accountability")
         val hits =
             java.nio.file.Files.list(dir).use { fs -> fs.toList() }.flatMap { f ->
-                java.nio.file.Files.readAllLines(f).filter { Regex("review_text|comment_text|\\bfts\\b|review_version.*scores").containsMatchIn(it) && !it.trimStart().startsWith("*") && !it.trimStart().startsWith("//") }.map { f.fileName.toString() to it.trim() }
+                java.nio.file.Files.readAllLines(f).filter {
+                    Regex("review_text|comment_text|\\bfts\\b|review_version.*scores").containsMatchIn(it) &&
+                        !it.trimStart().startsWith("*") &&
+                        !it.trimStart().startsWith("//")
+                }.map { f.fileName.toString() to it.trim() }
             }
         assertEquals(1, hits.size, hits.toString())
         assertTrue(hits.single().second.contains("SELECT r.rid, rt.field_uid FROM review_text rt JOIN review r"), hits.single().second)

@@ -156,7 +156,10 @@ public object AccLoader {
         val acs =
             reviews.filter { it.rtype == 5 }.groupBy({ it.pid }, { it.email }).mapValues { it.value.toSet() }
         val coached =
-            c.query("SELECT pid, lower(email) FROM comment WHERE deleted_seen_at IS NULL AND draft = 0 AND visibility = 'rev'") { it.getLong(1) to it.getString(2) }
+            c.query("SELECT pid, lower(email) FROM comment WHERE deleted_seen_at IS NULL AND draft = 0 AND visibility = 'rev'") {
+                it.getLong(1) to
+                    it.getString(2)
+            }
                 .filter { (pid, email) -> email in acs[pid].orEmpty() }.map { it.first }.toSet()
         return AccInput(now, reviews, tags, TagSeen.all(store), names, tiers, dismissed, manual, caseRows, coached, acs)
     }

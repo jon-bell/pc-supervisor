@@ -143,7 +143,14 @@ class AccountabilityPlanTest {
         val r2 = report(s, due.plusSeconds(3600 * 60)).requests.single()
         assertTrue(r2.mayRemind && !r2.mayNoReply)
         // the reviewer revises the review after the request: a version first seen later
-        val revised = withRequest("0", sent) { store.conn.createStatement().use { it.executeUpdate("INSERT INTO review_version(rid,vtag,seen_at,source,scores,status) VALUES(3,'v1',${sent + 100},'snapshot','{}','complete')") } }
+        val revised =
+            withRequest("0", sent) {
+                store.conn.createStatement().use {
+                    it.executeUpdate(
+                        "INSERT INTO review_version(rid,vtag,seen_at,source,scores,status) VALUES(3,'v1',${sent + 100},'snapshot','{}','complete')",
+                    )
+                }
+            }
         val r3 = report(revised, due.plusSeconds(3600 * 10)).requests.single()
         assertTrue(r3.revised)
         assertEquals(ReqStatus.REPLIED, r3.status)
@@ -162,6 +169,7 @@ class AccountabilityPlanTest {
                 tagSeen(1, "pcs-remind-B1", "0", reminded)
                 setTags(1, listOf("pcs-req-B1#0", "pcs-remind-B1"))
             }
+
         fun req(h: Long) = report(s, at(h)).requests.single()
         // due at +48; reminder at +50; grace ends at +96 (card C3: hour 90 no, hour 97 yes, measured from the due date and reminder)
         assertFalse(req(48).mayNoReply)

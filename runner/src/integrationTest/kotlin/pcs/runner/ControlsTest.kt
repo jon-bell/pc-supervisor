@@ -96,7 +96,17 @@ class ControlsTest {
             buildJsonObject {
                 put("kind", "controls")
                 put("controls", JsonArray(controls))
-                put("requiredSpecMutants", JsonArray(listOf(JsonPrimitive("spec:silence-removes"), JsonPrimitive("spec:early-reject-before-close"), JsonPrimitive("spec:dismissed-suggestion-counts"), JsonPrimitive("spec:heuristic-sends-itself"))))
+                put(
+                    "requiredSpecMutants",
+                    JsonArray(
+                        listOf(
+                            JsonPrimitive("spec:silence-removes"),
+                            JsonPrimitive("spec:early-reject-before-close"),
+                            JsonPrimitive("spec:dismissed-suggestion-counts"),
+                            JsonPrimitive("spec:heuristic-sends-itself"),
+                        ),
+                    ),
+                )
             },
         )
     }

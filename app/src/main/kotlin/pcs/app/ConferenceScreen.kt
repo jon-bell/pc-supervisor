@@ -37,6 +37,7 @@ enum class TabName(val label: String) {
     Papers("Papers"),
     Reviews("Reviews"),
     EarlyReject("Early reject"),
+    Accountability("Accountability"),
     Writeback("Writeback"),
     Report("Sync report"),
     Settings("Settings"),
@@ -109,6 +110,7 @@ fun ConferenceScreen(shell: Shell, session: Session, onSwitch: () -> Unit) {
                 }
             TabName.Reviews -> ReviewsView(session, shell.opener, version)
             TabName.EarlyReject -> EarlyRejectView(session, shell.opener, version)
+            TabName.Accountability -> AccountabilityView(session, shell.opener, version) { version++ }
             TabName.Writeback -> WritebackScreen(session, shell.opener, version, selectedArtifact, { selectedArtifact = it }, { version++ })
             TabName.Report -> ReportScreen(session, version)
             TabName.Settings -> SettingsScreen(session.answers(), session.conference.id)

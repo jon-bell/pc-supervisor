@@ -162,7 +162,12 @@ public class Session private constructor(
                 st.executeQuery("SELECT lower(email), tags FROM person WHERE gone_at IS NULL").use { rs ->
                     buildMap {
                         while (rs.next()) {
-                            put(rs.getString(1), kotlinx.serialization.json.Json.parseToJsonElement(rs.getString(2)).let { e -> (e as kotlinx.serialization.json.JsonArray).map { t -> (t as kotlinx.serialization.json.JsonPrimitive).content } })
+                            put(
+                                rs.getString(1),
+                                kotlinx.serialization.json.Json.parseToJsonElement(rs.getString(2)).let { e ->
+                                    (e as kotlinx.serialization.json.JsonArray).map { t -> (t as kotlinx.serialization.json.JsonPrimitive).content }
+                                },
+                            )
                         }
                     }
                 }

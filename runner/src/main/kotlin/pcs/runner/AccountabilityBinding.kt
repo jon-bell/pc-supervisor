@@ -1,7 +1,6 @@
 package pcs.runner
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -97,12 +96,18 @@ class AccountabilityBinding(private val w: World) {
 
     private fun reviewOrdinal(): String? =
         w.store.conn.createStatement().use { st ->
-            st.executeQuery("SELECT ordinal FROM review WHERE pid = $pid AND email = '${Persons.ACC_REVIEWER}' AND gone_at IS NULL AND ordinal IS NOT NULL").use { if (it.next()) it.getString(1) else null }
+            st.executeQuery(
+                "SELECT ordinal FROM review WHERE pid = $pid AND email = '${Persons.ACC_REVIEWER}' AND gone_at IS NULL AND ordinal IS NOT NULL",
+            ).use {
+                if (it.next()) it.getString(1) else null
+            }
         }
 
     private fun reviewWords(): Int =
         w.store.conn.createStatement().use { st ->
-            st.executeQuery("SELECT word_count FROM review WHERE pid = $pid AND email = '${Persons.ACC_REVIEWER}' AND gone_at IS NULL").use { if (it.next()) it.getInt(1) else 0 }
+            st.executeQuery("SELECT word_count FROM review WHERE pid = $pid AND email = '${Persons.ACC_REVIEWER}' AND gone_at IS NULL").use {
+                if (it.next()) it.getInt(1) else 0
+            }
         }
 
     private fun chairTags(): List<Trace> = Conventions.decode(pid, api.call("GET", "$pid/tags")["tags"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty())
@@ -176,7 +181,18 @@ class AccountabilityBinding(private val w: World) {
             }
             is AccountabilityRequestsCoach ->
                 if (isPerson(role) && !coached()) {
-                    outcome(api.ok(api.call("POST", "$pid/comment", actas = Persons.AC_REFERRING, json = """{"text":"Synthetic coaching note for the reviewers.","visibility":"rev"}""")).also { w.sync() })
+                    outcome(
+                        api.ok(
+                            api.call(
+                                "POST",
+                                "$pid/comment",
+                                actas = Persons.AC_REFERRING,
+                                json = """{"text":"Synthetic coaching note for the reviewers.","visibility":"rev"}""",
+                            ),
+                        ).also {
+                            w.sync()
+                        },
+                    )
                 } else {
                     Outcome.REFUSED
                 }
@@ -214,16 +230,20 @@ class AccountabilityBinding(private val w: World) {
                 }
         }
 
-    private fun coached(): Boolean = w.store.conn.createStatement().use { st ->
-        st.executeQuery("SELECT count(*) FROM comment WHERE pid = $pid AND visibility = 'rev' AND lower(email) = '${Persons.AC_REFERRING}' AND deleted_seen_at IS NULL").use {
-            it.next()
-            it.getInt(1) > 0
+    private fun coached(): Boolean =
+        w.store.conn.createStatement().use { st ->
+            st.executeQuery(
+                "SELECT count(*) FROM comment WHERE pid = $pid AND visibility = 'rev' AND lower(email) = '${Persons.AC_REFERRING}' AND deleted_seen_at IS NULL",
+            ).use {
+                it.next()
+                it.getInt(1) > 0
+            }
         }
-    }
 
-    private fun caseOpen(): Boolean = w.store.conn.createStatement().use { st ->
-        st.executeQuery("SELECT status FROM acc_case WHERE nominee = '${Persons.ACC_REVIEWER}'").use { it.next() && it.getString(1) == "open" }
-    }
+    private fun caseOpen(): Boolean =
+        w.store.conn.createStatement().use { st ->
+            st.executeQuery("SELECT status FROM acc_case WHERE nominee = '${Persons.ACC_REVIEWER}'").use { it.next() && it.getString(1) == "open" }
+        }
 
     private fun suggest(role: String): Outcome {
         val before = report().suggestions.firstOrNull()
@@ -238,7 +258,19 @@ class AccountabilityBinding(private val w: World) {
                 ensureReview(thin = false)
                 AccLocal.suggest(
                     w.store,
-                    ManualSuggestion(pid, reviewOrdinal()!!, if (role == "ac") Source.AC else Source.JUNIOR_PC_CHAIR, listOf(1), listOf("the AC asked for a request")),
+                    ManualSuggestion(
+                        pid,
+                        reviewOrdinal()!!,
+                        if (role ==
+                            "ac"
+                        ) {
+                            Source.AC
+                        } else {
+                            Source.JUNIOR_PC_CHAIR
+                        },
+                        listOf(1),
+                        listOf("the AC asked for a request"),
+                    ),
                     w.clock.now(),
                 )
                 Outcome.EFFECTIVE
@@ -317,7 +349,14 @@ class AccountabilityBinding(private val w: World) {
             AccountabilityRequestsStateObs.DISPOSITION -> JsonPrimitive(key(req?.disposition))
             AccountabilityRequestsStateObs.NOW -> JsonPrimitive(nowH())
             AccountabilityRequestsStateObs.MAY_NO_REPLY ->
-                JsonPrimitive(req != null && Accountability.mayDispose(Request(7, 1, hoursOf(req.due), req.remindedAt?.let(::hoursOf), repliedFor(req), null), ReqDisposition.NO_REPLY, Math.floorDiv(w.clock.now().epochSecond, 3600L)))
+                JsonPrimitive(
+                    req != null &&
+                        Accountability.mayDispose(
+                            Request(7, 1, hoursOf(req.due), req.remindedAt?.let(::hoursOf), repliedFor(req), null),
+                            ReqDisposition.NO_REPLY,
+                            Math.floorDiv(w.clock.now().epochSecond, 3600L),
+                        ),
+                )
             AccountabilityRequestsStateObs.ENGAGED -> JsonPrimitive(eng?.engaged ?: 0)
             AccountabilityRequestsStateObs.NOT_ENGAGED -> JsonPrimitive(eng?.notEngaged ?: 0)
             AccountabilityRequestsStateObs.CASE_MAY_OPEN ->

@@ -36,7 +36,9 @@ public object AccDrafts {
             buildString {
                 appendLine("Dear %NAME%,")
                 appendLine()
-                appendLine("Thank you for your review of paper #%NUMBER%, \"%TITLE%\" (review ${s.ordinal}). The area chair would like you to look at it again against these parts of the reviewer guidelines:")
+                appendLine(
+                    "Thank you for your review of paper #%NUMBER%, \"%TITLE%\" (review ${s.ordinal}). The area chair would like you to look at it again against these parts of the reviewer guidelines:",
+                )
                 appendLine()
                 cited.forEach { appendLine("  ${it.id}. ${it.text}") }
                 if (words.isNotBlank()) {
@@ -74,9 +76,17 @@ public object AccDrafts {
 
     /** The disposition goes in the request tag's value (1 revised, 2 explained, 3 declined, 4 no reply, 5 disputed). */
     public fun recordDisposition(pid: Long, ordinal: String, n: Int, d: ReqDisposition): TagArtifact =
-        TagArtifact(listOf(TagChange(pid, add = listOf(tag(Trace.RequestSent(pid, ordinal, n, d))))), "Record disposition ${d.name.lowercase().replace('_', ' ')} for request $ordinal$n")
+        TagArtifact(
+            listOf(TagChange(pid, add = listOf(tag(Trace.RequestSent(pid, ordinal, n, d))))),
+            "Record disposition ${d.name.lowercase().replace('_', ' ')} for request $ordinal$n",
+        )
 
     /** A PC chair's outcome for a case, on every paper it lists (1 upheld, 2 dismissed). */
     public fun recordCase(papers: List<Long>, number: Int, upheld: Boolean): TagArtifact =
-        TagArtifact(papers.sorted().map { TagChange(it, add = listOf(tag(Trace.Case(it, number, if (upheld) 1 else 2)))) }, "Record case $number ${if (upheld) "upheld" else "dismissed"}")
+        TagArtifact(
+            papers.sorted().map {
+                TagChange(it, add = listOf(tag(Trace.Case(it, number, if (upheld) 1 else 2))))
+            },
+            "Record case $number ${if (upheld) "upheld" else "dismissed"}",
+        )
 }

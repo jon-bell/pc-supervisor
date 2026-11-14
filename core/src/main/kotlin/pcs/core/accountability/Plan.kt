@@ -40,7 +40,9 @@ public object AccountabilityPlan {
         val notes = mutableListOf<String>()
         if (cfg.criteria.isEmpty()) notes += "The PC chairs have not set the criteria list (PCS_CRITERION_<n>), so no request can cite criteria (AR1)."
         val reviews = input.reviews.filter(::isReviewer)
+
         fun name(email: String) = input.names[email] ?: email
+
         fun group(email: String) = input.tiers.of(email).group
         val due = cfg.signal.reviewDue
 
@@ -113,7 +115,14 @@ public object AccountabilityPlan {
                 val seen = seenByName[t.pid to "pcs-req-${t.ordinal}${t.n}"] ?: return@mapNotNull null
                 val sentAt = Instant.ofEpochSecond(seen.firstSeenAt)
                 val dueAt = sentAt.plus(Duration.ofHours(cfg.dueH))
-                val remindedAt = if (reminders.containsKey(Triple(t.pid, t.ordinal, t.n))) seenByName[t.pid to "pcs-remind-${t.ordinal}${t.n}"]?.let { Instant.ofEpochSecond(it.firstSeenAt) } else null
+                val remindedAt =
+                    if (reminders.containsKey(Triple(t.pid, t.ordinal, t.n))) {
+                        seenByName[t.pid to "pcs-remind-${t.ordinal}${t.n}"]?.let {
+                            Instant.ofEpochSecond(it.firstSeenAt)
+                        }
+                    } else {
+                        null
+                    }
                 val revised = rv.versionSeenAt.any { it > seen.firstSeenAt }
                 val replied = revised || (t.disposition != null && t.disposition != ReqDisposition.NO_REPLY)
                 val q = Request(0, sentBy = 1, due = hours(sentAt) + cfg.dueH, remindedAt = remindedAt?.let(::hours), replied = replied, disp = t.disposition)
@@ -174,9 +183,27 @@ public object AccountabilityPlan {
         val manual =
             input.manual.mapNotNull { s ->
                 val rv = reviewByOrdinal[s.pid to s.ordinal] ?: return@mapNotNull null
-                ReqSuggestion(s.pid, s.ordinal, rv.email, name(rv.email), group(rv.email), s.source, s.criteria.filter { c -> cfg.criteria.any { it.id == c } }, s.reasons, status(s.pid, s.ordinal))
+                ReqSuggestion(
+                    s.pid,
+                    s.ordinal,
+                    rv.email,
+                    name(rv.email),
+                    group(rv.email),
+                    s.source,
+                    s.criteria.filter { c ->
+                        cfg.criteria.any { it.id == c }
+                    },
+                    s.reasons,
+                    status(s.pid, s.ordinal),
+                )
             }
-        val suggestions = (manual + heuristic.filter { h -> manual.none { it.pid == h.pid && it.ordinal == h.ordinal } }).sortedWith(compareBy({ it.pid }, { it.ordinal }))
+        val suggestions =
+            (
+                manual +
+                    heuristic.filter { h ->
+                        manual.none { it.pid == h.pid && it.ordinal == h.ordinal }
+                    }
+            ).sortedWith(compareBy({ it.pid }, { it.ordinal }))
 
         // ---- the engagement record (AR4): dispositions only; a dismissed suggestion is not an input
         val emails = (requests.map { it.reviewer } + suggestions.map { it.reviewer }).distinct().sorted()
@@ -232,10 +259,18 @@ public object AccountabilityPlan {
                             Share(p, owed, done)
                         }
                     } else {
-                        caseNotes += "What this nominee owes turns on an unanswered question (Q18/Q19), so the papers listed are every paper that nominated them."
+                        caseNotes +=
+                            "What this nominee owes turns on an unanswered question (Q18/Q19), so the papers listed are every paper that nominated them."
                         ob.papers.map { Share(it, 1, if (missing) 0 else 1) }
                     }
-                val listed = if (missing || shares.any { it.done < it.owed }) Accountability.unmetPapers(shares).ifEmpty { ob.papers.sorted() } else ob.papers.sorted()
+                val listed =
+                    if (missing ||
+                        shares.any { it.done < it.owed }
+                    ) {
+                        Accountability.unmetPapers(shares).ifEmpty { ob.papers.sorted() }
+                    } else {
+                        ob.papers.sorted()
+                    }
                 val status =
                     when {
                         tagged.any { it.outcome == 1 } -> CaseStatus.UPHELD
