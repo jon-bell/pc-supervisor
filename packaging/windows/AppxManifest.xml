@@ -18,7 +18,7 @@
     <Resource Language="en-us" />
   </Resources>
   <Applications>
-    <Application Id="PCSupervisor" Executable="PC Supervisor.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="PCSupervisor" Executable="pc-supervisor.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements DisplayName="PC Supervisor" Description="Supervises a HotCRP review process for the conference chairs"
                           BackgroundColor="#1F5F8B" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
     </Application>

@@ -71,9 +71,9 @@ jobs:
         run: ./gradlew :app:packageReleaseDmg :app:notarizeReleaseDmg
       - name: The signed app starts and its signature verifies
         run: |
-          app="app/build/compose/binaries/main-release/app/PC Supervisor.app"
+          app="app/build/compose/binaries/main-release/app/pc-supervisor.app"
           codesign --verify --deep --strict "$app"
-          PCS_CONFERENCES=/tmp/pcs-none "$app/Contents/MacOS/PC Supervisor" --smoke
+          PCS_CONFERENCES=/tmp/pcs-none "$app/Contents/MacOS/pc-supervisor" --smoke
       - name: Lean FFI library on macOS (the model-in-core decision is provisional until this builds; PLAN M4)
         continue-on-error: true
         run: |
@@ -102,7 +102,7 @@ jobs:
       - name: The app starts (headless check; no window, no keychain)
         shell: bash
         run: |
-          PCS_CONFERENCES="$RUNNER_TEMP/pcs-none" "app/build/compose/binaries/main-release/app/PC Supervisor/PC Supervisor.exe" --smoke
+          PCS_CONFERENCES="$RUNNER_TEMP/pcs-none" "app/build/compose/binaries/main-release/app/pc-supervisor/pc-supervisor.exe" --smoke
       - name: Pack the MSIX for Microsoft Store submission (the Store signs it)
         shell: pwsh
         env:
@@ -111,7 +111,7 @@ jobs:
           MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
         run: |
           $ver = "0.4.0.0"
-          $root = "app/build/compose/binaries/main-release/app/PC Supervisor"
+          $root = "app/build/compose/binaries/main-release/app/pc-supervisor"
           $manifest = (Get-Content packaging/windows/AppxManifest.xml -Raw) `
             -replace '@IDENTITY_NAME@', $env:MSIX_IDENTITY_NAME `
             -replace '@PUBLISHER@', $env:MSIX_PUBLISHER `

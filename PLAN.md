@@ -17,7 +17,33 @@ This is the work breakdown for building PC Supervisor. Read [docs/concepts.md](d
 - **M3** done: the encrypted store, the full sync (first-seen, versions, edits, deletions, unassignments, mentions, FTS), the history backfill, idempotence, and the multi-stage test.
 - **Rules ahead of their milestones:** every rule in the model is ported to `core`; all 38 cards conform under every reading, and `core`'s fault switches match the model's 10 mutants. The discussion rules (M18's engine, not its UI) fire exactly the golden table end to end.
 - **Found on the harness and fixed in the spec:** `/pc` has no per-user tags (tiers come from the appointments import); the API is rate-limited to 250 requests per window; `saveusers` takes tags as a string; response comments name their round; `/reviewhistory` needs `expand=1`; two golden rows contradicted spec §5c.
-- **Next:** seed `shadow` and time a full sync; M3a (scenario runner and evidence checker); M4 (app shell). Coverage still open: rules 3/9, properties 3/45, policy cells 0/207, conventions 5/12.
+- **M4** done locally, 2026-11-14, branch `m4-app` (CI, Argos, macOS, and Windows not run):
+  - **Done:**
+    - `app` module: Compose Desktop 1.12.2 on Kotlin 2.4.21, bundled Inter font.
+    - Keychain unlock on start (java-keyring through `core`; a failure is shown with "Try again"), conference picker (one `<id>.conf` and one encrypted DB per conference; settings problems listed, not opened), sync status and "Sync now" (`Session` in `core` runs `Sync` with `HotcrpClient`; the token and DB key never leave `core`).
+    - One lazy table (`LazyTable`: sort, filter, column chooser, row click opens `/paper/{pid}` or `/review/{pid}{ordinal}` through a `UrlOpener`), used by the paper and review tables.
+    - Settings screen: every question with its reading or "unresolved", and for each unresolved one the cards and ruling policy cells it blocks.
+    - Card gallery: one screen per card, 38 of 38, rendered under the answered reading.
+    - App driver and view reader (`app/src/test/.../testing`), checked both directions against HotCRP's own pids, titles, review ordinals and the golden table's merits.
+    - `view:*` claims (5 screens plus 38 cards) added to the claim inventory; all 43 covered in the assurance report.
+    - `uiTest` task; screenshots in `app/build/screenshots`; Roborazzi behind `Visual`/`RoborazziBridge` (`-Ppcs.visual=record|compare`, baselines in git-ignored `app/visual-baselines`, tested including a failing compare, with plain-capture fallback).
+    - `release.yml` and the MSIX manifest template.
+  - **Evidence:**
+    - `GoldenUiTest` (opens synced `golden`, shows 13 papers, pid 4 resolves to `<url>/paper/4`), `ShellUiTest` (an unresolved Q10 appears with card X1; a complete file blocks nothing), `CardGalleryUiTest` (38 cards).
+    - Three consecutive `./gradlew :app:uiTest` runs gave byte-identical screenshots (43 files, same SHA-256 list).
+    - `scripts/package-linux-local.sh` builds a 124 MB `.deb` and the installed launcher passes `--smoke`.
+    - `./gradlew check` green.
+  - **Not done:**
+    - Argos upload and its builds: out of scope here. CI's existing step uploads the whole `app/build/screenshots`; the cards need their own build (`--build-name cards`) from `app/build/screenshots/cards`.
+    - macOS signing, notarization, and Windows MSIX never ran. The Store logo assets under `packaging/windows/Assets` don't exist yet, and the identity variables come from the Store account.
+    - The Lean FFI library on macOS and Windows: one `continue-on-error` step for macOS only; Windows has none. The provisional model-in-core decision stays provisional.
+  - **Deviations:**
+    - This machine's JDK 25 has no `jmods`, so Compose's jlink step (`:app:packageDeb`) can't run here. `scripts/package-linux-local.sh` runs the same jpackage step with the whole JDK as runtime image. CI's Temurin 25 has jmods, and `release.yml` uses the Gradle task, unrun.
+    - `uiTest` includes tests that need no harness (gallery, shell, settings); only `GoldenUiTest` needs it, so `check` stays harness-free and doesn't run the UI tests.
+    - "What an unresolved question blocks" is derived from `model/export/cards.json` and `policy.json` (shipped as `core` resources) because no feature-level map exists. The screen says so. Questions that no card or ruling cell depends on say "nothing in the model's cards or policy table yet".
+    - Window size is fixed (1280x1400) and density is the test default of 1.0; the test API in this Compose version has no density parameter.
+    - The `synthetic.txt` answers file leaves 12 questions unresolved, so the gallery shows blocked cards too.
+- **Next:** seed `shadow` and time a full sync; M3a (scenario runner and evidence checker); M4 on CI (Argos, macOS, Windows). Coverage still open: rules 3/9, properties 3/45, policy cells 0/207, conventions 5/12.
 
 ## Order
 

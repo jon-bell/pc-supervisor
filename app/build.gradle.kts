@@ -38,7 +38,7 @@ val screenshotDir = layout.buildDirectory.dir("screenshots")
 // Plain unit tests (table logic, view reader); the Compose UI tests are tagged "ui" and run in uiTest.
 tasks.test {
     useJUnitPlatform { excludeTags("ui") }
-    configureUiTestCommon()
+    configureUiTestCommon("covers")
 }
 
 // Compose UI tests: the ones that need nothing but the app's own resources, and the ones against the
@@ -50,7 +50,7 @@ val uiTest by tasks.registering(Test::class) {
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
     useJUnitPlatform { includeTags("ui") }
-    configureUiTestCommon()
+    configureUiTestCommon("covers-ui")
     doFirst { screenshotDir.get().asFile.deleteRecursively() }
     listOf("PCS_HOTCRP_URL", "PCS_HOTCRP_TOKEN").forEach { k -> System.getenv(k)?.let { environment(k, it) } }
     outputs.upToDateWhen { false }
@@ -58,12 +58,13 @@ val uiTest by tasks.registering(Test::class) {
     environment("PCS_CONFERENCES", layout.buildDirectory.dir("ui-conferences").get().asFile.absolutePath)
 }
 
-fun Test.configureUiTestCommon() {
+fun Test.configureUiTestCommon(coversName: String) {
     dependsOn(claimsInventory)
     jvmArgs("--enable-native-access=ALL-UNNAMED", "-Duser.language=en", "-Duser.country=US", "-Dfile.encoding=UTF-8")
     systemProperty("pcs.repoRoot", rootProject.projectDir.absolutePath)
     systemProperty("pcs.claimsFile", claimsFile.get().asFile.absolutePath)
-    systemProperty("pcs.coversDir", layout.buildDirectory.dir("covers").get().asFile.absolutePath)
+    systemProperty("pcs.coversDir", layout.buildDirectory.dir(coversName).get().asFile.absolutePath)
+    doFirst { layout.buildDirectory.dir(coversName).get().asFile.deleteRecursively() }
     systemProperty("pcs.screenshots", screenshotDir.get().asFile.absolutePath)
     // local visual review (Roborazzi): -Ppcs.visual=record|compare; baselines stay out of git
     providers.gradleProperty("pcs.visual").orNull?.let {
@@ -72,8 +73,6 @@ fun Test.configureUiTestCommon() {
     }
     systemProperty("pcs.visualBaselines", layout.projectDirectory.dir("visual-baselines").asFile.absolutePath)
 }
-
-tasks.withType<Test>().configureEach { doFirst { layout.buildDirectory.dir("covers").get().asFile.deleteRecursively() } }
 
 compose.desktop {
     application {

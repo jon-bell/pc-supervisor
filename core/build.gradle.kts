@@ -244,7 +244,7 @@ val assuranceReport by tasks.registering {
     mustRunAfter(tasks.test, tasks.named("integrationTest"))
     val coversFiles =
         listOf("covers", "covers-integration").map { layout.buildDirectory.file("$it/covers.tsv") } +
-            project(":app").layout.buildDirectory.file("covers/covers.tsv")
+            listOf("covers", "covers-ui").map { project(":app").layout.buildDirectory.file("$it/covers.tsv") }
     val out = rootProject.layout.buildDirectory.file("reports/assurance.md")
     outputs.file(out)
     outputs.upToDateWhen { false }
