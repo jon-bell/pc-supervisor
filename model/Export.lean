@@ -54,7 +54,7 @@ def actionsJson : Json :=
           ("perm", match s.perm a with | some p => Json.str (permKey p) | none => Json.null)]),
       ("observations", Json.arr <| obs.toArray.map fun (k, t, rs) =>
         Json.mkObj [("key", k), ("type", t), ("readers", Json.arr (rs.toArray.map Json.str))])]
-  Json.arr #[sys deskSys deskDesc deskObservations, sys earlySys earlyDesc [], sys accSys accDesc [], sys pcSys pcDesc []]
+  Json.arr #[sys deskSys deskDesc deskObservations, sys earlySys earlyDesc earlyObservations, sys accSys accDesc [], sys pcSys pcDesc []]
 
 def transitionsJson (a : Answers) : Json :=
   let base := a.base
@@ -70,6 +70,17 @@ def tracesJson (a : Answers) : Json :=
   let base := a.base
   let fix := base.set .q1 (indexIn (QId.q1.labels.map (·.1)) "fix-window")
   Json.arr <| (deskTraces "signed" base ++ deskTraces "fix-window" fix).toArray.map Trace.json
+
+/-- The early-reject witness traces: the first reading carries the first use of each granted cell. -/
+def earlyReadings (a : Answers) : List (String × Reading × Bool) :=
+  let base := a.base
+  let withQ (q15 q16 : String) : Reading :=
+    (base.set .q15 (indexIn (QId.q15.labels.map (·.1)) q15)).set .q16 (indexIn (QId.q16.labels.map (·.1)) q16)
+  [("bump-reject-only", withQ "reject-only" "bump-window", true), ("bump-reject-or-weak", withQ "reject-or-weak" "bump-window", false),
+   ("bump-below-accept", withQ "below-accept" "bump-window", false), ("no-window-reject-or-weak", withQ "reject-or-weak" "no-window", false)]
+
+def earlyTracesJson (a : Answers) : Json :=
+  Json.arr <| ((earlyReadings a).flatMap fun (tag, r, cells) => earlyTraces tag r cells).toArray.map ETrace.json
 
 def mutantsJson : Json :=
   Json.arr <| mutants.toArray.map fun m => Json.str m.name
@@ -87,8 +98,9 @@ def main (args : List String) : IO Unit := do
   -- the Lean parse of the synthetic answers file, for the JVM parser-agreement test
   let a := parseAnswers (← IO.FS.readFile "answers/synthetic.txt")
   write "traces-desk.json" (tracesJson a)
+  write "traces-early.json" (earlyTracesJson a)
   IO.FS.writeFile s!"{dir}/transitions-desk.json" ((transitionsJson a).compress ++ "\n")
   write "answers-synthetic.json" (Json.mkObj [
     ("given", Json.arr (a.given.toArray.map fun (q, i) => Json.arr #[q.code, (q.labels.getD i ("?", "?")).1])),
     ("errors", Json.arr (a.errors.toArray.map Json.str))])
-  IO.println s!"wrote {dir}/: readings.json ({QId.all.length} questions), cards.json ({cards.length} cards), policy.json, actions.json, mutants.json, binding-mutants.json, traces-desk.json"
+  IO.println s!"wrote {dir}/: readings.json ({QId.all.length} questions), cards.json ({cards.length} cards), policy.json, actions.json, mutants.json, binding-mutants.json, traces-desk.json, traces-early.json"

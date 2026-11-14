@@ -65,9 +65,59 @@ def traceDisagreements (rec : Json) : Except String (List String) := do
   if (getArr rec "steps").size != moves.length then bad := bad ++ ["step count mismatch"]
   return bad
 
+/-- The same replay for the early-reject subsystem. -/
+def earlyTraceDisagreements (rec : Json) : Except String (List String) := do
+  let reading ← parseReading (getObj rec "reading")
+  let params ← parseParams (getObj rec "modelMutant")
+  let mut moves : List EMove := []
+  for st in getArr rec "steps" do
+    let role ← match getObj st "role" with
+      | .null => pure none
+      | .str k => match roleOfKey? k with | some r => pure (some r) | none => throw s!"unknown role {k}"
+      | _ => throw "bad role"
+    moves := moves ++ [{ role, act := ← earlyActOfJson (getObj st "action") }]
+  let mut s : EarlySt := earlySys.init
+  let mut bad : List String := []
+  let mut outcomes : List Bool := []
+  let mut i := 0
+  for (st, m) in (getArr rec "steps").toList.zip moves do
+    i := i + 1
+    let next := gated earlySys params reading s (m.role, m.act)
+    let eff := next.isSome
+    s := next.getD s
+    outcomes := outcomes ++ [eff]
+    if getStr st "outcome" != (if eff then "effective" else "refused") then
+      bad := bad ++ [s!"step {i} ({showMove earlySys (m.role, m.act)}): the system {getStr st "outcome"}, the model says {if eff then "effective" else "refused"}"]
+    let model := earlyObserve reading s
+    let observed := getObj st "observed"
+    for (k, _, readers) in earlyObservations do
+      let byReader := getObj observed k
+      for rd in readers do
+        match byReader.getObjVal? rd with
+        | .error _ => bad := bad ++ [s!"step {i}: observation {k} not read by the {rd} reader"]
+        | .ok v =>
+          let want := getObj model k
+          if v.compress != want.compress then
+            bad := bad ++ [s!"step {i}: {k} read by {rd} is {v.compress}, the model says {want.compress}"]
+      match byReader with
+      | .obj kvs => for (rd, _) in kvs.toList do
+          if !readers.contains rd then bad := bad ++ [s!"step {i}: observation {k} read by unexpected reader {rd}"]
+      | _ => pure ()
+  let v ← verdictOfJson (getObj (getObj rec "verdict") "claimed")
+  let holds := v.holdsEarly moves outcomes s
+  let claimed := (getObj (getObj rec "verdict") "holds").getBool?.toOption.getD false
+  if holds != claimed then
+    bad := bad ++ [s!"the record claims the verdict {if claimed then "holds" else "fails"}, the model says {if holds then "holds" else "fails"}"]
+  if (getArr rec "steps").size != moves.length then bad := bad ++ ["step count mismatch"]
+  return bad
+
+/-- Replays a trace record in the subsystem it names. -/
+def anyTraceDisagreements (rec : Json) : Except String (List String) :=
+  if getStr rec "subsystem" == earlySys.name then earlyTraceDisagreements rec else traceDisagreements rec
+
 /-- Verdicts must also hold in the model, as the claim of the trace says. -/
 def checkTraceRecord (rec : Json) : Except String (List String) := do
-  let bad ← traceDisagreements rec
+  let bad ← anyTraceDisagreements rec
   let claimedHolds := (getObj (getObj rec "verdict") "holds").getBool?.toOption.getD false
   -- the boundary log: nothing but the harness, and no canary anywhere it must not be (PLAN §A6)
   let violations := getArr (getObj rec "boundary") "violations"
@@ -98,7 +148,7 @@ def checkControls (rec : Json) : Except String (List String) := do
     let disagree ←
       match getObj c "trace" with
       | .null => pure (observerCaught (getObj c "observer"))
-      | t => pure (!(← traceDisagreements t).isEmpty)
+      | t => pure (!(← anyTraceDisagreements t).isEmpty)
     let claimed := (getObj c "caught").getBool?.toOption.getD false
     if pol == "negative" then
       if !disagree then bad := bad ++ [s!"control {name}: the mutant {mutant} was not caught (the record agrees with the model)"]

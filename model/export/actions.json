@@ -78,7 +78,14 @@
     "args": {},
     "action": "remove the paper"}]},
  {"subsystem": "early reject",
-  "observations": [],
+  "observations":
+  [{"type": "int", "readers": ["hotcrp", "state"], "key": "reviews"},
+   {"type": "string-list", "readers": ["state"], "key": "scores"},
+   {"type": "bool", "readers": ["state"], "key": "candidate"},
+   {"type": "bool", "readers": ["state"], "key": "bumped"},
+   {"type": "bool", "readers": ["state"], "key": "window-closed"},
+   {"type": "bool", "readers": ["state"], "key": "may-early-reject"},
+   {"type": "string", "readers": ["hotcrp", "state"], "key": "disposition"}],
   "actions":
   [{"perm": "write-hotcrp",
     "key": "review",
