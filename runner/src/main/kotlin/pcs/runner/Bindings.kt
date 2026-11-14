@@ -268,7 +268,16 @@ class World(
             }
             is DeskRejectOfferRemedy -> {
                 val due = clock.now().epochSecond + 72 * 3600
-                outcome(api.ok(api.call("POST", "$pid/tags", form = "addtags=pcs-remedy-due%23$due")))
+                outcome(
+                    api.ok(
+                        api.call(
+                            "POST",
+                            "$pid/tags",
+                            form =
+                                "addtags=" + java.net.URLEncoder.encode(Conventions.encode(Trace.RemedyDue(pid, due)), Charsets.UTF_8),
+                        ),
+                    ),
+                )
             }
             is DeskRejectWarn -> outcome(api.ok(api.call("POST", "$pid/tags", form = "addtags=pcs-warned")))
             is DeskRejectCure -> {

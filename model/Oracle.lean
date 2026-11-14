@@ -84,6 +84,27 @@ def randomQuery (rule : String) (s : Nat) : Json :=
           ("share", Json.num (h (60 + i * 3 + k) % 7 : Nat)), ("accepted", h (70 + i * 3 + k) % 5 != 0)]))]
     Json.mkObj [("q", "owes"), ("reading", randomReading s), ("mutant", mutant),
       ("tier", if h 2 % 2 == 0 then "senior" else "junior"), ("papers", Json.arr papers), ("u", Json.num (7 : Nat))]
+  | "eligible" =>
+    let ids (k : Nat) : Json := Json.arr ((List.range (h k % 2)).toArray.map fun i => Json.num (h (k + 1 + i) % 4 : Nat))
+    Json.mkObj [("q", "eligible"), ("mutant", mutant),
+      ("member", Json.mkObj [("who", Json.num (h 1 % 4 : Nat)), ("tier", if h 2 % 6 == 0 then Json.null else tierJ 6), ("nominee", h 3 % 2 == 0),
+        ("accepted", h 4 % 6 != 0), ("consented", h 5 % 6 != 0)]),
+      ("authors", ids 10), ("conflicts", ids 20)]
+  | "compliance" =>
+    let nn := h 1 % 5
+    let who (i : Nat) : Nat := h (10 + i) % 6
+    Json.mkObj [("q", "compliance"), ("reading", randomReading s),
+      ("paper", Json.mkObj [("paper", Json.num (1 : Nat)), ("nominees", Json.arr ((List.range nn).toArray.map fun i =>
+        Json.mkObj [("who", Json.num (who i)), ("share", Json.num (h (30 + i) % 7 : Nat)), ("accepted", h (40 + i) % 4 != 0)]))]),
+      ("registered", Json.arr ((List.range 6).toArray.filterMap fun i => if h (50 + i) % 4 != 0 then some (Json.num (i : Nat)) else none))]
+  | "pattern" =>
+    let n := h 1 % 7
+    Json.mkObj [("q", "pattern"), ("author", Json.num (1 : Nat)), ("tier", if h 2 % 4 == 0 then tierJ 3 else Json.str "senior"),
+      ("noms", Json.arr ((List.range n).toArray.map fun i =>
+        Json.mkObj [("who", Json.num (if h (10 + i) % 25 == 0 then 1 else 20 + i : Nat)),
+          ("tier", if h (20 + i) % 8 == 0 then tierJ (30 + i) else Json.str "junior")]))]
+  | "overCap" =>
+    Json.mkObj [("q", "overCap"), ("reading", randomReading s), ("papers", Json.num (h 1 % 20 : Nat))]
   | "earlyReject" =>
     let n := h 1 % 4
     Json.mkObj [("q", "earlyReject"), ("reading", randomReading s), ("mutant", mutant),

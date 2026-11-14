@@ -142,6 +142,16 @@ public class Session private constructor(
         return EarlyRejectState.Ready(report, EarlyRejectArtifacts.mailDraft(report, zoneName = settings.zone.id), EarlyRejectArtifacts.decisions(report))
     }
 
+    /** Drafts the early-reject decisions the chair confirmed (default: every ready paper) as a Writeback artifact; nothing reaches HotCRP until it is confirmed and applied. Returns the artifact's id. */
+    public fun draftEarlyRejectDecisions(confirmed: Set<Long>? = null): Long {
+        val state = earlyReject() as? EarlyRejectState.Ready ?: throw IllegalStateException("early reject is blocked")
+        val art = EarlyRejectArtifacts.decisions(state.report, confirmed ?: state.report.ready.map { it.pid }.toSet())
+        return writeback().draft(art.toWriteback())
+    }
+
+    /** Writeback (spec §6) for this conference: the only way the app changes HotCRP. */
+    public fun writeback(): pcs.core.writeback.Writeback = pcs.core.writeback.Writeback(store, clock, settings.hotcrpUrl, token())
+
     public fun lastSync(): SyncRun? =
         store.conn.createStatement().use { s ->
             s.executeQuery("SELECT finished_at, counts, errors FROM sync_run WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1").use {

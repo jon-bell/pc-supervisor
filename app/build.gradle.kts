@@ -21,6 +21,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(testFixtures(project(":core")))
+    testImplementation(libs.serialization.json)
     testRuntimeOnly(libs.junit.launcher)
     @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
     testImplementation(compose.uiTest)

@@ -10,6 +10,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import kotlinx.serialization.json.longOrNull
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -22,6 +23,7 @@ import pcs.core.rules.Faults
 import pcs.core.rules.Member
 import pcs.core.rules.Nominations
 import pcs.core.rules.Nominee
+import pcs.core.rules.PaperFacts
 import pcs.core.rules.PaperNoms
 import pcs.core.rules.Pc
 import pcs.core.rules.ReqDisposition
@@ -44,6 +46,8 @@ class RulesDifferentialTest {
     private fun JsonObject.b(k: String, d: Boolean = false) = (this[k] as? JsonPrimitive)?.booleanOrNull ?: d
 
     private fun JsonObject.l(k: String) = (this[k] as? JsonPrimitive)?.longOrNull ?: 0L
+
+    private fun JsonObject.ids(k: String) = (this[k] as? JsonArray).orEmpty().map { it.jsonPrimitive.long }
 
     private fun JsonObject.arr(k: String) = (this[k] as? JsonArray).orEmpty().map { it.jsonObject }
 
@@ -83,6 +87,42 @@ class RulesDifferentialTest {
                     PaperNoms(p.l("paper"), p.arr("nominees").map { n -> Nominee(n.l("who"), n.l("share").toInt(), n.b("accepted", true)) })
                 }
             Nominations.owes(faults(q), r.q18!!, r.q19!!, r.q19b!!, q.tier("tier") ?: Tier.JUNIOR, papers, q.l("u"))
+        }
+
+    @Test
+    @Covers("rule:eligible")
+    fun eligible() =
+        check("eligible", { it.jsonPrimitive.booleanOrNull }) { q ->
+            val m = q["member"]!!.jsonObject
+            val pf = PaperFacts(authors = q.ids("authors"), conflicts = q.ids("conflicts"))
+            Pc.eligible(
+                faults(q),
+                Member(m.l("who"), m.tier("tier"), nominee = m.b("nominee"), accepted = m.b("accepted", true), consented = m.b("consented", true)),
+                pf,
+            )
+        }
+
+    @Test
+    @Covers("rule:compliance")
+    fun compliance() =
+        check("compliance", { it.jsonPrimitive.content }) { q ->
+            val p = q["paper"]!!.jsonObject
+            val pn = PaperNoms(p.l("paper"), p.arr("nominees").map { n -> Nominee(n.l("who"), n.l("share").toInt(), n.b("accepted", true)) })
+            Nominations.compliance(readings(q).q8!!, pn, q.ids("registered").toSet()).key
+        }
+
+    @Test
+    @Covers("rule:compliance", "prop:V3")
+    fun `nomination pattern (a signal, Q9)`() =
+        check("pattern", { it.jsonPrimitive.booleanOrNull }) { q ->
+            Nominations.nominationPattern(q.l("author"), q.tier("tier"), q.arr("noms").map { it.l("who") to it.tier("tier") })
+        }
+
+    @Test
+    @Covers("q:Q17=9")
+    fun `papers over the cap (Q17)`() =
+        check("overCap", { it.jsonPrimitive.intOrNull }) { q ->
+            Nominations.papersOverCap(readings(q).q17!!, q.l("papers").toInt())
         }
 
     @Test

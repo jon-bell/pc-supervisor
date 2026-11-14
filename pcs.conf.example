@@ -98,6 +98,8 @@ PCS_HISTORY_RPS=1
 # PCS_TAG_TRIAGE_KEEP=pcs-keep
 # PCS_TAG_TRIAGE_REFER=pcs-refer
 # PCS_TAG_REQUEST=pcs-req
+# The tag a chair puts on a filtered set that needs the chairs' attention (Writeback, spec §6).
+PCS_TAG_CHAIR_ATTENTION=chair-attention
 
 # --- Screening agent: inference engines (docs/agent.md §4.3, §5) -------------------
 # Engines are declared entirely here; no model id is hard-coded and no credential is stored here.

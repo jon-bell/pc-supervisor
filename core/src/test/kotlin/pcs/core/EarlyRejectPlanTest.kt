@@ -197,6 +197,11 @@ class EarlyRejectPlanTest {
             assertEquals(closed.ready.map { it.pid }, art.rows.map { it.pid })
             assertEquals("paper,action,decision\n1,decision,Reject\n6,decision,Reject\n7,decision,Reject\n8,decision,Reject\n", art.toCsv())
             assertEquals("1 6-8", art.authorSearch)
+            assertEquals(
+                mapOf(1L to "Reject", 6L to "Reject", 7L to "Reject", 8L to "Reject"),
+                art.toWriteback().decisions,
+                "the same decisions as a Writeback artifact",
+            )
             assertTrue(closed.candidates.flatMap { c -> c.reviewers.map { it.email } }.none { it in art.notice } && !art.notice.contains("bump", true))
             // a chair who confirms fewer gets fewer; a paper that isn't ready can't be added
             assertEquals(listOf(6L), EarlyRejectArtifacts.decisions(closed, setOf(6L, 2L, 5L)).rows.map { it.pid })

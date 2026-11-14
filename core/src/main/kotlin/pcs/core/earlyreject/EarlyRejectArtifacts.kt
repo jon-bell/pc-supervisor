@@ -29,6 +29,9 @@ public data class DecisionRow(val pid: Long, val decision: String)
  * nothing of any bump, C2), and the search that selects those papers for the notice.
  */
 public data class DecisionArtifact(val rows: List<DecisionRow>, val notice: String, val authorSearch: String) {
+    /** The same decisions as M5's Writeback artifact: a chair reviews HotCRP's dry run, confirms, and Writeback applies it. */
+    public fun toWriteback(): pcs.core.writeback.DecisionArtifact = pcs.core.writeback.DecisionArtifact(rows.associate { it.pid to it.decision }, notice)
+
     public fun toCsv(): String = "paper,action,decision\n" + rows.joinToString("") { "${it.pid},decision,${it.decision}\n" }
 
     public fun toJson(): JsonObject =

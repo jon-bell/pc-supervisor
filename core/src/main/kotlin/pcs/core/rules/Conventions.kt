@@ -16,7 +16,7 @@ public sealed interface Trace {
 
     public data class Case(val pid: Long, val n: Int, val outcome: Int) : Trace
 
-    /** The fix window offered on an anonymity violation closes at [dueEpoch] (seconds); a chair's mail-tool notice goes with it. */
+    /** The fix window offered on an anonymity violation closes at [dueEpoch] (seconds, a whole hour: the tag holds hours); a chair's mail-tool notice goes with it. */
     public data class RemedyDue(val pid: Long, val dueEpoch: Long) : Trace
 
     /** The authors were warned about a nomination non-compliance (Q10). */
@@ -25,7 +25,20 @@ public sealed interface Trace {
     /** The paper's AC objects to an early reject (concepts EarlyReject.ac_objects); the chair records it as this tag. */
     public data class EarlyObjection(val pid: Long) : Trace
 
+    /** The AC's triage in a screen-round metareview (the `Triage` review field, spec §11). */
+    public data class Triage(val pid: Long, val reviewer: String, val choice: TriageChoice) : Trace
+
+    /** A screening-findings comment posted through Writeback (spec §11): [cid], authored by [author]. */
+    public data class Findings(val pid: Long, val cid: Long, val author: String?) : Trace
+
     public data class Unparsed(val pid: Long, val tag: String) : Trace
+}
+
+/** What the triage field says: keep the paper, or refer it on a ground. */
+public sealed interface TriageChoice {
+    public data object Keep : TriageChoice
+
+    public data class Refer(val ground: Ground) : TriageChoice
 }
 
 public object Conventions {
@@ -39,6 +52,44 @@ public object Conventions {
             5 to ReqDisposition.DISPUTED,
         )
 
+    /** First line of a screening-findings comment (spec §11). */
+    public const val FINDINGS_MARKER: String = "[pcs:findings]"
+
+    /**
+     * The `Triage` field's radio values (spec §11): 1 is keep, and 2, 3, ... are the grounds in the
+     * model's order (2 format, 3 scope, 4 anonymity, ...). The instance's field must use these symbols.
+     */
+    public fun decodeTriage(code: Int): TriageChoice? =
+        when {
+            code == 1 -> TriageChoice.Keep
+            code >= 2 && code - 2 < Ground.entries.size -> TriageChoice.Refer(Ground.entries[code - 2])
+            else -> null
+        }
+
+    public fun encodeTriage(c: TriageChoice): Int =
+        when (c) {
+            TriageChoice.Keep -> 1
+            is TriageChoice.Refer -> 2 + c.ground.ordinal
+        }
+
+    /** A comment is a trace only if it opens with a `[pcs:` marker: the findings marker parses, any other `[pcs:` opening doesn't. */
+    public fun decodeComment(pid: Long, cid: Long, author: String?, text: String): Trace? {
+        val first = text.lineSequence().firstOrNull()?.trim().orEmpty()
+        return when {
+            first == FINDINGS_MARKER -> Trace.Findings(pid, cid, author)
+            first.startsWith("[pcs:") -> Trace.Unparsed(pid, first)
+            else -> null
+        }
+    }
+
+    /**
+     * HotCRP keeps a tag value as a float of about six significant digits (verified: 1893456000 comes back as
+     * 1893460000), so an epoch in seconds does not survive. `pcs-remedy-due` carries the epoch in **hours**,
+     * rounded up, which is exact (six digits until the year 2084).
+     */
+    @Suppress("FunctionName")
+    private fun REMEDY_HOURS(epochSeconds: Long): Long = Math.floorDiv(epochSeconds + 3599, 3600L)
+
     private val req = Regex("""pcs-req-([A-Z]+)([0-9]+)""")
     private val case = Regex("""~~pcs-case-([0-9]+)""")
 
@@ -51,7 +102,7 @@ public object Conventions {
             if (!name.startsWith("pcs-") && !name.startsWith("~~pcs-")) return@mapNotNull null
             when {
                 name == "pcs-keep" -> Trace.Keep(pid)
-                name == "pcs-remedy-due" && epoch != null -> Trace.RemedyDue(pid, epoch)
+                name == "pcs-remedy-due" && epoch != null -> Trace.RemedyDue(pid, epoch * 3600)
                 name == "pcs-warned" -> Trace.Warned(pid)
                 name == "pcs-er-object" -> Trace.EarlyObjection(pid)
                 name.startsWith("pcs-refer-") -> Ground.ofKey(name.removePrefix("pcs-refer-"))?.let { Trace.Refer(pid, it) } ?: Trace.Unparsed(pid, t)
@@ -75,9 +126,10 @@ public object Conventions {
             is Trace.Refer -> "pcs-refer-${t.ground.key}"
             is Trace.RequestSent -> "pcs-req-${t.ordinal}${t.n}#${t.disposition?.let { d -> DISPOSITION_CODES.entries.first { it.value == d }.key } ?: 0}"
             is Trace.Case -> "~~pcs-case-${t.n}#${t.outcome}"
-            is Trace.RemedyDue -> "pcs-remedy-due#${t.dueEpoch}"
+            is Trace.RemedyDue -> "pcs-remedy-due#${REMEDY_HOURS(t.dueEpoch)}"
             is Trace.Warned -> "pcs-warned"
             is Trace.EarlyObjection -> "pcs-er-object"
             is Trace.Unparsed -> t.tag
+            is Trace.Triage, is Trace.Findings -> throw IllegalArgumentException("a review field or comment, not a tag: $t")
         }
 }
