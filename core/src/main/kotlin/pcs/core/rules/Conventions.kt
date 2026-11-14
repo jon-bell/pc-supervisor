@@ -16,7 +16,7 @@ public sealed interface Trace {
 
     public data class Case(val pid: Long, val n: Int, val outcome: Int) : Trace
 
-    /** The fix window offered on an anonymity violation closes at [dueEpoch] (seconds); a chair's mail-tool notice goes with it. */
+    /** The fix window offered on an anonymity violation closes at [dueEpoch] (seconds, a whole hour: the tag holds hours); a chair's mail-tool notice goes with it. */
     public data class RemedyDue(val pid: Long, val dueEpoch: Long) : Trace
 
     /** The authors were warned about a nomination non-compliance (Q10). */
@@ -79,6 +79,14 @@ public object Conventions {
         }
     }
 
+    /**
+     * HotCRP keeps a tag value as a float of about six significant digits (verified: 1893456000 comes back as
+     * 1893460000), so an epoch in seconds does not survive. `pcs-remedy-due` carries the epoch in **hours**,
+     * rounded up, which is exact (six digits until the year 2084).
+     */
+    @Suppress("FunctionName")
+    private fun REMEDY_HOURS(epochSeconds: Long): Long = Math.floorDiv(epochSeconds + 3599, 3600L)
+
     private val req = Regex("""pcs-req-([A-Z]+)([0-9]+)""")
     private val case = Regex("""~~pcs-case-([0-9]+)""")
 
@@ -91,7 +99,7 @@ public object Conventions {
             if (!name.startsWith("pcs-") && !name.startsWith("~~pcs-")) return@mapNotNull null
             when {
                 name == "pcs-keep" -> Trace.Keep(pid)
-                name == "pcs-remedy-due" && epoch != null -> Trace.RemedyDue(pid, epoch)
+                name == "pcs-remedy-due" && epoch != null -> Trace.RemedyDue(pid, epoch * 3600)
                 name == "pcs-warned" -> Trace.Warned(pid)
                 name.startsWith("pcs-refer-") -> Ground.ofKey(name.removePrefix("pcs-refer-"))?.let { Trace.Refer(pid, it) } ?: Trace.Unparsed(pid, t)
                 req.matches(name) && value != null -> {
@@ -114,7 +122,7 @@ public object Conventions {
             is Trace.Refer -> "pcs-refer-${t.ground.key}"
             is Trace.RequestSent -> "pcs-req-${t.ordinal}${t.n}#${t.disposition?.let { d -> DISPOSITION_CODES.entries.first { it.value == d }.key } ?: 0}"
             is Trace.Case -> "~~pcs-case-${t.n}#${t.outcome}"
-            is Trace.RemedyDue -> "pcs-remedy-due#${t.dueEpoch}"
+            is Trace.RemedyDue -> "pcs-remedy-due#${REMEDY_HOURS(t.dueEpoch)}"
             is Trace.Warned -> "pcs-warned"
             is Trace.Unparsed -> t.tag
             is Trace.Triage, is Trace.Findings -> throw IllegalArgumentException("a review field or comment, not a tag: $t")

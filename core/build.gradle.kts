@@ -183,6 +183,8 @@ val claimsInventory by tasks.registering {
             "papers" to "the paper table",
             "reviews" to "the review table",
             "settings" to "the settings screen: readings, unresolved questions, what they block",
+            "writeback" to "the Writeback review screen: HotCRP's dry-run diff and the confirmation (PLAN M5)",
+            "report" to "the sync report: Writeback mismatches and traces that don't parse or were forged (PLAN M5)",
         ).forEach { (k, v) -> add("view:$k", "view", v) }
         @Suppress("UNCHECKED_CAST")
         (slurp.parse(root.file("model/export/readings.json").asFile) as List<Map<String, Any>>).forEach { q ->

@@ -66,6 +66,10 @@ fun <T> LazyTable(
     link: (T) -> String,
     opener: UrlOpener,
     modifier: Modifier = Modifier,
+    /** Replaces "open the row's HotCRP page", for tables whose rows are things PC Supervisor owns. */
+    onRowClick: ((T) -> Unit)? = null,
+    /** Actions on the rows as filtered and sorted right now (a copyable search, a tag draft). */
+    toolbar: (@Composable (List<T>) -> Unit)? = null,
 ) {
     var query by rememberSaveable(tag) { mutableStateOf("") }
     var sort by remember(tag) { mutableStateOf<SortState?>(null) }
@@ -111,6 +115,7 @@ fun <T> LazyTable(
             }
             val count = if (view.size == rows.size) "${rows.size} $noun" else "${view.size} of ${rows.size} $noun"
             Text(count, Modifier.testTag(TableTags.COUNT), style = MaterialTheme.typography.bodyMedium)
+            toolbar?.invoke(view)
         }
         Column(Modifier.fillMaxSize().horizontalScroll(rememberScrollState())) {
             Row(Modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(vertical = 6.dp)) {
@@ -130,7 +135,7 @@ fun <T> LazyTable(
                     val k = key(r)
                     Row(
                         Modifier.clickable {
-                            opener.open(link(r))
+                            if (onRowClick != null) onRowClick(r) else opener.open(link(r))
                         }.padding(vertical = 5.dp).testTag(TableTags.row(k)).semantics { contentDescription = link(r) },
                     ) {
                         shown.forEach { c ->

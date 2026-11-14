@@ -16,6 +16,7 @@ import androidx.compose.ui.test.waitUntilExactlyOneExists
 import pcs.app.TabName
 import pcs.app.TableTags
 import pcs.app.Tags
+import pcs.app.WritebackTags
 
 /**
  * The app driver (PLAN §A4): the chair's actions, performed through test tags on the semantics tree.
@@ -72,6 +73,14 @@ class AppDriver(private val ui: ComposeUiTest) {
     fun toggleColumn(column: String) = click(TableTags.toggle(column))
 
     fun clickRow(key: String) = click(TableTags.row(key))
+
+    fun copySearch() = click(Tags.COPY_SEARCH)
+
+    fun draftAttention() = click(Tags.DRAFT_ATTENTION)
+
+    fun dryRun() = click(WritebackTags.DRY_RUN)
+
+    fun confirmAndApply() = click(WritebackTags.CONFIRM_APPLY)
 
     companion object {
         const val TIMEOUT_MS = 90_000L

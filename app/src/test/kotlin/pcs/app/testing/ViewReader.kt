@@ -7,6 +7,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import pcs.app.TableTags
+import pcs.app.WritebackTags
 
 /** What a table shows: the count line, the visible column ids with their titles, and each row's cells by column id. */
 data class TableView(val count: String, val headers: List<Pair<String, String>>, val rows: List<Pair<String, Map<String, String>>>) {
@@ -21,6 +22,12 @@ data class SettingsView(val summary: String, val status: Map<String, String>, va
 
 /** What a card screen shows. */
 data class CardView(val text: String, val deps: Map<String, String>, val outcome: String?, val blockedBy: String?, val possible: List<String>)
+
+/** What the Writeback review screen shows for the chosen artifact. */
+data class WritebackView(val status: String?, val summary: String?, val diff: List<String>, val messages: List<String>, val error: String?)
+
+/** What the sync report shows: its summary line, the Writeback mismatches by artifact id, and the trace issues. */
+data class ReportView(val summary: String, val mismatches: Map<String, String>, val issues: List<String>)
 
 /**
  * The view reader (PLAN §A4): each screen read back from the semantics tree into a structured
@@ -93,5 +100,21 @@ class ViewReader(private val ui: ComposeUiTest) {
             textOrNull("card-outcome"),
             textOrNull("card-blocked"),
             tagsWith("card-possible-").map { text("card-possible-$it") },
+        )
+
+    fun writeback(): WritebackView =
+        WritebackView(
+            textOrNull(WritebackTags.STATUS),
+            textOrNull(WritebackTags.SUMMARY),
+            tagsWith("wb-diff-").map { text("wb-diff-$it") },
+            withTag(exact = WritebackTags.MESSAGE).map(::textOf),
+            textOrNull("wb-error"),
+        )
+
+    fun report(): ReportView =
+        ReportView(
+            text(WritebackTags.REPORT_SUMMARY),
+            tagsWith("report-mismatch-").associateWith { text("report-mismatch-$it") },
+            tagsWith("report-issue-").map { text("report-issue-$it") },
         )
 }

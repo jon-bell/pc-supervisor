@@ -515,7 +515,7 @@ HotCRP facts the table depends on (verified): tag values are **numbers only**; p
 | Uphold an Accountability case | PC chair | a chair-only tag `~~pcs-case-<n>`, its value the outcome code | verified |
 | Submit or revise a review, reply to a request | PC member, nominee | the review; a reply to a request goes to the AC by email, and the AC records its disposition | verified: a member's submit and revise each leave a new version the sync reads (`ConventionRowsTest`) |
 | Fix a violation (Remedy) | author | a new submission version | verified (`ConventionRowsTest`): while the chair has submission open, the author's `POST /api/{p}/paper` with the PDF as `content_base64` replaces it; another user's attempt is refused |
-| Offer a fix window | process chair | the hidden tag `pcs-remedy-due#<epoch>`, the time the window closes, set through Writeback; ACs, reviewers and authors neither see nor set it | verified (`ConventionRowsTest`) |
+| Offer a fix window | process chair | the hidden tag `pcs-remedy-due#<hours>`, the time the window closes as whole hours since the epoch (HotCRP keeps tag values to about six significant digits, so seconds don't survive: verified), set through Writeback; ACs, reviewers and authors neither see nor set it | verified (`ConventionRowsTest`) |
 | Warn on a nomination non-compliance (Q10) | process chair | the hidden tag `pcs-warned`, set through Writeback; others neither see nor set it | verified (`ConventionRowsTest`) |
 
 The tag names are configuration (`PCS_TAG_*`), with the defaults above. A trace that doesn't parse, or a PC Supervisor tag written by someone the convention doesn't allow, is reported on the sync screen; it is never guessed at.

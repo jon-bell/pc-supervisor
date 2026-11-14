@@ -40,7 +40,10 @@ object Hotcrp {
             }.build()
         repeat(8) {
             val r = http.send(req, HttpResponse.BodyHandlers.ofString())
-            if (r.statusCode() != 429) return Json.parseToJsonElement(r.body()).jsonObject
+            if (r.statusCode() != 429) {
+                // HotCRP may print PHP deprecation notices before the JSON
+                return Json.parseToJsonElement(r.body().let { b -> b.substring(maxOf(0, b.indexOf("{\""))) }).jsonObject
+            }
             Thread.sleep((r.headers().firstValue("Retry-After").orElse("5").toLong() * 1000).coerceAtMost(60_000))
         }
         error("$path: still rate-limited")
