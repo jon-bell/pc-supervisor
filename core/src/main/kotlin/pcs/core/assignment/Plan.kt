@@ -278,6 +278,13 @@ public object Planner {
                 short += Shortfall(pp.pid, slot, need, got, reason(input, cfg, by, p, slot, need, got, eligible, forbidden, loads))
             }
         }
+        // a paper whose seats are all filled can still miss Q13 and Q14, through existing assignments the rules would not have made
+        for (pp in papers.filter { !it.composed && short.none { s -> s.pid == it.pid } }) {
+            short += Shortfall(
+                pp.pid, Slot.SENIOR, pp.seniors.size, pp.seniors.size,
+                "the reviewers don't fit Q13 and Q14: ${pp.seniors.size} in senior seats, ${pp.thirds.size} in the other seats, ${pp.neither.size} with no seat (existing assignments are never moved)",
+            )
+        }
         val violations = input.reviewers.filter { (loads[it.who] ?: 0) > it.cap }.map { it.who to (loads[it.who] ?: 0) }
         val nominees =
             input.reviewers.filter { it.member.nominee && it.member.accepted }.map { r ->
