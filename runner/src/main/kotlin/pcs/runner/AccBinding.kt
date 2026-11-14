@@ -82,20 +82,27 @@ class AccountabilityBinding(private val w: World) {
 
     private fun report(): AccountabilityReport {
         w.sync()
-        val input = AccLoader.load(w.store, w.clock.now(), Tiers(emptyMap()), "OveMer")
-        return AccountabilityPlan.compute(input, config(), w.readings, emptyList(), w.implFaults).let { r ->
-            // the world holds one paper; the shared mirror may hold more
-            r.copy(
-                suggestions = r.suggestions.filter { it.pid == pid },
-                requests = r.requests.filter { it.pid == pid },
-                engagement = r.engagement.filter { e -> pid in e.pids || r.suggestions.any { it.pid == pid && it.reviewer == e.reviewer } },
+        // the world holds one paper; the shared harness holds many, and the model's state is about this one
+        val all = AccLoader.load(w.store, w.clock.now(), Tiers(emptyMap()), "OveMer")
+        val input =
+            all.copy(
+                reviews = all.reviews.filter { it.pid == pid },
+                paperTags = all.paperTags.filterKeys { it == pid },
+                seen = all.seen.filter { it.pid == pid },
+                dismissed = all.dismissed.filter { it.first == pid }.toSet(),
+                manual = all.manual.filter { it.pid == pid },
             )
-        }
+        return AccountabilityPlan.compute(input, config(), w.readings, emptyList(), w.implFaults)
     }
 
     private fun reviewOrdinal(): String? =
         w.store.conn.createStatement().use { st ->
             st.executeQuery("SELECT ordinal FROM review WHERE pid = $pid AND email = '${Persons.ACC_REVIEWER}' AND gone_at IS NULL AND ordinal IS NOT NULL").use { if (it.next()) it.getString(1) else null }
+        }
+
+    private fun reviewWords(): Int =
+        w.store.conn.createStatement().use { st ->
+            st.executeQuery("SELECT word_count FROM review WHERE pid = $pid AND email = '${Persons.ACC_REVIEWER}' AND gone_at IS NULL").use { if (it.next()) it.getInt(1) else 0 }
         }
 
     private fun chairTags(): List<Trace> = Conventions.decode(pid, api.call("GET", "$pid/tags")["tags"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty())
@@ -262,7 +269,10 @@ class AccountabilityBinding(private val w: World) {
             val req = report().requests.firstOrNull() ?: return Outcome.REFUSED
             if (req.revised || req.disposition != null) return Outcome.REFUSED
             w.clock.nudge(60)
-            val ok = w.tryReview(Persons.ACC_REVIEWER, """{"object":"review","PapSum":"Synthetic revised review. ${(1..220).joinToString(" ") { "extra$it" }}","status":"complete"}""")
+            // a revision keeps the review in the size class it was in, so a heuristic that fired still fires
+            val thin = reviewWords() < 150
+            val text = "Synthetic revised review. " + (1..(if (thin) 8 else 230)).joinToString(" ") { "extra$it" }
+            val ok = w.tryReview(Persons.ACC_REVIEWER, """{"object":"review","PapSum":"$text","status":"complete"}""")
             w.sync()
             return outcome(ok)
         }
@@ -323,7 +333,7 @@ class AccountabilityBinding(private val w: World) {
                 JsonPrimitive(
                     api.call("GET", "$pid/comments")["comments"]?.jsonArray.orEmpty().any {
                         val c = it as JsonObject
-                        c.str("visibility") == "rev" && c.str("email")?.lowercase() == Persons.AC_REFERRING
+                        c.str("visibility") == "rev" && c.str("author_email")?.lowercase() == Persons.AC_REFERRING
                     },
                 )
             AccountabilityRequestsHotcrpObs.SENT -> JsonPrimitive(tags.any { it is Trace.RequestSent })
