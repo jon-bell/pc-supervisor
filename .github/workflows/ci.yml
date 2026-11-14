@@ -114,9 +114,19 @@ jobs:
       - name: Fresh harness for the UI tests (the integration tests change golden)
         if: hashFiles('app/build.gradle.kts') != ''
         run: |
-          docker compose -p pcs -f hotcrp/compose.yaml down -v --remove-orphans
+          # COMPOSE_PROJECT_NAME (job env) names this run's harness; a fixed -p
+          # here would miss it and leave the integration tests' database behind.
+          docker compose -f hotcrp/compose.yaml down -v --remove-orphans
           scripts/hotcrp-up.sh
           set -a && . ./.env.test && set +a && ./gradlew :seed:run --args=golden
+
+      - name: Install xvfb
+        if: hashFiles('app/build.gradle.kts') != ''
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo -n apt-get update -q && sudo -n apt-get install -y -q xvfb
+          fi
+          command -v xvfb-run
 
       - name: UI tests (Compose, against seeded golden)
         if: hashFiles('app/build.gradle.kts') != ''
