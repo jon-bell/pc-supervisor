@@ -30,12 +30,14 @@ import java.time.Duration
 import java.time.Instant
 
 /**
+ * Runs first in this module, before the scenario runner puts its JVM-wide proxy in place (the seeder talks to the harness directly).
+ *
  * PLAN M17's multi-stage scenario: the harness is seeded with `early-reject` (papers 201-210 beside golden's), synced, and the
  * history backfilled, which gives the mirror the snapshots a sync every few minutes through the window would have taken. The plan
  * is then computed at the instants of the three stages (window open, inside it, closed). The expected lists are the scenario's own
  * table (`EarlyRejectScenario.expected`), not the plan's computation.
  */
-@Order(3)
+@Order(0)
 @Family("T11")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class EarlyRejectScenarioTest {
