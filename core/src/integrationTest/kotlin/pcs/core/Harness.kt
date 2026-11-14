@@ -1,7 +1,7 @@
 package pcs.core
 
-import pcs.core.config.Settings
 import pcs.core.hotcrp.HotcrpClient
+import pcs.testing.LocalHarness
 import java.net.URI
 
 /**
@@ -10,9 +10,7 @@ import java.net.URI
  */
 object Harness {
     val url: URI by lazy {
-        val u = URI(System.getenv("PCS_HOTCRP_URL") ?: error("PCS_HOTCRP_URL not set: run scripts/hotcrp-up.sh and source .env.test"))
-        check(Settings.isLocalhost(u)) { "refusing to run integration tests against a non-harness HotCRP: ${u.host}" }
-        u
+        LocalHarness.require(System.getenv("PCS_HOTCRP_URL") ?: error("PCS_HOTCRP_URL not set: run scripts/hotcrp-up.sh and source .env.test"))
     }
     private val token: String by lazy { System.getenv("PCS_HOTCRP_TOKEN") ?: error("PCS_HOTCRP_TOKEN not set") }
 

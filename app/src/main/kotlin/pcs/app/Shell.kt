@@ -68,6 +68,10 @@ object Tags {
     const val SYNC_NOW = "sync-now"
     const val SYNC_STATUS = "sync-status"
     const val LAST_SYNC = "last-sync"
+    const val COPY_SEARCH = "copy-search"
+    const val SEARCH_LINK = "search-link"
+    const val DRAFT_ATTENTION = "draft-attention"
+    const val DRAFT_ERROR = "draft-error"
 
     fun conference(id: String) = "conference-$id"
 

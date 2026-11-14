@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -28,12 +29,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import pcs.core.session.Session
 import pcs.core.store.Tables
+import pcs.core.writeback.FirstActions
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 enum class TabName(val label: String) {
     Papers("Papers"),
     Reviews("Reviews"),
+    Writeback("Writeback"),
+    Report("Sync report"),
     Settings("Settings"),
     Cards("Cards"),
 }
@@ -58,6 +62,7 @@ fun ConferenceScreen(shell: Shell, session: Session, onSwitch: () -> Unit) {
     var sync by remember { mutableStateOf<SyncState>(SyncState.Idle) }
     var version by remember { mutableStateOf(0) }
     var lastSync by remember { mutableStateOf<String?>(null) }
+    var selectedArtifact by remember { mutableStateOf<Long?>(null) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(version) {
         lastSync = withContext(Dispatchers.IO) { session.lastSync() }?.let { timeFormat.format(it.finishedAt) }
@@ -95,8 +100,15 @@ fun ConferenceScreen(shell: Shell, session: Session, onSwitch: () -> Unit) {
             TabName.entries.forEach { t -> Tab(tab == t, { tab = t }, Modifier.testTag(Tags.tab(t.name)), text = { Text(t.label) }) }
         }
         when (tab) {
-            TabName.Papers -> PapersView(session, shell.opener, version)
+            TabName.Papers ->
+                PapersView(session, shell.opener, version) { id ->
+                    selectedArtifact = id
+                    version++
+                    tab = TabName.Writeback
+                }
             TabName.Reviews -> ReviewsView(session, shell.opener, version)
+            TabName.Writeback -> WritebackScreen(session, shell.opener, version, selectedArtifact, { selectedArtifact = it }, { version++ })
+            TabName.Report -> ReportScreen(session, version)
             TabName.Settings -> SettingsScreen(session.answers(), session.conference.id)
             TabName.Cards -> CardGallery(session.answers().readings)
         }
@@ -116,9 +128,49 @@ private fun SyncStatus(s: SyncState) {
 }
 
 @Composable
-private fun PapersView(session: Session, opener: UrlOpener, version: Int) {
+private fun PapersView(session: Session, opener: UrlOpener, version: Int, onDrafted: (Long) -> Unit) {
     val rows by produceRows(version) { Tables.papers(session.store, session.settings.fieldMerit) }
-    LazyTable("papers", "papers", rows, { it.pid.toString() }, paperColumns(), { session.links.paper(it.pid) }, opener)
+    LazyTable("papers", "papers", rows, { it.pid.toString() }, paperColumns(), { session.links.paper(it.pid) }, opener, toolbar = { shown ->
+        PaperActions(session, shown.map { it.pid }, onDrafted)
+    })
+}
+
+/** The first Writeback actions on whatever set the table shows (PLAN M5): a copyable HotCRP search, and a chair-attention tag draft. */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@Composable
+private fun PaperActions(session: Session, pids: List<Long>, onDrafted: (Long) -> Unit) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboard.current
+    var link by remember { mutableStateOf<String?>(null) }
+    var draftError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    OutlinedButton({
+        val l = FirstActions.searchLink(session.links, pids)
+        link = l
+        scope.launch { clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(java.awt.datatransfer.StringSelection(l))) }
+    }, Modifier.testTag(Tags.COPY_SEARCH), enabled = pids.isNotEmpty()) { Text("Copy HotCRP search") }
+    OutlinedButton({
+        scope.launch {
+            try {
+                val id = withContext(Dispatchers.IO) { session.writeback().draft(FirstActions.chairAttention(pids, session.settings.tagChairAttention)) }
+                draftError = null
+                onDrafted(id)
+            } catch (e: Exception) {
+                draftError = e.message ?: e.javaClass.simpleName
+            }
+        }
+    }, Modifier.testTag(Tags.DRAFT_ATTENTION), enabled = pids.isNotEmpty()) { Text("Draft #${session.settings.tagChairAttention} tag") }
+    draftError?.let {
+        Text("Could not draft: $it", Modifier.testTag(Tags.DRAFT_ERROR), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+    }
+    link?.let {
+        Text(
+            it,
+            Modifier.testTag(Tags.SEARCH_LINK).widthIn(max = 200.dp),
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }
 
 @Composable
