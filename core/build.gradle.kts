@@ -148,6 +148,7 @@ val claimsInventory by tasks.registering {
             "model/export/mutants.json",
             "docs/concepts.md",
             "docs/spec.md",
+            "docs/agent.md",
             "PLAN.md",
         ).map { root.file(it) }
     inputs.files(sources)
@@ -197,6 +198,10 @@ val claimsInventory by tasks.registering {
         val golden = plan.substringAfter("### Golden scenario").substringBefore("**Second assertion instant")
         Regex("""(?m)^\| ([0-9]+) \| ([^|]+)\|""").findAll(golden)
             .forEach { add("golden:pid${it.groupValues[1]}", "golden", it.groupValues[2].trim()) }
+        // One claim per screening check in the catalog (agent.md §3.2): `check:format`, `check:injection.hidden`, ...
+        val catalog = root.file("docs/agent.md").asFile.readText().substringAfter("### 3.2 Check catalog").substringBefore("### 3.3")
+        Regex("""(?m)^\| `([a-z.]+)` \| ([^|]+)\|""").findAll(catalog)
+            .forEach { add("check:${it.groupValues[1]}", "check", it.groupValues[2].trim()) }
         val dup = claims.groupBy { it["id"] }.filter { it.value.size > 1 }.keys
         check(dup.isEmpty()) { "duplicate claim IDs: $dup" }
         val f = claimsFile.get().asFile
@@ -220,8 +225,8 @@ tasks.test {
 
 val assuranceReport by tasks.registering {
     dependsOn(claimsInventory)
-    mustRunAfter(tasks.test, tasks.named("integrationTest"))
-    val coversFiles = listOf("covers", "covers-integration").map { layout.buildDirectory.file("$it/covers.tsv") }
+    mustRunAfter(tasks.test, tasks.named("integrationTest"), ":agent:test")
+    val coversFiles = listOf("covers", "covers-integration", "covers-agent").map { layout.buildDirectory.file("$it/covers.tsv") }
     val out = rootProject.layout.buildDirectory.file("reports/assurance.md")
     outputs.file(out)
     outputs.upToDateWhen { false }
