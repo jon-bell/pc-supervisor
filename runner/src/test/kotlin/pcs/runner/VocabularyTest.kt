@@ -41,6 +41,20 @@ class VocabularyTest {
     }
 
     @Test
+    fun `the early-reject traces carry every observation of the subsystem`() {
+        val traces = TraceSpec.load(repo.resolve("model/export/traces-early.json"))
+        assertTrue(traces.any { it.id == "early/bump-reject-only/early-reject" })
+        val obs = pcs.runner.model.earlyRejectObservations.map { it.first }.toSet()
+        for (t in traces) {
+            assertEquals("early reject", t.subsystem)
+            for (s in t.steps) {
+                ModelActions.parse(s.subsystem, s.key, s.args, s.label)
+                assertEquals(obs, s.expect.keys, "${t.id}: ${s.label}")
+            }
+        }
+    }
+
+    @Test
     fun `the exported traces use only actions the generated types know, and carry every observation`() {
         val traces = TraceSpec.load(repo.resolve("model/export/traces-desk.json"))
         assertTrue(traces.any { it.id == "desk/signed/remove-format" })

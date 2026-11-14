@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Order
 import org.junit.jupiter.api.Test
+import pcs.testing.Covers
 import pcs.testing.CoversLog
 import pcs.testing.Family
 
@@ -33,6 +34,28 @@ class RunnerTest {
             res.mismatches.forEach { failures += "${spec.id}: $it" }
         }
         assertEquals(specs.size, executed)
+        assertEquals(emptyList<String>(), failures)
+        assertEquals(emptyList<String>(), runner.allViolations(), "the boundary observer saw something it must not")
+    }
+
+    @Test
+    @Covers("prop:E-1", "prop:L2", "card:R1", "card:R2", "card:R3", "card:R4")
+    fun `the early-reject witness traces run against the harness and agree with the model`() {
+        val all = Session.earlyTraces()
+        assertTrue(all.size >= 30, "expected the early-reject traces, found ${all.size}")
+        // PCS_TRACE_ONLY=<substring of a trace id> runs just those traces while developing a binding
+        val specs = System.getenv("PCS_TRACE_ONLY")?.let { only -> all.filter { only in it.id } } ?: all
+        val runner = Session.runner
+        val pids = runner.createPapers(specs.size)
+        val failures = mutableListOf<String>()
+        for ((spec, pid) in specs.zip(pids)) {
+            val res = runner.run(spec, pid)
+            check(res.skipped == null) { "${spec.id}: ${res.skipped}" }
+            runner.write("traces/" + spec.id.replace('/', '_') + ".json", res.record)
+            val outcome = if (res.mismatches.isEmpty()) "pass" else "fail"
+            spec.claims.forEach { CoversLog.record(spec.id, it, outcome, spec.family) }
+            res.mismatches.forEach { failures += "${spec.id}: $it" }
+        }
         assertEquals(emptyList<String>(), failures)
         assertEquals(emptyList<String>(), runner.allViolations(), "the boundary observer saw something it must not")
     }

@@ -259,7 +259,7 @@ def earlyObservations : List (String × String × List String) :=
 def earlyObserve (r : Reading) (s : EarlySt) : Json :=
   Json.mkObj
     [("reviews", Json.num s.scores.length), ("scores", Json.arr (s.scores.toArray.map fun x => Json.str (scoreKey x))),
-     ("candidate", s.scores.length == 3 && s.scores.all (negative r)), ("bumped", s.bumped),
+     ("candidate", !s.removed && s.scores.length == 3 && s.scores.all (negative r)), ("bumped", s.bumped),
      ("window-closed", s.windowClosed),
      ("may-early-reject", mayEarlyReject {} r { scores := s.scores, windowClosed := s.windowClosed, bumped := s.bumped }),
      ("disposition", if s.removed then "early-rejected" else "in-review")]

@@ -173,7 +173,7 @@ class ScenarioRunner(
                     } catch (e: UnboundAction) {
                         return RunResult(JsonObject(emptyMap()), emptyList(), skipped = e.message)
                     }
-                val observed = w.observe()
+                val observed = w.observe(st.subsystem)
                 steps +=
                     buildJsonObject {
                         put("role", st.role?.let { JsonPrimitive(it) } ?: JsonNull)
@@ -201,7 +201,7 @@ class ScenarioRunner(
                 put("modelMutant", JsonNull)
                 put("implementationFault", implFaultName?.let { JsonPrimitive(it) } ?: JsonNull)
                 put("bindingMutant", faults.name?.let { JsonPrimitive(it) } ?: JsonNull)
-                put("provenance", provenance())
+                put("provenance", provenance(if (spec.subsystem == "early reject") "early" else "desk"))
                 put("steps", JsonArray(steps))
                 put("verdict", spec.verdict)
                 put("boundary", boundary(eventsBefore))
@@ -241,7 +241,7 @@ class ScenarioRunner(
 
     private fun sha(p: Path): String = MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(p)).joinToString("") { "%02x".format(it) }
 
-    private fun provenance(): JsonObject =
+    private fun provenance(exportName: String): JsonObject =
         buildJsonObject {
             put("modelCommit", sh("git", "log", "-1", "--format=%H", "--", "model"))
             put("appBuild", sh("git", "rev-parse", "HEAD") + "+core")
@@ -251,7 +251,7 @@ class ScenarioRunner(
                     ?: "unknown",
             )
             put("answersHash", sha(repo.resolve("model/answers/synthetic.txt")))
-            put("traceExportHash", sha(repo.resolve("model/export/traces-desk.json")))
+            put("traceExportHash", sha(repo.resolve("model/export/traces-$exportName.json")))
             put("generatorSeed", JsonNull)
         }
 

@@ -21,7 +21,7 @@ import pcs.testing.Family
 @Order(2)
 @Family("T7")
 class ControlsTest {
-    private val specs by lazy { Session.traces().associateBy { it.id } }
+    private val specs by lazy { (Session.traces() + Session.earlyTraces()).associateBy { it.id } }
 
     @Test
     @Covers("prop:H4", "prop:H5", "prop:C1")
@@ -29,7 +29,7 @@ class ControlsTest {
         val runner = Session.runner
         val second = specs.getValue("desk/signed/cell-pc-member-second-opinion")
         val silence = specs.getValue("desk/signed/silence-does-not-remove")
-        val needed = 11
+        val needed = 12
         val pids = runner.createPapers(needed).iterator()
         val controls = mutableListOf<JsonObject>()
 
@@ -64,13 +64,22 @@ class ControlsTest {
         // a specification mutant switched on in core: silence removes (model mutant 1); the model refuses, the mutant core removes
         negative("core with the 'silence removes' mutant", "core", "spec:silence-removes", silence, impl = Faults.MUTANTS[1])
 
+        // the early-reject mutant: a chair's removal before the window closes (model mutant 5); the model refuses, the mutant core confirms
+        negative(
+            "core with the 'early reject before the window closes' mutant",
+            "core",
+            "spec:early-reject-before-close",
+            specs.getValue("early/bump-reject-only/remove-before-close-refused"),
+            impl = Faults.MUTANTS[5],
+        )
+
         controls += Controls.observerControls(Session.harness, Session.token)
         runner.write(
             "controls.json",
             buildJsonObject {
                 put("kind", "controls")
                 put("controls", JsonArray(controls))
-                put("requiredSpecMutants", JsonArray(listOf(JsonPrimitive("spec:silence-removes"))))
+                put("requiredSpecMutants", JsonArray(listOf(JsonPrimitive("spec:silence-removes"), JsonPrimitive("spec:early-reject-before-close"))))
             },
         )
     }

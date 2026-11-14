@@ -16,6 +16,7 @@ import pcs.core.rules.Faults
 import pcs.core.store.Store
 import pcs.testing.Covers
 import pcs.testing.Family
+import pcs.testing.MirrorFixture
 import java.time.Duration
 import java.time.Instant
 
@@ -32,52 +33,11 @@ class EarlyRejectPlanTest {
 
     private fun at(hours: Long) = open.plus(Duration.ofHours(hours)).epochSecond
 
-    private fun store(build: Fixture.() -> Unit): Store =
-        Store.open(
-            java.nio.file.Files.createTempFile("pcs-er", ".db").also {
-                java.nio.file.Files.delete(it)
-            },
-            "test-only-key",
-        ).also { Fixture(it).build() }
-
-    private class Fixture(val s: Store) {
-        var nextRid = 1L
-
-        fun sql(q: String) = s.conn.createStatement().use { it.executeUpdate(q) }
-
-        fun paper(pid: Long, decision: String? = null, tags: String = "[]") =
-            sql(
-                "INSERT INTO paper(pid,title,decision,authors,pc_conflicts,tags,first_seen_at,last_seen_at) VALUES($pid,'Paper $pid',${decision?.let {
-                    "'$it'"
-                } ?: "NULL"},'[]','{}','$tags',0,0)",
-            )
-
-        /** A review with its versions: (seen_at, merit, status). The last one is the review's current state. */
-        fun review(pid: Long, who: String, vararg versions: Triple<Long, Int, String>) {
-            val rid = nextRid++
-            val last = versions.last()
-            sql(
-                "INSERT INTO review(rid,pid,email,rtype,status,scores,word_count,ratings,first_seen_at,last_seen_at) VALUES($rid,$pid,'$who@example.org',2,'${last.third}','{\"OveMer\":${last.second}}',100,'[]',0,0)",
-            )
-            versions.forEachIndexed {
-                i,
-                v,
-                ->
-                sql(
-                    "INSERT INTO review_version(rid,vtag,seen_at,source,scores,status) VALUES($rid,'v$i',${v.first},'history','{\"OveMer\":${v.second}}','${v.third}')",
-                )
-            }
-        }
-
-        fun comment(pid: Long, who: String, at: Long) =
-            sql(
-                "INSERT INTO comment(cid,pid,email,draft,word_count,mentions,tags,modified_at,first_seen_at,last_seen_at) VALUES(${pid * 100 + at % 97},$pid,'$who@example.org',0,5,'[]','[]',$at,0,0)",
-            )
-    }
+    private fun store(build: MirrorFixture.() -> Unit): Store = MirrorFixture.temp(build)
 
     private fun done(h: Long, merit: Int) = Triple(at(h), merit, "complete")
 
-    private val table: Fixture.() -> Unit = {
+    private val table: MirrorFixture.() -> Unit = {
         paper(1)
         review(1, "a", done(-30, 1))
         review(1, "b", done(-29, 1))
@@ -97,7 +57,7 @@ class EarlyRejectPlanTest {
         review(4, "a", done(-30, 1))
         review(4, "b", done(-29, 1))
         // 5: the AC objects
-        paper(5, tags = "[\"pcs-er-object#0\"]")
+        paper(5, tags = listOf("pcs-er-object#0"))
         review(5, "a", done(-30, 1))
         review(5, "b", done(-29, 1))
         review(5, "c", done(-28, 1))

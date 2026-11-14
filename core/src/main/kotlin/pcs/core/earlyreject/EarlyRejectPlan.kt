@@ -128,14 +128,21 @@ public object EarlyRejectPlan {
         return out.values.toList()
     }
 
-    private fun papers(store: Store): Map<Long, Pair<String, List<String>>> =
+    private fun papers(store: Store, includeDecided: Boolean = false): Map<Long, Pair<String, List<String>>> =
         buildMap {
             store.conn.createStatement().use { st ->
                 st.executeQuery("SELECT pid, coalesce(title, ''), decision, tags FROM paper WHERE gone_at IS NULL").use { rs ->
                     while (rs.next()) {
                         val decision = rs.getString(3)
                         // a paper that has a decision is not a candidate (HotCRP reports "" or "Unspecified" for none)
-                        if (decision != null && decision.isNotBlank() && !decision.equals("Unspecified", true) && !decision.equals("None", true)) continue
+                        if (!includeDecided &&
+                            decision != null &&
+                            decision.isNotBlank() &&
+                            !decision.equals("Unspecified", true) &&
+                            !decision.equals("None", true)
+                        ) {
+                            continue
+                        }
                         val tags = kotlinx.serialization.json.Json.parseToJsonElement(rs.getString(4)).let { it as kotlinx.serialization.json.JsonArray }
                         put(rs.getLong(1), rs.getString(2) to tags.map { (it as kotlinx.serialization.json.JsonPrimitive).content })
                     }
@@ -155,6 +162,40 @@ public object EarlyRejectPlan {
             }
         }
 
+    /** Whether a version seen at [at] belongs to the window: after the opening, by [now], and before the close (a deadline: at it, the window has ended). */
+    private fun inWindow(window: ErWindow, now: Instant, at: Long): Boolean =
+        at > window.open.epochSecond && at <= now.epochSecond && (window.close == null || at < window.close.epochSecond)
+
+    /** A change within the window: any version in it whose merit differs from the one before. */
+    private fun changedIn(h: ReviewHistory, window: ErWindow, now: Instant): Boolean {
+        val open = window.open.epochSecond
+        var prev = h.versions.lastOrNull { it.at <= open }?.merit
+        var changed = false
+        for (v in h.versions) {
+            if (!inWindow(window, now, v.at)) continue
+            if (v.merit != prev) changed = true
+            prev = v.merit
+        }
+        return changed
+    }
+
+    /** The scores of paper [pid]'s complete reviews in the snapshot at [at] (each review's latest version seen by then), ascending. Merit values off the scale are left out. */
+    public fun scoresAt(store: Store, cfg: ErConfig, pid: Long, at: Instant): List<Score> =
+        histories(store, cfg.meritField).filter { it.pid == pid }.mapNotNull { h ->
+            h.versions.lastOrNull { it.at <= at.epochSecond }?.takeIf { it.complete }?.let { cfg.scale.of(it.merit) }
+        }.sortedBy { it.rank }
+
+    /** Whether paper [pid]'s AC objects (the chair recorded `pcs-er-object`). */
+    public fun objects(store: Store, pid: Long): Boolean = papers(store, includeDecided = true)[pid]?.second?.let(::objection) ?: false
+
+    private fun objection(tags: List<String>): Boolean = tags.any { Conventions.decode(0, listOf(it)).any { t -> t is Trace.EarlyObjection } }
+
+    /** The reviewers of paper [pid] (complete at the opening) who changed a score within the window by [now]. */
+    public fun bumpedBy(store: Store, cfg: ErConfig, window: ErWindow, now: Instant, pid: Long): Set<String> =
+        histories(store, cfg.meritField).filter { it.pid == pid }
+            .filter { h -> h.versions.lastOrNull { it.at <= window.open.epochSecond }?.complete == true && changedIn(h, window, now) }
+            .map { it.email }.toSet()
+
     /**
      * The candidates and their status at [now]. A paper is a candidate if, in the snapshot at the window's
      * opening (the latest review versions seen at or before it), it has [ErConfig.reviewsRequired] or more
@@ -164,9 +205,6 @@ public object EarlyRejectPlan {
     public fun compute(store: Store, cfg: ErConfig, window: ErWindow, now: Instant, faults: Faults = Faults.NONE): ErReport {
         val open = window.open.epochSecond
         val end = minOf(now, window.close ?: now)
-
-        // a version belongs to the window if it was seen after the opening, by now, and before the closing instant (a deadline: at it, the window has ended)
-        fun inWindow(at: Long) = at > open && at <= now.epochSecond && (window.close == null || at < window.close.epochSecond)
         val papers = papers(store)
         val byPaper = histories(store, cfg.meritField).filter { it.pid in papers }.groupBy { it.pid }
         val commenters = commenters(store, window.open, end)
@@ -183,14 +221,7 @@ public object EarlyRejectPlan {
             if (initial.any { it == null || !EarlyReject.negative(cfg.q15, it) }) continue
             val reviewers =
                 atOpen.mapIndexed { i, (h, v) ->
-                    val after = h.versions.filter { inWindow(it.at) }
-                    // a change within the window: any version in it whose merit differs from the one before
-                    var prev = v.merit
-                    var changed = false
-                    for (a in after) {
-                        if (a.merit != prev) changed = true
-                        prev = a.merit
-                    }
+                    val changed = changedIn(h, window, now)
                     ErReviewer(
                         h.email,
                         initial[i]!!,
@@ -199,7 +230,7 @@ public object EarlyRejectPlan {
                         changed || (pid to h.email) in commenters,
                     )
                 }.sortedBy { it.email }
-            val objects = papers.getValue(pid).second.any { Conventions.decode(pid, listOf(it)).any { t -> t is Trace.EarlyObjection } }
+            val objects = objection(papers.getValue(pid).second)
             val bumped = reviewers.any { it.bumped }
             val closed = window.closedAt(now)
             val ready =
