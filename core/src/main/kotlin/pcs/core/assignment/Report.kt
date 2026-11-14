@@ -46,7 +46,19 @@ public object AssignmentOutput {
                         waiting += pid to b.email(e.who)
                         continue
                     }
-                    val row = mutableMapOf("paper" to pid.toString(), "action" to if (slot == Slot.SENIOR) "primary" else "secondary", "email" to b.email(e.who))
+                    val row =
+                        mutableMapOf(
+                            "paper" to pid.toString(),
+                            "action" to
+                                if (slot ==
+                                    Slot.SENIOR
+                                ) {
+                                    "primary"
+                                } else {
+                                    "secondary"
+                                },
+                            "email" to b.email(e.who),
+                        )
                     if (round != null) row["round"] = round
                     rows += row
                 }
@@ -92,7 +104,9 @@ public class SolveReport(
     public fun render(): String =
         buildString {
             appendLine("# Assignment plan")
-            appendLine("composed ${plan.composed} of $papers papers; senior seats unfilled ${plan.seniorShort}; other seats unfilled ${plan.thirdShort}; objective ${plan.objective}; ${plan.candidateEdges} candidate edges")
+            appendLine(
+                "composed ${plan.composed} of $papers papers; senior seats unfilled ${plan.seniorShort}; other seats unfilled ${plan.thirdShort}; objective ${plan.objective}; ${plan.candidateEdges} candidate edges",
+            )
             appendLine("affinity sources: ${build.sources.entries.joinToString { "${it.key} (${it.value} edges)" }.ifEmpty { "none" }}")
             if (plan.infeasible) appendLine("HARD MODE: the lower bounds can't be met; the plan below is the soft solve, shown to explain why")
             appendLine("## Papers that don't meet their composition")
@@ -101,12 +115,20 @@ public class SolveReport(
             short.forEach { appendLine("#${it.pid}: ${it.reason}") }
             appendLine("## Load by tier (reviews: reviewers)")
             loadByTier.forEach { (t, h) -> appendLine("$t: ${h.entries.joinToString(", ") { "${it.key}: ${it.value}" }}") }
-            if (plan.bandViolations.isEmpty()) appendLine("no band exceeded") else plan.bandViolations.forEach { appendLine("OVER BAND: ${build.email(it.first)} has ${it.second} reviews (existing reviews count)") }
+            if (plan.bandViolations.isEmpty()) {
+                appendLine("no band exceeded")
+            } else {
+                plan.bandViolations.forEach {
+                    appendLine("OVER BAND: ${build.email(it.first)} has ${it.second} reviews (existing reviews count)")
+                }
+            }
             appendLine("## Nominees against what they owe")
             if (plan.nominees.isEmpty()) appendLine("no accepted nominees")
             plan.nominees.forEach { n ->
                 appendLine(
-                    "${build.email(n.who)}: ${n.load} planned of ${n.owedSixths?.let { pcs.core.rules.Nominations.showSixths(it) } ?: "a pooled share"} owed (band ${n.cap})" +
+                    "${build.email(n.who)}: ${n.load} planned of ${n.owedSixths?.let {
+                        pcs.core.rules.Nominations.showSixths(it)
+                    } ?: "a pooled share"} owed (band ${n.cap})" +
                         (n.reason?.let { "; more than one review short: $it" } ?: ""),
                 )
             }
@@ -121,7 +143,15 @@ public class SolveReport(
             appendLine("## Weak matches (best affinity below the threshold)")
             if (plan.weakMatches.isEmpty()) appendLine("none") else plan.weakMatches.forEach { appendLine("#${it.first}: best affinity ${it.second}") }
             appendLine("## Conflict engineering (for the PC chairs; never a ground)")
-            if (signals.isEmpty()) appendLine("none") else signals.forEach { appendLine("#${it.pid}: declared conflicts exclude ${it.excluded} of ${it.qualified} qualified reviewers (${(it.share * 100).toInt()}%, threshold ${(it.threshold * 100).toInt()}%)") }
+            if (signals.isEmpty()) {
+                appendLine("none")
+            } else {
+                signals.forEach {
+                    appendLine(
+                        "#${it.pid}: declared conflicts exclude ${it.excluded} of ${it.qualified} qualified reviewers (${(it.share * 100).toInt()}%, threshold ${(it.threshold * 100).toInt()}%)",
+                    )
+                }
+            }
             tpms?.let { t ->
                 appendLine("## TPMS round trip")
                 appendLine("${t.imported} imported edges; ${t.issues.size} problems; kept ${t.kept.size}, dropped ${t.dropped.size}, added ${t.added.size}")
@@ -129,9 +159,20 @@ public class SolveReport(
                 t.compositionGaps.forEach { appendLine("#${it.first}: ${it.second}") }
             }
             appendLine("## CSV")
-            appendLine("${csv.rows.size} rows" + if (csv.awaitingMembership.isNotEmpty()) "; ${csv.awaitingMembership.size} edges wait for a PC membership (not in the CSV)" else "")
+            appendLine(
+                "${csv.rows.size} rows" +
+                    if (csv.awaitingMembership.isNotEmpty()) "; ${csv.awaitingMembership.size} edges wait for a PC membership (not in the CSV)" else "",
+            )
             appendLine("## Audit")
-            if (audit.isEmpty()) appendLine("every edge is to an eligible reviewer (V1, A2), every band is respected or reported (A4), every cycle is repaired or reported (A3), every paper meets its composition or has a reason (A1)") else audit.forEach { appendLine("VIOLATION: $it") }
+            if (audit.isEmpty()) {
+                appendLine(
+                    "every edge is to an eligible reviewer (V1, A2), every band is respected or reported (A4), every cycle is repaired or reported (A3), every paper meets its composition or has a reason (A1)",
+                )
+            } else {
+                audit.forEach {
+                    appendLine("VIOLATION: $it")
+                }
+            }
         }
 }
 

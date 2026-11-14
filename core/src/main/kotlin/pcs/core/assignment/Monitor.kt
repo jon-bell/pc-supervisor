@@ -1,5 +1,6 @@
 package pcs.core.assignment
 
+import pcs.core.rules.PaperFacts
 import pcs.core.rules.Pc
 import kotlin.math.sqrt
 
@@ -76,7 +77,7 @@ public object TpmsRoundTrip {
                     p == null -> "not a paper in review"
                     e.who in p.authors -> "an author of the paper (A2)"
                     e.who in p.conflicts -> "declared conflict (A2)"
-                    !Pc.eligible(cfg.faults, r.member, PaperFacts(p)) -> "not accepted, consented and classified by an AC (V1)"
+                    !Pc.eligible(cfg.faults, r.member, factsOf(p)) -> "not accepted, consented and classified by an AC (V1)"
                     Planner.slotOf(cfg, r.member) == null -> "no seat for their tier under Q13 and Q14"
                     else -> null
                 }
@@ -100,7 +101,8 @@ public object TpmsRoundTrip {
             }
         }
         for (cy in Cycles.find(keep.map { Candidate(it.who, it.pid, 100) }, input.papers, emptyList(), cfg.cycleMaxK, cfg.faults)) {
-            issues += TpmsIssue(cy.edges.first().first, cy.edges.first().second, "in a reciprocal cycle of papers ${cy.papers.joinToString(" > ") { "#$it" }} (A3)")
+            issues +=
+                TpmsIssue(cy.edges.first().first, cy.edges.first().second, "in a reciprocal cycle of papers ${cy.papers.joinToString(" > ") { "#$it" }} (A3)")
         }
         val warm = keep.map { Candidate(it.who, it.pid, 100) }
         val have = warm.map { it.who to it.pid }.toSet()
@@ -118,5 +120,5 @@ public object TpmsRoundTrip {
         )
     }
 
-    private fun PaperFacts(p: PlanPaper) = pcs.core.rules.PaperFacts(p.authors, p.conflicts)
+    private fun factsOf(p: PlanPaper) = PaperFacts(p.authors, p.conflicts)
 }

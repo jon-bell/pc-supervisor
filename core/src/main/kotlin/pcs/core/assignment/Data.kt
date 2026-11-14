@@ -41,9 +41,10 @@ public data class AssignmentSettings(
                 hard = s.raw["PCS_SOLVER_HARD"] == "1",
                 repairRounds = s.raw["PCS_REPAIR_ROUNDS"]?.toIntOrNull()?.takeIf { it >= 0 } ?: 3,
                 round = s.raw["PCS_ASSIGN_ROUND"]?.takeIf { it.isNotBlank() },
-                weights = s.raw.filterKeys { it.startsWith("PCS_AFFINITY_WEIGHT_") }.mapNotNull { (k, v) ->
-                    v.toDoubleOrNull()?.takeIf { it > 0 }?.let { k.removePrefix("PCS_AFFINITY_WEIGHT_").lowercase().replace('_', '-') to it }
-                }.toMap(),
+                weights =
+                    s.raw.filterKeys { it.startsWith("PCS_AFFINITY_WEIGHT_") }.mapNotNull { (k, v) ->
+                        v.toDoubleOrNull()?.takeIf { it > 0 }?.let { k.removePrefix("PCS_AFFINITY_WEIGHT_").lowercase().replace('_', '-') to it }
+                    }.toMap(),
             )
     }
 }
@@ -81,7 +82,13 @@ public class AssignmentData(private val store: Store, private val imports: Impor
         if (r.q13 == null) blocked += "Q13 (the slots beyond the two senior ones) is unresolved"
         if (r.q14 == null) blocked += "Q14 (whether a senior nominee counts as senior) is unresolved"
         if (nominees) {
-            for (q in listOf(QId.Q18, QId.Q19, QId.Q19B)) if (r[q] == null) blocked += "${q.code} (what a nominee owes) is unresolved, and the sheet has accepted nominees"
+            for (q in listOf(QId.Q18, QId.Q19, QId.Q19B)) {
+                if (r[q] ==
+                    null
+                ) {
+                    blocked += "${q.code} (what a nominee owes) is unresolved, and the sheet has accepted nominees"
+                }
+            }
         }
         val scores = imports.latest(ImportKind.TPMS_SCORES)
         val tpmsAsg = imports.latest(ImportKind.TPMS_ASSIGNMENTS)
@@ -127,7 +134,9 @@ public class AssignmentData(private val store: Store, private val imports: Impor
             }
 
         val conflictsOf =
-            store.conn.query("SELECT pid, pc_conflicts FROM paper WHERE gone_at IS NULL AND decision IS NULL AND coalesce(status,'') NOT IN ('withdrawn','draft') ORDER BY pid") { rs ->
+            store.conn.query(
+                "SELECT pid, pc_conflicts FROM paper WHERE gone_at IS NULL AND decision IS NULL AND coalesce(status,'') NOT IN ('withdrawn','draft') ORDER BY pid",
+            ) { rs ->
                 rs.getLong(1) to Json.parseToJsonElement(rs.getString(2)).jsonObject.keys.map { it.lowercase() }
             }
         val authorsOf = nom.papers.associate { it.pid to it.authors.map { a -> a.trim().lowercase() } }
@@ -137,10 +146,14 @@ public class AssignmentData(private val store: Store, private val imports: Impor
         // existing reviews, second-opinion members included: pinned. Only what a review is (who, which paper) is read, so
         // nothing a second opinion said can move the plan (S11).
         val pinned =
-            store.conn.query("SELECT pid, email FROM review WHERE rtype != 5 AND gone_at IS NULL AND email IS NOT NULL") { it.getLong(1) to it.getString(2).lowercase() }
+            store.conn.query("SELECT pid, email FROM review WHERE rtype != 5 AND gone_at IS NULL AND email IS NOT NULL") {
+                it.getLong(1) to
+                    it.getString(2).lowercase()
+            }
                 .mapNotNull { (pid, e) -> if (pid in paperIds) id[e]?.let { Pin(it, pid) } else null }.distinct()
 
         val unknown = mutableSetOf<String>()
+
         fun edges(kind: ImportKind): Map<Pair<Long, Long>, Double> =
             imports.latest(kind)?.rows.orEmpty().mapNotNull { row ->
                 val pid = row.data["paper"]!!.toLong()
@@ -158,10 +171,17 @@ public class AssignmentData(private val store: Store, private val imports: Impor
         if (scores != null) sources += AffinitySource.tpms(edges(ImportKind.TPMS_SCORES), s.weights["tpms-scores"] ?: 3.0)
         val warm = if (tpmsAsg != null) edges(ImportKind.TPMS_ASSIGNMENTS).keys.map { Pin(it.first, it.second) } else emptyList()
         // without scores, TPMS's own assignment is the affinity evidence: its edges are valued at a flat 0.8
-        if (scores == null) sources += AffinitySource("tpms-assignments", s.weights["tpms-assignments"] ?: 1.0, 0.0, 1.0, warm.associate { (it.who to it.pid) to 0.8 })
+        if (scores ==
+            null
+        ) {
+            sources += AffinitySource("tpms-assignments", s.weights["tpms-assignments"] ?: 1.0, 0.0, 1.0, warm.associate { (it.who to it.pid) to 0.8 })
+        }
         if (unknown.isNotEmpty()) notes += "${unknown.size} people in the affinity data are neither on the PC nor in the appointments sheet and were ignored"
         val aff = Affinity.combine(sources)
-        val cands = aff.entries.filter { it.key.first in id.values && it.key.second in paperIds }.map { Candidate(it.key.first, it.key.second, it.value) }.sortedWith(compareBy({ it.pid }, { it.who }))
+        val cands =
+            aff.entries.filter {
+                it.key.first in id.values && it.key.second in paperIds
+            }.map { Candidate(it.key.first, it.key.second, it.value) }.sortedWith(compareBy({ it.pid }, { it.who }))
 
         val cfg =
             PlanConfig(

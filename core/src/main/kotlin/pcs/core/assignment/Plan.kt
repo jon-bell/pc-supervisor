@@ -195,7 +195,16 @@ public object Planner {
             for (cy in cycles) {
                 val weak = weakest(cy.edges, used.map { it.cand }, forbidden) ?: continue
                 if (forbidden.add(weak.who to weak.pid)) {
-                    repairs += Repair(weak.who, weak.pid, weak.aff, round, "reciprocal cycle of ${cy.papers.size} papers (${cy.papers.joinToString(" > ") { "#$it" }})")
+                    repairs +=
+                        Repair(
+                            weak.who,
+                            weak.pid,
+                            weak.aff,
+                            round,
+                            "reciprocal cycle of ${cy.papers.size} papers (${cy.papers.joinToString(" > ") {
+                                "#$it"
+                            }})",
+                        )
                 }
             }
             for ((pid, inst) in partition) {
@@ -212,7 +221,25 @@ public object Planner {
             cycles = Cycles.find(used.map { it.cand }, input.papers, pinned, cfg.cycleMaxK, cfg.faults)
             partition = Partition.violations(used.map { it.cand }, pinned, by, cfg.maxPerInstitution)
         }
-        return assess(input, cfg, by, pinned, ineligiblePinned, used.map { it.cand }, eligible.map { it.cand }, forbidden, repairs, cyclesFirst, cycles, partition, meta.first, meta.third, infeasible)
+        return assess(
+            input,
+            cfg,
+            by,
+            pinned,
+            ineligiblePinned,
+            used.map {
+                it.cand
+            },
+            eligible.map { it.cand },
+            forbidden,
+            repairs,
+            cyclesFirst,
+            cycles,
+            partition,
+            meta.first,
+            meta.third,
+            infeasible,
+        )
     }
 
     /** The soft solve used only to explain an infeasible hard one. */
@@ -280,10 +307,14 @@ public object Planner {
         }
         // a paper whose seats are all filled can still miss Q13 and Q14, through existing assignments the rules would not have made
         for (pp in papers.filter { !it.composed && short.none { s -> s.pid == it.pid } }) {
-            short += Shortfall(
-                pp.pid, Slot.SENIOR, pp.seniors.size, pp.seniors.size,
-                "the reviewers don't fit Q13 and Q14: ${pp.seniors.size} in senior seats, ${pp.thirds.size} in the other seats, ${pp.neither.size} with no seat (existing assignments are never moved)",
-            )
+            short +=
+                Shortfall(
+                    pp.pid,
+                    Slot.SENIOR,
+                    pp.seniors.size,
+                    pp.seniors.size,
+                    "the reviewers don't fit Q13 and Q14: ${pp.seniors.size} in senior seats, ${pp.thirds.size} in the other seats, ${pp.neither.size} with no seat (existing assignments are never moved)",
+                )
         }
         val violations = input.reviewers.filter { (loads[it.who] ?: 0) > it.cap }.map { it.who to (loads[it.who] ?: 0) }
         val nominees =
@@ -311,7 +342,21 @@ public object Planner {
                 if (best < cfg.weakAffinity) p.pid to best else null
             }
         return PlanResult(
-            plan, papers, loads, short, repairs, cyclesFirst, cycles, partition, violations, nominees, objective, candidateEdges, infeasible, weak, ineligiblePinned,
+            plan,
+            papers,
+            loads,
+            short,
+            repairs,
+            cyclesFirst,
+            cycles,
+            partition,
+            violations,
+            nominees,
+            objective,
+            candidateEdges,
+            infeasible,
+            weak,
+            ineligiblePinned,
         )
     }
 
@@ -348,7 +393,12 @@ public object Planner {
         }
         val ok = ofSlot.size - bad.size
         val forb = ofSlot.count { (it.who to it.pid) in forbidden }
-        val full = ofSlot.count { Pc.eligible(cfg.faults, by.getValue(it.who).member, facts) && (it.who to it.pid) !in forbidden && (loads[it.who] ?: 0) >= by.getValue(it.who).cap }
+        val full =
+            ofSlot.count {
+                Pc.eligible(cfg.faults, by.getValue(it.who).member, facts) &&
+                    (it.who to it.pid) !in forbidden &&
+                    (loads[it.who] ?: 0) >= by.getValue(it.who).cap
+            }
         val parts = mutableListOf<String>()
         parts += "$label seats: $got of $need filled"
         parts += if (ofSlot.isEmpty()) "no $label candidates have any affinity data for it" else "${ofSlot.size} $label candidates, $ok eligible"
@@ -365,19 +415,30 @@ public object Planner {
         val paper = input.papers.associateBy { it.pid }
         val out = mutableListOf<String>()
         for (e in plan.edges) {
-            val r = by[e.who] ?: run {
-                out += "V1: ${e.who} is not a known reviewer"
-                continue
-            }
+            val r =
+                by[e.who] ?: run {
+                    out += "V1: ${e.who} is not a known reviewer"
+                    continue
+                }
             val p = paper.getValue(e.pid)
             if (!Pc.eligible(Faults.NONE, r.member, facts(p))) out += "V1/A2: ${e.who} is not eligible for #${e.pid}"
             if (slotOf(cfg.copy(faults = Faults.NONE), r.member) == null) out += "Q13/Q14: ${e.who} has no seat on #${e.pid}"
         }
         for ((who, load) in plan.loads) {
             val r = by[who] ?: continue
-            if (load > r.cap && (who to load) !in plan.bandViolations) out += "A4: ${who} load $load exceeds band ${r.cap} and is not reported"
+            if (load > r.cap && (who to load) !in plan.bandViolations) out += "A4: $who load $load exceeds band ${r.cap} and is not reported"
         }
-        val noCycle = Cycles.find(plan.edges + input.pinned.map { Candidate(it.who, it.pid, 100) }, input.papers, emptyList(), cfg.cycleMaxK.coerceAtLeast(2), Faults.NONE)
+        val noCycle =
+            Cycles.find(
+                plan.edges +
+                    input.pinned.map {
+                        Candidate(it.who, it.pid, 100)
+                    },
+                input.papers,
+                emptyList(),
+                cfg.cycleMaxK.coerceAtLeast(2),
+                Faults.NONE,
+            )
         for (cy in noCycle) if (plan.cyclesLeft.none { it.papers.toSet() == cy.papers.toSet() }) out += "A3: unreported cycle ${cy.papers}"
         for (pp in plan.papers) {
             if (!pp.composed && plan.shortfalls.none { it.pid == pp.pid }) out += "A1: #${pp.pid} is not composed and has no reason"

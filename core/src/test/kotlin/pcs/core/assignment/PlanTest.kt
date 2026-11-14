@@ -31,7 +31,10 @@ class PlanTest {
     private fun everyone(rs: List<Reviewer>, ps: List<PlanPaper>, aff: (Reviewer, PlanPaper) -> Int = { _, _ -> 60 }) =
         rs.flatMap { r -> ps.map { p -> Candidate(r.who, p.pid, aff(r, p)) } }
 
-    private fun solve(input: PlanInput, c: PlanConfig = cfg()): PlanResult = Planner.solve(input, c).also { assertEquals(emptyList<String>(), Planner.audit(input, c, it)) }
+    private fun solve(input: PlanInput, c: PlanConfig = cfg()): PlanResult =
+        Planner.solve(input, c).also {
+            assertEquals(emptyList<String>(), Planner.audit(input, c, it))
+        }
 
     @Test
     @Covers("rule:composition", "prop:A1", "prop:A4", "prop:V1", "rule:load", "q:Q13=one-junior")
@@ -51,7 +54,12 @@ class PlanTest {
     @Covers("prop:V1", "rule:eligible", "mutant:2")
     fun `an unaccepted, unconsented or unclassified person is never assigned, and the mutant would assign them`() {
         val good = (1L..4).map { sen(it) } + jun(11)
-        val bad = listOf(nominee(20, Tier.SENIOR, 4, 24, accepted = false), nominee(21, Tier.JUNIOR, 4, 24, consented = false), Reviewer(Member(22, null, nominee = true), 4))
+        val bad =
+            listOf(
+                nominee(20, Tier.SENIOR, 4, 24, accepted = false),
+                nominee(21, Tier.JUNIOR, 4, 24, consented = false),
+                Reviewer(Member(22, null, nominee = true), 4),
+            )
         val ps = listOf(paper(101))
         // the unaccepted ones have the best affinity of anyone
         val input = PlanInput(good + bad, ps, everyone(good + bad, ps) { r, _ -> if (r.who >= 20) 100 else 50 })
@@ -69,7 +77,21 @@ class PlanTest {
         val star = sen(1, cap = 2)
         val others = (2L..7).map { sen(it, cap = 4) } + (11L..13).map { jun(it) }
         val ps = (101L..104).map { paper(it) }
-        val input = PlanInput(listOf(star) + others, ps, everyone(listOf(star) + others, ps) { r, _ -> if (r.who == 1L) 100 else 40 }, pinned = listOf(Pin(1, 101)))
+        val input =
+            PlanInput(
+                listOf(star) + others,
+                ps,
+                everyone(listOf(star) + others, ps) { r, _ ->
+                    if (r.who ==
+                        1L
+                    ) {
+                        100
+                    } else {
+                        40
+                    }
+                },
+                pinned = listOf(Pin(1, 101)),
+            )
         val r = solve(input)
         assertEquals(2, r.loads[1L], "one existing review plus one new: the band of 2")
         assertEquals(0, r.bandViolations.size)
@@ -162,7 +184,9 @@ class PlanTest {
     @Test
     @Covers("prop:V5", "prop:V2", "rule:load")
     fun `a nominee is aimed at what they owe and never above it, and a shortfall comes with its reason`() {
-        val rs = (1L..6).map { sen(it) } + (11L..13).map { jun(it) } + nominee(30, Tier.JUNIOR, cap = 3, owedSixths = 18) + nominee(31, Tier.JUNIOR, cap = 3, owedSixths = 18)
+        val rs =
+            (1L..6).map { sen(it) } + (11L..13).map { jun(it) } + nominee(30, Tier.JUNIOR, cap = 3, owedSixths = 18) +
+                nominee(31, Tier.JUNIOR, cap = 3, owedSixths = 18)
         val ps = (101L..106).map { paper(it) }
         // 31 has no affinity data on any paper: the plan can't give them what they owe
         val aff = everyone(rs.filter { it.who != 31L }, ps) { r, _ -> if (r.who == 30L) 90 else 50 }
@@ -206,7 +230,21 @@ class PlanTest {
         val rs = (1L..4).map { sen(it) } + sen(5, onPc = false) + jun(11)
         val ps = listOf(paper(101))
         val input = PlanInput(rs, ps, everyone(rs, ps) { r, _ -> if (r.who == 5L) 99 else 50 })
-        val b = AssignmentBuild(input, cfg(), (rs.map { it.who }).associateWith { "u$it@example.org" }, emptyMap(), emptyMap(), emptyList(), emptyList(), AssignmentSettings(emptyMap(), round = "R1"))
+        val b =
+            AssignmentBuild(
+                input,
+                cfg(),
+                (
+                    rs.map {
+                        it.who
+                    }
+                ).associateWith { "u$it@example.org" },
+                emptyMap(),
+                emptyMap(),
+                emptyList(),
+                emptyList(),
+                AssignmentSettings(emptyMap(), round = "R1"),
+            )
         val plan = Planner.solve(input, b.config)
         val csv = AssignmentOutput.csv(plan, b)
         assertEquals(listOf("101,primary,u5@example.org").size, csv.awaitingMembership.size, "the best match isn't on the PC yet")
@@ -242,7 +280,16 @@ class PlanTest {
             val nn = rnd.nextInt(4)
             val rs =
                 (1..ns).map { sen(it.toLong(), cap = 1 + rnd.nextInt(4)) } + (1..nj).map { jun(10L + it, cap = 1 + rnd.nextInt(3)) } +
-                    (1..nn).map { nominee(30L + it, if (rnd.nextBoolean()) Tier.SENIOR else Tier.JUNIOR, cap = 1 + rnd.nextInt(3), owedSixths = 6 * rnd.nextInt(4), accepted = rnd.nextInt(4) != 0) }
+                    (1..nn).map {
+                        nominee(
+                            30L + it,
+                            if (rnd.nextBoolean()) Tier.SENIOR else Tier.JUNIOR,
+                            cap = 1 + rnd.nextInt(3),
+                            owedSixths =
+                                6 * rnd.nextInt(4),
+                            accepted = rnd.nextInt(4) != 0,
+                        )
+                    }
             val ps =
                 (1..(3 + rnd.nextInt(6))).map { i ->
                     paper(100L + i, authors = rs.filter { rnd.nextInt(6) == 0 }.map { it.who }, conflicts = rs.filter { rnd.nextInt(6) == 0 }.map { it.who })

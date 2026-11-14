@@ -33,9 +33,20 @@ class SecondOpinionPairTest {
                 review(1, "s1", opinion)
             }
         for (e in listOf("s1", "s2", "s3", "s4", "j1", "j2")) {
-            store.conn.createStatement().use { it.executeUpdate("INSERT INTO person(email,name,roles,tags,first_seen_at,last_seen_at) VALUES('$e@example.org','$e','[]','[]',0,0)") }
+            store.conn.createStatement().use {
+                it.executeUpdate("INSERT INTO person(email,name,roles,tags,first_seen_at,last_seen_at) VALUES('$e@example.org','$e','[]','[]',0,0)")
+            }
         }
-        val csv = "paper,email,score\n" + (1..4).flatMap { p -> listOf("s1", "s2", "s3", "s4", "j1", "j2").mapIndexed { i, e -> "$p,$e@example.org,${"%.2f".format(0.9 - 0.1 * ((i + p) % 5))}" } }.joinToString("\n") + "\n"
+        val csv =
+            "paper,email,score\n" +
+                (1..4).flatMap { p ->
+                    listOf("s1", "s2", "s3", "s4", "j1", "j2").mapIndexed { i, e ->
+                        "$p,$e@example.org,${"%.2f".format(
+                            0.9 - 0.1 * ((i + p) % 5),
+                        )}"
+                    }
+                }.joinToString("\n") +
+                "\n"
         val clock = Clock { Instant.parse("2030-01-01T00:00:00Z") }
         val r = Imports(store, clock).import(ImportKind.TPMS_SCORES, csv.toByteArray(), "scores.csv")
         assertTrue(r is ImportResult.Accepted)

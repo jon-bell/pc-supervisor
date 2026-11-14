@@ -103,6 +103,7 @@ object AssignScenario {
     val tpmsAssignmentCsv: String =
         buildString {
             appendLine("paper,email,round")
+
             fun row(p: Int, who: String) = appendLine("$p,$who,")
             listOf(0, 1, 2).forEach { row(211, juniors[it]) } // an all-junior panel
             row(201, seniors[0]) // an author

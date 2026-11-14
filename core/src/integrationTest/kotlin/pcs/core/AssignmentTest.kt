@@ -74,13 +74,15 @@ class AssignmentTest {
     fun seedAndImport() {
         Driver(Harness.url, token, Repo.root, project).seed(AssignScenario.scenario)
         sync()
-        for ((kind, csv) in
-            listOf(
-                ImportKind.APPOINTMENTS to AssignScenario.appointmentsCsv,
-                ImportKind.TPMS_REGISTRATIONS to AssignScenario.registrationsCsv,
-                ImportKind.TPMS_SCORES to AssignScenario.scoresCsv,
-                ImportKind.TPMS_ASSIGNMENTS to AssignScenario.tpmsAssignmentCsv,
-            )) {
+        for (
+        (kind, csv) in
+        listOf(
+            ImportKind.APPOINTMENTS to AssignScenario.appointmentsCsv,
+            ImportKind.TPMS_REGISTRATIONS to AssignScenario.registrationsCsv,
+            ImportKind.TPMS_SCORES to AssignScenario.scoresCsv,
+            ImportKind.TPMS_ASSIGNMENTS to AssignScenario.tpmsAssignmentCsv,
+        )
+        ) {
             val r = imports.import(kind, csv.toByteArray(), "assignment-${kind.id}.csv")
             assertTrue(r is ImportResult.Accepted, (r as? ImportResult.Rejected)?.run?.toString())
         }
@@ -91,7 +93,22 @@ class AssignmentTest {
         store.close()
         Hotcrp.php("batch/deletepapers.php", "-y", "-q", "201-212")
         val sql = "delete from ContactInfo where email like 'asg-%@example.org';\n"
-        val cmd = listOf("docker", "compose", "-p", project, "-f", Repo.path("hotcrp/compose.yaml").toString(), "exec", "-T", "db", "mariadb", "-uroot", "-proot", "hotcrp")
+        val cmd =
+            listOf(
+                "docker",
+                "compose",
+                "-p",
+                project,
+                "-f",
+                Repo.path("hotcrp/compose.yaml").toString(),
+                "exec",
+                "-T",
+                "db",
+                "mariadb",
+                "-uroot",
+                "-proot",
+                "hotcrp",
+            )
         val p = ProcessBuilder(cmd).redirectErrorStream(true).start()
         p.outputStream.use { it.write(sql.toByteArray()) }
         val out = p.inputStream.bufferedReader().readText()
@@ -103,8 +120,21 @@ class AssignmentTest {
 
     @Test
     @Order(1)
-    @Covers("rule:composition", "rule:load", "rule:cycle-free", "prop:A1", "prop:A2", "prop:A3", "prop:A4", "prop:V1", "prop:V5", "prop:M3", "q:Q13=one-junior", "q:Q14=tier-decides")
-    fun `on the assignment scenario every paper meets its composition or is reported, no band is exceeded, no ineligible edge appears and the cycles are broken`() {
+    @Covers(
+        "rule:composition",
+        "rule:load",
+        "rule:cycle-free",
+        "prop:A1",
+        "prop:A2",
+        "prop:A3",
+        "prop:A4",
+        "prop:V1",
+        "prop:V5",
+        "prop:M3",
+        "q:Q13=one-junior",
+        "q:Q14=tier-decides",
+    )
+    fun `on the assignment scenario every paper is composed or reported, no band is exceeded, no ineligible edge appears and cycles are broken`() {
         val b = build()
         val report = Assignment.report(b)
         val plan = report.plan

@@ -31,9 +31,29 @@ import pcs.testing.Family
  * 4,000 papers so the comparison runs in every build; the model's report is the full-size run.
  */
 @Family("T2")
-@Covers("rule:composition", "rule:load", "rule:cycle-free", "prop:A1", "prop:A3", "prop:A4", "prop:V1", "q:Q13=one-junior", "q:Q14=nominee-not-senior", "prop:A5")
+@Covers(
+    "rule:composition",
+    "rule:load",
+    "rule:cycle-free",
+    "prop:A1",
+    "prop:A3",
+    "prop:A4",
+    "prop:V1",
+    "q:Q13=one-junior",
+    "q:Q14=nominee-not-senior",
+    "prop:A5",
+)
 class PlanOracleTest {
-    private fun tier(j: kotlinx.serialization.json.JsonElement): Tier? = (j as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { if (it == "senior") Tier.SENIOR else Tier.JUNIOR }
+    private fun tier(j: kotlinx.serialization.json.JsonElement): Tier? =
+        (j as? JsonPrimitive)?.takeIf { it.isString }?.content?.let {
+            if (it ==
+                "senior"
+            ) {
+                Tier.SENIOR
+            } else {
+                Tier.JUNIOR
+            }
+        }
 
     private data class Variant(val name: String, val q13: Q13, val q14: Q14, val q18: String)
 
@@ -72,7 +92,10 @@ class PlanOracleTest {
                     owedSixths = r["owed"]!!.jsonPrimitive.int,
                 )
             }
-        val papers = a["papers"]!!.jsonArray.map { it.jsonObject }.map { p -> PlanPaper(p["pid"]!!.jsonPrimitive.long, p["authors"]!!.jsonArray.map { it.jsonPrimitive.long }) }
+        val papers =
+            a["papers"]!!.jsonArray.map { it.jsonObject }.map { p ->
+                PlanPaper(p["pid"]!!.jsonPrimitive.long, p["authors"]!!.jsonArray.map { it.jsonPrimitive.long })
+            }
         val cands = a["cands"]!!.jsonArray.map { it.jsonArray }.map { Candidate(it[0].jsonPrimitive.long, it[1].jsonPrimitive.long, it[2].jsonPrimitive.int) }
         return PlanInput(reviewers, papers, cands)
     }
@@ -94,6 +117,7 @@ class PlanOracleTest {
                 val input = inputOf(a)
                 val cfg = PlanConfig(v.q13, v.q14, Faults.NONE, cycleMaxK = 2, repairRounds = 3, topK = 25)
                 val got = Planner.solve(input, cfg)
+
                 fun w(k: String) = want[k]!!.jsonPrimitive.int
                 assertEquals(w("composed"), got.composed, "papers that meet their composition")
                 assertEquals(w("seniorShort"), got.seniorShort, "senior seats unfilled")
@@ -102,7 +126,10 @@ class PlanOracleTest {
                 // which of several equal-cost optima a solver finds is not fixed, so the split of reviews between nominees and
                 // PC members may move by a review or two; the counts above and the objective may not
                 val nomineeReviews = input.reviewers.filter { it.member.nominee }.sumOf { got.loads[it.who] ?: 0 }
-                assertTrue(kotlin.math.abs(w("nomineeReviews") - nomineeReviews) <= 3, "reviews by nominees: ${w("nomineeReviews")} in the model, $nomineeReviews here")
+                assertTrue(
+                    kotlin.math.abs(w("nomineeReviews") - nomineeReviews) <= 3,
+                    "reviews by nominees: ${w("nomineeReviews")} in the model, $nomineeReviews here",
+                )
                 assertEquals(w("cyclesFirst") > 0, got.cyclesFirst > 0, "reciprocal cycles in the first solve")
                 // the first solve, before any repair, is one min-cost max-flow on the same network: the same flow value and cost
                 val first = Planner.solve(input, cfg.copy(repairRounds = 0))

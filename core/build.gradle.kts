@@ -183,6 +183,8 @@ val claimsInventory by tasks.registering {
             "papers" to "the paper table",
             "reviews" to "the review table",
             "settings" to "the settings screen: readings, unresolved questions, what they block",
+            "assignment" to
+                "the assignment screen: composition per paper with reasons, loads, repairs, nominees, the conflict-engineering signal, the TPMS round trip, the bulk-assign CSV (PLAN M15)",
             "early-reject" to "the early-reject screen: candidates, bump status, AC objections, the mail search, the decision artifact",
             "writeback" to "the Writeback review screen: HotCRP's dry-run diff and the confirmation (PLAN M5)",
             "report" to "the sync report: Writeback mismatches and traces that don't parse or were forged (PLAN M5)",
