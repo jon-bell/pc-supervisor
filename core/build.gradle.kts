@@ -183,6 +183,7 @@ val claimsInventory by tasks.registering {
             "papers" to "the paper table",
             "reviews" to "the review table",
             "settings" to "the settings screen: readings, unresolved questions, what they block",
+            "early-reject" to "the early-reject screen: candidates, bump status, AC objections, the mail search, the decision artifact",
         ).forEach { (k, v) -> add("view:$k", "view", v) }
         @Suppress("UNCHECKED_CAST")
         (slurp.parse(root.file("model/export/readings.json").asFile) as List<Map<String, Any>>).forEach { q ->

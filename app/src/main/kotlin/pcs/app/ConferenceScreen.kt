@@ -34,6 +34,7 @@ import java.time.format.DateTimeFormatter
 enum class TabName(val label: String) {
     Papers("Papers"),
     Reviews("Reviews"),
+    EarlyReject("Early reject"),
     Settings("Settings"),
     Cards("Cards"),
 }
@@ -97,6 +98,7 @@ fun ConferenceScreen(shell: Shell, session: Session, onSwitch: () -> Unit) {
         when (tab) {
             TabName.Papers -> PapersView(session, shell.opener, version)
             TabName.Reviews -> ReviewsView(session, shell.opener, version)
+            TabName.EarlyReject -> EarlyRejectView(session, shell.opener, version)
             TabName.Settings -> SettingsScreen(session.answers(), session.conference.id)
             TabName.Cards -> CardGallery(session.answers().readings)
         }
