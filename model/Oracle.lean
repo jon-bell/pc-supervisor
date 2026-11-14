@@ -35,6 +35,35 @@ def randomReferral (seed : Nat) : Json :=
     ("remedyOffered", h 5 % 2 == 0), ("remedyDue", Json.num (h 6 % 100 : Nat)), ("cured", h 7 % 4 == 0),
     ("warned", h 8 % 2 == 0), ("askedAt", Json.num (h 9 % 100 : Nat)), ("now", Json.num (h 11 % 200 : Nat))]
 
+/-- A random feasible flow instance (see `minCostMaxFlow` in `answer`). -/
+def randomFlow (s : Nat) : Json := Id.run do
+  let h (k : Nat) := hash2 s (9000 + k)
+  -- a layered DAG from node 0 (source) to node n-1 (sink), feasible by construction: random
+  -- s-t paths each carry one unit; capacities exceed that, and lower bounds stay below it
+  let n := 4 + h 1 % 8
+  let nPaths := 1 + h 2 % 5
+  let mut base : Array (Nat × Nat × Nat) := #[]
+  let mut k := 0
+  for _ in [0:nPaths] do
+    let mut cur := 0
+    while cur < n - 1 do
+      k := k + 1
+      let nxt := if h (100 + k) % 3 == 0 then n - 1 else min (n - 1) (cur + 1 + h (200 + k) % 3)
+      match base.findIdx? (fun (a, b, _) => a == cur && b == nxt) with
+      | some i => base := base.modify i fun (a, b, c) => (a, b, c + 1)
+      | none => base := base.push (cur, nxt, 1)
+      cur := nxt
+  for e in [0:h 3 % 6] do
+    let a := h (300 + e) % (n - 1)
+    let b := a + 1 + h (400 + e) % (n - 1 - a)
+    if (base.findIdx? (fun (x, y, _) => x == a && y == b)).isNone then base := base.push (a, b, 0)
+  let costScale := if h 4 % 6 == 0 then 1 else 10
+  let arcs := base.mapIdx fun i (a, b, f) =>
+    let cap : Nat := f + h (500 + i) % 3 + (if f == 0 then 1 else 0)
+    let lo : Nat := if a != 0 && f > 0 && h (600 + i) % 3 == 0 then h (700 + i) % (f + 1) else 0
+    Json.arr #[Json.num a, Json.num b, Json.num lo, Json.num cap, Json.num ((h (800 + i) % costScale : Nat))]
+  return Json.mkObj [("q", "minCostMaxFlow"), ("n", Json.num n), ("s", Json.num (0 : Nat)), ("t", Json.num ((n - 1 : Nat))), ("arcs", Json.arr arcs)]
+
 def randomQuery (rule : String) (s : Nat) : Json :=
   let h (k : Nat) := hash2 s (5000 + k)
   let mutant : Json := if hash2 s 7 % 4 == 0 then Json.num (hash2 s 8 % mutants.length : Nat) else Json.null
@@ -66,6 +95,7 @@ def randomQuery (rule : String) (s : Nat) : Json :=
       ("requests", Json.arr ((List.range n).toArray.map fun i =>
         Json.mkObj [("reviewer", Json.num (5 : Nat)), ("sentBy", if h (10 + i) % 3 == 0 then Json.null else Json.num (1 : Nat)),
           ("disp", if h (20 + i) % 4 == 0 then Json.null else Json.str (pick dispKeys (h (30 + i))).1)]))]
+  | "minCostMaxFlow" => randomFlow s
   | _ => Json.mkObj [("q", "mayRemove"), ("reading", randomReading s), ("mutant", mutant), ("referral", randomReferral s)]
 
 def corpus (rule : String) (n seed : Nat) : IO Unit := do
