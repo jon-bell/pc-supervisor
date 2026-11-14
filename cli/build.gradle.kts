@@ -10,6 +10,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":agent"))
     implementation(libs.coroutines.core)
     implementation(libs.serialization.json)
     runtimeOnly(libs.slf4j.nop)

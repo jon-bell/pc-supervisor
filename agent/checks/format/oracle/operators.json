@@ -1,0 +1,27 @@
+[
+  {
+    "operator": "pages",
+    "vector": "page-count",
+    "description": "The paper is padded past the page limit."
+  },
+  {
+    "operator": "margins",
+    "vector": "margins",
+    "description": "Body margins are narrowed below the template minimum."
+  },
+  {
+    "operator": "font-size",
+    "vector": "font-size",
+    "description": "Body text is set at 7 pt."
+  },
+  {
+    "operator": "page-size",
+    "vector": "page-size",
+    "description": "The page size is changed from the template's."
+  },
+  {
+    "operator": "font-family",
+    "vector": "font-family",
+    "description": "The body font is changed to a monospaced face."
+  }
+]

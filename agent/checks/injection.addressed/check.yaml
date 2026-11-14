@@ -1,0 +1,15 @@
+id: injection.addressed
+version: content-hash  # computed by the build from this directory plus the code files below
+category: deterministic
+depends_on: [injection.policy]
+inputs: [extraction.text, injection.hidden]
+schema: schema.json
+grounds: []
+evidence: >-
+  Flag with the anchored span. A visible match is a signal for a person and never a ground by itself; in a paper about LLMs it is a LOW signal. The classifier half arrives with M10.
+affected: >-
+  The authors, if a quotation is read as an attack.
+code:
+  - src/main/kotlin/pcs/agent/checks/InjectionChecks.kt
+  - src/main/kotlin/pcs/agent/checks/AddressedPatterns.kt
+  - src/main/kotlin/pcs/agent/extract/TextNorm.kt

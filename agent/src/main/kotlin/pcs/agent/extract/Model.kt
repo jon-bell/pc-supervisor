@@ -36,6 +36,8 @@ data class Glyph(
     val hiddenLayer: Boolean,
     /** The extracted characters differ from the glyph the font's encoding names (ToUnicode remapping). */
     val remapped: Boolean,
+    /** An opaque rectangle fill or image drawn later covers the glyph. */
+    val covered: Boolean = false,
 )
 
 /**
@@ -108,6 +110,8 @@ data class Reference(
     val title: String? = null,
     val authors: List<String> = emptyList(),
     val year: Int? = null,
+    /** The rest of the entry, when it runs onto the next page; the anchor covers [raw] only. */
+    val continuation: String = "",
 )
 
 @Serializable

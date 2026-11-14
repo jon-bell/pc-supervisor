@@ -1,0 +1,49 @@
+[
+  {
+    "operator": "doc-info",
+    "vector": "doc-info",
+    "description": "The Subject field carries the payload."
+  },
+  {
+    "operator": "xmp",
+    "vector": "xmp",
+    "description": "The XMP packet carries the payload."
+  },
+  {
+    "operator": "annotation",
+    "vector": "annotation",
+    "description": "A note annotation carries the payload."
+  },
+  {
+    "operator": "form-field",
+    "vector": "form-field",
+    "description": "A form field's value carries the payload."
+  },
+  {
+    "operator": "bookmark",
+    "vector": "bookmark",
+    "description": "A bookmark title carries the payload."
+  },
+  {
+    "operator": "embedded-file",
+    "vector": "embedded-file",
+    "description": "An embedded text file carries the payload."
+  },
+  {
+    "operator": "javascript",
+    "vector": "javascript",
+    "description": "A document script carries the payload."
+  },
+  {
+    "operator": "tool-written-metadata",
+    "vector": "none",
+    "description": "Producer, creator, title and keywords written by the typesetting tool, with an XMP packet.",
+    "control": true
+  },
+  {
+    "operator": "link-annotations",
+    "vector": "none",
+    "description": "Hyperlink annotations, which carry no text.",
+    "control": true
+  }
+]

@@ -112,8 +112,23 @@ object Invisible {
 object Confusables {
     private val map =
         mapOf(
-            'а' to 'a', 'е' to 'e', 'о' to 'o', 'р' to 'p', 'с' to 'c', 'у' to 'y', 'х' to 'x', 'і' to 'i', 'ј' to 'j', 'ѕ' to 's',
-            'α' to 'a', 'ο' to 'o', 'ρ' to 'p', 'ν' to 'v', 'ι' to 'i', 'κ' to 'k', 'τ' to 't',
+            'а' to 'a',
+            'е' to 'e',
+            'о' to 'o',
+            'р' to 'p',
+            'с' to 'c',
+            'у' to 'y',
+            'х' to 'x',
+            'і' to 'i',
+            'ј' to 'j',
+            'ѕ' to 's',
+            'α' to 'a',
+            'ο' to 'o',
+            'ρ' to 'p',
+            'ν' to 'v',
+            'ι' to 'i',
+            'κ' to 'k',
+            'τ' to 't',
         )
 
     fun fold(s: String): String = buildString { s.forEach { append(map[it] ?: it) } }

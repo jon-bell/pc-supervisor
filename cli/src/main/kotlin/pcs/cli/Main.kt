@@ -15,8 +15,9 @@ fun main(args: Array<String>) {
         "probe" -> probe()
         "sync" -> sync()
         "wipe" -> wipe()
+        "agent" -> agent(args.drop(1))
         else -> {
-            System.err.println("usage: pcs probe | sync | wipe")
+            System.err.println("usage: pcs probe | sync | wipe | agent check <pdf>")
             exitProcess(2)
         }
     }
@@ -142,4 +143,44 @@ fun wipe() {
     val (settings, _) = harnessSettings()
     val path = dbPath(settings)
     if (Files.deleteIfExists(path)) println("deleted $path") else println("nothing at $path")
+}
+
+/**
+ * `pcs agent check <pdf> [--authors authors.json] [--ocr [image]] [--grobid url]`: runs the
+ * deterministic checks (agent.md §3.2) on one PDF and prints the findings as JSON. Nothing is
+ * sent anywhere: GROBID must be a local URL, OCR runs in a local container with no network, and
+ * no reference resolver is configured, so `refs.doi` reports "unverified" for what it cannot look up.
+ */
+fun agent(args: List<String>) {
+    if (args.firstOrNull() != "check" || args.size < 2) {
+        System.err.println("usage: pcs agent check <pdf> [--authors authors.json] [--ocr [image]] [--grobid url]")
+        exitProcess(2)
+    }
+    val pdf = Path.of(args[1])
+    var config = pcs.agent.checks.ScreenConfig()
+    var parser: pcs.agent.extract.ReferenceParser = pcs.agent.extract.HeuristicReferenceParser
+    var i = 2
+    while (i < args.size) {
+        when (args[i]) {
+            "--authors" -> {
+                val text = Files.readString(Path.of(args[++i]))
+                config = config.copy(authors = kotlinx.serialization.json.Json.decodeFromString(pcs.agent.checks.AuthorInfo.serializer(), text))
+            }
+            "--ocr" -> {
+                val image = args.getOrNull(i + 1)?.takeIf { !it.startsWith("--") }?.also { i++ } ?: "pcs-ocr:latest"
+                config = config.copy(ocr = pcs.agent.extract.DockerOcr(image))
+            }
+            "--grobid" ->
+                parser =
+                    pcs.agent.extract.GrobidReferenceParser(pcs.agent.extract.GrobidReferenceParser.http(args[++i])).let { g ->
+                        pcs.agent.extract.ReferenceParser { x, b -> g.parse(x, b) }
+                    }
+            else -> {
+                System.err.println("unknown option ${args[i]}")
+                exitProcess(2)
+            }
+        }
+        i++
+    }
+    println(pcs.agent.checks.Screening.run(Files.readAllBytes(pdf), config, parser).toJson())
 }

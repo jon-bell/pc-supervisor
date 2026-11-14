@@ -49,8 +49,9 @@ val checkVersions by tasks.registering {
                 md.update(0)
             }
             val yaml = dir.resolve("check.yaml").readText()
-            val code = yaml.substringAfter("\ncode:", "").lineSequence().drop(1)
-                .takeWhile { it.startsWith("  - ") }.map { it.removePrefix("  - ").trim() }.toList()
+            val code =
+                yaml.substringAfter("\ncode:", "").lineSequence().drop(1)
+                    .takeWhile { it.startsWith("  - ") }.map { it.removePrefix("  - ").trim() }.toList()
             code.sorted().forEach { rel ->
                 val f = layout.projectDirectory.file(rel).asFile
                 check(f.isFile) { "${dir.name}/check.yaml lists code file $rel, which does not exist" }
@@ -99,6 +100,13 @@ tasks.test {
 // The synthetic corpus as files, for looking at by hand (tests generate their own copy).
 val syntheticCorpus by tasks.registering(JavaExec::class) {
     classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set("pcs.agent.eval.SyntheticMainKt")
+    mainClass.set("pcs.agent.eval.CorpusKt")
     args(layout.buildDirectory.dir("synthetic").get().asFile.absolutePath)
+}
+
+// Per-check mutation score and false-flag rate on the corpus (agent.md §7.2); also asserted by the tests.
+val screeningScore by tasks.registering(JavaExec::class) {
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("pcs.agent.eval.ScoreKt")
+    args(layout.buildDirectory.dir("reports/screening").get().asFile.absolutePath)
 }

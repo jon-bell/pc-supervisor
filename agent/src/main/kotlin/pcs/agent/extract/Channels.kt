@@ -1,7 +1,10 @@
 package pcs.agent.extract
 
+import org.apache.pdfbox.cos.COSArray
+import org.apache.pdfbox.cos.COSBase
 import org.apache.pdfbox.cos.COSDictionary
 import org.apache.pdfbox.cos.COSName
+import org.apache.pdfbox.cos.COSObject
 import org.apache.pdfbox.cos.COSStream
 import org.apache.pdfbox.cos.COSString
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -82,19 +85,28 @@ object Channels {
         doc.documentCatalog.names?.embeddedFiles?.let { tree ->
             names(tree).forEach { (name, fs) -> embedded(fs, "embedded:$name")?.let { out += it } }
         }
-        // JavaScript anywhere: OpenAction, additional actions, annotations, fields, the names tree.
-        val cos = doc.document
-        cos.xrefTable.keys.sortedWith(compareBy({ it.number }, { it.generation })).forEach { key ->
-            val obj = runCatching { cos.getObjectFromPool(key).`object` }.getOrNull()
-            val d = obj as? COSDictionary ?: return@forEach
-            val js = d.getDictionaryObject(COSName.JS) ?: return@forEach
-            val text =
-                when (js) {
-                    is COSString -> js.string
-                    is COSStream -> js.toTextString()
-                    else -> null
+        // JavaScript anywhere in the object graph: OpenAction, additional actions, annotations, fields, the names tree.
+        val seen = java.util.IdentityHashMap<Any, Boolean>()
+        val stack = ArrayDeque<COSBase>()
+        stack.addLast(doc.document.trailer)
+        var n = 0
+        while (stack.isNotEmpty()) {
+            val raw = stack.removeLast()
+            val o = if (raw is COSObject) raw.getObject() else raw
+            if (o == null || seen.put(o, true) != null) continue
+            when (o) {
+                is COSDictionary -> {
+                    val text =
+                        when (val js = o.getDictionaryObject(COSName.JS)) {
+                            is COSString -> js.string
+                            is COSStream -> js.toTextString()
+                            else -> null
+                        }
+                    if (!text.isNullOrBlank()) out += Channel("js:${n++}", text)
+                    o.entrySet().sortedBy { it.key.name }.reversed().forEach { stack.addLast(it.value) }
                 }
-            if (!text.isNullOrBlank()) out += Channel("js:obj${key.number}", text)
+                is COSArray -> (o.size() - 1 downTo 0).forEach { stack.addLast(o.get(it)) }
+            }
         }
         return out
     }

@@ -59,6 +59,8 @@ public class CoversExtension : BeforeTestExecutionCallback, AfterTestExecutionCa
 
     override fun afterTestExecution(ctx: ExtensionContext) {
         val (fam, ids) = claimsOf(ctx)
+        // A test skipped by an assumption (an opt-in integration test) is evidence of nothing, for or against.
+        if (ctx.executionException.orElse(null) is org.opentest4j.TestAbortedException) return
         val outcome = if (ctx.executionException.isPresent) "fail" else "pass"
         ids.forEach { CoversLog.record(ctx.uniqueId, it, outcome, fam) }
     }

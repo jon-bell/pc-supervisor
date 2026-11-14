@@ -39,6 +39,21 @@ object HeuristicReferenceParser : ReferenceParser {
         for (p in x.pages.filter { it.page >= startPage }) {
             val from = if (p.page == startPage) startOff else 0
             val labels = LABEL.findAll(p.text, from).toList()
+            // Text before the first label of a later page finishes the entry that began on the page before.
+            if (p.page > startPage && out.isNotEmpty()) {
+                val head = p.text.substring(0, labels.firstOrNull()?.range?.first ?: p.text.length).trim()
+                if (head.isNotEmpty()) {
+                    val last = out.removeLast()
+                    out +=
+                        fields(
+                            last.label,
+                            last.raw + " " + head.replace(Regex("\\s+"), " "),
+                            last.page,
+                            last.start,
+                            last.end,
+                        ).copy(raw = last.raw, continuation = head.replace(Regex("\\s+"), " "))
+                }
+            }
             labels.forEachIndexed { i, m ->
                 val end = labels.getOrNull(i + 1)?.range?.first ?: p.text.length
                 val start = m.range.first + m.value.indexOf('[')
@@ -83,7 +98,9 @@ class GrobidReferenceParser(private val transport: Transport) : ReferenceParser 
     companion object {
         fun http(baseUrl: String, timeout: Duration = Duration.ofSeconds(60)): Transport {
             val uri = URI(baseUrl.trimEnd('/'))
-            require(uri.host in setOf("127.0.0.1", "localhost", "::1", "[::1]")) { "GROBID must run locally (got host ${uri.host}); the PDF never leaves the machine" }
+            require(uri.host in setOf("127.0.0.1", "localhost", "::1", "[::1]")) {
+                "GROBID must run locally (got host ${uri.host}); the PDF never leaves the machine"
+            }
             val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()
             return Transport { pdf ->
                 val boundary = "pcs-" + UUID.nameUUIDFromBytes(pdf).toString()
@@ -117,7 +134,10 @@ class GrobidReferenceParser(private val transport: Transport) : ReferenceParser 
                 val title = all("title").firstOrNull { it.getAttribute("level") == "a" }?.textContent?.trim() ?: all("title").firstOrNull()?.textContent?.trim()
                 val authors =
                     all("persName").map { p ->
-                        val fore = p.getElementsByTagNameNS("*", "forename").let { nl -> (0 until nl.length).joinToString(" ") { nl.item(it).textContent.trim() } }
+                        val fore =
+                            p.getElementsByTagNameNS("*", "forename").let { nl ->
+                                (0 until nl.length).joinToString(" ") { nl.item(it).textContent.trim() }
+                            }
                         val sur = p.getElementsByTagNameNS("*", "surname").item(0)?.textContent?.trim().orEmpty()
                         listOf(fore, sur).filter { it.isNotBlank() }.joinToString(" ")
                     }
@@ -133,7 +153,7 @@ class GrobidReferenceParser(private val transport: Transport) : ReferenceParser 
         fun locate(x: Extraction, r: TeiRef): Reference? {
             val heuristic = HeuristicReferenceParser.parse(x, ByteArray(0))
             val key = r.doi?.let(::squash) ?: r.title?.let(::squash) ?: return null
-            val hit = heuristic.firstOrNull { squash(it.raw).contains(key) } ?: return null
+            val hit = heuristic.firstOrNull { squash(it.raw + it.continuation).contains(key) } ?: return null
             return hit.copy(doi = r.doi ?: hit.doi, title = r.title ?: hit.title, authors = r.authors.ifEmpty { hit.authors }, year = r.year ?: hit.year)
         }
     }

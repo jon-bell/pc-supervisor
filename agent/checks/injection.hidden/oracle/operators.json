@@ -1,0 +1,89 @@
+[
+  {
+    "operator": "render-mode-3",
+    "vector": "render-mode-3",
+    "description": "Text drawn in invisible render mode."
+  },
+  {
+    "operator": "fill-matches-background",
+    "vector": "fill-matches-background",
+    "description": "White text on a white page."
+  },
+  {
+    "operator": "fill-matches-background-coloured",
+    "vector": "fill-matches-background",
+    "description": "Text in the colour of a tinted page background."
+  },
+  {
+    "operator": "tiny-font",
+    "vector": "tiny-font",
+    "description": "Text at 1 pt."
+  },
+  {
+    "operator": "clipped",
+    "vector": "clipped",
+    "description": "Text drawn outside its clipping rectangle."
+  },
+  {
+    "operator": "off-page",
+    "vector": "off-page",
+    "description": "Text placed beyond the page edge."
+  },
+  {
+    "operator": "covered-by-shape",
+    "vector": "covered",
+    "description": "Text under a later opaque rectangle."
+  },
+  {
+    "operator": "covered-by-image",
+    "vector": "covered",
+    "description": "Text under a later image."
+  },
+  {
+    "operator": "optional-content-off",
+    "vector": "optional-content-off",
+    "description": "Text in a layer that is off by default."
+  },
+  {
+    "operator": "tounicode-remap",
+    "vector": "tounicode-remap",
+    "description": "A font whose ToUnicode map says other characters than its glyphs draw."
+  },
+  {
+    "operator": "zero-width",
+    "vector": "zero-width",
+    "description": "Zero-width characters encoding the payload in binary."
+  },
+  {
+    "operator": "unicode-tag",
+    "vector": "unicode-tag",
+    "description": "Unicode tag characters spelling the payload."
+  },
+  {
+    "operator": "bidi-override",
+    "vector": "bidi-override",
+    "description": "A bidi override that reverses the payload."
+  },
+  {
+    "operator": "actualtext",
+    "vector": "actualtext",
+    "description": "An ActualText replacement that differs from the drawn text."
+  },
+  {
+    "operator": "alt-text",
+    "vector": "alt-text",
+    "description": "Alt text on a figure."
+  },
+  {
+    "operator": "tiny-figure-labels",
+    "vector": "none",
+    "description": "Figure labels at 5 pt and subscripts at 6.5 pt.",
+    "control": true
+  },
+  {
+    "operator": "white-text-in-figure",
+    "vector": "none",
+    "description": "White text inside a dark figure.",
+    "control": true
+  }
+]
