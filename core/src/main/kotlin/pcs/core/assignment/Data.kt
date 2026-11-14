@@ -117,7 +117,7 @@ public class AssignmentData(private val store: Store, private val imports: Impor
                     )
                 val band = tier?.let { s.loadMax[it.name.lowercase()] } ?: 0
                 val (cap, owed) =
-                    if (nominee) {
+                    if (nominee && member.accepted) {
                         val o = owes[e] ?: (6 * pcs.core.rules.K * (named[e] ?: 0))
                         minOf(band, (o + 5) / 6) to o
                     } else {
