@@ -78,10 +78,32 @@ tasks.withType<Test>().configureEach { doFirst { layout.buildDirectory.dir("cove
 compose.desktop {
     application {
         mainClass = "pcs.app.MainKt"
+        // jpackage and jlink come from the same JDK 25 the code is built with, not whatever runs Gradle
+        javaHome = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(25)) }.get().metadata.installationPath.asFile.absolutePath
+        jvmArgs("--enable-native-access=ALL-UNNAMED")
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.Dmg, TargetFormat.Msi)
             packageName = "pc-supervisor"
             packageVersion = appVersion
+            description = "Supervises a HotCRP review process for the conference chairs"
+            vendor = "PC Supervisor contributors"
+            includeAllModules = true // trimmed once the module list is measured (suggestRuntimeModules)
+            macOS {
+                bundleID = "org.pcsupervisor.app"
+                // Signing and notarization run only in the release workflow, where these come from CI secrets;
+                // every other build, local ones included, is unsigned.
+                signing {
+                    sign.set(providers.environmentVariable("PCS_MAC_SIGN").map { it == "true" }.orElse(false))
+                    identity.set(providers.environmentVariable("PCS_MAC_IDENTITY"))
+                }
+                notarization {
+                    appleID.set(providers.environmentVariable("PCS_APPLE_ID"))
+                    password.set(providers.environmentVariable("PCS_APPLE_APP_PASSWORD"))
+                    teamID.set(providers.environmentVariable("PCS_APPLE_TEAM_ID"))
+                }
+            }
+            windows { menuGroup = "PC Supervisor" }
+            linux { menuGroup = "Office" }
         }
     }
 }
