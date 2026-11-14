@@ -7,6 +7,7 @@ import kotlin.system.exitProcess
 val scenarios: Map<String, () -> Scenario> =
     mapOf(
         "golden" to { Golden.scenario },
+        "nomination" to { Nomination.scenario },
         "shadow" to { Generated.scenario("shadow", Generated.SHADOW) },
         "scale" to { Generated.scenario("scale", Generated.SCALE) },
     )

@@ -241,6 +241,60 @@ def owes (p : Params) (r : Reading) (tier : Tier) (all : List PaperNoms) (u : Pe
 def showSixths (n : Nat) : String :=
   if n % 6 == 0 then s!"{n / 6}" else s!"{n / 6} {n % 6}/6"
 
+/-! ### Nomination checks, patterns, and the submission cap (spec §10.4 A)
+
+Rule `compliance` (concepts §3.8) for one paper, a signal for the PC chairs on
+nomination patterns (Q9), and the cap on submissions (Q17). Q9 is not a question of
+the model: the signal is shown to the PC chairs under every reading and is never a
+ground (`Ground` has no such case, V3). -/
+
+/-- Q8 "up to n": the venue's bound on nominees per paper (`PCS_NOMINEES_MAX`). -/
+def nomineeMax : Nat := 3
+
+/-- A nominee needs at least this many of an author's papers before a pattern shows. -/
+def patternMinPapers : Nat := 3
+
+inductive Compliance | ok | missingNominee | tooManyNominees | unregistered
+  deriving DecidableEq, Repr, Inhabited
+
+def Compliance.key : Compliance → String
+  | .ok => "ok" | .missingNominee => "missing-nominee" | .tooManyNominees => "too-many-nominees"
+  | .unregistered => "unregistered"
+
+/-- Rule `compliance (p)`: the paper names the nominees Q8 allows (declined ones were still
+    named by the authors), each registered with the matching system. -/
+def compliance (r : Reading) (pn : PaperNoms) (registered : List PersonId) : Compliance :=
+  let n := pn.nominees.length
+  let tooMany := match r.q8 with
+    | .one => decide (n > 1)
+    | .upToN => decide (n > nomineeMax)
+    | .atLeastOne => false
+  if n == 0 then .missingNominee
+  else if tooMany then .tooManyNominees
+  else if pn.nominees.any (fun x => !registered.contains x.who) then .unregistered
+  else .ok
+
+/-- The Q9 signal for one author: a senior with at least `patternMinPapers` papers whose
+    nominee is always someone else, always a junior. `noms` is one (nominee, tier) per paper. -/
+def nominationPattern (author : PersonId) (authorTier : Option Tier) (noms : List (PersonId × Option Tier)) : Bool :=
+  authorTier == some .senior && decide (noms.length ≥ patternMinPapers) &&
+    noms.all fun (w, t) => w != author && t == some .junior
+
+/-- What a pattern does by itself: nothing (V3). -/
+def patternConsequence : String := "no consequence by itself"
+
+/-- Q17: the most papers one author may be on. -/
+def submissionCap (r : Reading) : Option Nat :=
+  match r.q17 with
+  | .noCap => none
+  | .cap9 => some 9
+
+/-- How many of an author's `n` papers are over the cap. -/
+def papersOverCap (r : Reading) (n : Nat) : Nat :=
+  match submissionCap r with
+  | none => 0
+  | some c => n - c
+
 /-! ### Eligibility and composition -/
 
 structure Member where

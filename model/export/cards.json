@@ -152,6 +152,25 @@
      "the nominee is expected to do 8 reviews"],
     "reading": {"Q7": "expected-k", "Q18": "capped-at-band"},
     "outcome": "the nominee is expected to do 8 reviews"}]},
+ {"text":
+  "A senior author with 6 papers always nominates a different student co-author",
+  "id": "X3",
+  "deps": [],
+  "cases":
+  [{"underMutant":
+    ["shown to the PC chairs as a pattern; no consequence by itself",
+     "shown to the PC chairs as a pattern; no consequence by itself",
+     "shown to the PC chairs as a pattern; no consequence by itself",
+     "shown to the PC chairs as a pattern; no consequence by itself",
+     "shown to the PC chairs as a pattern; no consequence by itself",
+     "shown to the PC chairs as a pattern; no consequence by itself",
+     "shown to the PC chairs as a pattern; no consequence by itself",
+     "shown to the PC chairs as a pattern; no consequence by itself",
+     "shown to the PC chairs as a pattern; no consequence by itself",
+     "shown to the PC chairs as a pattern; no consequence by itself"],
+    "reading": {},
+    "outcome":
+    "shown to the PC chairs as a pattern; no consequence by itself"}]},
  {"text": "The AC accepts a nominee and classifies them senior",
   "id": "X4",
   "deps": ["Q14"],

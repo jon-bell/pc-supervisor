@@ -48,11 +48,17 @@ def cards : List Card :=
       outcome := fun p r =>
         let g : Referral := { refAt .nominationNoncompliance .screening with warned := false }
         let gw : Referral := { g with warned := true }
+        -- only a paper that fails `compliance` can be referred on this ground
+        if compliance r (noms 1 []) [] == .ok then "compliant" else
         s!"before any warning: {removable p r g}; after a warning that is ignored: {removable p r gw}" },
     { id := "X2", text := "One junior is the sole nominee of 9 papers (k = 3)", deps := [.q18, .q7],
       outcome := fun p r =>
         let ns := (List.range 9).map fun i => noms i [{ who := 7 }]
         s!"the nominee {showOwes r (owes p r .junior ns 7)} reviews" },
+    { id := "X3", text := "A senior author with 6 papers always nominates a different student co-author", deps := [],
+      outcome := fun _ _ =>
+        let noms6 := (List.range 6).map fun i => (20 + i, some Tier.junior)
+        s!"{yesNo (nominationPattern 1 (some .senior) noms6) "shown to the PC chairs as a pattern" "nothing to show"}; {patternConsequence}" },
     { id := "X4", text := "The AC accepts a nominee and classifies them senior", deps := [.q14],
       outcome := fun _ r =>
         yesNo (fillsSenior r { who := 7, tier := some .senior, nominee := true })
@@ -64,7 +70,9 @@ def cards : List Card :=
     { id := "X6", text := "An accepted nominee never submits; escalation exhausted", deps := [.q11],
       outcome := fun p r => s!"a case {yesNo (caseMayOpen p r true []) "opens" "does not open"}; {consequence r}" },
     { id := "X7", text := "An author is on 11 submissions", deps := [.q17],
-      outcome := fun _ r => if r.q17 == .cap9 then "2 papers over the cap, reported to the PC chairs" else "nothing to report" },
+      outcome := fun _ r =>
+        let n := papersOverCap r 11
+        if n > 0 then s!"{n} papers over the cap, reported to the PC chairs" else "nothing to report" },
     { id := "X8", text := "A paper names two nominees and allocates two-thirds and one-third", deps := [.q8, .q19],
       outcome := fun p r =>
         if r.q8 == .one then "not allowed: one nominee per paper" else

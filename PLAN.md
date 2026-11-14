@@ -147,7 +147,7 @@ Every claim has a stable, namespaced ID, and every test names the claims it is e
 | Namespace | Source | Count today |
 |---|---|---|
 | `prop:` | concepts §3.10 properties (`prop:S1`, `prop:AR5`, `prop:Q1`) | 45 |
-| `card:` | concepts §3.11 example cards (`card:X9`, `card:C3`), one claim per card and reading | 38 cards |
+| `card:` | concepts §3.11 example cards (`card:X9`, `card:C3`), one claim per card and reading | 39 cards |
 | `rule:` | concepts §3.8 rules (`rule:may-remove`, `rule:owes`, `rule:composition`) | ~10 |
 | `cell:` | concepts §3.9 policy cells (`cell:ac/triage`), one per role and permission | 207 (9 roles × 23) |
 | `conv:` | spec §11 HotCRP conventions, one per row | 12 |
@@ -192,7 +192,7 @@ A binding maps a model action to something done to the real system, and a model 
 
 | Family | Evidence for | Generated from | Runs against | Count, roughly |
 |---|---|---|---|---|
-| **T1 Cards** | `card:*`, `q:*` | the exported cards: one test per card and per reading that changes its outcome | `core` (fast), then as a scenario end to end | 38 cards × their readings |
+| **T1 Cards** | `card:*`, `q:*` | the exported cards: one test per card and per reading that changes its outcome | `core` (fast), then as a scenario end to end | 39 cards × their readings |
 | **T2 Rule differential** | `rule:*` | jqwik generators over each rule's inputs and every reading; the oracle gives the expected output | `core` | 10⁴ inputs per rule per CI run, 10⁶ nightly |
 | **T3 Model-based traces** | safety `prop:*` | bounded-exhaustive and random traces from the trace search; after each step, compare every observation with the model's; at the end, check every proved property on the recorded trace with the Lean predicate | the full stack: harness + sync + `core` + app | every transition of each subsystem, plus 10³ random walks nightly |
 | **T4 Paired runs** | relational `prop:*` (S7, S11, C2, AR3, AR4) | pairs of traces that differ only in the secret (who gave the opinion; the review text; whether a suggestion was dismissed); compare the stated observer's view | the full stack | ≥ 200 pairs per property per night |
@@ -440,6 +440,32 @@ Changing this table means changing the M3 and M18 tests in the same PR.
 - **Scope:** per-paper nominee checks against Q8 and Q10; `owes(u)` under Q18, Q19, and Q19b; nomination patterns for the PC chairs (Q9); the submission cap (Q17); the appointments import driving Writeback drafts for PC membership and tier tags; a `nomination` scenario.
 - **Done when:** the model's cards for Q7, Q8, Q10, Q18, Q19, Q19b (X1–X10) pass as generated tests; the `nomination` scenario (a paper with no nominee, a person nominated by three papers, a declined co-nominee, an author over the cap) is fully reported; a candidate accepted, classified, and consenting in the sheet produces a membership artifact that passes its dry run.
 - **Evidence:** `rule:owes`, `rule:eligible` (T1, T2); `card:X1`–`card:X10` under every reading of Q7, Q8, Q10, Q18, Q19, Q19b; `prop:V2`, `prop:V3`, `prop:V5`, `prop:M4`; T5 witnesses for nominee appointment (`prop:L2`); T6 for an appointment trace written by someone who isn't the paper's AC.
+
+- **Progress (2026-11-14, branch `m7-nominations`):** done locally on a fresh harness (CI not run).
+  - **Done:**
+    - Model (`model/`): rules `compliance` (Q8, registration; keys `ok`, `missing-nominee`, `too-many-nominees`, `unregistered`), `nominationPattern` (the Q9 signal, no consequence by itself), `papersOverCap` (Q17). Card **X3** is new (39 cards; Q9 is not a question of the model, so X3 depends on none). X1 and X7 now compute their outcome from the rules instead of a fixed string. Oracle queries `compliance`, `pattern`, `overCap` and `eligible`, with four new corpora under `model/export` (CI regenerates them).
+    - `core/rules/Nominations`: the same rules in Kotlin. `core/nominations`: `NominationRules.build` (per-paper checks with Q10's consequence and the `pcs-warned` trace, `owes(u)` per person, patterns, the cap, anomalies), `Resolved` (a result that turns on an open question lists what each reading gives; nothing defaulted), `NominationData` (reads the mirror and the latest `appointments` and `tpms-registrations` imports), `Appointments` (membership drafts through M5's Writeback `UserArtifact`, with `PCS_TIER_TAGS`; one artifact for candidates with nothing waiting). `pcs nominations` prints all of it.
+    - Seed scenario `nomination` (papers 101 to 117, the sheet and the registrations as CSVs): paper 104 names no nominee; `nom-nina` is nominated by 101, 102 and 103; paper 105's nominee `nom-fay` was declined; paper 106's only nominee is pending and unregistered; `nom-prolific` is on 11 papers (2 over a cap of 9) and nominates a junior on each; one student hasn't consented, one was declined, one was "accepted" by a non-AC.
+  - **Evidence:**
+    - T1: `CardsTest` runs X1 to X10 under every reading (155 cases, none skipped) and every mutant (`mutant:3`, `mutant:4` among them); X3 and X7 go through the rules.
+    - T2: `RulesDifferentialTest` checks `rule:eligible`, `rule:compliance`, the pattern signal and the cap against the oracle (1,500 queries each, mutants included for `eligible`).
+    - `NominationReportTest` (11 unit tests): Q8 and Q10 readings, `owes` under each Q18, declined share under Q19b (V2: only named people owe), the cap at 9, 11 and with Q17 open, the pattern and its non-effect (V3), a decision by a non-AC never acted on, drafts and skips.
+    - `NominationTest` (core integration, 7 tests, runs last and cleans up): the scenario seeded into HotCRP, synced, imported and reported as above; `pcs-warned` written through Writeback and then read back to change Q10's answer for paper 104; the Q18 and declined-share mutants caught on the scenario; the membership artifact for the 10 eligible candidates passes its dry run, is confirmed, handed off, run by the chair as `saveusers`, and observed by the next sync (then nothing more is drafted).
+    - Fresh harness: `:seed:integrationTest` 5, `:core:integrationTest` 49, `:runner:integrationTest` 5, `:app:uiTest` all passing; `check-evidence` 36 records, 0 failing; `./gradlew check` green; assurance report: failing 0, cards 39 of 39, mutants 10 of 10, `rule:owes`, `rule:eligible`, `rule:compliance` covered by T1 or T10 and T2.
+  - **Not done / deferred:**
+    - `prop:V5` is not claimed: it is about a plan's load against `owes(u)`, and the solver (M14, M15) isn't there.
+    - T5 for `prop:L2` and T6 for a non-AC appointment are witnessed in `NominationTest` at the `core` level, not as runner traces replayed by `check-evidence`: the model's appointment subsystem includes the solve step, so a trace needs M15. No `cell:*` claim is covered for `classify` or `see-nomination-patterns`.
+    - X4 and X5 (assignment), X6 and X10 (Accountability cases, M16) are covered by T1 only. X10's outcome is still a fixed string in the model until M16 has a case rule.
+    - No app screen: the drafts show in the Writeback tab, but there is no nominations view, and `view:*` has no claim for one.
+    - Q17 "another number" has no reading in the model (only none and 9).
+  - **Ambiguities resolved (all in spec §10.4 A):**
+    - Nominations are read from the appointments sheet's `nominated_by`; the sheet has no column for authors' shares, so "authors allocate" uses an equal split and the report says so. Pending nominees owe nothing and mark the figure provisional.
+    - A decision counts only if the row's `ac_email` is an AC (a metareviewer in HotCRP) of a paper that nominated them, or an AC for someone nobody nominated. Otherwise it is reported and treated as pending. A chair's decision in that column isn't accepted either (the policy cell for chairs is unexamined).
+    - Declined nominees still count as named for Q8. Q8 "up to n" uses n = 3 (a constant in the model, as `k` is).
+    - The pattern signal: senior author (sheet tier, or a PC member with no row), at least 3 nominations, all of juniors by the sheet's tier, never themself. A pending nominee has no tier, so it breaks the pattern until classified.
+    - Authors are matched across papers by HotCRP account email (concepts SubmissionLimit); the cap is reported with every paper of the author.
+  - **Findings about HotCRP:** `batch/deletepapers.php -y` removes papers but not the contacts created for their authors, so the scenario's test removes the `nom-*` contacts in SQL; paper `authors[].email` is the only identity link between papers, so an author with two accounts splits the cap count.
+  - **Decisions needed:** see the report to the maintainer (who allocates shares, the pattern's threshold, where "decided by" authority comes from, and the cap's other numbers).
 
 ## M8: Extraction and deterministic checks (agent.md)
 
