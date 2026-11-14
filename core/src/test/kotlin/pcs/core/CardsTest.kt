@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 import pcs.core.readings.Q1
-import pcs.core.readings.Q17
 import pcs.core.readings.Q21
 import pcs.core.readings.Q4
 import pcs.core.readings.Q5
@@ -20,6 +19,7 @@ import pcs.core.readings.QId
 import pcs.core.readings.Readings
 import pcs.core.rules.Accountability
 import pcs.core.rules.Change
+import pcs.core.rules.Compliance
 import pcs.core.rules.DeskReject
 import pcs.core.rules.ERCase
 import pcs.core.rules.EarlyReject
@@ -68,7 +68,19 @@ class CardsTest {
         mapOf(
             "X1" to { r ->
                 val g = refAt(Ground.NOMINATION_NONCOMPLIANCE, Stage.SCREENING).copy(warned = false)
-                "before any warning: ${removable(r, g)}; after a warning that is ignored: ${removable(r, g.copy(warned = true))}"
+                if (Nominations.compliance(r.q8!!, PaperNoms(1, emptyList()), emptySet()) == Compliance.OK) {
+                    "compliant"
+                } else {
+                    "before any warning: ${removable(r, g)}; after a warning that is ignored: ${removable(r, g.copy(warned = true))}"
+                }
+            },
+            "X3" to { _ ->
+                val noms = (0L until 6L).map { (20 + it) to Tier.JUNIOR as Tier? }
+                "${yesNo(
+                    Nominations.nominationPattern(1, Tier.SENIOR, noms),
+                    "shown to the PC chairs as a pattern",
+                    "nothing to show",
+                )}; ${Nominations.PATTERN_CONSEQUENCE}"
             },
             "E3" to { r ->
                 val ref = refAt(Ground.ANONYMITY, Stage.SCREENING).copy(remedyOffered = false)
@@ -113,7 +125,10 @@ class CardsTest {
                         "does not open",
                     )}; ${Accountability.consequence(r.q11!!)}"
                 },
-            "X7" to { r -> if (r.q17 == Q17.N_9) "2 papers over the cap, reported to the PC chairs" else "nothing to report" },
+            "X7" to { r ->
+                val n = Nominations.papersOverCap(r.q17!!, 11)
+                if (n > 0) "$n papers over the cap, reported to the PC chairs" else "nothing to report"
+            },
             "X8" to { r ->
                 if (r.q8 == Q8.ONE) {
                     "not allowed: one nominee per paper"

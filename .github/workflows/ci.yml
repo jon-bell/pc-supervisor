@@ -162,6 +162,6 @@ jobs:
           diff -u model-report.txt /tmp/model-report.txt
           lake exe export export
           lake exe oracle corpus mayRemove 2000 1 > export/oracle-mayRemove.jsonl
-          for r in composition owes earlyReject caseMayOpen; do lake exe oracle corpus $r 1500 2 > export/oracle-$r.jsonl; done
+          for r in composition owes earlyReject caseMayOpen eligible compliance pattern overCap; do lake exe oracle corpus $r 1500 2 > export/oracle-$r.jsonl; done
           lake exe oracle corpus minCostMaxFlow 300 3 > export/oracle-mcmf.jsonl
           git diff --exit-code -- export

@@ -193,6 +193,30 @@ def answer (j : Json) : Except String Json := do
       | .ok (.arr xs) => xs.toList.mapM parseRequest
       | _ => pure []
     pure (Json.mkObj [("result", caseMayOpen p r (← getD j "missingReview" false) reqs)])
+  | "eligible" =>
+    let p ← parseParams ((j.getObjVal? "mutant").toOption.getD .null)
+    let m ← parseMember (← j.getObjVal? "member")
+    let ids (k : String) : Except String (List Nat) := match j.getObjVal? k with
+      | .ok (.arr xs) => xs.toList.mapM fromJson?
+      | _ => pure []
+    pure (Json.mkObj [("result", eligible p m { authors := ← ids "authors", conflicts := ← ids "conflicts" })])
+  | "compliance" =>
+    let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
+    let pn ← parsePaperNoms (← j.getObjVal? "paper")
+    let reg : List Nat ← match j.getObjVal? "registered" with
+      | .ok (.arr xs) => xs.toList.mapM fromJson?
+      | _ => pure []
+    pure (Json.mkObj [("result", (compliance r pn reg).key)])
+  | "pattern" =>
+    let author : Nat ← getD j "author" 0
+    let tier ← parseTier j "tier"
+    let noms ← match j.getObjVal? "noms" with
+      | .ok (.arr xs) => xs.toList.mapM fun x => do pure (← getD x "who" 0, ← parseTier x "tier")
+      | _ => pure []
+    pure (Json.mkObj [("result", nominationPattern author tier noms)])
+  | "overCap" =>
+    let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
+    pure (Json.mkObj [("result", Json.num (papersOverCap r (← getD j "papers" 0)))])
   | other => throw s!"unknown query {other}"
 
 
