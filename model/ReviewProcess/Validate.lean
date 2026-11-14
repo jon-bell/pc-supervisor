@@ -89,7 +89,9 @@ def cards : List Card :=
         let moved := yesNo (movedToUnnamed p r pn) "; the declined share moves to an unnamed reviewer" ""
         s!"{mine}; the paper is short by {showSixths (paperShortfall p r pn)}{moved}" },
     { id := "X10", text := "An author is the sole nominee of 4 papers and misses every review", deps := [.q11],
-      outcome := fun _ r => s!"one case listing the 4 papers; {consequence r}" },
+      outcome := fun _ r =>
+        let ss := (List.range 4).map fun i => ({ paper := 10 + i, owed := 1, done := 0 } : Share)
+        s!"{if casesFor ss == 1 then "one case" else "no case"} listing the {(unmetPapers ss).length} papers; {consequence r}" },
     -- assignment
     { id := "P1", text := "Two seniors and two juniors", deps := [.q13],
       outcome := fun _ r => yesNo (compositionOk r [{ who := 1, tier := some .senior }, { who := 2, tier := some .senior },
@@ -153,6 +155,10 @@ def cards : List Card :=
       outcome := fun p _ =>
         let (e, n) := engagement p [{ reviewer := 5, sentBy := some 1, replied := true, disp := some .revised }] [] 5
         s!"engaged {e}, not engaged {n}" },
+    { id := "C2", text := "The reviewer replies that the review stands, with reasons the AC accepts", deps := [],
+      outcome := fun p _ =>
+        let (e, n) := engagement p [{ reviewer := 5, sentBy := some 1, replied := true, disp := some .explained }] [] 5
+        s!"engaged {e}, not engaged {n}" },
     { id := "C3", text := "A request gets no reply; a reminder; the grace period passes", deps := [],
       outcome := fun _ _ =>
         let q : Request := { reviewer := 5, sentBy := some 1, remindedAt := some 50 }
@@ -161,6 +167,10 @@ def cards : List Card :=
       outcome := fun p _ =>
         let (e, n) := engagement p [] [{ reviewer := 5, dismissed := true }] 5
         s!"engaged {e}, not engaged {n}" },
+    { id := "C5", text := "The reviewer contests the criteria themselves", deps := [],
+      outcome := fun p _ =>
+        let (e, n) := engagement p [{ reviewer := 5, sentBy := some 1, replied := true, disp := some .disputed }] [] 5
+        s!"a junior's request goes to {escalationTarget (some .junior)}, anyone else's to {escalationTarget (some .senior)}; engaged {e}, not engaged {n}" },
     { id := "C6", text := "An accepted nominee wrote two thin reviews; nobody sent a request", deps := [.q20],
       outcome := fun p r => yesNo (caseMayOpen p r false []) "a quality case may open" "no case; send a request first" },
     { id := "C8", text := "A heuristic flagged a nominee's review; nobody sent it; no reply was recorded", deps := [.q20],

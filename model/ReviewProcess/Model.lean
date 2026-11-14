@@ -428,4 +428,23 @@ def consequence (r : Reading) : String :=
   | .recordOnly => "recorded for the PC chairs; no effect on papers"
   | .nothing => "no consequence"
 
+/-! ### Escalation (C5) and Accountability cases (X10) -/
+
+/-- A nominating paper's share of a nominee's reviews: owed, and done. -/
+structure Share where
+  paper : Nat
+  owed : Nat
+  done : Nat
+  deriving Repr, Inhabited
+
+/-- The papers an Accountability case lists: those whose share went unmet. -/
+def unmetPapers (ss : List Share) : List Nat := (ss.filter fun s => s.done < s.owed).map (·.paper)
+
+/-- One case per nominee, never one per paper: how many cases a nominee's record gives. -/
+def casesFor (ss : List Share) : Nat := if (unmetPapers ss).isEmpty then 0 else 1
+
+/-- Who disposes of a request the reviewer disputes (C5): the junior PC chair for a junior reviewer, else the PC chairs. -/
+def escalationTarget (tier : Option Tier) : String :=
+  if tier == some .junior then "the junior PC chair" else "the PC chairs"
+
 end ReviewProcess

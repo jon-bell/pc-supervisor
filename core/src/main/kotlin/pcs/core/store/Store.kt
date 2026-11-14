@@ -36,7 +36,8 @@ public class Store private constructor(public val conn: Connection) : AutoClosea
         }
 
     public companion object {
-        private val MIGRATIONS = listOf("001-mirror.sql", "002-backfill.sql", "003-paper-tags.sql", "004-imports.sql", "005-writeback.sql")
+        private val MIGRATIONS =
+            listOf("001-mirror.sql", "002-backfill.sql", "003-paper-tags.sql", "004-imports.sql", "005-writeback.sql", "006-accountability.sql")
 
         /** Opens (creating if needed) and migrates. Throws [WrongKeyException] if the key doesn't open the file. */
         public fun open(path: Path?, key: String): Store {

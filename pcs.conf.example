@@ -132,3 +132,13 @@ PCS_TAG_CHAIR_ATTENTION=chair-attention
 # PCS_ENGINE_<id>_CONCURRENCY=4               # _RPM and _TPM are read but not yet enforced
 # PCS_CHECK_<check>_ENGINE=<engine id>        # production routing (set from the shootout)
 # PCS_AGENT_EGRESS=doi.org,api.crossref.org,api.openalex.org,export.arxiv.org,arxiv.org   # reference resolver allowlist
+
+# Accountability requests (spec §10.4 D): the PC chairs' criteria list. A request cites criteria from this list and nothing else.
+# The bracket names the heuristic signals the criterion answers (thin, rated, negative-no-weakness, outlier, empty-field, late).
+PCS_CRITERION_1=Summarizes the contribution in the reviewer's own words
+PCS_CRITERION_2=Backs each weakness with evidence [negative-no-weakness,thin]
+PCS_CRITERION_3=Tells the authors what would change the reviewer's mind [thin,rated,outlier]
+PCS_CRITERION_4=Submitted on time [late]
+# PCS_REQUEST_DUE_H=48
+# PCS_FIELD_WEAKNESS=
+# PCS_FIELDS_REQUIRED=PapSum

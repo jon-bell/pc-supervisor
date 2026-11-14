@@ -92,7 +92,7 @@ class SessionTest {
     @Test
     fun `cards under the synthetic answers are decided where the answers settle them, blocked where they don't`() {
         val cards = ModelExport.cards.associateBy { it.id }
-        assertEquals(39, cards.size)
+        assertEquals(41, cards.size)
         val r = Answers.read(synthetic).readings
         // X1 depends only on Q10, which the synthetic answers leave open: every case is still possible.
         val x1 = cards["X1"]!!.under(r) as CardOutcome.Blocked

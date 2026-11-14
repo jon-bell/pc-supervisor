@@ -54,7 +54,7 @@ def actionsJson : Json :=
           ("perm", match s.perm a with | some p => Json.str (permKey p) | none => Json.null)]),
       ("observations", Json.arr <| obs.toArray.map fun (k, t, rs) =>
         Json.mkObj [("key", k), ("type", t), ("readers", Json.arr (rs.toArray.map Json.str))])]
-  Json.arr #[sys deskSys deskDesc deskObservations, sys earlySys earlyDesc earlyObservations, sys accSys accDesc [], sys pcSys pcDesc pcObservations]
+  Json.arr #[sys deskSys deskDesc deskObservations, sys earlySys earlyDesc earlyObservations, sys accSys accDesc accObservations, sys pcSys pcDesc pcObservations]
 
 def transitionsJson (a : Answers) : Json :=
   let base := a.base
@@ -85,6 +85,19 @@ def earlyTracesJson (a : Answers) : Json :=
 def pcTracesJson (a : Answers) : Json :=
   Json.arr <| (pcTraces "signed" a.base).toArray.map PTrace.json
 
+/-- Accountability traces under both readings of Q20: the first carries the first use of each granted cell. -/
+def accReadings (a : Answers) : List (String × Reading × Bool) :=
+  let base := a.base
+  let q20 (l : String) := base.set .q20 (indexIn (QId.q20.labels.map (·.1)) l)
+  [("q20-needs-request", q20 "yes", true), ("q20-no-request-needed", q20 "no", false)]
+
+def accTracesJson (a : Answers) : Json :=
+  Json.arr <| ((accReadings a).flatMap fun (tag, r, cells) => accTraces tag r cells).toArray.map ATrace.json
+
+def accTransitionsJson (a : Answers) : Json :=
+  Json.mkObj [("subsystem", accSys.name), ("readings", Json.arr ((accReadings a).toArray.map fun (tag, r, _) =>
+    Json.mkObj [("reading", tag), ("q20", (QId.q20.labels.getD (r.get .q20) ("?", "?")).1), ("table", accTransitions r)]))]
+
 def mutantsJson : Json :=
   Json.arr <| mutants.toArray.map fun m => Json.str m.name
 
@@ -103,8 +116,10 @@ def main (args : List String) : IO Unit := do
   write "traces-desk.json" (tracesJson a)
   write "traces-early.json" (earlyTracesJson a)
   write "traces-appt.json" (pcTracesJson a)
+  write "traces-acc.json" (accTracesJson a)
+  IO.FS.writeFile s!"{dir}/transitions-acc.json" ((accTransitionsJson a).compress ++ "\n")
   IO.FS.writeFile s!"{dir}/transitions-desk.json" ((transitionsJson a).compress ++ "\n")
   write "answers-synthetic.json" (Json.mkObj [
     ("given", Json.arr (a.given.toArray.map fun (q, i) => Json.arr #[q.code, (q.labels.getD i ("?", "?")).1])),
     ("errors", Json.arr (a.errors.toArray.map Json.str))])
-  IO.println s!"wrote {dir}/: readings.json ({QId.all.length} questions), cards.json ({cards.length} cards), policy.json, actions.json, mutants.json, binding-mutants.json, traces-desk.json, traces-early.json, traces-appt.json"
+  IO.println s!"wrote {dir}/: readings.json ({QId.all.length} questions), cards.json ({cards.length} cards), policy.json, actions.json, mutants.json, binding-mutants.json, traces-desk.json, traces-early.json, traces-appt.json, traces-acc.json, transitions-acc.json"

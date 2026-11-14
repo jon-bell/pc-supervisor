@@ -67,4 +67,89 @@ public object Accountability {
             Q11.RECORD_ONLY -> "recorded for the PC chairs; no effect on papers"
             Q11.NONE -> "no consequence"
         }
+
+    /** The papers an Accountability case lists: those whose share went unmet (X10). */
+    public fun unmetPapers(shares: List<Share>): List<Long> = shares.filter { it.done < it.owed }.map { it.paper }
+
+    /** One case per nominee, never one per paper. */
+    public fun casesFor(shares: List<Share>): Int = if (unmetPapers(shares).isEmpty()) 0 else 1
+
+    /** Who disposes of a request the reviewer disputes (C5): the junior PC chair for a junior reviewer, else the PC chairs. */
+    public fun escalationTarget(tier: Tier?): String = if (tier == Tier.JUNIOR) "the junior PC chair" else "the PC chairs"
+}
+
+/** A nominating paper's share of a nominee's reviews: owed, and done (model `Share`). */
+public data class Share(val paper: Long, val owed: Int, val done: Int)
+
+/** The accountability subsystem's state (model `AccSt`): one request about one review, and a case about its reviewer. */
+public data class AccSt(
+    val criteria: Boolean = false,
+    val suggested: Boolean = false,
+    val dismissed: Boolean = false,
+    val coached: Boolean = false,
+    val req: Request? = null,
+    val now: Long = 0,
+    val caseOpen: Boolean = false,
+    val upheld: Boolean = false,
+)
+
+public sealed interface AccAct {
+    public data object SetCriteria : AccAct
+
+    public data object Suggest : AccAct
+
+    public data object Dismiss : AccAct
+
+    public data object Coach : AccAct
+
+    public data object Send : AccAct
+
+    public data object Remind : AccAct
+
+    public data object Reply : AccAct
+
+    public data class Dispose(val d: ReqDisposition) : AccAct
+
+    public data object Tick : AccAct
+
+    public data object OpenCase : AccAct
+
+    public data object Uphold : AccAct
+}
+
+/**
+ * The guards of each accountability action (model `accRule`), in the order the model gives them. The app and the
+ * scenario runner use these guards before any write; the policy gate (who may act) is the caller's, as the model's
+ * `gated` is separate from its rules.
+ */
+public object AccFlow {
+    /** Model hours between sending a request and its due date. */
+    public const val DUE_H: Long = 48
+
+    public fun mayRemind(q: Request, now: Long): Boolean = !q.replied && q.remindedAt == null && now > q.due
+
+    public fun mayDismiss(s: AccSt): Boolean = s.suggested && !s.dismissed && s.req == null
+
+    public fun maySend(s: AccSt): Boolean = s.criteria && s.req == null
+
+    public fun rule(f: Faults, q20: Q20, s: AccSt, who: String?, a: AccAct): AccSt? =
+        when (a) {
+            AccAct.SetCriteria -> if (!s.criteria) s.copy(criteria = true) else null
+            AccAct.Suggest -> if (!s.suggested) s.copy(suggested = true) else null
+            AccAct.Dismiss -> if (mayDismiss(s)) s.copy(dismissed = true) else null
+            AccAct.Coach -> if (!s.coached) s.copy(coached = true) else null
+            AccAct.Send -> if (maySend(s)) s.copy(req = Request(reviewer = 7, sentBy = if (who == "ac") 1 else 5, due = s.now + DUE_H)) else null
+            AccAct.Remind -> s.req?.let { q -> if (mayRemind(q, s.now)) s.copy(req = q.copy(remindedAt = s.now)) else null }
+            AccAct.Reply ->
+                s.req?.let { q -> if ((who == "nominee" || who == "pc-member") && !q.replied && q.disp == null) s.copy(req = q.copy(replied = true)) else null }
+            is AccAct.Dispose -> s.req?.let { q -> if (q.disp == null && Accountability.mayDispose(q, a.d, s.now)) s.copy(req = q.copy(disp = a.d)) else null }
+            AccAct.Tick -> if (s.now < 200) s.copy(now = s.now + 50) else null
+            AccAct.OpenCase ->
+                if ((who == "pcs" || who == "process-chair") && !s.caseOpen && Accountability.caseMayOpen(f, q20, false, listOfNotNull(s.req))) {
+                    s.copy(caseOpen = true)
+                } else {
+                    null
+                }
+            AccAct.Uphold -> if (who == "pc-chair" && s.caseOpen && !s.upheld) s.copy(upheld = true) else null
+        }
 }

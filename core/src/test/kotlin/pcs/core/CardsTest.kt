@@ -36,6 +36,7 @@ import pcs.core.rules.Referral
 import pcs.core.rules.ReqDisposition
 import pcs.core.rules.Request
 import pcs.core.rules.Score
+import pcs.core.rules.Share
 import pcs.core.rules.Stage
 import pcs.core.rules.Suggestion
 import pcs.core.rules.Tier
@@ -153,7 +154,14 @@ class CardsTest {
                     "$mine; the paper is short by ${Nominations.showSixths(Nominations.paperShortfall(f, r.q19, r.q19b, pn))}$moved"
                 }
             },
-            "X10" to { r -> "one case listing the 4 papers; ${Accountability.consequence(r.q11!!)}" },
+            "X10" to { r ->
+                val shares = (0L until 4L).map { Share(10 + it, owed = 1, done = 0) }
+                "${yesNo(
+                    Accountability.casesFor(shares) == 1,
+                    "one case",
+                    "no case",
+                )} listing the ${Accountability.unmetPapers(shares).size} papers; ${Accountability.consequence(r.q11!!)}"
+            },
             // assignment
             "P1" to { r -> comp(r, listOf(Member(1, Tier.SENIOR), Member(2, Tier.SENIOR), Member(3, Tier.JUNIOR), Member(4, Tier.JUNIOR))) },
             "P2" to { r -> comp(r, listOf(Member(1, Tier.SENIOR), Member(2, Tier.SENIOR), Member(3, Tier.JUNIOR, nominee = true))) },
@@ -180,6 +188,7 @@ class CardsTest {
             "R4" to { r -> er(r, ERCase(listOf(Score.REJECT, Score.WEAK_REJECT, Score.BORDERLINE), windowClosed = true), "continues to author response") },
             // accountability requests
             "C1" to { _ -> eng(Accountability.engagement(f, listOf(Request(5, sentBy = 1, replied = true, disp = ReqDisposition.REVISED)), emptyList(), 5)) },
+            "C2" to { _ -> eng(Accountability.engagement(f, listOf(Request(5, sentBy = 1, replied = true, disp = ReqDisposition.EXPLAINED)), emptyList(), 5)) },
             "C3" to { _ ->
                 val q = Request(5, sentBy = 1, remindedAt = 50)
                 "no-reply may be recorded at hour 90: ${Accountability.mayDispose(
@@ -189,6 +198,12 @@ class CardsTest {
                 )}; at hour 97: ${Accountability.mayDispose(q, ReqDisposition.NO_REPLY, 97)}"
             },
             "C4" to { _ -> eng(Accountability.engagement(f, emptyList(), listOf(Suggestion(5, dismissed = true)), 5)) },
+            "C5" to { _ ->
+                val e = eng(Accountability.engagement(f, listOf(Request(5, sentBy = 1, replied = true, disp = ReqDisposition.DISPUTED)), emptyList(), 5))
+                "a junior's request goes to ${Accountability.escalationTarget(
+                    Tier.JUNIOR,
+                )}, anyone else's to ${Accountability.escalationTarget(Tier.SENIOR)}; $e"
+            },
             "C6" to { r -> yesNo(Accountability.caseMayOpen(f, r.q20!!, false, emptyList()), "a quality case may open", "no case; send a request first") },
             "C8" to { r ->
                 yesNo(

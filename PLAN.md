@@ -164,7 +164,7 @@ Every claim has a stable, namespaced ID, and every test names the claims it is e
 | Namespace | Source | Count today |
 |---|---|---|
 | `prop:` | concepts §3.10 properties (`prop:S1`, `prop:AR5`, `prop:Q1`) | 45 |
-| `card:` | concepts §3.11 example cards (`card:X9`, `card:C3`), one claim per card and reading | 39 cards |
+| `card:` | concepts §3.11 example cards (`card:X9`, `card:C3`), one claim per card and reading | 41 cards |
 | `rule:` | concepts §3.8 rules (`rule:may-remove`, `rule:owes`, `rule:composition`) | ~10 |
 | `cell:` | concepts §3.9 policy cells (`cell:ac/triage`), one per role and permission | 207 (9 roles × 23) |
 | `conv:` | spec §11 HotCRP conventions, one per row | 12 |
@@ -209,7 +209,7 @@ A binding maps a model action to something done to the real system, and a model 
 
 | Family | Evidence for | Generated from | Runs against | Count, roughly |
 |---|---|---|---|---|
-| **T1 Cards** | `card:*`, `q:*` | the exported cards: one test per card and per reading that changes its outcome | `core` (fast), then as a scenario end to end | 39 cards × their readings |
+| **T1 Cards** | `card:*`, `q:*` | the exported cards: one test per card and per reading that changes its outcome | `core` (fast), then as a scenario end to end | 41 cards × their readings |
 | **T2 Rule differential** | `rule:*` | jqwik generators over each rule's inputs and every reading; the oracle gives the expected output | `core` | 10⁴ inputs per rule per CI run, 10⁶ nightly |
 | **T3 Model-based traces** | safety `prop:*` | bounded-exhaustive and random traces from the trace search; after each step, compare every observation with the model's; at the end, check every proved property on the recorded trace with the Lean predicate | the full stack: harness + sync + `core` + app | every transition of each subsystem, plus 10³ random walks nightly |
 | **T4 Paired runs** | relational `prop:*` (S7, S11, C2, AR3, AR4) | pairs of traces that differ only in the secret (who gave the opinion; the review text; whether a suggestion was dismissed); compare the stated observer's view | the full stack | ≥ 200 pairs per property per night |
@@ -612,6 +612,29 @@ Changing this table means changing the M3 and M18 tests in the same PR.
 - **Scope:** progress by tier with a nominee view; the coaching queue; accountability-request suggestions from metadata only; the request and disposition traces of spec §11; the engagement record under Q21; Accountability cases under Q20 and Q11; an `accountability` scenario.
 - **Done when:** the model's accountability cards (C1–C8) pass as generated tests; on the `accountability` scenario, the engagement record equals the dispositions recorded in HotCRP, a dismissed suggestion leaves no trace (AR4), and "no reply" appears only after the due date, reminder, and grace (AR5); a test shows the suggestion code never reads review text (AR3).
 - **Evidence:** `card:C1`–`card:C8`; `prop:AR1`–`prop:AR6`, `prop:V4` through T3 over every transition of the accountability subsystem; `prop:AR3` and `prop:AR4` through T4 (pairs differing only in review text, or in whether a suggestion was dismissed, give identical suggestions and engagement records); `prop:C1` through T7; the mutants "dismissed suggestion counts" and "heuristic sends itself" killed end to end.
+
+- **Progress (2026-11-14, branch `m16-accountability`):** done locally on a fresh harness (CI not run); details and decisions below.
+  - **Done:**
+    - Model: cards **C2** and **C5** (the model had C1, C3, C4, C6, C7, C8), and X10's case rule: `Share`, `unmetPapers`, `casesFor` (one case per nominee, listing every nominating paper whose share went unmet) and `escalationTarget`, with the oracle query `caseListing` (corpus `oracle-caseListing.jsonl`, CI regenerates it) and `RulesDifferentialTest`. Accountability observations in `actions.json`, `traces-acc.json` (57 witness traces under both readings of Q20: first use of each granted cell, cards C1-C5, AR1, AR2, AR4, AR5, AR6, V4, denials), `transitions-acc.json` (every effective transition of the subsystem, 3,576 and 7,056 states, with the policy's granted cells), a `Verdict.observed` kind, and the `check-evidence` replay for the subsystem.
+    - `core`: `rules/Accountability` gained `AccSt`, `AccAct` and `AccFlow` (the model's `accRule` guards); `accountability/` (`AccountabilityPlan`: progress by tier and the nominee view, the coaching queue, suggestions, requests, the engagement record, cases; `Suggestions`: the six heuristic signals over `ReviewMeta`; `AccDrafts`: the request text, the HotCRP Mail-tool steps, and the Writeback artifacts that record sent, reminder, disposition and case outcome; `AccLocal`: dismissals, manual suggestions, case status). Migration 006 (`tag_seen`, `acc_dismissal`, `acc_suggestion`, `acc_case`); the sync records when it first saw each `pcs-req`, `pcs-remind` and `~~pcs-case` tag. `Session.accountability()`. Conventions gained `pcs-remind-<ordinal><n>`. Settings `PCS_CRITERION_<n>`, `PCS_REQUEST_DUE_H`, `PCS_FIELD_WEAKNESS`, `PCS_FIELDS_REQUIRED` (spec §10.4 D).
+    - `runner`: the eleven accountability actions and fourteen observations are bound (no `UnboundAction` left for the subsystem); `AccountabilityBinding` uses the HotCRP actor for a person's action, `core` through Writeback for a chair's, the mirror for what the heuristics derive.
+    - `app`: an Accountability tab (progress and nominee view, coaching queue, suggestions with a request draft and dismiss, requests with reminder and disposition records, the engagement record with Q21, cases). It sends nothing; every write to HotCRP is a Writeback artifact a chair confirms.
+    - `seed`: the `accountability` scenario (papers 301-303).
+  - **Evidence:**
+    - T1: `CardsTest` runs C1-C8 and X10 (generated from `cards.json`; C2 and C5 are new) under every reading, and the model's mutants 6 and 7.
+    - T2/T3: `AccountabilityTransitionsTest` checks every transition and refusal of `transitions-acc.json` (1.2 million rule evaluations) against `AccFlow` behind the policy's cells, with AR1, AR2, AR4, AR5, AR6 and V4 evaluated on each transition `core` takes; `AccountabilityPlanTest` covers progress, the coaching queue, suggestions, request timing at the boundaries, engagement and cases over a hand-built mirror.
+    - T4: `AccountabilityInformationFlowTest`: 200 pairs of worlds differing only in review text give identical suggestions and coaching (AR3), with a canary in the text appearing in nothing produced; 200 pairs differing only in whether suggestions were dismissed give identical engagement records, requests and cases (AR4); the signal type holds no field that can carry text, and the module's one `review_text` query selects field ids only.
+    - T3/T5/T6 end to end: `RunnerTest` ran the 57 accountability traces against the harness (no mismatch, no boundary violation); `ControlsTest` caught the two named mutants, "dismissed suggestion counts" (the engagement record disagrees) and "heuristic sends itself" (`sent` disagrees); `check-evidence` replays the traces and controls.
+    - T11: `AccountabilityScenarioTest` (seeded `accountability`): reminders and "no reply" at the boundaries (+47 h no, +49 h reminder, +96 h still inside the grace period, +97 h yes), the engagement record equal to the dispositions HotCRP's tags hold, a dismissed suggestion with no trace in HotCRP or on the record, and one case listing the nominee's papers, opened locally and upheld through Writeback.
+    - T12: `AccountabilityUiTest` (5 tests, no harness).
+  - **Not done / deviations:**
+    - A dismissal, a manual suggestion, and an opened case are local to the chair's copy (the only HotCRP-visible state is the tags). Two chairs' copies agree on requests, dispositions and upheld cases, and may disagree on dismissals.
+    - Mail sending is not exercised: the Mail page answers a Bearer token with 401, so a chair sends. The draft was not run through `GET /api/{p}/mailtext` (spec §11 says it is checkable that way).
+    - `prop:AR1` is the model's "send needs the criteria list"; "the reviewer sees which criteria" is the draft's text and is checked by `AccountabilityPlanTest` and the UI test, not end to end.
+    - A review's lateness is when a sync first saw it complete, so a mirror that first synced after the deadline dates everything late (the scenario syncs before it).
+    - The `tag_seen` hook adds a few queries per paper to every sync; at 4,000 papers this was not measured (M19).
+    - Transition coverage in the assurance report is still desk-reject only.
+  - **Decisions needed:** (1) The reminder is the hidden tag `pcs-remind-<ordinal><n>` and the case tag is on every paper a case lists with `<n>` the nominee's number in the sorted accepted-nominee list; both are in spec §11's existing rows (no row added, so `conv:` claims are not renumbered). (2) The tag does not say who sent a request, so Q21's "the AC who sent each request" is read as the paper's AC. (3) Which Q20 reading the venue wants: both are implemented and shown while it is open. (4) `PCS_FIELD_WEAKNESS` has no default: a venue whose form has a weakness field must name it for the card C1 signal. (5) The grace period is the model's fixed 48 hours; a setting would need a model parameter.
 
 ## M17: Early reject (spec §10.4 E)
 

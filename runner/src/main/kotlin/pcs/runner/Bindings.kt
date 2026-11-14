@@ -35,17 +35,6 @@ import pcs.core.store.Store
 import pcs.core.store.Sync
 import pcs.core.time.Clock
 import pcs.runner.model.AccountabilityRequestsAction
-import pcs.runner.model.AccountabilityRequestsCoach
-import pcs.runner.model.AccountabilityRequestsDismiss
-import pcs.runner.model.AccountabilityRequestsDispose
-import pcs.runner.model.AccountabilityRequestsOpenCase
-import pcs.runner.model.AccountabilityRequestsRemind
-import pcs.runner.model.AccountabilityRequestsReply
-import pcs.runner.model.AccountabilityRequestsSend
-import pcs.runner.model.AccountabilityRequestsSetCriteria
-import pcs.runner.model.AccountabilityRequestsSuggest
-import pcs.runner.model.AccountabilityRequestsTick
-import pcs.runner.model.AccountabilityRequestsUphold
 import pcs.runner.model.AppointmentAndAssignmentAction
 import pcs.runner.model.DeskRejectAction
 import pcs.runner.model.DeskRejectAdvance
@@ -115,11 +104,18 @@ data class BindingFaults(
 class ProcessClock(val start: Instant, private val faults: BindingFaults) : Clock {
     private var hours = 0L
 
+    private var seconds = 0L
+
     fun advance(by: Long) {
         if (!faults.clockDoesNotAdvance) hours += by
     }
 
-    override fun now(): Instant = start.plusSeconds(hours * 3600)
+    /** A moment later, inside the same model hour: lets a reviewer's revision be seen after the sync that saw a request. */
+    fun nudge(bySeconds: Long) {
+        if (!faults.clockDoesNotAdvance) seconds += bySeconds
+    }
+
+    override fun now(): Instant = start.plusSeconds(hours * 3600 + seconds)
 
     fun modelHours(at: Instant = now()): Long = (at.epochSecond - start.epochSecond) / 3600
 }
@@ -222,18 +218,20 @@ class World(
         check(api.ok(api.assign("""{"pid":$pid,"action":"metareview","user":"${Persons.AC_REFERRING}","round":"screen"}""")))
     }
 
-    private fun tryReview(email: String, fields: String): Boolean {
+    internal fun tryReview(email: String, fields: String): Boolean {
         val mine = api.reviews(pid, actas = email).firstOrNull { it.str("reviewer_email") == email }
         val r = mine?.str("rid") ?: "new"
         return api.ok(api.call("POST", "$pid/review", mapOf("r" to r), actas = email, json = fields))
     }
+
+    private val acc by lazy { AccountabilityBinding(this) }
 
     /** Perform one model action through the bindings. */
     fun perform(a: ModelAction, role: String?): Outcome =
         when (a) {
             is DeskRejectAction -> desk(a, role)
             is EarlyRejectAction -> early(a, role)
-            is AccountabilityRequestsAction -> unboundAccountability(a)
+            is AccountabilityRequestsAction -> acc.perform(a, role)
             is AppointmentAndAssignmentAction -> appointment.perform(a, role)
         }
 
@@ -379,15 +377,6 @@ class World(
                 } else {
                     outcome(api.ok(api.call("POST", "$pid/decision", mapOf("decision" to "Reject"), actas = userOf(role!!))))
                 }
-        }
-
-    private fun unboundAccountability(a: AccountabilityRequestsAction): Nothing =
-        when (a) {
-            is AccountabilityRequestsSetCriteria, is AccountabilityRequestsSuggest, is AccountabilityRequestsDismiss,
-            is AccountabilityRequestsCoach, is AccountabilityRequestsSend, is AccountabilityRequestsRemind,
-            is AccountabilityRequestsReply, is AccountabilityRequestsDispose, is AccountabilityRequestsTick,
-            is AccountabilityRequestsOpenCase, is AccountabilityRequestsUphold,
-            -> throw UnboundAction(a, "M16 (accountability requests)")
         }
 
     // ---- `core` standing in for the chair's UI actions (the chair token) --------------------------------
@@ -588,6 +577,7 @@ class World(
     fun observe(subsystem: String = "desk reject"): JsonObject {
         if (subsystem == "early reject") return observeEarly()
         if (subsystem == "appointment and assignment") return appointment.observe()
+        if (subsystem == "accountability requests") return acc.observe()
         return observeDesk()
     }
 

@@ -163,6 +163,36 @@ public class Session private constructor(
     }
 
     /**
+     * Reviewing progress and accountability requests at the clock's now (spec §10.4 D). Reads the mirror and the latest
+     * appointments sheet; writes nothing to HotCRP, and sends nothing to anyone.
+     */
+    public fun accountability(f: pcs.core.rules.Faults = pcs.core.rules.Faults.NONE): pcs.core.accountability.AccountabilityReport {
+        val readings = answers().readings
+        val data = pcs.core.nominations.NominationData(store, pcs.core.imports.Imports(store, clock))
+        val input = data.input()
+        val tags =
+            store.conn.createStatement().use { st ->
+                st.executeQuery("SELECT lower(email), tags FROM person WHERE gone_at IS NULL").use { rs ->
+                    buildMap {
+                        while (rs.next()) {
+                            put(
+                                rs.getString(1),
+                                kotlinx.serialization.json.Json.parseToJsonElement(rs.getString(2)).let { e ->
+                                    (e as kotlinx.serialization.json.JsonArray).map { t -> (t as kotlinx.serialization.json.JsonPrimitive).content }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        val tiers = pcs.core.accountability.Tiers.build(input.sheet, tags, settings.tierTags)
+        val cfg = pcs.core.accountability.AccConfig.from(settings)
+        val acc = pcs.core.accountability.AccLoader.load(store, clock.now(), tiers, settings.fieldMerit)
+        val report = data.report(readings, f)
+        return pcs.core.accountability.AccountabilityPlan.compute(acc, cfg, readings, report.obligations, f)
+    }
+
+    /**
      * The assignment plan from the mirror and the latest imports (spec §10.4 C, §10.5): the solve report and its bulk-assign CSV, or what blocks it
      * (Q13, Q14 or the nominee questions unresolved, or no affinity import). Nothing here writes to HotCRP.
      */

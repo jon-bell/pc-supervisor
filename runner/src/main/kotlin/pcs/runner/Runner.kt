@@ -213,6 +213,7 @@ class ScenarioRunner(
         when (subsystem) {
             "early reject" -> "early"
             "appointment and assignment" -> "appt"
+            "accountability requests" -> "acc"
             else -> "desk"
         }
 
