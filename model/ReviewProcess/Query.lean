@@ -142,6 +142,44 @@ def boundedFlow (n s t : Nat) (arcs : Array (Nat × Nat × Int × Int × Int)) :
   let y := f.cap[2 * cancel + 1]!
   return (flow == need, u0 - y, total - big * y + fixed)
 
+
+/-- The Plan on the model's synthetic conference (PLAN M15, spec §10.5): the instance the solver was given and
+    the outcome the Lean solver reports, so `core` can solve the same instance and compare. The instance is
+    what a solve needs: each reviewer's tier, nominee flag and cap, each paper's authors, and the candidate
+    edges after the top-K pruning (before eligibility, which `core` applies itself). -/
+def nj (n : Nat) : Json := toJson n
+
+def planQuery (s : Scale) (r : Reading) : Json :=
+  let c := synth s r
+  let (cap, owed) := loadCaps c r
+  let o := runConf r c
+  let first := solveOnce c r cap ((cands c {} (rawCands c r).toList))
+  let n := c.personArea.size
+  let reviewers := (List.range n).filterMap fun u =>
+    if c.pcTier[u]!.isSome || c.nomineeTier[u]!.isSome then
+      let m := c.member u
+      some (Json.mkObj [("who", nj u), ("tier", match m.tier with | some .senior => Json.str "senior" | some .junior => Json.str "junior" | none => Json.null), ("nominee", m.nominee),
+        ("cap", nj cap[u]!), ("owed", nj owed[u]!)])
+    else none
+  let papers := (List.range c.nPapers).map fun pp =>
+    Json.mkObj [("pid", nj pp), ("authors", Json.arr (c.authors[pp]!.toArray.map fun u => nj u))]
+  let cands := (rawCands c r).map fun e => Json.arr #[nj e.who, nj e.paper, nj e.aff]
+  Json.mkObj
+    [("reviewers", Json.arr reviewers.toArray), ("papers", Json.arr papers.toArray), ("cands", Json.arr cands),
+     ("outcome", Json.mkObj
+       [("composed", nj o.composed), ("seniorShort", nj o.seniorShort), ("thirdShort", nj o.thirdShort),
+        ("cyclesFirst", nj o.cyclesFirst), ("repairs", nj o.repairs), ("cycles", nj o.cycles),
+        ("loadViolations", nj o.loadViolations), ("nominees", nj o.nominees),
+        ("nomineeReviews", nj o.nomineeReviews), ("objective", toJson o.objective),
+        ("candidateEdges", nj o.candidateEdges),
+        ("firstObjective", toJson first.objective), ("firstFilled", nj first.filled)])]
+
+def parseScale (j : Json) : Except String Scale := do
+  let d : Scale := {}
+  pure { papers := ← getD j "papers" d.papers, areas := ← getD j "areas" d.areas, seniors := ← getD j "seniors" d.seniors,
+         juniors := ← getD j "juniors" d.juniors, nomineeAcceptPct := ← getD j "nomineeAcceptPct" d.nomineeAcceptPct,
+         nomineeSeniorPct := ← getD j "nomineeSeniorPct" d.nomineeSeniorPct, pcAuthorPct := ← getD j "pcAuthorPct" d.pcAuthorPct }
+
 def answer (j : Json) : Except String Json := do
   let q ← j.getObjValAs? String "q"
   match q with
@@ -186,6 +224,10 @@ def answer (j : Json) : Except String Json := do
       if r.size == 5 then pure (r[0]!.toNat, r[1]!.toNat, r[2]!, r[3]!, r[4]!) else throw "arc must be [from,to,lower,cap,cost]"
     let (ok, flow, cost) := boundedFlow n s t arcs
     pure (Json.mkObj [("feasible", ok), ("flow", toJson flow), ("cost", toJson cost)])
+  | "plan" =>
+    let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
+    let sc ← parseScale ((j.getObjVal? "scale").toOption.getD .null)
+    pure (planQuery sc r)
   | "caseMayOpen" =>
     let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
     let p ← parseParams ((j.getObjVal? "mutant").toOption.getD .null)

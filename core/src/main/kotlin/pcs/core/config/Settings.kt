@@ -80,6 +80,10 @@ public data class Settings(
                 "PCS_EARLYREJECT_WINDOW_H",
                 "PCS_SCORE_MAP",
                 "PCS_SOLVER_TOPK",
+                "PCS_SOLVER_HARD",
+                "PCS_SOLVER_SLOT_BONUS",
+                "PCS_REPAIR_ROUNDS",
+                "PCS_ASSIGN_ROUND",
                 "PCS_CONFERENCES",
             )
         public val PATTERNS: List<Regex> =
@@ -89,6 +93,7 @@ public data class Settings(
                 Regex("PCS_RULE_[A-Z_]+_WEIGHT"),
                 Regex("PCS_THRESH_[A-Z_]+"),
                 Regex("PCS_LOAD_[A-Z]+_MAX"),
+                Regex("PCS_AFFINITY_WEIGHT_[A-Z_]+"),
                 Regex("PCS_TAG_[A-Z_]+"),
                 Regex("PCS_AGENT_[A-Z_]+"),
                 // Screening engines (agent.md §4.3): PCS_ENGINES, one PCS_ENGINE_<id>_* block per engine, PCS_CHECK_<check>_ENGINE routing.
