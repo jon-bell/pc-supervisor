@@ -116,6 +116,11 @@ def randomQuery (rule : String) (s : Nat) : Json :=
       ("requests", Json.arr ((List.range n).toArray.map fun i =>
         Json.mkObj [("reviewer", Json.num (5 : Nat)), ("sentBy", if h (10 + i) % 3 == 0 then Json.null else Json.num (1 : Nat)),
           ("disp", if h (20 + i) % 4 == 0 then Json.null else Json.str (pick dispKeys (h (30 + i))).1)]))]
+  | "caseListing" =>
+    let n := h 1 % 6
+    Json.mkObj [("q", "caseListing"),
+      ("shares", Json.arr ((List.range n).toArray.map fun i =>
+        Json.mkObj [("paper", Json.num (10 + i : Nat)), ("owed", Json.num (h (10 + i) % 4 : Nat)), ("done", Json.num (h (20 + i) % 4 : Nat))]))]
   | "minCostMaxFlow" => randomFlow s
   | _ => Json.mkObj [("q", "mayRemove"), ("reading", randomReading s), ("mutant", mutant), ("referral", randomReferral s)]
 

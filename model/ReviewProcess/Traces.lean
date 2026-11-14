@@ -121,6 +121,8 @@ inductive Verdict
   | cell (role : Role) (perm : Perm)
   | refused
   | denied
+  /-- The final state's observation `key` is `value` (compressed JSON). -/
+  | observed (key : String) (value : String)
 
 def permOfKey? (k : String) : Option Perm :=
   Perm.all.find? fun pm =>
@@ -137,6 +139,7 @@ def Verdict.json : Verdict → Json
   | .cell ro pm => Json.mkObj [("kind", "cell"), ("role", roleKey ro), ("perm", permKey pm)]
   | .refused => Json.mkObj [("kind", "refused")]
   | .denied => Json.mkObj [("kind", "denied")]
+  | .observed k v => Json.mkObj [("kind", "observed"), ("key", k), ("value", v)]
 
 /-- Does the verdict hold of this replay? `outcomes` are the model's effective flags per step. -/
 def Verdict.holds (v : Verdict) (ms : List Move) (outcomes : List Bool) (final : DeskSt) : Bool :=
@@ -148,6 +151,7 @@ def Verdict.holds (v : Verdict) (ms : List Move) (outcomes : List Bool) (final :
       | _, _ => false
   | .refused => outcomes.getLast? == some false
   | .denied => outcomes.getLast? == some false
+  | .observed _ _ => false
 
 def verdictOfJson (j : Json) : Except String Verdict := do
   match ← j.getObjValAs? String "kind" with
@@ -161,6 +165,7 @@ def verdictOfJson (j : Json) : Except String Verdict := do
   | "early-removed" => .ok .earlyRemoved
   | "refused" => .ok .refused
   | "denied" => .ok .denied
+  | "observed" => .ok (.observed (← j.getObjValAs? String "key") (← j.getObjValAs? String "value"))
   | k => .error s!"unknown verdict kind {k}"
 
 /-! ### Traces -/
@@ -297,7 +302,7 @@ def Verdict.holdsEarly (v : Verdict) (ms : List EMove) (outcomes : List Bool) (f
       | some m, some true => m.role == some ro && earlySys.perm m.act == some pm
       | _, _ => false
   | .refused | .denied => outcomes.getLast? == some false
-  | .removed _ => false
+  | .removed _ | .observed _ _ => false
 
 structure ETrace where
   id : String
@@ -352,6 +357,173 @@ def earlyTraces (tag : String) (r : Reading) (cells : Bool) : List ETrace :=
       [mk "no-window-removes-at-once" ["prop:E-1"] (three .reject .reject .reject ++ [pc .remove]) .earlyRemoved,
        mk "no-window-no-bump" ["prop:E-1"] (three .reject .reject .reject ++ [mem .bump]) .refused]
   removed.toList ++ uses ++ windowed ++ always
+
+
+/-! ### Accountability requests -/
+
+def dispKey (d : ReqDisposition) : String := ((dispKeys.find? (·.2 == d)).map (·.1)).getD "?"
+
+/-- The observations of the accountability subsystem, with the readers that must each produce them. The one
+    request is the request about the nominee's review (reviewer 7). -/
+def accObservations : List (String × String × List String) :=
+  [("criteria-set", "bool", ["state"]), ("suggestion", "string", ["state"]), ("coached", "bool", ["hotcrp", "state"]),
+   ("sent", "bool", ["hotcrp", "state"]), ("reminded", "bool", ["hotcrp", "state"]), ("replied", "bool", ["state"]),
+   ("disposition", "string", ["hotcrp", "state"]), ("now", "int", ["clock", "state"]), ("may-no-reply", "bool", ["state"]),
+   ("engaged", "int", ["state"]), ("not-engaged", "int", ["state"]), ("case-may-open", "bool", ["state"]),
+   ("case-open", "bool", ["state"]), ("case-upheld", "bool", ["hotcrp", "state"])]
+
+def accSugs (s : AccSt) : List Suggestion := if s.suggested then [{ reviewer := 7, dismissed := s.dismissed }] else []
+
+def accObserve (r : Reading) (s : AccSt) : Json :=
+  let reqs := s.req.toList
+  let (e, n) := engagement {} reqs (accSugs s) 7
+  Json.mkObj
+    [("criteria-set", s.criteria), ("suggestion", if !s.suggested then "none" else if s.dismissed then "dismissed" else "open"),
+     ("coached", s.coached), ("sent", s.req.isSome), ("reminded", s.req.any fun q => q.remindedAt.isSome),
+     ("replied", s.req.any fun q => q.replied),
+     ("disposition", match s.req.bind (·.disp) with | some d => dispKey d | none => "none"),
+     ("now", Json.num (s.now : Nat)),
+     ("may-no-reply", match s.req with | some q => mayDispose q .noReply s.now | none => false),
+     ("engaged", Json.num (e : Nat)), ("not-engaged", Json.num (n : Nat)),
+     ("case-may-open", caseMayOpen {} r false reqs), ("case-open", s.caseOpen), ("case-upheld", s.upheld)]
+
+def accActOfJson (j : Json) : Except String AccAct := do
+  let key ← j.getObjValAs? String "key"
+  let ps := (j.getObjVal? "params").toOption.getD Json.null
+  match key with
+  | "set-criteria" => .ok .setCriteria | "suggest" => .ok .suggest | "dismiss" => .ok .dismiss | "coach" => .ok .coach
+  | "send" => .ok .send | "remind" => .ok .remind | "reply" => .ok .reply | "tick" => .ok .tick
+  | "open-case" => .ok .openCase | "uphold" => .ok .uphold
+  | "dispose" => .ok (.dispose (← lookupKey dispKeys (← ps.getObjValAs? String "disposition")))
+  | k => .error s!"unknown accountability action {k}"
+
+structure AMove where
+  role : Option Role
+  act : AccAct
+
+def astepJson (r : Reading) (after : AccSt) (m : AMove) (effective : Bool) : Json :=
+  Json.mkObj [("role", match m.role with | some ro => Json.str (roleKey ro) | none => Json.null),
+    ("action", descJson (accDesc m.act)), ("label", showMove accSys (m.role, m.act)),
+    ("effective", effective), ("expect", accObserve r after)]
+
+def replayAcc (p : Params) (r : Reading) (ms : List AMove) : List (Json × AccSt) × AccSt := Id.run do
+  let mut s : AccSt := accSys.init
+  let mut out := []
+  for m in ms do
+    match gated accSys p r s (m.role, m.act) with
+    | some s' => out := out ++ [(astepJson r s' m true, s')]; s := s'
+    | none => out := out ++ [(astepJson r s m false, s)]
+  return (out, s)
+
+def Verdict.holdsAcc (r : Reading) (v : Verdict) (ms : List AMove) (outcomes : List Bool) (final : AccSt) : Bool :=
+  match v with
+  | .cell ro pm => match ms.getLast?, outcomes.getLast? with
+      | some m, some true => m.role == some ro && accSys.perm m.act == some pm
+      | _, _ => false
+  | .refused | .denied => outcomes.getLast? == some false
+  | .observed k val => ((accObserve r final).getObjVal? k).toOption.any fun j => j.compress == val
+  | .removed _ | .earlyRemoved => false
+
+structure ATrace where
+  id : String
+  family : String
+  claims : List String
+  reading : Reading
+  moves : List AMove
+  verdict : Verdict
+
+def ATrace.json (t : ATrace) : Json :=
+  let (steps, final) := replayAcc {} t.reading t.moves
+  let outcomes := steps.map fun (j, _) => ((j.getObjValAs? Bool "effective").toOption.getD false)
+  Json.mkObj [("id", t.id), ("subsystem", accSys.name), ("family", t.family),
+    ("claims", Json.arr (t.claims.toArray.map Json.str)),
+    ("reading", readingJson t.reading), ("steps", Json.arr (steps.toArray.map (·.1))),
+    ("verdict", Json.mkObj [("claimed", t.verdict.json), ("holds", t.verdict.holdsAcc t.reading t.moves outcomes final)]),
+    ("final", accObserve t.reading final)]
+
+def amoveOf (m : Option Role × AccAct) : AMove := { role := m.1, act := m.2 }
+
+/-- Witness traces for the accountability subsystem under a reading: the first use of each granted cell (L1,
+    with `cells`), the example cards C1 to C5, AR1 (a request needs the list), AR2 (nobody's heuristic
+    sends), AR4 (a dismissed suggestion leaves no record), AR5 (no reply waits for a reminder and the grace
+    period), AR6 and V4 (a quality case needs an earlier request, and only a PC chair upholds), and denials. -/
+def accTraces (tag : String) (r : Reading) (cells : Bool) : List ATrace :=
+  let e := explore accSys {} r
+  let ac (a : AccAct) : AMove := ⟨some .ac, a⟩
+  let jpc (a : AccAct) : AMove := ⟨some .juniorPcChair, a⟩
+  let pcs (a : AccAct) : AMove := ⟨some .pcs, a⟩
+  let nom (a : AccAct) : AMove := ⟨some .nominee, a⟩
+  let pcc (a : AccAct) : AMove := ⟨some .pcChair, a⟩
+  let proc (a : AccAct) : AMove := ⟨some .processChair, a⟩
+  let env (a : AccAct) : AMove := ⟨none, a⟩
+  let mk (id : String) (claims : List String) (moves : List AMove) (v : Verdict) : ATrace :=
+    { id := s!"acc/{tag}/{id}", family := "T5", claims := claims, reading := r, moves := moves, verdict := v }
+  let uses := if cells then e.firstUse.map fun ((ro, pm), (i, m)) =>
+      mk s!"cell-{roleKey ro}-{permKey pm}" [s!"cell:{roleKey ro}/{permKey pm}"] ((e.traceTo i ++ [m]).map amoveOf) (.cell ro pm)
+    else []
+  let sent : List AMove := [pcc .setCriteria, pcs .suggest, ac .send]
+  let waitAndRemind : List AMove := [env .tick, ac .remind]
+  let noReply : List AMove := sent ++ waitAndRemind ++ [env .tick, ac (.dispose .noReply)]
+  let c1 := mk "card-C1-revised" ["card:C1", "prop:AR1", "prop:AR2"] (sent ++ [nom .reply, ac (.dispose .revised)]) (.observed "engaged" "1")
+  let c2 := mk "card-C2-explained" ["card:C2", "prop:AR4"] (sent ++ [nom .reply, jpc (.dispose .explained)]) (.observed "engaged" "1")
+  let c3 := mk "card-C3-no-reply" ["card:C3", "prop:AR5"] noReply (.observed "disposition" "\"no-reply\"")
+  let c4 := mk "card-C4-dismissed" ["card:C4", "prop:AR4"] [pcs .suggest, ac .dismiss] (.observed "not-engaged" "0")
+  let c5 := mk "card-C5-disputed" ["card:C5"] (sent ++ [nom .reply, ac (.dispose .disputed)]) (.observed "not-engaged" "0")
+  let ar1 := mk "send-needs-criteria" ["prop:AR1"] [pcs .suggest, ac .send] .refused
+  let ar2 := mk "heuristic-does-not-send" ["prop:AR2"] [pcc .setCriteria, pcs .suggest, env .tick] (.observed "sent" "false")
+  let ar2b := mk "pcs-cannot-send" ["prop:AR2", "cell:pcs/send-request"] [pcc .setCriteria, pcs .suggest, pcs .send] .denied
+  let ar4 := mk "dismissed-leaves-no-trace" ["prop:AR4"] [pcs .suggest, ac .dismiss, env .tick] (.observed "engaged" "0")
+  let ar5a := mk "no-reply-before-grace-refused" ["prop:AR5"] (sent ++ waitAndRemind ++ [ac (.dispose .noReply)]) .refused
+  let ar5b := mk "no-reply-without-reminder-refused" ["prop:AR5"] (sent ++ [env .tick, env .tick, env .tick, ac (.dispose .noReply)]) .refused
+  let ar5c := mk "dispose-before-reply-refused" ["prop:AR5"] (sent ++ [ac (.dispose .revised)]) .refused
+  let ar6a := mk "case-before-request" ["prop:AR6", "prop:V4"] [proc .openCase] (if r.q20 == .needsRequest then .refused else .cell .processChair .openCase)
+  let ar6b := mk "case-after-no-reply" ["prop:AR6", "prop:V4"] (noReply ++ [proc .openCase]) (.cell .processChair .openCase)
+  let ar6c := mk "case-after-engaged-reply" ["prop:AR6"] (sent ++ [nom .reply, ac (.dispose .revised), proc .openCase])
+    (if r.q20 == .needsRequest then .refused else .cell .processChair .openCase)
+  let v4a := mk "uphold-needs-an-open-case" ["prop:V4"] [pcc .uphold] .refused
+  let v4b := mk "uphold-by-pc-chair" ["prop:V4"] (noReply ++ [proc .openCase, pcc .uphold]) (.observed "case-upheld" "true")
+  let v4c := mk "ac-cannot-uphold" ["prop:V4", "cell:ac/open-case"] (noReply ++ [proc .openCase, ac .uphold]) .denied
+  let denials : List ATrace :=
+    [mk "author-cannot-send" ["cell:author/send-request"] [pcc .setCriteria, ⟨some .author, .send⟩] .denied,
+     mk "nominee-cannot-dispose" ["cell:nominee/send-request"] (sent ++ [nom .reply, nom (.dispose .revised)]) .denied,
+     mk "author-cannot-reply-to-a-request" ["cell:author/write-hotcrp"] (sent ++ [⟨some .author, .reply⟩]) .denied,
+     mk "pc-member-cannot-suggest" ["cell:pc-member/suggest-request"] [⟨some .pcMember, .suggest⟩] .denied]
+  uses ++ [c1, c2, c3, c4, c5, ar1, ar2, ar2b, ar4, ar5a, ar5b, ar5c, ar6a, ar6b, ar6c, v4a, v4b, v4c] ++ denials
+
+/-- Every effective transition of the accountability subsystem under a reading, with each state as integers:
+    criteria, suggested, dismissed, coached, sent, sentBy, due, remindedAt (-1: none), replied, disposition
+    (0 none, 1 to 5 as spec §11), now, caseOpen, upheld. Moves index a table of (role, action, parameters). -/
+def accStateInts (s : AccSt) : List Int :=
+  let b (x : Bool) : Int := if x then 1 else 0
+  let q := s.req
+  [b s.criteria, b s.suggested, b s.dismissed, b s.coached, b q.isSome, ((q.bind (·.sentBy)).getD 0 : Nat),
+   ((q.map (·.due)).getD 0 : Nat), ((q.bind (·.remindedAt)).map (fun (x : Nat) => (x : Int))).getD (-1),
+   b (q.any (·.replied)),
+   match q.bind (·.disp) with | some .revised => 1 | some .explained => 2 | some .declined => 3 | some .noReply => 4 | some .disputed => 5 | none => 0,
+   s.now, b s.caseOpen, b s.upheld]
+
+def accTransitions (r : Reading) : Json := Id.run do
+  let e := explore accSys {} r
+  let moves : List (Option Role × AccAct) :=
+    accSys.acts.flatMap fun a => match accSys.perm a with
+      | some _ => Role.all.map fun role => (some role, a)
+      | none => [(none, a)]
+  let mut ts : Array Json := #[]
+  let keys := e.states.toList.map fun s => accStateInts s
+  let idx : Std.HashMap String Nat := keys.zipIdx.foldl (fun m (k, i) => m.insertIfNew (toString k) i) {}
+  for (s, i) in e.states.toList.zipIdx do
+    for (m, mi) in moves.zipIdx do
+      match gated accSys {} r s m with
+      | some s' => ts := ts.push (Json.arr #[Json.num i, Json.num mi, Json.num (idx.getD (toString (accStateInts s')) 0)])
+      | none => pure ()
+  let granted := Role.all.flatMap fun ro => accSys.acts.filterMap fun a => match accSys.perm a with
+    | some pm => if (policy r ro pm).granted then some (Json.arr #[Json.str (roleKey ro), Json.str (permKey pm)]) else none
+    | none => none
+  return Json.mkObj
+    [("states", Json.arr (keys.toArray.map fun k => Json.arr (k.toArray.map fun (x : Int) => Json.num (JsonNumber.fromInt x)))),
+     ("moves", Json.arr (moves.toArray.map fun (ro, a) =>
+        Json.mkObj [("role", match ro with | some x => Json.str (roleKey x) | none => Json.null), ("action", descJson (accDesc a))])),
+     ("transitions", Json.arr ts), ("granted", Json.arr (granted.eraseDups.toArray))]
 
 /-! ### Binding mutants (PLAN §A8) -/
 
