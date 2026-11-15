@@ -62,7 +62,12 @@ object LiveSample {
             check(remaining > 0) { "live-call cap reached; stopping" }
             remaining--
             made++
-            val r = inner.call(req)
+            val r = inner.call(req).let { it.copy(raw = redact(it.raw)) }
+            if (r.status !=
+                pcs.agent.engines.Status.OK
+            ) {
+                System.err.println("live call ${req.check.id}: ${r.status}: ${r.detail}; output starts: ${r.raw.take(300)}")
+            }
             Files.writeString(
                 log,
                 "${req.check.id}@${req.check.version}\t${req.variant}\t${r.status}\t${r.servedModel}\tcost_usd=${r.costUsd}\tin=${r.usage.input}\tout=${r.usage.output}\n",
@@ -71,6 +76,12 @@ object LiveSample {
             )
             return r
         }
+    }
+
+    /** Drops the session and credential identifiers from the CLI envelope before it is kept as a fixture. Everything else, which the monitors read, stays. */
+    internal fun redact(raw: String): String {
+        val o = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(raw) as? kotlinx.serialization.json.JsonObject }.getOrNull() ?: return raw
+        return kotlinx.serialization.json.JsonObject(o.filterKeys { it !in setOf("session_id", "uuid", "credential_expires_at") }).toString()
     }
 
     /**

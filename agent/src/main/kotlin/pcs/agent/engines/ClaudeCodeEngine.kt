@@ -37,7 +37,8 @@ class ClaudeCodeEngine(private val cfg: EngineConfig, private val timeoutSeconds
             "--output-format",
             "json",
             "--json-schema",
-            Keys.canonical(req.schema),
+            // The CLI validates the schema itself and does not know the draft 2020-12 meta-schema URI, so `$schema` is left out.
+            Keys.canonical(JsonObject(req.schema.filterKeys { it != "\$schema" })),
             "--strict-mcp-config",
             "--setting-sources",
             "",
@@ -72,6 +73,14 @@ class ClaudeCodeEngine(private val cfg: EngineConfig, private val timeoutSeconds
                     return@withContext CallResult(req.key, Status.ERROR, detail = "timed out after ${timeoutSeconds}s")
                 }
                 errT.join()
+                if (out.isBlank()) {
+                    // The CLI's own error text (never the paper: the paper goes in, and the CLI does not echo it).
+                    return@withContext CallResult(
+                        req.key,
+                        Status.ERROR,
+                        detail = "exit ${p.exitValue()}: no output on stdout; stderr: ${err.toString().trim().take(300)}",
+                    )
+                }
                 parse(req, out, p.exitValue())
             } finally {
                 work.toFile().deleteRecursively()

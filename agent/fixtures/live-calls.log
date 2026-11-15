@@ -1,0 +1,12 @@
+summary@9d9f5adcd86d	summary	OK	claude-haiku-5-5	cost_usd=0.0016839	in=2	out=1464
+anonymity.llm@621eeb765e1d	body	OK	claude-haiku-5-5	cost_usd=0.0008694	in=2	out=216
+anonymity.llm@621eeb765e1d	body	OK	claude-haiku-5-5	cost_usd=0.00089679	in=2	out=475
+anonymity.llm@621eeb765e1d	body	OK	claude-haiku-5-5	cost_usd=0.00091529	in=2	out=670
+scope@8253ea6a5a89	opening	OK	claude-haiku-5-5	cost_usd=0.0009559000000000001	in=2	out=293
+scope@8253ea6a5a89	opening	OK	claude-haiku-5-5	cost_usd=0.00093579	in=2	out=570
+refs.use@c6548f84a77f	citations	OK	claude-haiku-5-5	cost_usd=0.0019045	in=2	out=1874
+refs.use@c6548f84a77f	citations	OK	claude-haiku-5-5	cost_usd=0.00145654	in=2	out=1407
+injection.addressed.llm@b104165c95aa	span@p1:2575	OK	claude-haiku-5-5	cost_usd=0.0007933	in=2	out=300
+injection.addressed.llm@b104165c95aa	span@p1:1234	OK	claude-haiku-5-5	cost_usd=0.00061925	in=2	out=261
+summary@9d9f5adcd86d	summary	OK	claude-haiku-5-5	cost_usd=0.0012691399999999998	in=2	out=1168
+summary@9d9f5adcd86d	summary	OK	claude-haiku-5-5	cost_usd=0.00137164	in=2	out=1349
