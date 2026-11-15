@@ -56,10 +56,12 @@ class EvalHarnessTest {
                 papers.flatMap { listOfNotNull(it.title) + it.authors } + pc.flatMap { listOfNotNull(it.email, it.name) } +
                     reviews.mapNotNull { it.reviewerEmail } + url.host + token
             for (s in secrets.filter { it.isNotBlank() }) assertFalse(lower.contains(s.lowercase()), "the report contains an input string")
-            for (pid in papers.map {
-                it.pid
-            }) {
-                assertFalse(Regex("(?<![0-9.])$pid(?![0-9.%])").containsMatchIn(report.replace(Regex("`[^`]*`"), "")), "the report names paper $pid")
+            // The harness's paper ids are small numbers, which are also counts, so a bare number proves nothing: look for an id in every form one is
+            // written (#5, paper 5, pid 5, pid=5, 5.pdf), and for the whole number when it is too large to be a count in this report.
+            for (pid in papers.map { it.pid }) {
+                val form = Regex("(#|paper |pid |pid=)$pid(?![0-9])|(?<![0-9])$pid\\.pdf", RegexOption.IGNORE_CASE)
+                assertFalse(form.containsMatchIn(report), "the report names paper $pid")
+                if (pid >= 1000) assertFalse(Regex("(?<![0-9.])$pid(?![0-9.%])").containsMatchIn(report), "the report contains the number $pid")
             }
             assertFalse(report.contains("@"))
 
