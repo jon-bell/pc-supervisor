@@ -2,16 +2,16 @@
 
 package net.jonbell.pcs.agent.bundle
 
+import net.jonbell.pcs.agent.checks.Severity
+import net.jonbell.pcs.agent.engines.CallResult
 import net.jonbell.pcs.agent.engines.DataClass
 import net.jonbell.pcs.agent.engines.EncryptedFileResultStore
-import net.jonbell.pcs.agent.engines.StoredResult
-import net.jonbell.pcs.agent.engines.CallResult
-import net.jonbell.pcs.agent.engines.Status
 import net.jonbell.pcs.agent.engines.Keys
+import net.jonbell.pcs.agent.engines.Status
+import net.jonbell.pcs.agent.engines.StoredResult
 import net.jonbell.pcs.agent.llm.Flag
 import net.jonbell.pcs.agent.llm.FlagAnchor
 import net.jonbell.pcs.agent.llm.FlagStatus
-import net.jonbell.pcs.agent.checks.Severity
 import net.jonbell.pcs.core.bundle.BundleCodec
 import net.jonbell.pcs.core.bundle.BundleImport
 import net.jonbell.pcs.core.bundle.BundleKey
@@ -52,7 +52,9 @@ class BundleCliTest {
     }
 
     @Test
-    fun `a bundle is written content addressed and encrypted, another copy imports identical findings`(@TempDir tmp: Path) {
+    fun `a bundle is written content addressed and encrypted, another copy imports identical findings`(
+        @TempDir tmp: Path,
+    ) {
         val items = BundleFixtures.items(10)
         val run = BundleFixtures.prepare(tmp, items.mapIndexed { i, it -> "${101 + i}" to it })
         val key = tmp.resolve("keys/bundle.key")
@@ -81,8 +83,21 @@ class BundleCliTest {
         assertEquals(a.second, b.second)
         val payload = a.second!!
         assertEquals(hash, payload.hash())
+
         // The findings are what screening produced (the recording run names its engine "strong", the replay "rep"; nothing else differs).
-        fun norm(f: net.jonbell.pcs.core.bundle.BundleFinding) = f.copy(engine = if (f.engine == "local") "local" else "llm", fields = f.fields.toSortedMap(), dependsOn = f.dependsOn.sorted())
+        fun norm(f: net.jonbell.pcs.core.bundle.BundleFinding) =
+            f.copy(
+                engine =
+                    if (f.engine ==
+                        "local"
+                    ) {
+                        "local"
+                    } else {
+                        "llm"
+                    },
+                fields = f.fields.toSortedMap(),
+                dependsOn = f.dependsOn.sorted(),
+            )
         val direct = run.screens.values.flatten().map { norm(BundleBuilder.finding(it)) }
         assertEquals(direct.size, payload.findings.size)
         assertEquals(direct.toSet(), payload.findings.map(::norm).toSet())
@@ -93,7 +108,9 @@ class BundleCliTest {
     }
 
     @Test
-    fun `the same run again writes the same bundle address, a different key does not open it`(@TempDir tmp: Path) {
+    fun `the same run again writes the same bundle address, a different key does not open it`(
+        @TempDir tmp: Path,
+    ) {
         val run = BundleFixtures.prepare(tmp, BundleFixtures.items(4).mapIndexed { i, it -> "${7 + i}" to it })
         val key = tmp.resolve("bundle.key")
         val a = tmp.resolve("a")
@@ -107,7 +124,9 @@ class BundleCliTest {
     }
 
     @Test
-    fun `confidential papers are refused without the encrypted store, without clearance, and without qualification, before any paper is screened`(@TempDir tmp: Path) {
+    fun `confidential papers are refused without the encrypted store, without clearance, and without qualification, before any paper is screened`(
+        @TempDir tmp: Path,
+    ) {
         val run = BundleFixtures.prepare(tmp, BundleFixtures.items(3).mapIndexed { i, it -> "${1 + i}" to it })
         val args = BundleFixtures.args(run, tmp.resolve("out"), tmp.resolve("k"), "--class", "confidential")
         val noStore = cli(BundleFixtures.env(run), args)
@@ -126,12 +145,23 @@ class BundleCliTest {
     }
 
     @Test
-    fun `the encrypted store takes confidential results, keeps them off the disk in the clear, and refuses another key or a moved file`(@TempDir tmp: Path) {
+    fun `the encrypted store takes confidential results, keeps them off the disk in the clear, and refuses another key or a moved file`(
+        @TempDir tmp: Path,
+    ) {
         val key = BundleKey.generate()
         val s = EncryptedFileResultStore(tmp.resolve("st"), key)
         val k1 = Keys.sha256("one")
         val k2 = Keys.sha256("two")
-        val r = StoredResult(k1, "scope", "v", "e", "7", DataClass.CONFIDENTIAL, CallResult(k1, Status.OK, kotlinx.serialization.json.JsonPrimitive("CONFIDENTIAL-QUOTE"), raw = "CONFIDENTIAL-RAW"))
+        val r =
+            StoredResult(
+                k1,
+                "scope",
+                "v",
+                "e",
+                "7",
+                DataClass.CONFIDENTIAL,
+                CallResult(k1, Status.OK, kotlinx.serialization.json.JsonPrimitive("CONFIDENTIAL-QUOTE"), raw = "CONFIDENTIAL-RAW"),
+            )
         s.put(r)
         assertEquals(r, s.get(k1))
         assertEquals(listOf(r), s.all())
@@ -147,14 +177,31 @@ class BundleCliTest {
     fun `an unverified flag's quotation never enters the bundle`() {
         val f =
             Flag(
-                "9", "scope", "v", emptyList(), "out-of-scope", "scope", Severity.MEDIUM,
+                "9",
+                "scope",
+                "v",
+                emptyList(),
+                "out-of-scope",
+                "scope",
+                Severity.MEDIUM,
                 listOf(FlagAnchor("page", 1, 5, "QUOTE-NOT-FOUND-ON-THE-PAGE", page = 1)),
-                mapOf("reason" to "REASON-TEXT", "measured.pages" to "3"), "rep", "k", FlagStatus.UNVERIFIED, listOf("the quotation is not at its anchor"),
+                mapOf("reason" to "REASON-TEXT", "measured.pages" to "3"),
+                "rep",
+                "k",
+                FlagStatus.UNVERIFIED,
+                listOf("the quotation is not at its anchor"),
             )
         val b = BundleBuilder.finding(f)
         assertEquals("unverified", b.status)
         assertTrue(b.anchors.isEmpty())
         assertEquals(mapOf("measured.pages" to "3"), b.fields)
-        assertFalse(BundleCodec.encrypt(BundlePayload(net.jonbell.pcs.core.bundle.BundleManifest(createdAt = "t", papers = emptyList(), checks = emptyList()), listOf(b)), BundleKey.generate()).let { String(it, Charsets.ISO_8859_1) }.contains("QUOTE-NOT-FOUND"))
+        assertFalse(
+            BundleCodec.encrypt(
+                BundlePayload(net.jonbell.pcs.core.bundle.BundleManifest(createdAt = "t", papers = emptyList(), checks = emptyList()), listOf(b)),
+                BundleKey.generate(),
+            ).let {
+                String(it, Charsets.ISO_8859_1)
+            }.contains("QUOTE-NOT-FOUND"),
+        )
     }
 }

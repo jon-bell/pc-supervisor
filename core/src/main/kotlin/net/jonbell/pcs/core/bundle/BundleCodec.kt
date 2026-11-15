@@ -88,7 +88,11 @@ public object BundleCodec {
             } catch (e: kotlinx.serialization.SerializationException) {
                 throw BundleException(BundleException.Reason.UNSUPPORTED, "the bundle's content is not understood")
             }
-        if (p.manifest.format != BundleManifest.FORMAT) throw BundleException(BundleException.Reason.UNSUPPORTED, "unsupported bundle format ${p.manifest.format}")
+        if (p.manifest.format !=
+            BundleManifest.FORMAT
+        ) {
+            throw BundleException(BundleException.Reason.UNSUPPORTED, "unsupported bundle format ${p.manifest.format}")
+        }
         return p
     }
 }

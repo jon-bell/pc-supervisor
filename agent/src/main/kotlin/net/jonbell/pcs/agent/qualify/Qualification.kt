@@ -71,13 +71,24 @@ object QualificationFile {
         }
 
     fun load(path: Path?): List<Qualification> =
-        if (path == null || !Files.isRegularFile(path)) emptyList() else json.decodeFromString(ListSerializer(Qualification.serializer()), Files.readString(path))
+        if (path == null ||
+            !Files.isRegularFile(path)
+        ) {
+            emptyList()
+        } else {
+            json.decodeFromString(ListSerializer(Qualification.serializer()), Files.readString(path))
+        }
 
     private fun id(q: Qualification) = listOf(q.check, q.version, q.engine, q.model, q.options, q.variant)
 
     /** Adds [added], replacing a record for the same tuple, and writes the file with a stable order. */
     fun save(path: Path, existing: List<Qualification>, added: List<Qualification>) {
-        val merged = (existing.filterNot { e -> added.any { id(it) == id(e) } } + added).sortedWith(compareBy({ it.check }, { it.engine }, { it.at }, { it.version }))
+        val merged =
+            (
+                existing.filterNot { e ->
+                    added.any { id(it) == id(e) }
+                } + added
+            ).sortedWith(compareBy({ it.check }, { it.engine }, { it.at }, { it.version }))
         path.toAbsolutePath().parent?.let { Files.createDirectories(it) }
         Files.writeString(path, json.encodeToString(ListSerializer(Qualification.serializer()), merged) + "\n")
     }
@@ -115,9 +126,21 @@ object Qualifier {
                 if (r.positives < t.minPositives) fails += "only ${r.positives} labelled positives (need ${t.minPositives})"
                 if (r.recall.est < t.minRecall) fails += "recall ${"%.2f".format(r.recall.est)} below ${t.minRecall}"
                 if (r.falseFlagRate.est > t.maxFalseFlagRate) fails += "false-flag rate ${"%.2f".format(r.falseFlagRate.est)} above ${t.maxFalseFlagRate}"
-                if (r.anchorValidity.n > 0 && r.anchorValidity.est < t.minAnchorValidity) fails += "anchor validity ${"%.2f".format(r.anchorValidity.est)} below ${t.minAnchorValidity}"
+                if (r.anchorValidity.n > 0 &&
+                    r.anchorValidity.est < t.minAnchorValidity
+                ) {
+                    fails += "anchor validity ${"%.2f".format(r.anchorValidity.est)} below ${t.minAnchorValidity}"
+                }
                 if (report.k < t.minRuns) fails += "k=${report.k} runs (need ${t.minRuns})"
-                if (r.stabilityItems == 0) fails += "stability not measured" else if (r.agreement.est < t.minStability) fails += "stability ${"%.2f".format(r.agreement.est)} below ${t.minStability}"
+                if (r.stabilityItems ==
+                    0
+                ) {
+                    fails += "stability not measured"
+                } else if (r.agreement.est <
+                    t.minStability
+                ) {
+                    fails += "stability ${"%.2f".format(r.agreement.est)} below ${t.minStability}"
+                }
                 if (cov != null && cov.coveredItems < cov.items) fails += "${cov.items - cov.coveredItems} of ${cov.items} papers were not served"
                 if (fails.isNotEmpty()) {
                     notes += "${e.id} / ${r.check}: not qualified: ${fails.joinToString("; ")}"
@@ -131,8 +154,12 @@ object Qualifier {
                         model = e.config.identity.model,
                         variant = VARIANT,
                         evidence =
-                            "${report.corpus} (${report.items} papers, fingerprint ${report.fingerprint.take(12)}), k=${report.k}: recall ${"%.2f".format(r.recall.est)}, " +
-                                "false-flag ${"%.2f".format(r.falseFlagRate.est)}, anchors ${"%.2f".format(r.anchorValidity.est)}, stability ${"%.2f".format(r.agreement.est)}",
+                            "${report.corpus} (${report.items} papers, fingerprint ${report.fingerprint.take(
+                                12,
+                            )}), k=${report.k}: recall ${"%.2f".format(r.recall.est)}, " +
+                                "false-flag ${"%.2f".format(
+                                    r.falseFlagRate.est,
+                                )}, anchors ${"%.2f".format(r.anchorValidity.est)}, stability ${"%.2f".format(r.agreement.est)}",
                         options = e.config.identity.options,
                         corpus = report.corpus,
                         fingerprint = report.fingerprint,
@@ -172,8 +199,12 @@ class QualificationGate(private val records: List<Qualification>) {
         if (mine.any { it.version == req.check.version && it.model == who.model && it.options == who.options && it.variant == variant }) return null
         return when {
             mine.isEmpty() -> "no qualification record for this check on this engine"
-            mine.none { it.version == req.check.version } -> "qualified at version ${mine.map { it.version }.distinct().joinToString()}, not ${req.check.version}: needs requalification"
-            mine.none { it.model == who.model } -> "qualified on model ${mine.map { it.model }.distinct().joinToString()}, not ${who.model}: needs requalification"
+            mine.none {
+                it.version == req.check.version
+            } -> "qualified at version ${mine.map { it.version }.distinct().joinToString()}, not ${req.check.version}: needs requalification"
+            mine.none {
+                it.model == who.model
+            } -> "qualified on model ${mine.map { it.model }.distinct().joinToString()}, not ${who.model}: needs requalification"
             else -> "qualified for another variant or engine configuration: needs requalification"
         }
     }

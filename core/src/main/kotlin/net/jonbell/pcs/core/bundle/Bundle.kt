@@ -123,7 +123,9 @@ public data class BundlePayload(
             findings =
                 findings.map { f -> f.copy(fields = f.fields.toSortedMap(), dependsOn = f.dependsOn.sorted()) }
                     .sortedWith(
-                        compareBy({ it.pid.padStart(12, '0') }, { it.check }, { it.ground.orEmpty() }, { it.kind }, { it.key }, { it.anchors.firstOrNull()?.quote.orEmpty() }),
+                        compareBy({
+                            it.pid.padStart(12, '0')
+                        }, { it.check }, { it.ground.orEmpty() }, { it.kind }, { it.key }, { it.anchors.firstOrNull()?.quote.orEmpty() }),
                     ),
             summaries = summaries.sortedWith(compareBy({ it.pid.padStart(12, '0') }, { it.check })),
         )
@@ -151,7 +153,16 @@ public data class BundlePayload(
                 val anchors = ok.flatMap { it.anchors }
                 val engine = fs.map { it.engine }.distinct().sorted().joinToString("+")
                 val version = fs.map { it.version }.distinct().sorted().joinToString("+")
-                listOf(k.first, k.second, version, k.third, engine, if (ok.isEmpty()) BundleFinding.UNVERIFIED else BundleFinding.VERIFIED, h, anchorsJson(anchors))
+                listOf(
+                    k.first,
+                    k.second,
+                    version,
+                    k.third,
+                    engine,
+                    if (ok.isEmpty()) BundleFinding.UNVERIFIED else BundleFinding.VERIFIED,
+                    h,
+                    anchorsJson(anchors),
+                )
             }
         return buildString {
             appendLine("pid,check,version,ground,engine,status,bundle_hash,anchors")
@@ -159,7 +170,15 @@ public data class BundlePayload(
         }
     }
 
-    private fun anchorsJson(a: List<BundleAnchor>): String = if (a.isEmpty()) "" else JSON.encodeToString(kotlinx.serialization.builtins.ListSerializer(BundleAnchor.serializer()), a)
+    private fun anchorsJson(a: List<BundleAnchor>): String =
+        if (a.isEmpty()) {
+            ""
+        } else {
+            JSON.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(BundleAnchor.serializer()),
+                a,
+            )
+        }
 
     private fun csv(s: String) = if (s.any { it == ',' || it == '"' || it == '\n' || it == '\r' }) "\"" + s.replace("\"", "\"\"") + "\"" else s
 

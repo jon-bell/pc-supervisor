@@ -11,7 +11,6 @@ import net.jonbell.pcs.agent.engines.Engine
 import net.jonbell.pcs.agent.engines.EngineConfig
 import net.jonbell.pcs.agent.engines.Prices
 import net.jonbell.pcs.agent.engines.Registered
-import net.jonbell.pcs.agent.engines.ScriptedEngine as FakeEngine
 import net.jonbell.pcs.agent.engines.request
 import net.jonbell.pcs.agent.eval.HeldOut
 import net.jonbell.pcs.agent.eval.Profile
@@ -33,6 +32,7 @@ import java.io.File
 import java.math.BigDecimal
 import java.nio.file.Files
 import java.nio.file.Path
+import net.jonbell.pcs.agent.engines.ScriptedEngine as FakeEngine
 
 /**
  * Qualification records, the gate in front of confidential data, and change classification (agent.md 7.4).
@@ -58,7 +58,13 @@ class QualifyTest {
                     override val id = c.id
                     override val caps = ScriptedEngine(c.id, perfect, run, text).caps
 
-                    override suspend fun call(req: net.jonbell.pcs.agent.engines.CallRequest) = ScriptedEngine(c.id, p(CallPrompt(req.system)), run, text).call(req)
+                    override suspend fun call(req: net.jonbell.pcs.agent.engines.CallRequest) =
+                        ScriptedEngine(
+                            c.id,
+                            p(CallPrompt(req.system)),
+                            run,
+                            text,
+                        ).call(req)
                 }
             },
             standIn = false,
@@ -78,10 +84,18 @@ class QualifyTest {
 
     private val held by lazy { HeldOut.generate() }
 
-    private fun report(dir: Path, es: List<ShootoutEngine>, k: Int = 3, check: String = "scope") = Shootout.run(held, es, dir.toFile(), ShootoutOptions(k = k, rawVariant = false, checks = setOf(check)))
+    private fun report(dir: Path, es: List<ShootoutEngine>, k: Int = 3, check: String = "scope") =
+        Shootout.run(
+            held,
+            es,
+            dir.toFile(),
+            ShootoutOptions(k = k, rawVariant = false, checks = setOf(check)),
+        )
 
     @Test
-    fun `thresholds come from qualification yaml, which is not part of the check's version`(@TempDir tmp: Path) {
+    fun `thresholds come from qualification yaml, which is not part of the check's version`(
+        @TempDir tmp: Path,
+    ) {
         val dir = copyChecks(tmp).resolve("checks/scope")
         val before = CheckDirs.version(dir, agentDir.toPath())
         val t = Thresholds.read(dir)
@@ -101,7 +115,9 @@ class QualifyTest {
     }
 
     @Test
-    fun `a good engine earns a record, a poor one, a noisy one, and a stand-in do not, and each says why`(@TempDir tmp: Path) {
+    fun `a good engine earns a record, a poor one, a noisy one, and a stand-in do not, and each says why`(
+        @TempDir tmp: Path,
+    ) {
         val dir = copyChecks(tmp)
         val good = real(cfg("good"), { perfect })
         val poor = real(cfg("poor"), { lenient })
@@ -148,6 +164,7 @@ class QualifyTest {
         // A matching record admits it.
         val ok = Dispatcher(listOf(Registered(c, fake)), gate = QualificationGate(listOf(record())))
         assertEquals(net.jonbell.pcs.agent.engines.Status.OK, runBlocking { ok.call("e", request(DataClass.CONFIDENTIAL)).result.status })
+
         // Another version of the check, another model, another variant, another engine: each is refused and says why.
         fun refused(g: QualificationGate, req: net.jonbell.pcs.agent.engines.CallRequest, cfgs: EngineConfig = c, part: String) {
             val e = assertThrows<Unqualified> { runBlocking { Dispatcher(listOf(Registered(cfgs, FakeEngine(cfgs.id))), gate = g).call(cfgs.id, req) } }
@@ -159,16 +176,30 @@ class QualifyTest {
         refused(QualificationGate(listOf(record(engine = "someone-else"))), request(DataClass.CONFIDENTIAL), part = "no qualification record")
         // Clearance still comes first: a record cannot raise an engine above its ceiling.
         val low = cfg("e", model = "m", clearance = DataClass.PUBLIC)
-        assertThrows<net.jonbell.pcs.agent.engines.ClearanceRefused> { runBlocking { Dispatcher(listOf(Registered(low, FakeEngine("e"))), gate = QualificationGate(listOf(record()))).call("e", request(DataClass.CONFIDENTIAL)) } }
+        assertThrows<net.jonbell.pcs.agent.engines.ClearanceRefused> {
+            runBlocking {
+                Dispatcher(listOf(Registered(low, FakeEngine("e"))), gate = QualificationGate(listOf(record()))).call("e", request(DataClass.CONFIDENTIAL))
+            }
+        }
     }
 
     @Test
-    fun `a prompt edit needs requalification and names the file, a price or concurrency change is covered`(@TempDir tmp: Path) {
+    fun `a prompt edit needs requalification and names the file, a price or concurrency change is covered`(
+        @TempDir tmp: Path,
+    ) {
         val dir = copyChecks(tmp)
         val good = real(cfg("good"), { perfect })
         val recs = Qualifier.qualify(report(dir, listOf(good)), listOf(good), dir.resolve("checks"), agentDir.toPath(), "2026-11-15T12:00:00Z").records
         val routing = mapOf("scope" to "good")
-        fun classify(configs: List<EngineConfig>, records: List<Qualification> = recs) = ChangePlanner.classify(dir.resolve("checks"), agentDir.toPath(), routing, configs, records).single()
+
+        fun classify(configs: List<EngineConfig>, records: List<Qualification> = recs) =
+            ChangePlanner.classify(
+                dir.resolve("checks"),
+                agentDir.toPath(),
+                routing,
+                configs,
+                records,
+            ).single()
 
         val same = classify(listOf(cfg("good")))
         assertEquals(ChangeClass.COVERED, same.cls, same.reasons.toString())
@@ -190,7 +221,12 @@ class QualifyTest {
         assertTrue(edited.reasons.single().contains("prompt.md"))
         assertTrue(ChangePlanner.render(listOf(edited)).contains("SCOPE".lowercase() + " on good: NEEDS REQUALIFICATION"))
         // Editing the oracle needs new evidence, not just a rerun.
-        Files.writeString(dir.resolve("checks/scope/oracle/cases.json"), Files.readString(dir.resolve("checks/scope/oracle/cases.json")).replace("]", ",{\"id\":\"scope/new\",\"kind\":\"positive\",\"description\":\"a new case\"}]"))
+        Files.writeString(
+            dir.resolve("checks/scope/oracle/cases.json"),
+            Files.readString(
+                dir.resolve("checks/scope/oracle/cases.json"),
+            ).replace("]", ",{\"id\":\"scope/new\",\"kind\":\"positive\",\"description\":\"a new case\"}]"),
+        )
         assertEquals(ChangeClass.NEW_EVIDENCE, classify(listOf(cfg("good"))).cls)
         // A check with no labelled positives can never be qualified.
         val summary = ChangePlanner.classify(dir.resolve("checks"), agentDir.toPath(), mapOf("summary" to "good"), listOf(cfg("good")), recs).single()
@@ -200,7 +236,9 @@ class QualifyTest {
     }
 
     @Test
-    fun `a prompt edit shows the flags it moves on the held-out corpus`(@TempDir tmp: Path) {
+    fun `a prompt edit shows the flags it moves on the held-out corpus`(
+        @TempDir tmp: Path,
+    ) {
         val dir = copyChecks(tmp)
         // The engine's behaviour depends on its prompt: the edited prompt makes it far more lenient (a stand-in for a model).
         val engine = real(cfg("good"), { p -> if ("more lenient" in p.system) lenient else perfect })
@@ -208,7 +246,14 @@ class QualifyTest {
         val base = recs.single()
         assertTrue(base.flags.values.any { it.isNotEmpty() })
         // Unchanged: running again moves nothing.
-        assertTrue(ChangePlanner.moves(base.flags, report(dir, listOf(engine), k = 1).flagSets.getValue("good").mapValues { (_, s) -> s.filter { it.startsWith("scope|") } }).isEmpty())
+        assertTrue(
+            ChangePlanner.moves(
+                base.flags,
+                report(dir, listOf(engine), k = 1).flagSets.getValue("good").mapValues { (_, s) ->
+                    s.filter { it.startsWith("scope|") }
+                },
+            ).isEmpty(),
+        )
         val prompt = dir.resolve("checks/scope/prompt.md")
         Files.writeString(prompt, Files.readString(prompt) + "\nBe more lenient about papers that only touch the call's topics.\n")
         val now = report(dir, listOf(engine), k = 1).flagSets.getValue("good").mapValues { (_, s) -> s.filter { it.startsWith("scope|") } }
@@ -217,7 +262,12 @@ class QualifyTest {
         assertTrue(moves.all { it.check == "scope" && !it.gained }, "a more lenient prompt only loses flags here")
         val change = ChangePlanner.classify(dir.resolve("checks"), agentDir.toPath(), mapOf("scope" to "good"), listOf(cfg("good")), recs).single()
         val text = ChangePlanner.render(listOf(change), mapOf("scope" to moves))
-        assertTrue(text.contains("NEEDS REQUALIFICATION") && text.contains("flags it moves on held-out: ${moves.size}") && text.contains("  - held-out/") .or(text.contains("    - held-out/")), text)
+        assertTrue(
+            text.contains("NEEDS REQUALIFICATION") &&
+                text.contains("flags it moves on held-out: ${moves.size}") &&
+                text.contains("  - held-out/").or(text.contains("    - held-out/")),
+            text,
+        )
         assertEquals(moves.sortedBy { it.paper }, ChangePlanner.moves(base.flags, now).sortedBy { it.paper })
         assertNull(ChangePlanner.moves(base.flags, base.flags).firstOrNull())
     }

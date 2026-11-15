@@ -163,11 +163,6 @@ private fun offlineStore(): Triple<Settings, net.jonbell.pcs.core.store.Store, n
     return Triple(settings, net.jonbell.pcs.core.store.Store.open(path, key), net.jonbell.pcs.core.time.Clock.fromSettings(settings.now))
 }
 
-/**
- * PLAN M6, spec §10.3: `pcs import <kind> <file> [--map col=name,...]` imports a file as a new
- * version (all rows or none; a rejected file prints its row errors and exits 1), and
- * `pcs import status` lists each kind's freshness and the current phase.
- */
 /** `pcs import bundle <file> --key-file <key>` (spec §10.3): opens an encrypted screening bundle and imports its findings. The key is read, used, and never stored. */
 fun importBundle(
     args: List<String>,
@@ -183,13 +178,27 @@ fun importBundle(
     }
     try {
         val key = net.jonbell.pcs.core.bundle.BundleKey.parse(Files.readString(Path.of(keyFile)))
-        when (val r = net.jonbell.pcs.core.bundle.ScreeningBundles(store, imports, clock).import(Files.readAllBytes(Path.of(file)), key, Path.of(file).fileName.toString())) {
+        when (
+            val r =
+                net.jonbell.pcs.core.bundle.ScreeningBundles(
+                    store,
+                    imports,
+                    clock,
+                ).import(Files.readAllBytes(Path.of(file)), key, Path.of(file).fileName.toString())
+        ) {
             is net.jonbell.pcs.core.bundle.BundleImport.Imported -> {
                 val p = r.payload
-                println("imported bundle ${r.hash.take(12)}: ${p.findings.size} findings (${p.visible.size} verified), ${p.summaries.size} summaries, ${p.manifest.papers.size} papers, version ${r.run.id}")
+                println(
+                    "imported bundle ${r.hash.take(
+                        12,
+                    )}: ${p.findings.size} findings (${p.visible.size} verified), ${p.summaries.size} summaries, ${p.manifest.papers.size} papers, version ${r.run.id}",
+                )
                 println("manifest: ${p.manifest.checks.size} checks, ${p.manifest.qualifications.size} qualification records, created ${p.manifest.createdAt}")
             }
-            is net.jonbell.pcs.core.bundle.BundleImport.AlreadyImported -> println("bundle ${r.hash.take(12)} was already imported (version ${r.runId}); nothing changed")
+            is net.jonbell.pcs.core.bundle.BundleImport.AlreadyImported ->
+                println(
+                    "bundle ${r.hash.take(12)} was already imported (version ${r.runId}); nothing changed",
+                )
             is net.jonbell.pcs.core.bundle.BundleImport.Rejected -> {
                 System.err.println("nothing imported: ${r.problems.size} problems")
                 r.problems.take(20).forEach { System.err.println("  $it") }
@@ -201,6 +210,12 @@ fun importBundle(
         exitProcess(1)
     }
 }
+
+/**
+ * PLAN M6, spec §10.3: `pcs import <kind> <file> [--map col=name,...]` imports a file as a new
+ * version (all rows or none; a rejected file prints its row errors and exits 1), and
+ * `pcs import status` lists each kind's freshness and the current phase.
+ */
 
 fun importCmd(args: List<String>) {
     val kinds = net.jonbell.pcs.core.imports.ImportKind.entries.joinToString("|") { it.id }

@@ -75,7 +75,12 @@ object ChangePlanner {
                             }
                             val oracle = changed.filter { it.startsWith("oracle/") }
                             val rest = changed - oracle.toSet()
-                            if (oracle.isNotEmpty()) raise(ChangeClass.NEW_EVIDENCE, "oracle changed (${oracle.joinToString()}): new cases or operators need evidence of their own")
+                            if (oracle.isNotEmpty()) {
+                                raise(
+                                    ChangeClass.NEW_EVIDENCE,
+                                    "oracle changed (${oracle.joinToString()}): new cases or operators need evidence of their own",
+                                )
+                            }
                             if (rest.isNotEmpty() || changed.isEmpty()) {
                                 raise(
                                     ChangeClass.REQUALIFY,
@@ -100,7 +105,8 @@ object ChangePlanner {
         (old.keys + new.keys).sorted().flatMap { paper ->
             val a = old[paper].orEmpty().toSet()
             val b = new[paper].orEmpty().toSet()
-            (b - a).sorted().map { FlagMove(paper, it.substringBefore('|'), it, true) } + (a - b).sorted().map { FlagMove(paper, it.substringBefore('|'), it, false) }
+            (b - a).sorted().map { FlagMove(paper, it.substringBefore('|'), it, true) } +
+                (a - b).sorted().map { FlagMove(paper, it.substringBefore('|'), it, false) }
         }
 
     fun render(changes: List<CheckChange>, moves: Map<String, List<FlagMove>> = emptyMap()): String =
@@ -110,7 +116,13 @@ object ChangePlanner {
             for (c in changes) {
                 appendLine("${c.check} on ${c.engine}: ${c.cls.label.uppercase()}")
                 c.reasons.forEach { appendLine("  - $it") }
-                if (c.cls != ChangeClass.COVERED) appendLine("  version ${c.qualifiedVersion ?: "(none qualified)"} -> ${c.currentVersion}; rerun the check's evaluation (pcs agent qualify)")
+                if (c.cls !=
+                    ChangeClass.COVERED
+                ) {
+                    appendLine(
+                        "  version ${c.qualifiedVersion ?: "(none qualified)"} -> ${c.currentVersion}; rerun the check's evaluation (pcs agent qualify)",
+                    )
+                }
                 val m = moves[c.check]
                 if (m != null) {
                     appendLine("  flags it moves on held-out: ${m.size}")

@@ -72,10 +72,23 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
             i++
         }
         if (inputs.isEmpty() || outDir == null || keyFile == null) {
-            out.appendLine("usage: pcs agent bundle <pdf|dir>... --out <dir> --key-file <file> [--class synthetic|public|confidential] [--cfp file] [--no-effect]")
+            out.appendLine(
+                "usage: pcs agent bundle <pdf|dir>... --out <dir> --key-file <file> [--class synthetic|public|confidential] [--cfp file] [--no-effect]",
+            )
             return 2
         }
-        val pdfs = inputs.flatMap { p -> Path.of(p).let { if (Files.isDirectory(it)) Files.list(it).use { s -> s.filter { f -> f.toString().endsWith(".pdf") }.sorted().toList() } else listOf(it) } }
+        val pdfs =
+            inputs.flatMap { p ->
+                Path.of(p).let {
+                    if (Files.isDirectory(it)) {
+                        Files.list(it).use { s ->
+                            s.filter { f -> f.toString().endsWith(".pdf") }.sorted().toList()
+                        }
+                    } else {
+                        listOf(it)
+                    }
+                }
+            }
         return try {
             val cs = EngineConfigs.parse(env)
             val registered = cs.map { EngineFactory.create(it, env) }
@@ -94,7 +107,12 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
             val perPaper = abstractsByPaper?.let { f -> json.decodeFromString<Map<String, Map<String, String>>>(Files.readString(Path.of(f))) }.orEmpty()
             // Author names, affiliations and emails come from a file a chair exports from the mirror: the agent holds no HotCRP credential.
             val authorInfo =
-                authors?.let { f -> json.decodeFromString(kotlinx.serialization.builtins.MapSerializer(kotlinx.serialization.serializer<String>(), AuthorInfo.serializer()), Files.readString(Path.of(f))) }.orEmpty()
+                authors?.let { f ->
+                    json.decodeFromString(
+                        kotlinx.serialization.builtins.MapSerializer(kotlinx.serialization.serializer<String>(), AuthorInfo.serializer()),
+                        Files.readString(Path.of(f)),
+                    )
+                }.orEmpty()
             val deps = Screener.deterministicDeps(checksDir)
             val cfpText = cfp?.let { Files.readString(Path.of(it)) }
             val papers =
@@ -105,7 +123,8 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
             val screens =
                 runBlocking {
                     papers.map { p ->
-                        val abs = AbstractSource.fixed(flat + perPaper[p.id].orEmpty()).takeIf { flat.isNotEmpty() || perPaper[p.id] != null } ?: AbstractSource.NONE
+                        val abs =
+                            AbstractSource.fixed(flat + perPaper[p.id].orEmpty()).takeIf { flat.isNotEmpty() || perPaper[p.id] != null } ?: AbstractSource.NONE
                         Screener(dispatcher, routing, routed, decisions, CheckEnv(cfpText, abs), deps, options = ScreenOptions(effect = effect)).screen(p)
                     }
                 }
@@ -119,7 +138,9 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
             Files.write(dest, file)
             val unver = payload.findings.count { !it.verified }
             out.appendLine("# bundle ${payload.hash()}")
-            out.appendLine("papers ${papers.size}; findings ${payload.findings.size} (${payload.visible.size} verified, $unver unverified and withheld from every person); summaries ${payload.summaries.size}")
+            out.appendLine(
+                "papers ${papers.size}; findings ${payload.findings.size} (${payload.visible.size} verified, $unver unverified and withheld from every person); summaries ${payload.summaries.size}",
+            )
             out.appendLine("LLM checks run: ${routed.joinToString { it.id }.ifEmpty { "none (set PCS_CHECK_<id>_ENGINE)" }}")
             out.appendLine("wrote $dest (encrypted; the key is in $keyFile, send it separately from the file)")
             0

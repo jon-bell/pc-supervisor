@@ -15,7 +15,14 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
     private fun configs() = EngineConfigs.parse(env)
 
     /** Production refuses unqualified (check, engine) pairs for confidential data (agent.md §7.4). */
-    private fun gate() = net.jonbell.pcs.agent.qualify.QualificationGate(net.jonbell.pcs.agent.qualify.QualificationFile.load(env["PCS_AGENT_QUALIFICATIONS"]?.let { Path.of(it) }))
+    private fun gate() =
+        net.jonbell.pcs.agent.qualify.QualificationGate(
+            net.jonbell.pcs.agent.qualify.QualificationFile.load(
+                env["PCS_AGENT_QUALIFICATIONS"]?.let {
+                    Path.of(it)
+                },
+            ),
+        )
 
     private fun store(): ResultStore = FileResultStore(Path.of(env["PCS_AGENT_STORE"] ?: "agent-store"))
 

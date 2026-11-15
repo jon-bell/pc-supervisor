@@ -43,7 +43,9 @@ class BatchTest {
            "cancel_initiated_at":null,"results_url":${if (url == null) "null" else "\"$url\""}}"""
 
     private fun succeeded(key: String, text: String) =
-        """{"custom_id":"$key","result":{"type":"succeeded","message":{"id":"msg_$key","type":"message","role":"assistant","model":"served-batch","content":[{"type":"text","text":${JsonPrimitive(text)}}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":100,"output_tokens":20}}}}"""
+        """{"custom_id":"$key","result":{"type":"succeeded","message":{"id":"msg_$key","type":"message","role":"assistant","model":"served-batch","content":[{"type":"text","text":${JsonPrimitive(
+            text,
+        )}}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":100,"output_tokens":20}}}}"""
 
     /** Echoes custom_ids it was sent: answers the first two, errors the third, and takes two polls to end. */
     private fun start(): String {
@@ -63,7 +65,14 @@ class BatchTest {
                         200 to batchJson("msgbatch_1", "in_progress", null)
                     }
                     ex.requestMethod == "GET" && path == "/v1/messages/batches/msgbatch_1" ->
-                        200 to if (polls.incrementAndGet() < 2) batchJson("msgbatch_1", "in_progress", null) else batchJson("msgbatch_1", "ended", "$base/v1/messages/batches/msgbatch_1/results")
+                        200 to
+                            if (polls.incrementAndGet() <
+                                2
+                            ) {
+                                batchJson("msgbatch_1", "in_progress", null)
+                            } else {
+                                batchJson("msgbatch_1", "ended", "$base/v1/messages/batches/msgbatch_1/results")
+                            }
                     path == "/v1/messages/batches/msgbatch_1/results" ->
                         200 to
                             listOf(
@@ -84,7 +93,22 @@ class BatchTest {
     }
 
     private fun engineAt(base: String, platform: String = "api"): Pair<EngineConfig, AnthropicEngine> {
-        val c = cfg("api", Adapter.ANTHROPIC, baseUrl = if (platform == "api") base else null, platform = platform, model = "claude-test-model", region = if (platform == "bedrock") "us-east-1" else null)
+        val c =
+            cfg(
+                "api",
+                Adapter.ANTHROPIC,
+                baseUrl =
+                    if (platform ==
+                        "api"
+                    ) {
+                        base
+                    } else {
+                        null
+                    },
+                platform = platform,
+                model = "claude-test-model",
+                region = if (platform == "bedrock") "us-east-1" else null,
+            )
         return c to AnthropicEngine(c, "dummy-test-key", batchPollMs = 10)
     }
 

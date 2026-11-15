@@ -52,7 +52,9 @@ val checkVersions by tasks.registering {
         val lines = mutableListOf<String>()
         root.listFiles()!!.filter { it.isDirectory }.sortedBy { it.name }.forEach { dir ->
             val md = MessageDigest.getInstance("SHA-256")
-            dir.walkTopDown().filter { it.isFile && !(it.parentFile == dir && it.name == "qualification.yaml") }.sortedBy { it.relativeTo(dir).invariantSeparatorsPath }.forEach { f ->
+            dir.walkTopDown().filter {
+                it.isFile && !(it.parentFile == dir && it.name == "qualification.yaml")
+            }.sortedBy { it.relativeTo(dir).invariantSeparatorsPath }.forEach { f ->
                 md.update(f.relativeTo(dir).invariantSeparatorsPath.toByteArray())
                 md.update(0)
                 md.update(f.readBytes())
@@ -167,7 +169,7 @@ testing {
                     doFirst { coversInt.get().asFile.deleteRecursively() }
                     finalizedBy(":core:assuranceReport")
                     dependsOn(":core:claimsInventory")
-                    mustRunAfter(":seed:integrationTest", ":core:integrationTest")
+                    mustRunAfter(":seed:integrationTest", ":core:integrationTest", ":runner:integrationTest") // the others change the harness; this one asserts it is unchanged by the agent
                     maxHeapSize = "2g"
                     systemProperty("pcs.repoRoot", rootProject.projectDir.absolutePath)
                     systemProperty("pcs.noLive", "true")

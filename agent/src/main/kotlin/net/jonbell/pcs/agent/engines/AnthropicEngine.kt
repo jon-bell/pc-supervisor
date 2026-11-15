@@ -7,10 +7,10 @@ import com.anthropic.errors.AnthropicServiceException
 import com.anthropic.models.messages.CacheControlEphemeral
 import com.anthropic.models.messages.ContentBlockParam
 import com.anthropic.models.messages.JsonOutputFormat
+import com.anthropic.models.messages.Message
 import com.anthropic.models.messages.MessageCreateParams
 import com.anthropic.models.messages.OutputConfig
 import com.anthropic.models.messages.StopReason
-import com.anthropic.models.messages.Message
 import com.anthropic.models.messages.TextBlockParam
 import com.anthropic.models.messages.batches.BatchCreateParams
 import kotlinx.coroutines.Dispatchers
@@ -53,7 +53,8 @@ class AnthropicEngine(
     private val batchPollMs: Long = 30_000,
 ) : Engine {
     override val id = cfg.id
-    override val caps = Caps(Structured.NATIVE, pdfInput = true, maxInputTokens = 200_000, batch = cfg.platform == "api", promptCache = true, toolLoop = ToolLoop.NONE)
+    override val caps =
+        Caps(Structured.NATIVE, pdfInput = true, maxInputTokens = 200_000, batch = cfg.platform == "api", promptCache = true, toolLoop = ToolLoop.NONE)
 
     private val client: AnthropicClient by lazy { clientOverride ?: build() }
 
@@ -211,7 +212,12 @@ class AnthropicEngine(
                         emit(
                             when {
                                 res.isSucceeded() -> toResult(key, res.asSucceeded().message())
-                                res.isErrored() -> CallResult(key, Status.ERROR, detail = "batch request errored: ${res.asErrored().error().toString().take(160)}")
+                                res.isErrored() ->
+                                    CallResult(
+                                        key,
+                                        Status.ERROR,
+                                        detail = "batch request errored: ${res.asErrored().error().toString().take(160)}",
+                                    )
                                 res.isCanceled() -> CallResult(key, Status.ERROR, detail = "batch request canceled")
                                 else -> CallResult(key, Status.ERROR, detail = "batch request expired")
                             },

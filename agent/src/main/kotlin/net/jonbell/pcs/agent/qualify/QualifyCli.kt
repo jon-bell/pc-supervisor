@@ -23,7 +23,14 @@ import java.time.temporal.ChronoUnit
  * `plan --changes` classifies what is routed now against the records, and with `--moves` runs the held-out evaluation
  * for each changed check to list the flags the change moves. It never touches confidential data: held-out is synthetic.
  */
-class QualifyCli(private val env: Map<String, String>, private val out: Appendable = System.out, private val agentDir: File = File(env["PCS_AGENT_DIR"] ?: "agent")) {
+class QualifyCli(
+    private val env: Map<String, String>,
+    private val out: Appendable = System.out,
+    private val agentDir: File =
+        File(
+            env["PCS_AGENT_DIR"] ?: "agent",
+        ),
+) {
     private val checksRoot: Path get() = Path.of(env["PCS_AGENT_CHECKS"] ?: File(agentDir, "checks").path)
     private val recordsPath: Path? get() = env["PCS_AGENT_QUALIFICATIONS"]?.let { Path.of(it) }
 
@@ -33,7 +40,14 @@ class QualifyCli(private val env: Map<String, String>, private val out: Appendab
         if (unknown.isNotEmpty()) throw EngineConfigException(listOf("no engine configured for: $unknown"))
         return ids.map { id ->
             val reg = EngineFactory.create(configs.getValue(id), env)
-            ShootoutEngine(reg.config, { _, _ -> reg.engine }, standIn = false, note = "configured in the environment", gpuUsdPerHour = env["PCS_ENGINE_${id}_GPU_HOUR_USD"]?.toDoubleOrNull() ?: 0.0)
+            ShootoutEngine(
+                reg.config,
+                { _, _ -> reg.engine },
+                standIn = false,
+                note = "configured in the environment",
+                gpuUsdPerHour =
+                    env["PCS_ENGINE_${id}_GPU_HOUR_USD"]?.toDoubleOrNull() ?: 0.0,
+            )
         }
     }
 
@@ -68,7 +82,11 @@ class QualifyCli(private val env: Map<String, String>, private val out: Appendab
             val es = engines(ids)
             val spends = es.filter { it.config.adapter != Adapter.REPLAY }
             if (spends.isNotEmpty() && !confirm) {
-                out.appendLine("# plan only: ${spends.joinToString { it.id }} would be called live on the held-out corpus (synthetic papers), k=$k. Nothing was called; add --confirm-spend.")
+                out.appendLine(
+                    "# plan only: ${spends.joinToString {
+                        it.id
+                    }} would be called live on the held-out corpus (synthetic papers), k=$k. Nothing was called; add --confirm-spend.",
+                )
                 return 2
             }
             val report = Shootout.run(HeldOut.generate(), es, agentDir, ShootoutOptions(k = k, rawVariant = false, checks = checks))
@@ -94,7 +112,15 @@ class QualifyCli(private val env: Map<String, String>, private val out: Appendab
         val found = mutableMapOf<String, List<FlagMove>>()
         if (moves) {
             for (c in changes.filter { it.cls != ChangeClass.COVERED }) {
-                val base = records.filter { it.check == c.check && it.engine == (configs.firstOrNull { e -> e.id == c.engine }?.identity?.id ?: c.engine) }.maxWithOrNull(compareBy({ it.at }, { it.version }))
+                val base =
+                    records.filter {
+                        it.check == c.check &&
+                            it.engine == (
+                                configs.firstOrNull { e ->
+                                    e.id == c.engine
+                                }?.identity?.id ?: c.engine
+                            )
+                    }.maxWithOrNull(compareBy({ it.at }, { it.version }))
                 if (base == null || base.flags.isEmpty()) continue
                 val es = engines(listOf(c.engine))
                 if (es.any { it.config.adapter != Adapter.REPLAY } && !confirm) {

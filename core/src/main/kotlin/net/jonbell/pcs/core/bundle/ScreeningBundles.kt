@@ -1,8 +1,8 @@
 package net.jonbell.pcs.core.bundle
 
+import net.jonbell.pcs.core.imports.ImportKind
 import net.jonbell.pcs.core.imports.ImportResult
 import net.jonbell.pcs.core.imports.ImportRun
-import net.jonbell.pcs.core.imports.ImportKind
 import net.jonbell.pcs.core.imports.Imports
 import net.jonbell.pcs.core.store.Store
 import net.jonbell.pcs.core.time.Clock

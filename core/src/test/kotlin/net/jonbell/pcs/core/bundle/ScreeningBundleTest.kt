@@ -27,12 +27,65 @@ class ScreeningBundleTest {
                 engines = mapOf("local" to "", "replay" to "m"),
             ),
             listOf(
-                BundleFinding("2", "anonymity", "v", "self-reference", "anonymity", "MEDIUM", "verified", "local", "k2", anchors = listOf(BundleAnchor("page", quote, 1, 9, page = 1))),
-                BundleFinding("1", "refs.doi", "v", "unresolved", "fabricated-reference", "HIGH", "verified", "local", "k1", anchors = listOf(BundleAnchor("page", "ref one", 0, 3, page = 2))),
-                BundleFinding("1", "refs.doi", "v", "mismatch", "fabricated-reference", "HIGH", "verified", "local", "k3", anchors = listOf(BundleAnchor("page", "ref two", 4, 8, page = 2))),
-                BundleFinding("2", "scope", "v", "out-of-scope", null, "MEDIUM", "unverified", "replay", "k4", anchors = listOf(BundleAnchor("page", unverified, 1, 2, page = 1))),
+                BundleFinding(
+                    "2",
+                    "anonymity",
+                    "v",
+                    "self-reference",
+                    "anonymity",
+                    "MEDIUM",
+                    "verified",
+                    "local",
+                    "k2",
+                    anchors = listOf(BundleAnchor("page", quote, 1, 9, page = 1)),
+                ),
+                BundleFinding(
+                    "1",
+                    "refs.doi",
+                    "v",
+                    "unresolved",
+                    "fabricated-reference",
+                    "HIGH",
+                    "verified",
+                    "local",
+                    "k1",
+                    anchors = listOf(BundleAnchor("page", "ref one", 0, 3, page = 2)),
+                ),
+                BundleFinding(
+                    "1",
+                    "refs.doi",
+                    "v",
+                    "mismatch",
+                    "fabricated-reference",
+                    "HIGH",
+                    "verified",
+                    "local",
+                    "k3",
+                    anchors = listOf(BundleAnchor("page", "ref two", 4, 8, page = 2)),
+                ),
+                BundleFinding(
+                    "2",
+                    "scope",
+                    "v",
+                    "out-of-scope",
+                    null,
+                    "MEDIUM",
+                    "unverified",
+                    "replay",
+                    "k4",
+                    anchors = listOf(BundleAnchor("page", unverified, 1, 2, page = 1)),
+                ),
             ),
-            listOf(BundleSummary("1", "summary", "v", "replay", "k5", listOf(BundleSummaryItem("claims", "a claim", BundleAnchor("page", "ref one", 0, 3, page = 1))))),
+            listOf(
+                BundleSummary(
+                    "1",
+                    "summary",
+                    "v",
+                    "replay",
+                    "k5",
+                    listOf(BundleSummaryItem("claims", "a claim", BundleAnchor("page", "ref one", 0, 3, page = 1))),
+                ),
+            ),
         )
 
     private fun store(dir: java.nio.file.Path, name: String) = Store.open(dir.resolve(name), "test-key")
@@ -56,6 +109,7 @@ class ScreeningBundleTest {
         val k = BundleKey.generate()
         val file = BundleCodec.encrypt(payload(), k)
         assertFalse(String(file, Charsets.ISO_8859_1).contains("SYNTHETIC"))
+
         fun refused(f: ByteArray, key: BundleKey, why: BundleException.Reason) {
             try {
                 BundleCodec.decrypt(f, key)
@@ -68,7 +122,20 @@ class ScreeningBundleTest {
         refused(file, BundleKey.generate(), BundleException.Reason.WRONG_KEY_OR_TAMPERED)
         refused(file.copyOf().also { it[it.size - 3] = (it[it.size - 3] + 1).toByte() }, k, BundleException.Reason.WRONG_KEY_OR_TAMPERED)
         // The header is associated data: pointing it at another address fails even with the right key.
-        refused(file.copyOf().also { it[12] = if (it[12] == '0'.code.toByte()) '1'.code.toByte() else '0'.code.toByte() }, k, BundleException.Reason.WRONG_KEY_OR_TAMPERED)
+        refused(
+            file.copyOf().also {
+                it[12] =
+                    if (it[12] ==
+                        '0'.code.toByte()
+                    ) {
+                        '1'.code.toByte()
+                    } else {
+                        '0'.code.toByte()
+                    }
+            },
+            k,
+            BundleException.Reason.WRONG_KEY_OR_TAMPERED,
+        )
         refused("not a bundle".toByteArray(), k, BundleException.Reason.NOT_A_BUNDLE)
         assertEquals("BundleKey(***)", k.toString())
         assertEquals(k.text, BundleKey.parse(k.text + "\n").text)
@@ -108,7 +175,10 @@ class ScreeningBundleTest {
             assertEquals(listOf("1|refs.doi|fabricated-reference", "2|anonymity|anonymity", "2|scope|"), rows.map { it.first })
             assertEquals("", rows.first { it.first == "2|scope|" }.second["anchors"])
             assertEquals("unverified", rows.first { it.first == "2|scope|" }.second["status"])
-            assertTrue(rows.first { it.first == "1|refs.doi|fabricated-reference" }.second["anchors"]!!.contains("ref one") && rows.first().second["anchors"]!!.contains("ref two"))
+            assertTrue(
+                rows.first { it.first == "1|refs.doi|fabricated-reference" }.second["anchors"]!!.contains("ref one") &&
+                    rows.first().second["anchors"]!!.contains("ref two"),
+            )
             assertFalse(rows.any { unverified in it.second.values.joinToString() })
             assertEquals(payload().canonical(), latest)
             assertEquals(2, visible1.size)

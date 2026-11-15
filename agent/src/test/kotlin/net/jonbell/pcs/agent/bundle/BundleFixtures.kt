@@ -70,8 +70,26 @@ object BundleFixtures {
         val pdfs = dir.resolve("pdfs").also { Files.createDirectories(it) }
         val json = Json
         papers.forEach { (pid, it) -> Files.write(pdfs.resolve("$pid.pdf"), it.case.pdf) }
-        Files.writeString(dir.resolve("authors.json"), json.encodeToString(MapSerializer(serializer<String>(), AuthorInfo.serializer()), papers.associate { (pid, it) -> pid to it.case.authors }))
-        Files.writeString(dir.resolve("abstracts.json"), json.encodeToString(MapSerializer(serializer<String>(), MapSerializer(serializer<String>(), serializer<String>())), papers.associate { (pid, it) -> pid to it.case.abstracts }))
+        Files.writeString(
+            dir.resolve("authors.json"),
+            json.encodeToString(
+                MapSerializer(serializer<String>(), AuthorInfo.serializer()),
+                papers.associate { (pid, it) ->
+                    pid to
+                        it.case.authors
+                },
+            ),
+        )
+        Files.writeString(
+            dir.resolve("abstracts.json"),
+            json.encodeToString(
+                MapSerializer(serializer<String>(), MapSerializer(serializer<String>(), serializer<String>())),
+                papers.associate { (pid, it) ->
+                    pid to
+                        it.case.abstracts
+                },
+            ),
+        )
         val cfp = dir.resolve("cfp.txt").also { Files.writeString(it, LlmCorpus.CFP) }
         val rec = dir.resolve("recordings")
         val dispatcher = Dispatcher(listOf(Registered(strongCfg, ScriptedEngine(ENGINE, Profiles.STRONG, 1, emptyMap(), MODEL))), FileResultStore(rec))
@@ -80,7 +98,17 @@ object BundleFixtures {
         val screens =
             runBlocking {
                 papers.associate { (pid, it) ->
-                    val s = Screener(dispatcher, llmChecks.associateWith { ENGINE }, all, decisions, CheckEnv(LlmCorpus.CFP, AbstractSource.fixed(it.case.abstracts)), Screener.deterministicDeps(checksDir))
+                    val s =
+                        Screener(
+                            dispatcher,
+                            llmChecks.associateWith {
+                                ENGINE
+                            },
+                            all,
+                            decisions,
+                            CheckEnv(LlmCorpus.CFP, AbstractSource.fixed(it.case.abstracts)),
+                            Screener.deterministicDeps(checksDir),
+                        )
                     pid to s.screen(PaperInput(pid, DataClass.SYNTHETIC, it.case.pdf, ScreenConfig(authors = it.case.authors))).flags
                 }
             }
@@ -102,5 +130,18 @@ object BundleFixtures {
         }
 
     fun args(run: Run, out: Path, key: Path, vararg more: String): List<String> =
-        listOf(run.pdfDir.toString(), "--out", out.toString(), "--key-file", key.toString(), "--cfp", run.cfp.toString(), "--authors", run.authorsFile.toString(), "--abstracts-by-paper", run.abstractsFile.toString()) + more
+        listOf(
+            run.pdfDir.toString(),
+            "--out",
+            out.toString(),
+            "--key-file",
+            key.toString(),
+            "--cfp",
+            run.cfp.toString(),
+            "--authors",
+            run.authorsFile.toString(),
+            "--abstracts-by-paper",
+            run.abstractsFile.toString(),
+        ) +
+            more
 }

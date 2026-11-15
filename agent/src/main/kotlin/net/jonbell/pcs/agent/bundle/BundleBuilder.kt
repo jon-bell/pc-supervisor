@@ -43,7 +43,18 @@ object BundleBuilder {
             if (f.verified) f.fields else f.fields.filterKeys { it.startsWith("measured.") },
         )
 
-    fun summary(pid: String, s: SummaryView) = BundleSummary(pid, s.check, s.version, s.engine, s.key, s.items.map { BundleSummaryItem(it.section, it.text, anchor(it.anchor)) }, s.dropped)
+    fun summary(pid: String, s: SummaryView) =
+        BundleSummary(
+            pid,
+            s.check,
+            s.version,
+            s.engine,
+            s.key,
+            s.items.map {
+                BundleSummaryItem(it.section, it.text, anchor(it.anchor))
+            },
+            s.dropped,
+        )
 
     fun build(
         papers: List<PaperInput>,
@@ -55,7 +66,15 @@ object BundleBuilder {
         val engines = sortedMapOf<String, String>()
         for (s in screens) {
             s.flags.forEach { engines.putIfAbsent(it.engine, "") }
-            s.calls.filter { it.servedModel.isNotEmpty() }.forEach { c -> s.flags.map { it.engine }.distinct().forEach { e -> if (engines[e].isNullOrEmpty() && e != "local") engines[e] = c.servedModel } }
+            s.calls.filter { it.servedModel.isNotEmpty() }.forEach { c ->
+                s.flags.map { it.engine }.distinct().forEach { e ->
+                    if (engines[e].isNullOrEmpty() &&
+                        e != "local"
+                    ) {
+                        engines[e] = c.servedModel
+                    }
+                }
+            }
         }
         val current = rows.associate { it.check to it.version }
         val manifest =
@@ -64,13 +83,28 @@ object BundleBuilder {
                 papers = papers.map { BundlePaper(it.id, it.sha256, it.dataClass.name.lowercase()) },
                 checks =
                     rows.map { r ->
-                        BundleManifestRow(r.check, r.version, r.category, r.qualifiedOn, r.decisions.map { (id, st) -> "$id=${st?.key ?: "unresolved"}" }, r.affected)
+                        BundleManifestRow(
+                            r.check,
+                            r.version,
+                            r.category,
+                            r.qualifiedOn,
+                            r.decisions.map { (id, st) ->
+                                "$id=${st?.key ?: "unresolved"}"
+                            },
+                            r.affected,
+                        )
                     },
                 qualifications =
                     qualifications.filter { current[it.check] == it.version }
                         .map { BundleQualification(it.check, it.version, it.engine, it.model, it.variant, it.evidence) },
                 engines = engines,
             )
-        return BundlePayload(manifest, screens.flatMap { s -> s.flags.map(::finding) }, screens.mapNotNull { s -> s.summary?.let { summary(s.pid, it) } }).canonical()
+        return BundlePayload(
+            manifest,
+            screens.flatMap { s ->
+                s.flags.map(::finding)
+            },
+            screens.mapNotNull { s -> s.summary?.let { summary(s.pid, it) } },
+        ).canonical()
     }
 }
