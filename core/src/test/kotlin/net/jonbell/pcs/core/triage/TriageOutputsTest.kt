@@ -5,6 +5,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import net.jonbell.pcs.core.Repo
+import net.jonbell.pcs.core.readings.Q1
 import net.jonbell.pcs.core.readings.Q4
 import net.jonbell.pcs.core.rules.Conventions
 import net.jonbell.pcs.core.rules.Ground
@@ -97,15 +98,18 @@ class TriageOutputsTest {
             (asg as AssignmentArtifact).rows.single(),
         )
         assertTrue("anonymity" !in mail.body.lowercase() || "double-anonymous" in mail.body)
-        val needs = row.copy(status = TriageStatus.NEEDS_REMEDY)
-        val (tag, offer) = TriageDrafts.offerRemedy(needs, now, ZoneId.of("America/New_York"))
+        val (tag, offer) = TriageDrafts.offerRemedy(row, Q1.FIX_WINDOW, now, ZoneId.of("America/New_York"))
         val due = now.epochSecond + 72 * 3600
         assertEquals(listOf(Conventions.encode(Trace.RemedyDue(5, due))), (tag as TagArtifact).changes.single().add)
         assertTrue(Notices.lint(offer.body).isEmpty() && "You may upload a corrected version until" in offer.body)
-        assertThrows(IllegalArgumentException::class.java) { TriageDrafts.offerRemedy(row, now, ZoneId.of("UTC")) }
-        val warn = TriageDrafts.warn(row.copy(status = TriageStatus.NEEDS_WARNING, grounds = listOf(Ground.NOMINATION_NONCOMPLIANCE))).first as TagArtifact
-        assertEquals(listOf("pcs-warned"), warn.changes.single().add)
+        assertThrows(IllegalArgumentException::class.java) { TriageDrafts.offerRemedy(row, Q1.REJECT_AT_ONCE, now, ZoneId.of("UTC")) }
+        assertThrows(IllegalArgumentException::class.java) { TriageDrafts.warn(row) }
         store.close()
+        val (store2, rep2) = triageWorld(9L to "nomination-noncompliance")
+        val warn = TriageDrafts.warn(rep2.rows.single()).first as TagArtifact
+        assertEquals(listOf("pcs-warned"), warn.changes.single().add)
+        assertThrows(IllegalArgumentException::class.java) { TriageDrafts.offerRemedy(rep2.rows.single(), Q1.FIX_WINDOW, now, ZoneId.of("UTC")) }
+        store2.close()
     }
 
     @Test

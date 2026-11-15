@@ -1,5 +1,6 @@
 package net.jonbell.pcs.core.triage
 
+import net.jonbell.pcs.core.readings.Q1
 import net.jonbell.pcs.core.rules.Conventions
 import net.jonbell.pcs.core.rules.Ground
 import net.jonbell.pcs.core.rules.Trace
@@ -75,14 +76,19 @@ public object TriageDrafts {
 
     private fun zoned(t: Instant, zone: ZoneId) = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z").withZone(zone).format(t)
 
-    /** Offers the Q1 fix window: the hidden tag `pcs-remedy-due`, and the notice. Only an anonymity referral gets one (the model's `offerRemedy`). */
+    /**
+     * Offers the Q1 fix window: the hidden tag `pcs-remedy-due`, and the notice. Only an anonymity referral under Q1's fix window that has no
+     * window yet gets one (the model's `offerRemedy`); a chair may offer it before the second opinion is in.
+     */
     public fun offerRemedy(
         row: TriageRow,
+        q1: Q1,
         now: Instant,
         zone: ZoneId,
         windowH: Long = net.jonbell.pcs.core.rules.DeskFlow.REMEDY_WINDOW_H,
     ): Pair<Artifact, MailDraft> {
-        require(row.status == TriageStatus.NEEDS_REMEDY && Ground.ANONYMITY in row.grounds) { "paper ${row.pid} is not waiting for a fix window" }
+        val facts = row.facts
+        require(q1 == Q1.FIX_WINDOW && facts?.ground == Ground.ANONYMITY && facts.remedyDueH == null) { "paper ${row.pid} is not waiting for a fix window" }
         val due = now.plusSeconds(windowH * 3600)
         return TagArtifact(
             listOf(TagChange(row.pid, add = listOf(Conventions.encode(Trace.RemedyDue(row.pid, due.epochSecond))))),
@@ -91,9 +97,10 @@ public object TriageDrafts {
             MailDraft("Paper #${row.pid}: a fix is needed", Notices.remedyOffer(Ground.ANONYMITY, zoned(due, zone)), "${row.pid}")
     }
 
-    /** Q10's warning: the hidden tag `pcs-warned`, and the warning's text. */
+    /** Q10's warning: the hidden tag `pcs-warned`, and the warning's text. Only a nomination-noncompliance referral not yet warned. */
     public fun warn(row: TriageRow): Pair<Artifact, MailDraft> {
-        require(row.status == TriageStatus.NEEDS_WARNING) { "paper ${row.pid} is not waiting for a warning" }
+        val facts = row.facts
+        require(facts?.ground == Ground.NOMINATION_NONCOMPLIANCE && !facts.warned) { "paper ${row.pid} is not waiting for a warning" }
         return TagArtifact(listOf(TagChange(row.pid, add = listOf(Conventions.encode(Trace.Warned(row.pid))))), "Warn #${row.pid}") to
             MailDraft("Paper #${row.pid}: nominations", Notices.warning(), "${row.pid}")
     }
