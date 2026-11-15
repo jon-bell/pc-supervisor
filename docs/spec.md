@@ -175,6 +175,8 @@ Configuration comes from three sources, and startup validates all of them and li
 | `PCS_REVIEWS_REQUIRED` | Complete reviews needed per paper | `3` |
 | `PCS_RULE_<NAME>_WEIGHT`, `PCS_THRESH_<NAME>` | Rule weights and thresholds (§5c) | see code |
 | `PCS_LOAD_<TIER>_MAX` | Load band per tier (concepts rule `load`) | senior 15, junior 8 |
+| `PCS_CONSISTENCY_FENCE_PAD`, `PCS_CONSISTENCY_MIN_PAPERS`, `PCS_CONSISTENCY_MIN_ACS` | The AC consistency band (`prop:M1`): Tukey's fence widened by this much; ACs with fewer papers are listed, not compared; fewer comparable ACs form no band | `0.05` / `5` / `4` |
+| `PCS_REMEDY_WINDOW_H` | Hours of a Q1 fix window (the model's `Venue.remedyWindowH`) | `72` |
 | `PCS_DB_PATH` | SQLite file | the OS's app-data directory, `<host>.db` |
 | `PCS_SYNC_INTERVAL_MIN`, `PCS_SYNC_CHUNK`, `PCS_SYNC_CONCURRENCY`, `PCS_HISTORY_RPS` | Sync tuning | 15 / 200 / 2 / 1 |
 | `PCS_FORCE_SHOW` | `false` = respect the chair's own conflicts | `true` |
@@ -410,7 +412,7 @@ The PDF ZIP comes from HotCRP's own download.
 - The timing follows Q3. Desk rejects after the desk-reject window (`PCS_PHASE_DESKREJECT_DUE`) are tracked as late.
 - Silence never removes (S8): with no verdict, an unanswered request, or a disagreement, the paper stays in review.
 - **TriageFeedback** under Q4: once a reviewer's review is submitted, they're shown the screening record and asked for feedback on the triage. Answers are collected for the evaluation (agent.md §8) and never affect that paper.
-- **Consistency across ACs:** flag rate, triage outcomes, and desk-reject rate per AC and per topic area, with their spread. The UI shows distributions, not a ranked list of people (§7).
+- **Consistency across ACs:** flag rate, triage outcomes, and desk-reject rate per AC and per topic area, with their spread. The UI shows distributions, not a ranked list of people (§7). The band behind `prop:M1` is Tukey's fence (1.5 × IQR) on the referral and desk-reject rates, widened by `PCS_CONSISTENCY_FENCE_PAD` (default 0.05); only ACs with at least `PCS_CONSISTENCY_MIN_PAPERS` papers (5) are compared, and fewer than `PCS_CONSISTENCY_MIN_ACS` such ACs (4) form no band. The rule is the maintainers'; each number is a setting (the owner's ruling, 2026-11-15).
 
 **C. Assignment** (the highest-value module; concepts Affinity, Plan)
 - **Composition** per paper, from Q13 and Q14 (concepts rule `composition`); **load** per tier from `PCS_LOAD_<TIER>_MAX`, and for accepted nominees, `owes(u)` as a target and never more than their band.

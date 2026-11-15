@@ -60,4 +60,4 @@ public fun Session.triage(f: Faults = Faults.NONE): TriageReport {
 }
 
 /** The per-AC consistency view and the `prop:M1` band alerts for a ready report. */
-public fun Session.consistency(report: TriageReport.Ready): ConsistencyView = Consistency.view(store, report.rows)
+public fun Session.consistency(report: TriageReport.Ready): ConsistencyView = Consistency.view(store, report.rows, settings.consistency)

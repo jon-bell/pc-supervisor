@@ -72,6 +72,22 @@ class SettingsTest {
     }
 
     @Test
+    fun `the AC consistency band's three numbers have the rule's defaults, and are settings`() {
+        val d = Settings.load(ok).getOrThrow().consistency
+        assertEquals(net.jonbell.pcs.core.triage.ConsistencyBand(0.05, 5, 4), d)
+        val s =
+            Settings.load(
+                ok + ("PCS_CONSISTENCY_FENCE_PAD" to "0.1") + ("PCS_CONSISTENCY_MIN_PAPERS" to "3") + ("PCS_CONSISTENCY_MIN_ACS" to "6"),
+            ).getOrThrow().consistency
+        assertEquals(net.jonbell.pcs.core.triage.ConsistencyBand(0.1, 3, 6), s)
+        val e =
+            Settings.load(
+                ok + ("PCS_CONSISTENCY_FENCE_PAD" to "-1") + ("PCS_CONSISTENCY_MIN_PAPERS" to "0") + ("PCS_CONSISTENCY_MIN_ACS" to "1"),
+            ).exceptionOrNull() as SettingsException
+        assertEquals(3, e.problems.count { it.startsWith("PCS_CONSISTENCY_") }, e.problems.toString())
+    }
+
+    @Test
     fun `the early-reject window and the score map have defaults, and a bad map is reported`() {
         val d = Settings.load(ok).getOrThrow()
         assertEquals(48, d.earlyRejectWindowH)

@@ -4,6 +4,7 @@ import net.jonbell.pcs.core.imports.ImportKind
 import net.jonbell.pcs.core.phases.Phases
 import net.jonbell.pcs.core.rules.ScoreScale
 import net.jonbell.pcs.core.rules.Venue
+import net.jonbell.pcs.core.triage.ConsistencyBand
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -49,6 +50,8 @@ public data class Settings(
     val tagChairAttention: String = "chair-attention",
     /** The venue's numbers for the model (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`, `PCS_REMEDY_WINDOW_H`). */
     val venue: Venue = Venue(),
+    /** The AC consistency band (`PCS_CONSISTENCY_FENCE_PAD`, `_MIN_PAPERS`, `_MIN_ACS`; `prop:M1`). */
+    val consistency: ConsistencyBand = ConsistencyBand(),
 ) {
     public val isLocalHarness: Boolean get() = isLocalhost(hotcrpUrl)
 
@@ -88,6 +91,9 @@ public data class Settings(
                 "PCS_PATTERN_MIN",
                 "PCS_ACC_GRACE_H",
                 "PCS_REMEDY_WINDOW_H",
+                "PCS_CONSISTENCY_FENCE_PAD",
+                "PCS_CONSISTENCY_MIN_PAPERS",
+                "PCS_CONSISTENCY_MIN_ACS",
                 "PCS_FIELD_WEAKNESS",
                 "PCS_FIELDS_REQUIRED",
                 "PCS_SOLVER_TOPK",
@@ -147,6 +153,11 @@ public data class Settings(
 
             fun int(key: String, default: Int, min: Int = 0): Int =
                 parse(key, default) { s -> s.toIntOrNull()?.takeIf { it >= min } ?: throw IllegalArgumentException("not an integer ≥ $min: $s") } ?: default
+
+            fun dbl(key: String, default: Double, min: Double = 0.0): Double =
+                parse(key, default) { s ->
+                    s.toDoubleOrNull()?.takeIf { it.isFinite() && it >= min } ?: throw IllegalArgumentException("not a number ≥ $min: $s")
+                } ?: default
 
             fun bool(key: String, default: Boolean): Boolean =
                 parse(key, default) { s -> s.toBooleanStrictOrNull() ?: throw IllegalArgumentException("not true or false: $s") } ?: default
@@ -252,6 +263,12 @@ public data class Settings(
                             patternMin = int("PCS_PATTERN_MIN", Venue.DEFAULT_PATTERN_MIN, min = 1),
                             accGraceH = int("PCS_ACC_GRACE_H", Venue.DEFAULT_GRACE_H.toInt(), min = 0).toLong(),
                             remedyWindowH = int("PCS_REMEDY_WINDOW_H", Venue.DEFAULT_REMEDY_WINDOW_H.toInt(), min = 1).toLong(),
+                        ),
+                    consistency =
+                        ConsistencyBand(
+                            fencePad = dbl("PCS_CONSISTENCY_FENCE_PAD", ConsistencyBand.DEFAULT_FENCE_PAD),
+                            minPapers = int("PCS_CONSISTENCY_MIN_PAPERS", ConsistencyBand.DEFAULT_MIN_PAPERS, min = 1),
+                            minAcs = int("PCS_CONSISTENCY_MIN_ACS", ConsistencyBand.DEFAULT_MIN_ACS, min = 2),
                         ),
                     tagChairAttention =
                         (m["PCS_TAG_CHAIR_ATTENTION"] ?: "chair-attention").also {
