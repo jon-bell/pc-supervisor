@@ -253,7 +253,9 @@ class ConventionsTest {
     @Test
     @Covers("conv:1", "conv:9", "conv:10", "conv:15", "conv:16", "conv:17")
     fun `round trip - traces the chairs write in HotCRP are decoded by core after a sync`() {
-        assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("pcs-refer-scope pcs-req-B1#3 pcs-remind-B1 pcs-er-object", Charsets.UTF_8))))
+        assertTrue(
+            ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("pcs-refer-scope pcs-req-B1#3 pcs-remind-B1 pcs-er-object", Charsets.UTF_8))),
+        )
         assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("~~pcs-case-2#4", Charsets.UTF_8))))
         val db = java.nio.file.Files.createTempFile("pcs-conv", ".db").also { java.nio.file.Files.delete(it) }
         pcs.core.store.Store.open(db, "test-only-key").use { store ->

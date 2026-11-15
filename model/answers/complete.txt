@@ -1,0 +1,28 @@
+# A fully answered synthetic answers file: every question has a reading (the first one the model lists), so nothing is open.
+# The card gallery under it shows every example card's resolved outcome and nothing blocked. Synthetic; no real venue's choices.
+# Format: <question> = <reading key>
+Q1 = reject-at-once
+Q2 = ac-plus-senior
+Q3 = before-assignment
+Q4 = never
+Q5 = yes
+Q6 = grounds
+Q7 = up-to-max
+Q8 = one
+Q10 = desk-reject
+Q11 = reject-own-papers
+Q13 = one-junior
+Q14 = tier-decides
+Q15 = reject-only
+Q16 = no-window
+Q17 = none
+Q18 = once
+Q19 = equal
+Q19b = others-absorb
+Q20 = yes
+Q21 = this-conference
+
+scale.papers = 4000
+scale.areas = 20
+scale.seniors = 450
+scale.juniors = 300

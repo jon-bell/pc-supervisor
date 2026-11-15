@@ -113,6 +113,7 @@ public object EarlyRejectPlan {
     /** The gap at [now], or null when the window hasn't opened, nothing has been reviewed, or a snapshot at or before the opening exists. */
     public fun snapshotGap(store: Store, window: ErWindow, now: Instant): SnapshotGap? {
         if (now.isBefore(window.open)) return null
+
         fun count(sql: String, vararg args: Long): Int =
             store.conn.prepareStatement(sql).use { st ->
                 args.forEachIndexed { i, a -> st.setLong(i + 1, a) }

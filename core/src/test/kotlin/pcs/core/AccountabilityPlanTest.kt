@@ -108,7 +108,15 @@ class AccountabilityPlanTest {
                 person("nom@example.org", "Nia Nominee")
                 paper(1)
                 // submitted a day before the deadline, never revised; the mirror saw it a day after
-                review(1, "sen@example.org", ordinal = "A", words = 400, firstCompleteAt = firstSync, modifiedAt = at(-24).epochSecond, versionSeenAt = listOf(firstSync))
+                review(
+                    1,
+                    "sen@example.org",
+                    ordinal = "A",
+                    words = 400,
+                    firstCompleteAt = firstSync,
+                    modifiedAt = at(-24).epochSecond,
+                    versionSeenAt = listOf(firstSync),
+                )
                 // submitted on time, revised after the deadline; its history was read and says so
                 review(
                     1,

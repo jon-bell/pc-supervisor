@@ -80,8 +80,8 @@ public object AccountabilityPlan {
         if (unknown.isNotEmpty()) {
             dating +=
                 "${unknown.size} complete review(s) were revised after the review deadline, so HotCRP's original submission time is not in the mirror " +
-                    "and they are not flagged late: read the review history (Backfill) to date them (" +
-                    unknown.take(5).joinToString { "#${it.pid} ${it.ordinal ?: it.rid}" } + (if (unknown.size > 5) ", ..." else "") + ")."
+                "and they are not flagged late: read the review history (Backfill) to date them (" +
+                unknown.take(5).joinToString { "#${it.pid} ${it.ordinal ?: it.rid}" } + (if (unknown.size > 5) ", ..." else "") + ")."
         }
         val apart =
             reviews.mapNotNull { r ->
@@ -94,10 +94,12 @@ public object AccountabilityPlan {
         if (apart.isNotEmpty()) {
             dating +=
                 "${apart.size} review(s) were first seen complete more than ${cfg.syncIntervalMin} minutes from HotCRP's own submission time; " +
-                    "HotCRP's time is used for lateness (" +
-                    apart.take(5).joinToString { (r, at, diff) ->
-                        "#${r.pid} ${r.ordinal ?: r.rid}: HotCRP $at, first seen ${Duration.ofSeconds(diff).abs().toHours()} h ${if (diff > 0) "later" else "earlier"}"
-                    } + (if (apart.size > 5) ", ..." else "") + ")."
+                "HotCRP's time is used for lateness (" +
+                apart.take(5).joinToString { (r, at, diff) ->
+                    "#${r.pid} ${r.ordinal ?: r.rid}: HotCRP $at, first seen ${Duration.ofSeconds(
+                        diff,
+                    ).abs().toHours()} h ${if (diff > 0) "later" else "earlier"}"
+                } + (if (apart.size > 5) ", ..." else "") + ")."
         }
 
         // ---- metadata for the heuristics (AR3: nothing in it holds review text)
@@ -318,7 +320,20 @@ public object AccountabilityPlan {
                     caseNotes,
                 )
             }
-        return AccountabilityReport(progress, outstanding, coaching, suggestions, requests, engagement, cases, cfg.criteria, notes, input.acsByPaper, modelReqs, dating)
+        return AccountabilityReport(
+            progress,
+            outstanding,
+            coaching,
+            suggestions,
+            requests,
+            engagement,
+            cases,
+            cfg.criteria,
+            notes,
+            input.acsByPaper,
+            modelReqs,
+            dating,
+        )
     }
 
     /** Which readings the report's cases turn on: Q11 (consequence), Q20 (quality needs a request), Q21 (the record's life). */

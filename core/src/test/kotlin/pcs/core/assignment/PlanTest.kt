@@ -346,6 +346,7 @@ class PlanTest {
                 ).getOrThrow(),
             ).monitor
         assertEquals(MonitorConfig(), monitor())
+
         fun rounds(vararg kv: Pair<String, String>) =
             AssignmentSettings.of(
                 pcs.core.config.Settings.load(
@@ -363,6 +364,7 @@ class PlanTest {
         val rs = (1L..12).map { sen(it) } + (21L..22).map { jun(it) }
         // ten papers each exclude 4 of the 12 seniors, and #111 excludes 5: a share of 0.33 against 0.42
         val ps = (101L..110).map { paper(it, conflicts = (1L..4).toList()) } + paper(111, conflicts = (1L..5).toList())
+
         fun scan(m: MonitorConfig, aff: Int = 80) = ConflictMonitor.scan(PlanInput(rs, ps, everyone(rs, ps) { _, _ -> aff }), m).map { it.pid }
         // the default share of one half flags nothing here; a lower share flags the outlier only when the sigma is small enough
         assertEquals(emptyList<Long>(), scan(MonitorConfig()))

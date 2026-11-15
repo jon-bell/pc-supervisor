@@ -22,7 +22,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 class HotcrpClientRateLimitTest {
     private class Reply(val code: Int, val headers: Map<String, String> = emptyMap(), val body: String = "") {
         companion object {
-            val ok = Reply(200, mapOf("x-ratelimit-limit" to "5000", "x-ratelimit-remaining" to "4998", "x-ratelimit-reset" to "2000000000"), """{"ok":true,"pc":[]}""")
+            val ok =
+                Reply(
+                    200,
+                    mapOf("x-ratelimit-limit" to "5000", "x-ratelimit-remaining" to "4998", "x-ratelimit-reset" to "2000000000"),
+                    """{"ok":true,"pc":[]}""",
+                )
 
             fun limited(vararg h: Pair<String, String>) = Reply(429, h.toMap(), """{"ok":false}""")
         }
