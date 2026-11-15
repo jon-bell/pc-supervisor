@@ -24,6 +24,9 @@ object Persons {
     val EARLY_PC_MEMBERS = listOf("r3@example.org", "r4@example.org", "r5@example.org")
     val EARLY_NOMINEES = listOf("n-laggard@example.org", "r6@example.org", "r1@example.org")
 
+    /** The harness's chair (scripts/hotcrp-up.sh): a PC chair's decision in the appointments sheet counts. */
+    const val PC_CHAIR = "admin@example.org"
+
     /** The reviewer an accountability request is about (the model's person 7). */
     const val ACC_REVIEWER = "r3@example.org"
 

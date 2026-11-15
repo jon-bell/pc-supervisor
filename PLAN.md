@@ -477,12 +477,12 @@ Changing this table means changing the M3 and M18 tests in the same PR.
     - Q17 "another number" has no reading in the model (only none and 9).
   - **Ambiguities resolved (all in spec §10.4 A):**
     - Nominations are read from the appointments sheet's `nominated_by`; the sheet has no column for authors' shares, so "authors allocate" uses an equal split and the report says so. Pending nominees owe nothing and mark the figure provisional.
-    - A decision counts only if the row's `ac_email` is an AC (a metareviewer in HotCRP) of a paper that nominated them, or an AC for someone nobody nominated. Otherwise it is reported and treated as pending. A chair's decision in that column isn't accepted either (the policy cell for chairs is unexamined).
-    - Declined nominees still count as named for Q8. Q8 "up to n" uses n = 3 (a constant in the model, as `k` is).
-    - The pattern signal: senior author (sheet tier, or a PC member with no row), at least 3 nominations, all of juniors by the sheet's tier, never themself. A pending nominee has no tier, so it breaks the pattern until classified.
+    - A decision counts only if the row's `ac_email` is an AC (a metareviewer in HotCRP) of a paper that nominated them, an AC for someone nobody nominated, or (ruling 2026-11-15) a PC chair. Otherwise it is reported and treated as pending.
+    - Declined nominees still count as named for Q8. Q8 "up to n" takes n from `PCS_NOMINEES_MAX` (ruling 2026-11-15; default 3).
+    - The pattern signal: senior author (sheet tier, or a PC member with no row), at least `PCS_PATTERN_MIN` nominations (default 3; every nomination counts, repeats included), all of juniors by the sheet's tier, never themself. A pending nominee has no tier, so it breaks the pattern until classified.
     - Authors are matched across papers by HotCRP account email (concepts SubmissionLimit); the cap is reported with every paper of the author.
   - **Findings about HotCRP:** `batch/deletepapers.php -y` removes papers but not the contacts created for their authors, so the scenario's test removes the `nom-*` contacts in SQL; paper `authors[].email` is the only identity link between papers, so an author with two accounts splits the cap count.
-  - **Decisions needed:** see the report to the maintainer (who allocates shares, the pattern's threshold, where "decided by" authority comes from, and the cap's other numbers).
+  - **Decisions needed:** who allocates shares, and the cap's other numbers. (The pattern's threshold, the value of n and where "decided by" authority comes from were ruled on 2026-11-15; see "Rulings applied" below.)
 
 ## M8: Extraction and deterministic checks (agent.md)
 
@@ -598,7 +598,7 @@ Changing this table means changing the M3 and M18 tests in the same PR.
     - A senior-seat reviewer is assigned as `primary` and a third-seat reviewer as `secondary`; spec §10.5 gives only `paper,action,email,round`.
     - A nominee's cap is `owes(u)` in whole reviews, rounded up and never above the band (the model's `loadCaps`); a nominee who is not accepted gets the band, so V1 is the only thing that excludes them.
     - A PC member with no sheet row is senior (M7); an accepted nominee not yet on the HotCRP PC is planned but not in the CSV until the membership artifact is applied.
-    - Q13 "zero to two juniors" has no third seat in the model (`thirdSlots = 0`), so the plan assigns none under that reading.
+    - Q13 "zero to two juniors": ruled on 2026-11-15 (juniors may take first-pass seats beside the seniors, or come in as reciprocal reviewers, two at most); see "Rulings applied" below.
     - M3's thresholds (qualified = affinity of at least 50; at least 3 excluded, at least half of the qualified, and 2 standard deviations over the mean) are ours; the spec says only "unusual share".
     - Cycle repair covers rings of up to `PCS_CYCLE_MAX_K` (default 3) in 3 rounds; what is left is reported (A3), as the model's repair does.
   - **Findings about HotCRP:** `primary` and `secondary` rows through `/api/assign` pass the dry run, apply, and sync back as review types 4 and 3; the `conflict` action in `batch/assign.php` records a declared conflict that the sync reads from `pc_conflicts`; both are confirmed by the scenario test (the next sync observed the reviews with their types, and #210's seven conflicts reached the plan). Nothing in M15 needs a HotCRP change.
@@ -634,7 +634,7 @@ Changing this table means changing the M3 and M18 tests in the same PR.
     - A review's lateness is when a sync first saw it complete, so a mirror that first synced after the deadline dates everything late (the scenario syncs before it).
     - The `tag_seen` hook adds a few queries per paper to every sync; at 4,000 papers this was not measured (M19).
     - Transition coverage in the assurance report is still desk-reject only.
-  - **Decisions needed:** (1) The reminder is the hidden tag `pcs-remind-<ordinal><n>` and the case tag is on every paper a case lists with `<n>` the nominee's number in the sorted accepted-nominee list; both are in spec §11's existing rows (no row added, so `conv:` claims are not renumbered). (2) The tag does not say who sent a request, so Q21's "the AC who sent each request" is read as the paper's AC. (3) Which Q20 reading the venue wants: both are implemented and shown while it is open. (4) `PCS_FIELD_WEAKNESS` has no default: a venue whose form has a weakness field must name it for the card C1 signal. (5) The grace period is the model's fixed 48 hours; a setting would need a model parameter.
+  - **Decisions needed:** (1) The reminder is the hidden tag `pcs-remind-<ordinal><n>` and the case tag is on every paper a case lists with `<n>` the nominee's number in the sorted accepted-nominee list; both are in spec §11's existing rows (no row added, so `conv:` claims are not renumbered). (2) The tag does not say who sent a request, so Q21's "the AC who sent each request" is read as the paper's AC. (3) Which Q20 reading the venue wants: both are implemented and shown while it is open. (4) `PCS_FIELD_WEAKNESS` has no default: a venue whose form has a weakness field must name it for the card C1 signal. (The grace period became a model parameter and `PCS_ACC_GRACE_H` on 2026-11-15.)
 
 ## M17: Early reject (spec §10.4 E)
 
@@ -691,6 +691,18 @@ The Lean model of docs/concepts.md. It grows alongside the milestones, and every
   - Model the four direct HotCRP-write cells the trace search does not cover (PC chair, AC, junior PC chair, author), or narrow those cells. Spec §11 gives each a HotCRP trace; the model should check that table against the policy.
   - Ruling statuses (provisional, assumed) in the answers-file format, in both parsers.
   - A minimal set of cards for Q2.
+
+## Rulings applied (2026-11-15)
+
+Branch `rulings-model`. The owner's rulings on the Lean model, each with its Lean change, oracle query and corpus, Kotlin rule, tests, cards and spec text; the model report, the exports and the corpora were regenerated.
+
+- **Venue parameters.** `Venue` in the model (`nomineesMax`, `patternMin`, `accGraceH`, defaults 3, 3, 48) rides on `Reading`; an answers file sets `venue.nominees-max`, `venue.pattern-min`, `venue.acc-grace-h`; the app reads `PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H` (`Settings.venue`, `pcs.conf.example`). Cards that depend on one (X3, X3b, X8, X9, X11, C3) export a case per sampled value; `CardsTest` runs each, and the mutants, under every one.
+- **Q8 "up to n".** `compliance` uses `Venue.nomineesMax`; the oracle's `compliance` corpus varies it; `NominationRules.build` takes the venue. New card X11.
+- **Q13 "zero to two juniors".** Reading: no seat is required (`thirdSlots` stays 0), but up to two may be filled (`thirdCap` = 2): juniors from the PC take first-pass seats beside the two seniors, and reciprocal nominee juniors take seats too, and both count toward the two (pinned reviews included). A reciprocal junior counts as a junior under this reading whatever Q14 says; a senior-classified nominee under "nominee not senior" still has no seat. The solver fills seats up to the cap wherever the band and owes(u) leave room, so on the synthetic conference nominees now meet what they owe (100%, from 43%). Other readings unchanged. `Planner` (cap 2, pinned count), `Pc.thirdCap`, `Pc.fillsThird`, `Pc.compositionOk`, the Lean `solveOnce`, `PlanOracleTest` (a new variant under "nominee not senior") and `PlanTest`.
+- **Accountability grace.** `mayDispose` takes the venue's grace; the accountability rule, card C3 (its probe hours follow the grace), `transitions-acc.json` (carries `graceH`), `AccFlow`, `AccountabilityPlan` and `AccountabilityTransitionsTest` use it. New oracle query `mayDispose` and corpus.
+- **Q9 repeats.** The model's signal already counted nominations rather than distinct nominees; it is now explicit (card X3b, repeated nominees in the `pattern` corpus, `NominationReportTest`), and the threshold is `Venue.patternMin`.
+- **Appointment authority.** Model rule `decisionCounts`, oracle query `appointmentAuthority` and corpus, `RulesDifferentialTest`; policy cell `pc-chair/classify` granted ("in the sheet, any candidate"; `only_chair_or_ac_classify` proves nobody else holds it); T6 traces: a PC chair's classification is effective and the nominee is appointed, and a PC member, an author, a nominee and the junior PC chair are denied. No new sheet column: `ac_email` names who decided and the mirror's `person.roles` says who is a chair. Card X12.
+- **Interpreted:** "a PC chair" is the model's `pcChair` role. The process chair's `classify` cell stays unexamined (denied); HotCRP has one chair role, so `core` cannot tell them apart and treats any chair as a PC chair. The card gallery shows the venue's values only where the model sampled them (nominees max 1, 2, 3, 5; pattern 2, 3, 4; grace 0, 24, 48, 72), else the defaults' outcome.
 
 ## Open items (maintainer)
 

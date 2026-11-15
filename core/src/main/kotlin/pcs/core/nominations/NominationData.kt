@@ -48,11 +48,11 @@ public class NominationData(private val store: Store, private val imports: Impor
                     it.getString(2).lowercase()
             }
                 .groupBy({ it.first }, { it.second }).mapValues { it.value.toSet() }
+        // `roles` is a JSON array as the sync writes it ("pc", "chair", "sysadmin"); a fixture may write plain text
         val chairs =
             store.conn.query("SELECT email, roles FROM person WHERE gone_at IS NULL") { it.getString(1) to it.getString(2) }
-                .filter { (_, roles) ->
-                    Json.parseToJsonElement(roles).jsonArray.any { it.jsonPrimitive.content == "chair" }
-                }.map { it.first.lowercase() }.toSet()
+                .filter { (_, roles) -> Regex("""\bchair\b""").containsMatchIn(roles) }
+                .map { it.first.lowercase() }.toSet()
         return NominationInput(papers, sheet, pc, registered, acs, chairs)
     }
 
