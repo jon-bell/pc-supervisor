@@ -3,6 +3,7 @@ package pcs.core.config
 import pcs.core.imports.ImportKind
 import pcs.core.phases.Phases
 import pcs.core.rules.ScoreScale
+import pcs.core.rules.Venue
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -46,6 +47,8 @@ public data class Settings(
     val raw: Map<String, String>,
     /** The tag a chair puts on a set that needs the chairs' attention (`PCS_TAG_CHAIR_ATTENTION`, spec §6). */
     val tagChairAttention: String = "chair-attention",
+    /** The venue's numbers for the model (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`). */
+    val venue: Venue = Venue(),
 ) {
     public val isLocalHarness: Boolean get() = isLocalhost(hotcrpUrl)
 
@@ -80,6 +83,9 @@ public data class Settings(
                 "PCS_EARLYREJECT_WINDOW_H",
                 "PCS_SCORE_MAP",
                 "PCS_REQUEST_DUE_H",
+                "PCS_NOMINEES_MAX",
+                "PCS_PATTERN_MIN",
+                "PCS_ACC_GRACE_H",
                 "PCS_FIELD_WEAKNESS",
                 "PCS_FIELDS_REQUIRED",
                 "PCS_SOLVER_TOPK",
@@ -234,6 +240,12 @@ public data class Settings(
                     loadMax = mapOf("senior" to 15, "junior" to 8) + loadMax,
                     importFreshDays = importFreshDays,
                     raw = m,
+                    venue =
+                        Venue(
+                            nomineesMax = int("PCS_NOMINEES_MAX", Venue.DEFAULT_NOMINEES_MAX, min = 1),
+                            patternMin = int("PCS_PATTERN_MIN", Venue.DEFAULT_PATTERN_MIN, min = 1),
+                            accGraceH = int("PCS_ACC_GRACE_H", Venue.DEFAULT_GRACE_H.toInt(), min = 0).toLong(),
+                        ),
                     tagChairAttention =
                         (m["PCS_TAG_CHAIR_ATTENTION"] ?: "chair-attention").also {
                             if (!Regex("[A-Za-z0-9_.-]+").matches(it)) errors += "PCS_TAG_CHAIR_ATTENTION: not a HotCRP tag name: $it"

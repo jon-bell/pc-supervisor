@@ -8,6 +8,7 @@ import pcs.core.config.Settings
 import pcs.core.nominations.Candidate
 import pcs.core.nominations.Decision
 import pcs.core.rules.Tier
+import pcs.core.rules.Venue
 import pcs.core.store.Store
 import pcs.core.store.TagSeen
 import pcs.core.store.query
@@ -18,6 +19,8 @@ public data class AccConfig(
     val criteria: List<Criterion>,
     val dueH: Long = 48,
     val signal: SignalConfig = SignalConfig(),
+    /** Hours after the due date before "no reply" may be recorded (`PCS_ACC_GRACE_H`, the model's `Venue.accGraceH`). */
+    val graceH: Long = Venue.DEFAULT_GRACE_H,
 ) {
     public companion object {
         private val signalSuffix = Regex("""\s*\[([a-z, -]+)]\s*$""")
@@ -36,6 +39,7 @@ public data class AccConfig(
             return AccConfig(
                 criteria = criteria,
                 dueH = s.raw["PCS_REQUEST_DUE_H"]?.toLongOrNull() ?: 48,
+                graceH = s.venue.accGraceH,
                 signal =
                     SignalConfig(
                         minWords = s.raw["PCS_THRESH_MIN_WORDS"]?.toIntOrNull() ?: 150,

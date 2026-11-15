@@ -40,6 +40,7 @@ import pcs.core.rules.Share
 import pcs.core.rules.Stage
 import pcs.core.rules.Suggestion
 import pcs.core.rules.Tier
+import pcs.core.rules.Venue
 import pcs.core.rules.WritebackRule
 import pcs.testing.CoversLog
 import java.nio.file.Files
@@ -78,10 +79,38 @@ class CardsTest {
             "X3" to { _ ->
                 val noms = (0L until 6L).map { (20 + it) to Tier.JUNIOR as Tier? }
                 "${yesNo(
-                    Nominations.nominationPattern(1, Tier.SENIOR, noms),
+                    Nominations.nominationPattern(1, Tier.SENIOR, noms, venue.patternMin),
                     "shown to the PC chairs as a pattern",
                     "nothing to show",
                 )}; ${Nominations.PATTERN_CONSEQUENCE}"
+            },
+            "X3b" to { _ ->
+                val noms = (0 until 3).map { 20L to Tier.JUNIOR as Tier? }
+                "${yesNo(
+                    Nominations.nominationPattern(1, Tier.SENIOR, noms, venue.patternMin),
+                    "shown to the PC chairs as a pattern: every nomination counts, repeats included",
+                    "nothing to show",
+                )}; ${Nominations.PATTERN_CONSEQUENCE}"
+            },
+            "X11" to { r ->
+                val pn = PaperNoms(1, (0L until 4L).map { Nominee(7 + it) })
+                when (val c = Nominations.compliance(r.q8!!, pn, setOf(7L, 8L, 9L, 10L), venue.nomineesMax)) {
+                    Compliance.OK -> "compliant"
+                    Compliance.TOO_MANY_NOMINEES -> "too many nominees: reported, and Q10's consequence applies"
+                    else -> c.key
+                }
+            },
+            "X12" to { _ ->
+                val acsOfPaper = listOf(setOf(1L, 2L))
+                val acs = setOf(1L, 2L, 3L)
+
+                fun counts(decider: Long, chair: Boolean) =
+                    yesNo(
+                        Nominations.decisionCounts(acsOfPaper, acs, decider, chair),
+                        "the decision counts",
+                        "never acted on",
+                    )
+                "${counts(9, true)}; a PC member who is neither the paper's AC nor a chair: ${counts(9, false)}; an AC of another paper: ${counts(3, false)}"
             },
             "E3" to { r ->
                 val ref = refAt(Ground.ANONYMITY, Stage.SCREENING).copy(remedyOffered = false)
@@ -131,8 +160,8 @@ class CardsTest {
                 if (n > 0) "$n papers over the cap, reported to the PC chairs" else "nothing to report"
             },
             "X8" to { r ->
-                if (r.q8 == Q8.ONE) {
-                    "not allowed: one nominee per paper"
+                if (tooMany(r, 2)) {
+                    "not allowed: at most ${if (r.q8 == Q8.ONE) 1 else venue.nomineesMax} nominee(s) per paper"
                 } else {
                     when (val ss = Nominations.paperShares(f, r.q19!!, r.q19b!!, PaperNoms(1, listOf(Nominee(7, share = 4), Nominee(8, share = 2))))) {
                         null -> "pooled: the two together owe 3 reviews"
@@ -141,8 +170,8 @@ class CardsTest {
                 }
             },
             "X9" to { r ->
-                if (r.q8 == Q8.ONE) {
-                    "not allowed: one nominee per paper"
+                if (tooMany(r, 2)) {
+                    "not allowed: at most ${if (r.q8 == Q8.ONE) 1 else venue.nomineesMax} nominee(s) per paper"
                 } else {
                     val pn = PaperNoms(1, listOf(Nominee(7, share = 3), Nominee(8, share = 3, accepted = false)))
                     val mine =
@@ -191,11 +220,15 @@ class CardsTest {
             "C2" to { _ -> eng(Accountability.engagement(f, listOf(Request(5, sentBy = 1, replied = true, disp = ReqDisposition.EXPLAINED)), emptyList(), 5)) },
             "C3" to { _ ->
                 val q = Request(5, sentBy = 1, remindedAt = 50)
-                "no-reply may be recorded at hour 90: ${Accountability.mayDispose(
+                val g = venue.accGraceH
+                val end = q.due + g
+                val before = end - 6
+                "no-reply may be recorded at hour $before: ${Accountability.mayDispose(
                     q,
                     ReqDisposition.NO_REPLY,
-                    90,
-                )}; at hour 97: ${Accountability.mayDispose(q, ReqDisposition.NO_REPLY, 97)}"
+                    before,
+                    g,
+                )}; at hour ${end + 1}: ${Accountability.mayDispose(q, ReqDisposition.NO_REPLY, end + 1, g)}"
             },
             "C4" to { _ -> eng(Accountability.engagement(f, emptyList(), listOf(Suggestion(5, dismissed = true)), 5)) },
             "C5" to { _ ->
@@ -224,6 +257,13 @@ class CardsTest {
             "S12b" to { r -> if (r.q4 == Q4.ALWAYS) "the screening record is shown" else "the screening record is hidden" },
         )
 
+    /** The venue parameters the evaluators run under: the card case's, or the defaults. */
+    private var venue = Venue()
+
+    private fun tooMany(r: Readings, n: Int): Boolean =
+        Nominations.compliance(r.q8!!, PaperNoms(1, (0L until n).map { Nominee(7 + it) }), (0L until n).map { 7 + it }.toSet(), venue.nomineesMax) ==
+            Compliance.TOO_MANY_NOMINEES
+
     /** The fault switch the evaluators run under: none for the signed model, one mutant in the mutation test. */
     private var f = Faults.NONE
 
@@ -247,7 +287,9 @@ class CardsTest {
             c.jsonObject["cases"]!!.jsonArray.map { case ->
                 val reading = case.jsonObject["reading"]!!.jsonObject
                 val expected = case.jsonObject["outcome"]!!.jsonPrimitive.content
-                val label = reading.entries.joinToString(", ") { "${it.key}=${it.value.jsonPrimitive.content}" }
+                val label =
+                    reading.entries.joinToString(", ") { "${it.key}=${it.value.jsonPrimitive.content}" } +
+                        (case.jsonObject["venue"]?.let { ", venue=$it" } ?: "")
                 DynamicTest.dynamicTest("card $id [$label]") {
                     val eval = implemented[id]
                     if (eval == null) {
@@ -255,12 +297,15 @@ class CardsTest {
                         Assumptions.abort<Unit>("card $id: not implemented yet")
                     }
                     val r = readingOf(reading)
+                    venue = OracleJson.venue(case.jsonObject["venue"])
                     val outcome =
                         try {
                             eval!!(r)
                         } catch (e: Throwable) {
                             CoversLog.record("card:$id [$label]", "card:$id", "fail", "T1")
                             throw e
+                        } finally {
+                            venue = Venue()
                         }
                     val pass = outcome == expected
                     CoversLog.record("card:$id [$label]", "card:$id", if (pass) "pass" else "fail", "T1")
@@ -289,11 +334,13 @@ class CardsTest {
                         val want = o["underMutant"]!!.jsonArray[i].jsonPrimitive.content
                         if (want != o["outcome"]!!.jsonPrimitive.content) differs++
                         f = fault
+                        venue = OracleJson.venue(o["venue"])
                         val got =
                             try {
                                 implemented.getValue(id)(readingOf(o["reading"]!!.jsonObject))
                             } finally {
                                 f = Faults.NONE
+                                venue = Venue()
                             }
                         if (got != want) bad += "card $id ${o["reading"]}: got '$got', model '$want'"
                     }

@@ -16,12 +16,6 @@ import pcs.core.readings.Q8
 
 public const val K: Int = 3
 
-/** Q8 "up to n": the venue's bound on nominees per paper (the model's `nomineeMax`). */
-public const val NOMINEE_MAX: Int = 3
-
-/** A pattern shows only for an author with at least this many papers (the model's `patternMinPapers`). */
-public const val PATTERN_MIN_PAPERS: Int = 3
-
 /** Rule `compliance (p)` (concepts §3.8), by its model keys. `flagged-pattern` is not here: a pattern is a signal, not non-compliance. */
 public enum class Compliance(public val key: String) {
     OK("ok"),
@@ -87,7 +81,7 @@ public object Nominations {
      * Rule `compliance (p)`: the paper names the nominees Q8 allows (declined ones were still named by the
      * authors), each registered with the matching system. [registered] holds the nominees known to be.
      */
-    public fun compliance(q8: Q8, pn: PaperNoms, registered: Set<Long>, max: Int = NOMINEE_MAX): Compliance {
+    public fun compliance(q8: Q8, pn: PaperNoms, registered: Set<Long>, max: Int = Venue.DEFAULT_NOMINEES_MAX): Compliance {
         val n = pn.nominees.size
         val tooMany =
             when (q8) {
@@ -108,11 +102,24 @@ public object Nominations {
         DeskReject.groundAdmissible(Q6.entries.first(), q10, Referral(ac = 0, ground = Ground.NOMINATION_NONCOMPLIANCE, warned = warned))
 
     /**
-     * The Q9 signal for one author: a senior with at least [PATTERN_MIN_PAPERS] nominations whose nominee is
-     * always someone else, always a junior. [noms] holds a (nominee, tier) for each nomination.
+     * The Q9 signal for one author: a senior with at least [min] nominations whose nominee is always someone else,
+     * always a junior. [noms] holds a (nominee, tier) for each nomination, so the same junior nominated from several
+     * papers counts once for each (the owner's ruling).
      */
-    public fun nominationPattern(author: Long, authorTier: Tier?, noms: List<Pair<Long, Tier?>>): Boolean =
-        authorTier == Tier.SENIOR && noms.size >= PATTERN_MIN_PAPERS && noms.all { (w, t) -> w != author && t == Tier.JUNIOR }
+    public fun nominationPattern(
+        author: Long,
+        authorTier: Tier?,
+        noms: List<Pair<Long, Tier?>>,
+        min: Int = Venue.DEFAULT_PATTERN_MIN,
+    ): Boolean = authorTier == Tier.SENIOR && noms.size >= min && noms.all { (w, t) -> w != author && t == Tier.JUNIOR }
+
+    /**
+     * Appointment authority (model `decisionCounts`): a sheet decision counts if its author is an AC of a paper that
+     * nominated the candidate, or any AC when nobody nominated them, or a PC chair. [nominating] holds the ACs of each
+     * nominating paper (empty: nobody nominated the candidate).
+     */
+    public fun <T> decisionCounts(nominating: List<Set<T>>, acs: Set<T>, decider: T, isChair: Boolean): Boolean =
+        isChair || if (nominating.isEmpty()) decider in acs else nominating.any { decider in it }
 
     /** What a pattern does by itself: nothing (V3; `Ground` has no such case). */
     public const val PATTERN_CONSEQUENCE: String = "no consequence by itself"

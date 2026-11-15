@@ -62,6 +62,7 @@ class PlanOracleTest {
             Variant("answered", Q13.ONE_OR_TWO_JUNIORS, Q14.TIER_DECIDES, "once"),
             Variant("one junior", Q13.ONE_JUNIOR, Q14.TIER_DECIDES, "once"),
             Variant("zero to two", Q13.ZERO_TO_TWO_JUNIORS, Q14.TIER_DECIDES, "once"),
+            Variant("zero to two, nominee not senior", Q13.ZERO_TO_TWO_JUNIORS, Q14.NOMINEE_NOT_SENIOR, "once"),
             Variant("junior or nominee", Q13.ONE_JUNIOR_OR_NOMINEE, Q14.TIER_DECIDES, "once"),
             Variant("nominee not senior", Q13.ONE_OR_TWO_JUNIORS, Q14.NOMINEE_NOT_SENIOR, "once"),
             Variant("per paper", Q13.ONE_OR_TWO_JUNIORS, Q14.TIER_DECIDES, "per-paper"),

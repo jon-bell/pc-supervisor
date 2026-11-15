@@ -8,6 +8,7 @@ import pcs.core.rules.Nominations
 import pcs.core.rules.Nominee
 import pcs.core.rules.PaperNoms
 import pcs.core.rules.Tier
+import pcs.core.rules.Venue
 
 /*
  * Nominations (concepts §3.3, spec §10.4 A): what each paper names, what each person owes, the
@@ -52,6 +53,8 @@ public data class NominationInput(
     val registered: Set<String>?,
     /** Each paper's ACs (metareviewers), by email: who may decide on a candidate the paper nominated. */
     val acs: Map<Long, Set<String>> = emptyMap(),
+    /** PC chairs, by email: a chair's decision in the sheet counts for any candidate (the owner's ruling on the policy cell `classify`). */
+    val chairs: Set<String> = emptySet(),
 )
 
 public data class NomineeStatus(
@@ -119,15 +122,17 @@ public object NominationRules {
     private fun email(s: String) = s.trim().lowercase()
 
     /**
-     * Policy cell `ac/classify` ("in the sheet, own area"): a decision counts only if the row names an AC who
-     * may make it. For a nominee that is an AC of a paper that nominated them; for anyone else, an AC. A
-     * decision anyone else made is never acted on (spec §11: forged traces are reported, never acted on): the
-     * row is treated as pending and reported.
+     * Policy cells `ac/classify` ("in the sheet, own area") and `pc-chair/classify` ("in the sheet, any candidate"):
+     * a decision counts only if the row names someone who may make it. For a nominee that is an AC of a paper that
+     * nominated them; for anyone else, an AC; for either, a PC chair. A decision anyone else made is never acted on
+     * (spec §11: forged traces are reported, never acted on): the row is treated as pending and reported. The
+     * sheet's `ac_email` names the decider; a chair is whoever HotCRP lists with the chair role.
      */
-    public fun authorised(c: Candidate, acs: Map<Long, Set<String>>): Boolean {
-        val ac = email(c.acEmail)
-        if (ac.isEmpty()) return false
-        return if (c.origin == "nominee" && c.nominatedBy.isNotEmpty()) c.nominatedBy.any { ac in acs[it].orEmpty() } else acs.values.any { ac in it }
+    public fun authorised(c: Candidate, acs: Map<Long, Set<String>>, chairs: Set<String> = emptySet()): Boolean {
+        val who = email(c.acEmail)
+        if (who.isEmpty()) return false
+        val nominating = if (c.origin == "nominee") c.nominatedBy.map { acs[it].orEmpty() } else emptyList()
+        return Nominations.decisionCounts(nominating, acs.values.flatten().toSet(), who, who in chairs)
     }
 
     /** The sheet as the rules read it: an unauthorised decision demoted to pending. Also the problems found. */
@@ -135,14 +140,14 @@ public object NominationRules {
         val anomalies = mutableListOf<Anomaly>()
         val sheet =
             input.sheet.map { c ->
-                if (c.decision == Decision.PENDING || authorised(c, input.acs)) {
+                if (c.decision == Decision.PENDING || authorised(c, input.acs, input.chairs.map(::email).toSet())) {
                     c
                 } else {
                     val who = c.acEmail.ifBlank { "nobody" }
                     anomalies +=
                         Anomaly(
                             c.email,
-                            "marked ${c.decision.key} by $who, who is not ${if (c.origin == "nominee") "an AC of a paper that nominated them" else "an AC"}: treated as pending, never acted on",
+                            "marked ${c.decision.key} by $who, who is not ${if (c.origin == "nominee") "an AC of a paper that nominated them" else "an AC"} or a PC chair: treated as pending, never acted on",
                         )
                     c.copy(decision = Decision.PENDING)
                 }
@@ -150,7 +155,7 @@ public object NominationRules {
         return sheet to anomalies
     }
 
-    public fun build(input: NominationInput, r: Readings, faults: Faults = Faults.NONE): NominationReport {
+    public fun build(input: NominationInput, r: Readings, faults: Faults = Faults.NONE, venue: Venue = Venue()): NominationReport {
         val ids = HashMap<String, Long>()
         val (sheet, demoted) = effective(input)
 
@@ -199,7 +204,7 @@ public object NominationRules {
                 if (!regKnown && statuses.isNotEmpty()) notes += "no tpms-registrations import: registration with the matching system is unchecked"
                 val pn = paperNoms(p.pid, statuses, ::id)
                 val reg = statuses.filter { it.registered != false }.map { id(it.email) }.toSet()
-                val compliance = Resolved.of(r, COMPLIANCE_QS) { rr -> Nominations.compliance(rr.q8!!, pn, reg) }
+                val compliance = Resolved.of(r, COMPLIANCE_QS) { rr -> Nominations.compliance(rr.q8!!, pn, reg, venue.nomineesMax) }
                 val warned = p.tags.any { it.substringBefore('#') == "pcs-warned" }
                 val referable =
                     if (compliance == Resolved.Decided(Compliance.OK)) {
@@ -236,7 +241,7 @@ public object NominationRules {
         val patterns =
             papersOf.mapNotNull { (author, ps) ->
                 val noms = ps.flatMap { p -> checkOf[p.pid]!!.nominees.map { it.email to byEmail[it.email]?.tier } }
-                val flagged = Nominations.nominationPattern(id(author), tierOf(author), noms.map { id(it.first) to it.second })
+                val flagged = Nominations.nominationPattern(id(author), tierOf(author), noms.map { id(it.first) to it.second }, venue.patternMin)
                 if (!flagged) {
                     null
                 } else {

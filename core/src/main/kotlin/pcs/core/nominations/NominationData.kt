@@ -8,6 +8,7 @@ import pcs.core.imports.Imports
 import pcs.core.readings.Readings
 import pcs.core.rules.Faults
 import pcs.core.rules.Tier
+import pcs.core.rules.Venue
 import pcs.core.store.Store
 import pcs.core.store.query
 
@@ -47,8 +48,13 @@ public class NominationData(private val store: Store, private val imports: Impor
                     it.getString(2).lowercase()
             }
                 .groupBy({ it.first }, { it.second }).mapValues { it.value.toSet() }
-        return NominationInput(papers, sheet, pc, registered, acs)
+        val chairs =
+            store.conn.query("SELECT email, roles FROM person WHERE gone_at IS NULL") { it.getString(1) to it.getString(2) }
+                .filter { (_, roles) ->
+                    Json.parseToJsonElement(roles).jsonArray.any { it.jsonPrimitive.content == "chair" }
+                }.map { it.first.lowercase() }.toSet()
+        return NominationInput(papers, sheet, pc, registered, acs, chairs)
     }
 
-    public fun report(r: Readings, faults: Faults = Faults.NONE): NominationReport = NominationRules.build(input(), r, faults)
+    public fun report(r: Readings, faults: Faults = Faults.NONE, venue: Venue = Venue()): NominationReport = NominationRules.build(input(), r, faults, venue)
 }

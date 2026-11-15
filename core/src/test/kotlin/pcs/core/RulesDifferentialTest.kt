@@ -110,14 +110,38 @@ class RulesDifferentialTest {
         check("compliance", { it.jsonPrimitive.content }) { q ->
             val p = q["paper"]!!.jsonObject
             val pn = PaperNoms(p.l("paper"), p.arr("nominees").map { n -> Nominee(n.l("who"), n.l("share").toInt(), n.b("accepted", true)) })
-            Nominations.compliance(readings(q).q8!!, pn, q.ids("registered").toSet()).key
+            val venue = OracleJson.venue(q["reading"]!!.jsonObject["venue"])
+            Nominations.compliance(readings(q).q8!!, pn, q.ids("registered").toSet(), venue.nomineesMax).key
         }
 
     @Test
     @Covers("rule:compliance", "prop:V3")
     fun `nomination pattern (a signal, Q9)`() =
         check("pattern", { it.jsonPrimitive.booleanOrNull }) { q ->
-            Nominations.nominationPattern(q.l("author"), q.tier("tier"), q.arr("noms").map { it.l("who") to it.tier("tier") })
+            Nominations.nominationPattern(
+                q.l("author"),
+                q.tier("tier"),
+                q.arr("noms").map { it.l("who") to it.tier("tier") },
+                OracleJson.venue(q["venue"]).patternMin,
+            )
+        }
+
+    @Test
+    @Covers("prop:AR5")
+    fun `no reply only after the due date, a reminder and the venue's grace period (AR5)`() =
+        check("mayDispose", { it.jsonPrimitive.booleanOrNull }) { q ->
+            val x = q["request"]!!.jsonObject
+            val req = Request(5, sentBy = 1, due = x.l("due"), remindedAt = (x["remindedAt"] as? JsonPrimitive)?.longOrNull, replied = x.b("replied"))
+            val d = ReqDisposition.valueOf(q["disp"]!!.jsonPrimitive.content.uppercase().replace('-', '_'))
+            Accountability.mayDispose(req, d, q.l("now"), OracleJson.venue(q["reading"]!!.jsonObject["venue"]).accGraceH)
+        }
+
+    @Test
+    @Covers("cell:pc-chair/classify", "cell:ac/classify")
+    fun `appointment authority (an AC of a nominating paper, any AC for an un-nominated candidate, or a PC chair)`() =
+        check("appointmentAuthority", { it.jsonPrimitive.booleanOrNull }) { q ->
+            val nominating = (q["nominating"] as JsonArray).map { l -> (l as JsonArray).map { it.jsonPrimitive.long }.toSet() }
+            Nominations.decisionCounts(nominating, q.ids("acs").toSet(), q.l("decider"), q.b("isChair"))
         }
 
     @Test

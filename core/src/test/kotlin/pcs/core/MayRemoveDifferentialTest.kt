@@ -40,7 +40,17 @@ import java.nio.file.Files
 /** Decoding of oracle queries into `core` types, shared by the corpus and live tests. */
 object OracleJson {
     fun readings(o: JsonObject): Readings =
-        o.entries.fold(Readings()) { r, (q, v) -> r.with(QId.ofCode(q)!!, v.jsonPrimitive.content)!! }.base()
+        o.entries.filter { it.key != "venue" }.fold(Readings()) { r, (q, v) -> r.with(QId.ofCode(q)!!, v.jsonPrimitive.content)!! }.base()
+
+    /** The venue parameters a query or card case carries (`venue` object), or the defaults. */
+    fun venue(o: JsonElement?): pcs.core.rules.Venue {
+        val v = (o as? JsonObject) ?: return pcs.core.rules.Venue()
+        return pcs.core.rules.Venue(
+            nomineesMax = v["nomineesMax"]!!.jsonPrimitive.int,
+            patternMin = v["patternMin"]!!.jsonPrimitive.int,
+            accGraceH = v["accGraceH"]!!.jsonPrimitive.long,
+        )
+    }
 
     fun faults(e: JsonElement?): Faults = if (e == null || e is JsonNull) Faults.NONE else Faults.MUTANTS[e.jsonPrimitive.int]
 

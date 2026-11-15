@@ -183,6 +183,28 @@ class AccountabilityPlanTest {
     }
 
     @Test
+    @Covers("card:C3", "prop:AR5")
+    fun `the grace period is the venue's`() {
+        val sent = due.epochSecond
+        val reminded = due.plus(Duration.ofHours(50)).epochSecond
+        val s =
+            store {
+                base()
+                tagSeen(1, "pcs-req-B1", "0", sent)
+                tagSeen(1, "pcs-remind-B1", "0", reminded)
+                setTags(1, listOf("pcs-req-B1#0", "pcs-remind-B1"))
+            }
+        for (grace in listOf(24L, 48L, 72L, 100L)) {
+            val c = cfg.copy(graceH = grace)
+
+            fun req(h: Long) = report(s, at(h), config = c).requests.single()
+            // due at +48, reminded at +50: "no reply" from the end of the grace period, +48 + grace
+            assertFalse(req(48 + grace).mayNoReply, "the instant a $grace h grace period ends is still inside it")
+            assertTrue(req(48 + grace + 1).mayNoReply, "just past a $grace h grace period")
+        }
+    }
+
+    @Test
     @Covers("card:C4", "prop:AR4")
     fun `a dismissed suggestion leaves no trace on the engagement record`() {
         val s = store(base)

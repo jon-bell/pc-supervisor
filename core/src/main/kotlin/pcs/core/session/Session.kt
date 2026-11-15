@@ -188,7 +188,7 @@ public class Session private constructor(
         val tiers = pcs.core.accountability.Tiers.build(input.sheet, tags, settings.tierTags)
         val cfg = pcs.core.accountability.AccConfig.from(settings)
         val acc = pcs.core.accountability.AccLoader.load(store, clock.now(), tiers, settings.fieldMerit)
-        val report = data.report(readings, f)
+        val report = data.report(readings, f, settings.venue)
         return pcs.core.accountability.AccountabilityPlan.compute(acc, cfg, readings, report.obligations, f)
     }
 

@@ -30,6 +30,7 @@ import pcs.core.readings.CardOutcome
 import pcs.core.readings.ModelExport
 import pcs.core.readings.QId
 import pcs.core.readings.Readings
+import pcs.core.rules.Venue
 import pcs.core.store.PaperRow
 import pcs.core.store.ReviewRow
 import pcs.core.store.SyncCounts
@@ -139,19 +140,19 @@ fun SettingsScreen(answers: Answers, conference: String) {
 
 /** The card list and one card, under the answered readings. */
 @Composable
-fun CardGallery(readings: Readings, cards: List<Card> = ModelExport.cards) {
+fun CardGallery(readings: Readings, cards: List<Card> = ModelExport.cards, venue: Venue = Venue()) {
     var selected by remember { mutableStateOf(cards.first().id) }
     Row(Modifier.fillMaxSize().testTag("card-gallery"), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(Modifier.width(120.dp).verticalScroll(rememberScrollState())) {
             cards.forEach { c -> OutlinedButton({ selected = c.id }, Modifier.testTag("card-link-${c.id}")) { Text(c.id) } }
         }
-        CardScreen(cards.first { it.id == selected }, readings, Modifier.weight(1f))
+        CardScreen(cards.first { it.id == selected }, readings, Modifier.weight(1f), venue)
     }
 }
 
 /** One card rendered under [readings]: what it depends on, and what the model says. */
 @Composable
-fun CardScreen(card: Card, readings: Readings, modifier: Modifier = Modifier) {
+fun CardScreen(card: Card, readings: Readings, modifier: Modifier = Modifier, venue: Venue = Venue()) {
     Column(modifier.verticalScroll(rememberScrollState()).testTag("card-${card.id}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Card ${card.id}", style = MaterialTheme.typography.headlineSmall)
         Text(card.text, Modifier.testTag("card-text"), style = MaterialTheme.typography.titleMedium)
@@ -159,7 +160,16 @@ fun CardScreen(card: Card, readings: Readings, modifier: Modifier = Modifier) {
         card.deps.forEach { q ->
             Text("${q.code} ${q.text}: ${reading(q, readings[q]?.key)}", Modifier.testTag("card-dep-${q.code}"), style = MaterialTheme.typography.bodyMedium)
         }
-        when (val o = card.under(readings)) {
+        card.venueDeps.forEach { n ->
+            val v =
+                when (n) {
+                    "nominees-max" -> venue.nomineesMax.toString()
+                    "pattern-min" -> venue.patternMin.toString()
+                    else -> "${venue.accGraceH} h"
+                }
+            Text("Venue $n: $v", Modifier.testTag("card-venue-$n"), style = MaterialTheme.typography.bodyMedium)
+        }
+        when (val o = card.under(readings, venue)) {
             is CardOutcome.Decided -> {
                 Text("Under these readings", style = MaterialTheme.typography.labelLarge)
                 Text(o.outcome, Modifier.testTag("card-outcome"), style = MaterialTheme.typography.bodyLarge)

@@ -5,18 +5,35 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import pcs.core.rules.Venue
 
 /** One case of an example card: a reading of the card's questions and the model's outcome under it. */
-public data class CardCase(val reading: Map<QId, String>, val outcome: String)
+public data class CardCase(val reading: Map<QId, String>, val outcome: String, val venue: Venue? = null)
 
 /** An example card (concepts §3.11), as the Lean model exports it (model/export/cards.json). */
-public data class Card(val id: String, val text: String, val deps: List<QId>, val cases: List<CardCase>) {
-    /** The cases the answers allow: every case that agrees with each answered question it depends on. */
-    public fun candidates(r: Readings): List<CardCase> = cases.filter { c -> c.reading.all { (q, key) -> r[q]?.let { it.key == key } ?: true } }
+public data class Card(
+    val id: String,
+    val text: String,
+    val deps: List<QId>,
+    val cases: List<CardCase>,
+    /** The venue parameters the outcome depends on (`nominees-max`, `pattern-min`, `acc-grace-h`); each case then names its venue. */
+    val venueDeps: List<String> = emptyList(),
+) {
+    /**
+     * The cases the answers allow: every case that agrees with each answered question it depends on and, for a card
+     * with venue parameters, runs under [venue]. The model tried a few values of each parameter; a value it did not try
+     * falls back to the defaults.
+     */
+    public fun candidates(r: Readings, venue: Venue = Venue()): List<CardCase> {
+        val byReading = cases.filter { c -> c.reading.all { (q, key) -> r[q]?.let { it.key == key } ?: true } }
+        if (venueDeps.isEmpty()) return byReading
+        val exact = byReading.filter { it.venue == venue.restrictedTo(venueDeps) }
+        return exact.ifEmpty { byReading.filter { it.venue == Venue().restrictedTo(venueDeps) } }
+    }
 
     /** The card under a reading: decided when every allowed case has the same outcome, else blocked. */
-    public fun under(r: Readings): CardOutcome {
-        val cs = candidates(r)
+    public fun under(r: Readings, venue: Venue = Venue()): CardOutcome {
+        val cs = candidates(r, venue)
         val outcomes = cs.map { it.outcome }.distinct()
         if (outcomes.size == 1) return CardOutcome.Decided(outcomes.single())
         return CardOutcome.Blocked(blockers(cs), cs)
@@ -70,12 +87,20 @@ public object ModelExport {
                 id = o["id"]!!.jsonPrimitive.content,
                 text = o["text"]!!.jsonPrimitive.content,
                 deps = o["deps"]!!.jsonArray.map { q(it.jsonPrimitive.content) },
+                venueDeps = o["venueDeps"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty(),
                 cases =
                     o["cases"]!!.jsonArray.map { c ->
                         val co = c.jsonObject
                         CardCase(
                             (co["reading"] as JsonObject).mapKeys { q(it.key) }.mapValues { it.value.jsonPrimitive.content },
                             co["outcome"]!!.jsonPrimitive.content,
+                            (co["venue"] as? JsonObject)?.let { v ->
+                                Venue(
+                                    v["nomineesMax"]!!.jsonPrimitive.content.toInt(),
+                                    v["patternMin"]!!.jsonPrimitive.content.toInt(),
+                                    v["accGraceH"]!!.jsonPrimitive.content.toLong(),
+                                )
+                            },
                         )
                     },
             )
@@ -111,11 +136,16 @@ public object ModelExport {
     }
 
     /** Every unresolved question, with what it blocks under [answers]. */
-    public fun blocked(answers: Answers, cards: List<Card> = this.cards, cells: List<PolicyCell> = this.rulingCells): List<Blocked> =
+    public fun blocked(
+        answers: Answers,
+        cards: List<Card> = this.cards,
+        cells: List<PolicyCell> = this.rulingCells,
+        venue: Venue = Venue(),
+    ): List<Blocked> =
         answers.unresolved.map { q ->
             Blocked(
                 q,
-                cards.filter { c -> (c.under(answers.readings) as? CardOutcome.Blocked)?.by?.contains(q) == true },
+                cards.filter { c -> (c.under(answers.readings, venue) as? CardOutcome.Blocked)?.by?.contains(q) == true },
                 cells.filter { it.question == q },
             )
         }

@@ -51,6 +51,34 @@ class PlanTest {
     }
 
     @Test
+    @Covers("rule:composition", "prop:A1", "prop:V5", "q:Q13=zero-to-two-juniors")
+    fun `zero to two juniors take first-pass seats beside the seniors, never more than two with reciprocal ones`() {
+        val seniors = (1L..4).map { sen(it) }
+        val juniors = (11L..13).map { jun(it) }
+        val nom = nominee(21, Tier.JUNIOR, 4, 18)
+        val rs = seniors + juniors + nom
+        val ps = listOf(paper(101), paper(102))
+        val input = PlanInput(rs, ps, everyone(rs, ps))
+        val c = cfg(q13 = Q13.ZERO_TO_TWO_JUNIORS)
+        val r = solve(input, c)
+        assertEquals(2, r.composed)
+        assertEquals(0, r.seniorShort + r.thirdShort, "zero seats are required, so none is short")
+        val byPaper = r.edges.groupBy { it.pid }
+        for (p in ps) {
+            val es = byPaper.getValue(p.pid)
+            assertEquals(2, es.count { it.who in 1L..4L }, "two seniors on ${p.pid}")
+            val juniorSeats = es.count { it.who in 11L..21L }
+            assertTrue(juniorSeats in 1..2, "up to two juniors on ${p.pid}, reciprocal ones included: $juniorSeats")
+        }
+        assertTrue(r.edges.any { it.who == 21L }, "the reciprocal nominee works off what they owe")
+        // pinned juniors, reciprocal ones included, use up the cap
+        val pinned = PlanInput(rs, listOf(paper(101)), everyone(rs, listOf(paper(101))), pinned = listOf(Pin(11, 101), Pin(21, 101)))
+        val rp = solve(pinned, c)
+        assertEquals(emptyList<Long>(), rp.edges.filter { it.who in 12L..13L }.map { it.who }, "no third junior beside two pinned ones")
+        assertTrue(rp.composed == 1)
+    }
+
+    @Test
     @Covers("prop:V1", "rule:eligible", "mutant:2")
     fun `an unaccepted, unconsented or unclassified person is never assigned, and the mutant would assign them`() {
         val good = (1L..4).map { sen(it) } + jun(11)

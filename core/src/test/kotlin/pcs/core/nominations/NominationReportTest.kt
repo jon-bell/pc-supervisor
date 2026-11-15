@@ -11,6 +11,7 @@ import pcs.core.readings.QId
 import pcs.core.readings.Readings
 import pcs.core.rules.Compliance
 import pcs.core.rules.Tier
+import pcs.core.rules.Venue
 import pcs.testing.Covers
 import pcs.testing.Family
 
@@ -258,5 +259,63 @@ class NominationReportTest {
         assertTrue(r.anomalies.any { "#99" in it.message })
         assertFalse(r.papers.single().nominees.single().isAuthor)
         assertNull(r.papers.single().referable)
+    }
+
+    @Test
+    @Covers("cell:pc-chair/classify", "cell:ac/classify", "prop:V1")
+    fun `a PC chair's decision counts for any candidate and anyone else who is not the paper's AC is denied`() {
+        val sheet =
+            listOf(
+                cand("by-chair", by = listOf(1), ac = "chair"),
+                cand("invited-by-chair", origin = "invited", tier = Tier.SENIOR, ac = "chair"),
+                cand("by-ac-of-another-paper", by = listOf(1), ac = "other-ac"),
+                cand("by-member", by = listOf(1), ac = "member"),
+                cand("invited-by-ac", origin = "invited", tier = Tier.SENIOR, ac = "other-ac"),
+                cand("invited-by-member", origin = "invited", tier = Tier.SENIOR, ac = "member"),
+            )
+        val withAcs = acs + (2L to setOf(e("other-ac")))
+        val i = NominationInput(listOf(paper(1, "a", "by-chair")), sheet, emptySet(), null, withAcs, chairs = setOf(e("chair")))
+        val decided = NominationRules.effective(i).first.associate { it.email.substringBefore('@') to it.decision }
+        assertEquals(Decision.ACCEPT, decided["by-chair"], "a chair, for a candidate the papers nominated")
+        assertEquals(Decision.ACCEPT, decided["invited-by-chair"], "a chair, for a candidate nobody nominated")
+        assertEquals(Decision.PENDING, decided["by-ac-of-another-paper"], "an AC, but not of a paper that nominated them")
+        assertEquals(Decision.PENDING, decided["by-member"], "neither an AC nor a chair")
+        assertEquals(Decision.ACCEPT, decided["invited-by-ac"], "any AC, for a candidate nobody nominated")
+        assertEquals(Decision.PENDING, decided["invited-by-member"])
+        // without the chair role in HotCRP the same rows are denied
+        val noChairs = NominationRules.effective(i.copy(chairs = emptySet())).first.associate { it.email.substringBefore('@') to it.decision }
+        assertEquals(Decision.PENDING, noChairs["by-chair"])
+    }
+
+    @Test
+    @Covers("card:X11", "card:X8", "q:Q8=up-to-n")
+    fun `Q8 up to n takes n from the venue`() {
+        val four = listOf("w", "x", "y", "z").map { cand(it, by = listOf(1)) }
+        val i = input(listOf(paper(1, "w", "x", "y", "z")), four)
+        val r = answers("Q8 = up-to-n", "Q10 = warn-only", "Q17 = none", "Q18 = once", "Q19 = equal", "Q19b = others-absorb")
+        for ((n, expected) in listOf(1 to Compliance.TOO_MANY_NOMINEES, 3 to Compliance.TOO_MANY_NOMINEES, 4 to Compliance.OK, 6 to Compliance.OK)) {
+            assertEquals(expected, NominationRules.build(i, r, venue = Venue(nomineesMax = n)).papers.single().compliant(), "n = $n")
+        }
+    }
+
+    @Test
+    @Covers("card:X3", "card:X3b", "prop:V3")
+    fun `every nomination counts toward the pattern, the same junior included, and the threshold is the venue's`() {
+        // one senior, three papers, the same junior nominated from each
+        val papers = (1L..3L).map { paper(it, "boss", "kid") }
+        val sheet = listOf(cand("kid", by = listOf(1, 2, 3)), cand("boss", origin = "invited", tier = Tier.SENIOR))
+        val i = input(papers, sheet, pc = setOf(e("boss")))
+        for ((min, shown) in listOf(1 to true, 3 to true, 4 to false)) {
+            assertEquals(
+                shown,
+                NominationRules.build(i, allAnswered, venue = Venue(patternMin = min)).patterns.any {
+                    it.author == e("boss")
+                },
+                "threshold $min",
+            )
+        }
+        val repeats = NominationRules.build(i, allAnswered).patterns.single { it.author == e("boss") }
+        assertEquals(listOf(e("kid")), repeats.nominees, "one junior, listed once")
+        assertEquals(listOf(1L, 2L, 3L), repeats.papers)
     }
 }
