@@ -66,7 +66,12 @@ class ClaudeCodeEngine(private val cfg: EngineConfig, private val timeoutSeconds
                     }
                 val err = StringBuilder()
                 val errT = Thread { err.append(p.errorStream.bufferedReader().readText()) }.also { it.start() }
-                p.outputStream.use { it.write(PromptRender.user(req).toByteArray()) }
+                // The CLI may exit before reading its input (a bad flag, an auth error). Its output and
+                // error text still say why, so a failed write to stdin is not the error to report.
+                try {
+                    p.outputStream.use { it.write(PromptRender.user(req).toByteArray()) }
+                } catch (_: java.io.IOException) {
+                }
                 val out = p.inputStream.bufferedReader().readText()
                 if (!p.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
                     p.destroyForcibly()
