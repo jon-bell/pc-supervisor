@@ -82,6 +82,17 @@ jobs:
 
       # The UI tests have their own step below, on a fresh harness; `check` would otherwise run them here too
       # (it includes :app:uiTest whenever a harness and a display exist), against a harness the later steps reseed.
+      # Before the tests: the differential and oracle tests (core and runner) skip
+      # themselves when model/.lake/build/bin/oracle is missing.
+      - name: Install elan and build the Lean oracle
+        run: |
+          if ! command -v lake >/dev/null 2>&1; then
+            curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.elan/bin:$PATH"
+          cd model && lake build && lake build oracle export check-evidence
+
       - name: Lint, unit, property, and model-generated tests
         if: hashFiles('settings.gradle.kts') != ''
         run: ./gradlew check -x :app:uiTest
@@ -99,14 +110,6 @@ jobs:
 
       # The scenario runner's evidence records (PLAN M3a, §A6): the model, not the Kotlin test code, decides
       # whether each recorded run agrees with the specification, and whether each binding control did its job.
-      - name: Install elan
-        if: hashFiles('runner/build.gradle.kts') != ''
-        run: |
-          if ! command -v lake >/dev/null 2>&1; then
-            curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
-          fi
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-
       - name: Re-derive every verdict from the evidence records
         if: hashFiles('runner/build.gradle.kts') != ''
         working-directory: model
