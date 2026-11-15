@@ -9,7 +9,7 @@ data class PcUser(val email: String, val first: String, val last: String, val ta
 data class Paper(val pid: Int, val title: String, val authors: List<String>)
 
 /** HotCRP assignment actions: metareview | primary | secondary | pcreview. */
-data class Assign(val pid: Int, val action: String, val email: String)
+data class Assign(val pid: Int, val action: String, val email: String, val round: String? = null)
 
 /** A time: `days` (fractional allowed) after the phase date `phase` (e.g. DISCUSSION_OPEN). */
 data class At(val phase: String, val days: Double) {
@@ -38,10 +38,18 @@ data class SetDecision(val pid: Int, val decision: String, override val at: At) 
 /** A hidden or ordinary tag added to a paper by the chair (the seeder's chair token). */
 data class AddTag(val pid: Int, val tag: String, override val at: At) : Event
 
+/** A review in the `screen` round (spec §11): the AC's triage (`Tri`: 1 keep, 2.. a ground) or a second opinion's note to the PC. */
+data class ScreenReview(val pid: Int, val reviewer: String, val triage: Int?, val note: String?, override val at: At) : Event
+
+/** The author edits the paper (a cure inside the Q1 fix window); the paper's modified time is warped to [at]. */
+data class EditPaper(val pid: Int, val author: String, val abstract: String, override val at: At) : Event
+
 data class Scenario(
     val name: String,
     val pc: List<PcUser>,
     val papers: List<Paper>,
     val assignments: List<Assign>,
     val events: List<Event>,
+    /** HotCRP settings (JSON for `batch/settings.php`) applied after the defaults, for a scenario that needs a review round or fields. */
+    val settings: String? = null,
 )
