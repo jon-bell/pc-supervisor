@@ -87,8 +87,10 @@ class LiveFixturesTest {
         assertTrue(mis.verified && mis.ground == "misused-citation")
         assertEquals(setOf("citing sentence", "abstract of [2]"), mis.anchors.map { it.label }.toSet())
         assertTrue(squash(mis.anchors.first { it.label == "citing sentence" }.quote).contains("poor proxy"))
-        // The card is blocked: refs.use.policy is unresolved in the example decisions.
-        assertEquals("BLOCKED", FlagCards.view(mis, decisions).state)
+        // refs.use.policy is settled in the example decisions (evidence only): the card is open and carries no ground.
+        val card = FlagCards.view(mis, decisions)
+        assertEquals("OPEN", card.state)
+        assertTrue(card.facts.none { it.first == "Ground" })
     }
 
     @Test

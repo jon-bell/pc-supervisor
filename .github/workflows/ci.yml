@@ -219,8 +219,8 @@ jobs:
         run: docker compose -f hotcrp/compose.yaml down -v --remove-orphans || true
 
   # T9 (PLAN M19), nightly only: the `scale` scenario (4,000 papers) on a harness of its own with raised API limits (the golden harness of
-  # the `ci` job keeps HotCRP's defaults). Seeding takes about 35 minutes, then ten full syncs, ten re-syncs, ten solves and ten
-  # table runs. The job summary carries the budgets, the 95th percentiles with their intervals, and the store's size; the measurement
+  # the `ci` job keeps HotCRP's defaults). Seeding takes about 35 minutes, then 59 full syncs, 59 re-syncs, 59 solves and 59
+  # table runs (PCS_SCALE_RUNS, below: 59 clean runs show fewer than 5% over budget at 95% confidence). The job summary carries the budgets, the 95th percentiles with their intervals, and the store's size; the measurement
   # records are re-derived by `lake exe check-evidence`, so a missed budget fails the job.
   scale:
     if: github.event_name == 'schedule'
@@ -232,6 +232,7 @@ jobs:
       HOTCRP_API_PER_HOUR: "1000000"
       HOTCRP_API_PER_MINUTE: "50000"
       PCS_ENV_OUT: ${{ github.workspace }}/.env.scale
+      PCS_SCALE_RUNS: "59"
     steps:
       - uses: actions/checkout@v4
       - name: Install docker compose plugin

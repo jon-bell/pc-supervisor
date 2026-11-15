@@ -18,6 +18,7 @@ import net.jonbell.pcs.agent.llm.AbstractSource
 import net.jonbell.pcs.agent.llm.CheckEnv
 import net.jonbell.pcs.agent.llm.Decisions
 import net.jonbell.pcs.agent.llm.Flag
+import net.jonbell.pcs.agent.llm.GroundPolicy
 import net.jonbell.pcs.agent.llm.ScreenLlmCheck
 import net.jonbell.pcs.agent.llm.ScreenOptions
 import net.jonbell.pcs.agent.llm.Screener
@@ -122,5 +123,5 @@ object CheckRunner {
     }
 
     /** The app's own notion of a flag a person sees: verified, and a ground or at least MEDIUM. */
-    fun isFlag(f: Flag): Boolean = f.verified && (f.ground != null || f.severity >= Severity.MEDIUM)
+    fun isFlag(f: Flag): Boolean = f.verified && (GroundPolicy.groundOf(f) != null || f.severity >= Severity.MEDIUM)
 }

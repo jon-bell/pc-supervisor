@@ -84,6 +84,7 @@ public data class Settings(
                 "PCS_HISTORY_RPS",
                 "PCS_PSEUDONYM_KEY",
                 "PCS_PSEUDONYM_KEY_FILE",
+                "PCS_EXPORT_TIME_RESOLUTION",
                 "PCS_CYCLE_MAX_K",
                 "PCS_EARLYREJECT_WINDOW_H",
                 "PCS_SCORE_MAP",
@@ -108,6 +109,8 @@ public data class Settings(
                 "PCS_M3_MIN_SHARE",
                 "PCS_M3_SIGMA",
                 "PCS_CONFERENCES",
+                "PCS_CONFERENCE_ID",
+                "PCS_KEYCHAIN_FILE",
             )
         public val PATTERNS: List<Regex> =
             listOf(

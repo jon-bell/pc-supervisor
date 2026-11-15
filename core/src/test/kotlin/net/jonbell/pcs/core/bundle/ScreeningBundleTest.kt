@@ -92,67 +92,139 @@ class ScreeningBundleTest {
 
     @Test
     fun `a bundle round-trips, is content addressed, and the order of findings does not change its address`() {
-        val k = BundleKey.generate()
+        val k = ChairIdentity.generate()
         val p = payload()
-        val file = BundleCodec.encrypt(p, k)
+        val file = BundleCodec.encrypt(p, listOf(k.publicKey))
         assertEquals(p.hash(), BundleCodec.headerHash(file))
         assertEquals(p.canonical(), BundleCodec.decrypt(file, k))
         val shuffled = p.copy(findings = p.findings.reversed(), summaries = p.summaries.reversed())
         assertEquals(p.hash(), shuffled.hash())
         assertNotEquals(p.hash(), payload("2026-11-16T12:00:00Z").hash())
-        // A fresh nonce each time: the same content encrypts to different files with one address.
-        assertNotEquals(file.toList(), BundleCodec.encrypt(p, k).toList())
+        // A fresh content key and fresh ephemeral keys each time: the same content encrypts to different files with one address.
+        val again = BundleCodec.encrypt(p, listOf(k.publicKey))
+        assertNotEquals(file.toList(), again.toList())
+        assertEquals(BundleCodec.headerHash(file), BundleCodec.headerHash(again))
+        assertEquals(listOf(k.publicKey.fingerprint), BundleCodec.recipients(file))
+    }
+
+    private fun refused(f: ByteArray, who: ChairIdentity, why: BundleException.Reason) {
+        try {
+            BundleCodec.decrypt(f, who)
+            fail("expected a refusal")
+        } catch (e: BundleException) {
+            assertEquals(why, e.reason)
+            assertFalse(e.message!!.contains(who.stored()))
+        }
     }
 
     @Test
-    fun `the file holds no quotation in the clear, and a wrong key, a changed byte or a changed header is refused`() {
-        val k = BundleKey.generate()
-        val file = BundleCodec.encrypt(payload(), k)
+    fun `the file holds no quotation in the clear, a chair it was not made for cannot open it, and a changed byte, header or recipient list is refused`() {
+        val k = ChairIdentity.generate()
+        val other = ChairIdentity.generate()
+        val file = BundleCodec.encrypt(payload(), listOf(k.publicKey))
         assertFalse(String(file, Charsets.ISO_8859_1).contains("SYNTHETIC"))
 
-        fun refused(f: ByteArray, key: BundleKey, why: BundleException.Reason) {
-            try {
-                BundleCodec.decrypt(f, key)
-                fail("expected a refusal")
-            } catch (e: BundleException) {
-                assertEquals(why, e.reason)
-                assertFalse(e.message!!.contains(k.text))
-            }
-        }
-        refused(file, BundleKey.generate(), BundleException.Reason.WRONG_KEY_OR_TAMPERED)
+        // Wrong chair: no wrap carries their fingerprint, so there is nothing to try.
+        refused(file, other, BundleException.Reason.NOT_A_RECIPIENT)
+        // Someone who rewrites the recipient list to name the other chair's fingerprint still cannot open it: the wrap is for another key.
+        val text = String(file, Charsets.ISO_8859_1)
+        val forged = text.replace(k.publicKey.fingerprint, other.publicKey.fingerprint).toByteArray(Charsets.ISO_8859_1)
+        refused(forged, other, BundleException.Reason.WRONG_KEY_OR_TAMPERED)
+        // Tampering: the body, the header (associated data of the wrap and of the body), and the wrap list (associated data of the body).
         refused(file.copyOf().also { it[it.size - 3] = (it[it.size - 3] + 1).toByte() }, k, BundleException.Reason.WRONG_KEY_OR_TAMPERED)
-        // The header is associated data: pointing it at another address fails even with the right key.
+        refused(
+            file.copyOf().also { it[12] = if (it[12] == '0'.code.toByte()) '1'.code.toByte() else '0'.code.toByte() },
+            k,
+            BundleException.Reason.WRONG_KEY_OR_TAMPERED,
+        )
+        val wrapStart = text.indexOf('\n') + 1
+        val inWraps = text.indexOf("\"w\":\"", wrapStart) + 6
         refused(
             file.copyOf().also {
-                it[12] =
-                    if (it[12] ==
-                        '0'.code.toByte()
+                it[inWraps] =
+                    if (it[inWraps] ==
+                        'A'.code.toByte()
                     ) {
-                        '1'.code.toByte()
+                        'B'.code.toByte()
                     } else {
-                        '0'.code.toByte()
+                        'A'.code.toByte()
                     }
             },
             k,
             BundleException.Reason.WRONG_KEY_OR_TAMPERED,
         )
         refused("not a bundle".toByteArray(), k, BundleException.Reason.NOT_A_BUNDLE)
-        assertEquals("BundleKey(***)", k.toString())
-        assertEquals(k.text, BundleKey.parse(k.text + "\n").text)
-        try {
-            BundleKey.parse("short")
-            fail("expected a refusal")
-        } catch (e: BundleException) {
-            assertEquals(BundleException.Reason.BAD_KEY, e.reason)
+        // Nothing secret prints, and a public key survives a round trip through its one-line text.
+        assertEquals("ChairIdentity(${k.publicKey.fingerprint})", k.toString())
+        assertEquals(k.publicKey, ChairPublicKey.parse(k.publicKey.text + "\n"))
+        assertEquals(
+            listOf(k.publicKey, other.publicKey),
+            ChairPublicKey.parseAll("${k.publicKey.text}, f.txt") {
+                if (it ==
+                    "f.txt"
+                ) {
+                    "# chair two\n${other.publicKey.text}\n"
+                } else {
+                    null
+                }
+            },
+        )
+        for (bad in listOf("short", ChairPublicKey.PREFIX + "AAAA")) {
+            try {
+                ChairPublicKey.parse(bad)
+                fail("expected a refusal")
+            } catch (e: BundleException) {
+                assertEquals(BundleException.Reason.BAD_KEY, e.reason)
+            }
         }
+    }
+
+    @Test
+    fun `two chairs both open the one file with their own private keys, and a third does not`() {
+        val a = ChairIdentity.generate()
+        val b = ChairIdentity.generate()
+        val c = ChairIdentity.generate()
+        val p = payload()
+        val file = BundleCodec.encrypt(p, listOf(a.publicKey, b.publicKey))
+        assertEquals(setOf(a.publicKey.fingerprint, b.publicKey.fingerprint), BundleCodec.recipients(file).toSet())
+        assertEquals(p.canonical(), BundleCodec.decrypt(file, a))
+        assertEquals(p.canonical(), BundleCodec.decrypt(file, b))
+        refused(file, c, BundleException.Reason.NOT_A_RECIPIENT)
+        // The same key twice is one wrap; no key at all is not a bundle.
+        assertEquals(1, BundleCodec.recipients(BundleCodec.encrypt(p, listOf(a.publicKey, a.publicKey))).size)
+        assertTrue(runCatching { BundleCodec.encrypt(p, emptyList()) }.isFailure)
+    }
+
+    @Test
+    fun `a chair's key lives in the keychain, made on first use and the same afterwards, one per conference, with an exportable public half`() {
+        val kc =
+            object : net.jonbell.pcs.core.secrets.Keychain {
+                val m = mutableMapOf<String, String>()
+                override val backend = "test"
+
+                override fun read(account: String) = m[account]
+
+                override fun write(account: String, secret: String) {
+                    m[account] = secret
+                }
+            }
+        assertEquals(null, ChairKeychain.load(kc, "conf-1"))
+        val first = ChairKeychain.loadOrCreate(kc, "conf-1")
+        assertEquals(first.publicKey, ChairKeychain.loadOrCreate(kc, "conf-1").publicKey)
+        assertEquals(first.publicKey, ChairKeychain.load(kc, "conf-1")!!.publicKey)
+        assertNotEquals(first.publicKey, ChairKeychain.loadOrCreate(kc, "conf-2").publicKey)
+        assertEquals(setOf("conf-1/chair-key", "conf-2/chair-key"), kc.m.keys)
+        // What the keychain gave back opens a bundle made for the exported public key.
+        val file = BundleCodec.encrypt(payload(), listOf(ChairPublicKey.parse(first.publicKey.text)))
+        assertEquals(payload().canonical(), BundleCodec.decrypt(file, ChairKeychain.load(kc, "conf-1")!!))
     }
 
     @Test
     fun `two copies of the app import one bundle and hold identical findings, and an unverified quotation reaches neither`() {
         val dir = Files.createTempDirectory("pcs-bundle-test")
         try {
-            val k = BundleKey.generate()
-            val file = BundleCodec.encrypt(payload(), k)
+            val k = ChairIdentity.generate()
+            val file = BundleCodec.encrypt(payload(), listOf(k.publicKey))
             val seen =
                 listOf("copy-a.db", "copy-b.db").mapIndexed { i, name ->
                     val s = store(dir, name)
@@ -186,7 +258,7 @@ class ScreeningBundleTest {
             // Neither the key nor a quotation is in either database file in the clear.
             for (name in listOf("copy-a.db", "copy-b.db")) {
                 val bytes = String(Files.readAllBytes(dir.resolve(name)), Charsets.ISO_8859_1)
-                assertFalse(bytes.contains(k.text))
+                assertFalse(bytes.contains(k.stored()))
                 assertFalse(bytes.contains("SYNTHETIC"))
             }
         } finally {
@@ -195,18 +267,18 @@ class ScreeningBundleTest {
     }
 
     @Test
-    fun `a bundle opened with the wrong key imports nothing`() {
+    fun `a bundle made for another chair imports nothing`() {
         val dir = Files.createTempDirectory("pcs-bundle-test")
         try {
-            val file = BundleCodec.encrypt(payload(), BundleKey.generate())
+            val file = BundleCodec.encrypt(payload(), listOf(ChairIdentity.generate().publicKey))
             store(dir, "x.db").use {
                 val clock = Clock { Instant.parse("2026-11-15T12:00:00Z") }
                 val imports = Imports(it, clock)
                 try {
-                    ScreeningBundles(it, imports, clock).import(file, BundleKey.generate(), "bundle.pcsb")
+                    ScreeningBundles(it, imports, clock).import(file, ChairIdentity.generate(), "bundle.pcsb")
                     fail("expected a refusal")
                 } catch (e: BundleException) {
-                    assertEquals(BundleException.Reason.WRONG_KEY_OR_TAMPERED, e.reason)
+                    assertEquals(BundleException.Reason.NOT_A_RECIPIENT, e.reason)
                 }
                 assertEquals(0, imports.runs(ImportKind.SCREENING_BUNDLE).size)
             }

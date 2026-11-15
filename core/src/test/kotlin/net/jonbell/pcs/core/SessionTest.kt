@@ -63,6 +63,45 @@ class SessionTest {
     }
 
     @Test
+    fun `each chair's session exports a public key and imports a bundle made for it, and never one made for another chair`(
+        @TempDir dir: Path,
+    ) {
+        conf(dir, "ch-a", "https://ch-a.example.org")
+        conf(dir, "ch-b", "https://ch-b.example.org")
+        conf(dir, "ch-c", "https://ch-c.example.org")
+        val env = mapOf("PCS_CONFERENCES" to dir.toString())
+        val (a, b, c) = Conferences.list(env)
+        val kcA = MapKeychain()
+        val kcB = MapKeychain()
+        val kcC = MapKeychain()
+        val payload =
+            net.jonbell.pcs.core.bundle.BundlePayload(
+                net.jonbell.pcs.core.bundle.BundleManifest(createdAt = "2030-01-01T00:00:00Z", papers = emptyList(), checks = emptyList()),
+                emptyList(),
+            )
+        Session.open(a, kcA, env).use { sa ->
+            Session.open(b, kcB, env).use { sb ->
+                Session.open(c, kcC, env).use { sc ->
+                    // A chair with no key yet has nothing to open a bundle with, and importing does not make one.
+                    val early = net.jonbell.pcs.core.bundle.BundleCodec.encrypt(payload, listOf(net.jonbell.pcs.core.bundle.ChairIdentity.generate().publicKey))
+                    assertThrows(MissingSecretException::class.java) { sa.importBundle(early, "x.pcsb") }
+                    assertFalse(kcA.m.containsKey(Accounts.chairKey("ch-a")))
+                    val pa = sa.chairPublicKey()
+                    val pb = sb.chairPublicKey()
+                    assertEquals(pa, sa.chairPublicKey(), "the same key every time")
+                    assertTrue(kcA.m.getValue(Accounts.chairKey("ch-a")).startsWith("v1."), "the private half is in the keychain")
+                    val file = net.jonbell.pcs.core.bundle.BundleCodec.encrypt(payload, listOf(pa, pb))
+                    assertTrue(sa.importBundle(file, "b.pcsb") is net.jonbell.pcs.core.bundle.BundleImport.Imported)
+                    assertTrue(sb.importBundle(file, "b.pcsb") is net.jonbell.pcs.core.bundle.BundleImport.Imported)
+                    sc.chairPublicKey()
+                    val e = assertThrows(net.jonbell.pcs.core.bundle.BundleException::class.java) { sc.importBundle(file, "b.pcsb") }
+                    assertEquals(net.jonbell.pcs.core.bundle.BundleException.Reason.NOT_A_RECIPIENT, e.reason)
+                }
+            }
+        }
+    }
+
+    @Test
     fun `a store whose key is missing from the keychain is not reopened with a new key`(
         @TempDir dir: Path,
     ) {

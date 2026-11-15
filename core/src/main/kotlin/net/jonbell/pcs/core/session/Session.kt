@@ -250,6 +250,23 @@ public class Session private constructor(
     /** The discussion dashboard at the clock's now (spec §5): paper risk, AC and reviewer metrics, the overview. Reads the mirror; writes nothing. */
     public fun discussion(): net.jonbell.pcs.core.discussion.DiscussionState = net.jonbell.pcs.core.discussion.DiscussionLoader.state(this)
 
+    /**
+     * This chair's public key for screening bundles (X25519, from the OS keychain; created on first use). It is public: the chair gives it to whoever
+     * runs `pcs agent bundle --to`, by any channel. The private half never leaves the keychain.
+     */
+    public fun chairPublicKey(): net.jonbell.pcs.core.bundle.ChairPublicKey =
+        net.jonbell.pcs.core.bundle.ChairKeychain.loadOrCreate(keychain, conference.id).publicKey
+
+    /** Imports a screening bundle made for this chair's key. A chair with no key yet has none to open it with, so this never creates one. */
+    public fun importBundle(file: ByteArray, source: String): net.jonbell.pcs.core.bundle.BundleImport {
+        val me =
+            net.jonbell.pcs.core.bundle.ChairKeychain.load(keychain, conference.id)
+                ?: throw MissingSecretException(
+                    "no chair key in the keychain for ${conference.id}: export your public key first (Settings, or `pcs chair-key`)",
+                )
+        return net.jonbell.pcs.core.bundle.ScreeningBundles(store, net.jonbell.pcs.core.imports.Imports(store, clock), clock).import(file, me, source)
+    }
+
     /** Writeback (spec §6) for this conference: the only way the app changes HotCRP. */
     public fun writeback(): net.jonbell.pcs.core.writeback.Writeback = net.jonbell.pcs.core.writeback.Writeback(store, clock, settings.hotcrpUrl, token())
 

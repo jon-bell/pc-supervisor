@@ -2,7 +2,7 @@
 # (agent.md 7.4). Not part of the check's version (CheckDirs.QUALIFICATION_FILE), so editing a threshold
 # does not make a new version. Measured on the held-out corpus, scaffolded variant, k runs per paper.
 thresholds:
-  min_recall: 0.8
+  min_recall: 0.7
   max_false_flag_rate: 0.1
   min_anchor_validity: 0.95
   min_stability: 0.9

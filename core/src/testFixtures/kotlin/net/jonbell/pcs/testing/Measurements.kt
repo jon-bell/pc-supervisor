@@ -19,8 +19,9 @@ import java.nio.file.Path
  * confidence interval for it. Everything is integer milliseconds and a fixed SplitMix64 stream, so `lake exe check-evidence` re-derives
  * the percentile, the interval and the verdict from the raw samples without trusting this code.
  *
- * What the test can and cannot show: with n = 10 runs the nearest-rank 95th percentile is the slowest run, and a clean sample supports
- * "fewer than 5% of runs exceed the budget" only at 1 - 0.95^10 = 40% confidence (59 clean runs give 95%). The record says so.
+ * What the test can and cannot show: a clean sample of n runs supports "fewer than 5% of runs exceed the budget" at 1 - 0.95^n confidence, which
+ * is 40% for 10 runs and 95% for 59 (owner's ruling 2026-11-15: the nightly job takes 59 runs per budget, `PCS_SCALE_RUNS=59`, and
+ * `docs/scale-budgets.json` makes 59 the minimum `check-evidence` accepts). The record says so.
  */
 public object Measurements {
     private val PRETTY = Json { prettyPrint = true }

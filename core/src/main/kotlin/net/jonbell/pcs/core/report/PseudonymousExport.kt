@@ -25,13 +25,14 @@ public data class ExportTable(val name: String, val header: List<String>, val ro
 
 /**
  * Rows for research or federated evaluation (spec §10.4 G). Every person is a keyed pseudonym and every paper is one too; no email,
- * name, title or text is read into a row. Fields are numbers, timestamps (epoch seconds), and enumerated labels (tier group, status,
+ * name, title or text is read into a row. Fields are numbers, timestamps (rounded to the day unless [TimeResolution] says otherwise), and enumerated labels (tier group, status,
  * rating flag names, dispositions). Rows are in a fixed order, so an export is a function of the mirror and the key.
  */
 public object PseudonymousExport {
-    private fun ts(r: java.sql.ResultSet, i: Int): String = r.getObject(i)?.toString().orEmpty()
+    private fun ts(r: java.sql.ResultSet, i: Int, t: TimeResolution): String = t.format(r.getObject(i)?.toString())
 
-    public fun build(s: Session, ps: Pseudonyms): List<ExportTable> {
+    /** [time] is how finely timestamps are written: the day by default, `PCS_EXPORT_TIME_RESOLUTION` when the caller reads it ([TimeResolution.resolve]). */
+    public fun build(s: Session, ps: Pseudonyms, time: TimeResolution = TimeResolution.DAY): List<ExportTable> {
         val c = s.store.conn
         val input = NominationData(s.store, Imports(s.store, s.clock)).input()
         val tags =
@@ -64,8 +65,8 @@ public object PseudonymousExport {
                     Json.parseToJsonElement(r.getString(7)).jsonArray.joinToString(" ") { it.jsonPrimitive.content },
                     score(r.getString(8), merit),
                     score(r.getString(8), expertise),
-                    ts(r, 9),
-                    ts(r, 10),
+                    ts(r, 9, time),
+                    ts(r, 10, time),
                 )
             }
         val comments =
@@ -81,7 +82,7 @@ public object PseudonymousExport {
                     r.getString(3).orEmpty(),
                     (!r.getString(4).isNullOrEmpty()).toString(),
                     r.getInt(5).toString(),
-                    ts(r, 6),
+                    ts(r, 6, time),
                 )
             }
         val nominations =
@@ -103,9 +104,9 @@ public object PseudonymousExport {
                     ps.paper(q.pid),
                     ps.person(q.reviewer),
                     q.group,
-                    q.sentAt.epochSecond.toString(),
-                    q.due.epochSecond.toString(),
-                    q.remindedAt?.epochSecond?.toString().orEmpty(),
+                    time.format(q.sentAt.epochSecond),
+                    time.format(q.due.epochSecond),
+                    q.remindedAt?.epochSecond?.let(time::format).orEmpty(),
                     q.revised.toString(),
                     q.disposition?.name?.lowercase().orEmpty(),
                     q.status.name.lowercase(),

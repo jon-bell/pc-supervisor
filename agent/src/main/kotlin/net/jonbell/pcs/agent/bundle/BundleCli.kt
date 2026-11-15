@@ -17,6 +17,7 @@ import net.jonbell.pcs.agent.engines.PaperInput
 import net.jonbell.pcs.agent.engines.RequestRejected
 import net.jonbell.pcs.agent.engines.ResultStore
 import net.jonbell.pcs.agent.llm.AbstractSource
+import net.jonbell.pcs.agent.llm.CfpSource
 import net.jonbell.pcs.agent.llm.CheckEnv
 import net.jonbell.pcs.agent.llm.Decisions
 import net.jonbell.pcs.agent.llm.Manifest
@@ -26,30 +27,31 @@ import net.jonbell.pcs.agent.qualify.QualificationFile
 import net.jonbell.pcs.agent.qualify.QualificationGate
 import net.jonbell.pcs.agent.qualify.Unqualified
 import net.jonbell.pcs.core.bundle.BundleCodec
+import net.jonbell.pcs.core.bundle.BundleException
 import net.jonbell.pcs.core.bundle.BundleKey
+import net.jonbell.pcs.core.bundle.ChairPublicKey
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.attribute.PosixFilePermissions
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /**
- * `pcs agent bundle <pdf|dir>... --out <dir> [--key-file f] [--class synthetic|public|confidential] [--cfp f] [--abstracts f]
+ * `pcs agent bundle <pdf|dir>... --out <dir> --to <chair public keys> [--class synthetic|public|confidential] [--cfp f] [--abstracts f]
  * [--abstracts-by-paper f] [--authors f] [--no-effect] [--at ISO]` (agent.md §8): screens the papers (the deterministic checks, then each LLM check routed in the
  * environment) and writes the encrypted, content-addressed bundle `bundle-<sha256>.pcsb` that the chairs' apps import.
  * A paper's id is its file name without the extension (the HotCRP paper id).
  *
- * The key is read from `--key-file` or, if that file does not exist, generated and written there (owner-only). It is never
- * printed, and travels to the other chairs separately from the file. The clearance check is in front of every engine, and for
- * `confidential` papers the qualification gate and the encrypted store are required too.
+ * `--to` names the PC chairs who may open it: public keys (`pcs-chair-1:...`, from `pcs chair-key` or the Settings screen) or files holding them, comma
+ * separated. The bundle's content key is wrapped for each; a chair imports with their own private key, and no shared secret travels. The clearance check is
+ * in front of every engine, and for `confidential` papers the qualification gate and the encrypted store are required too.
  */
 class BundleCli(private val env: Map<String, String>, private val out: Appendable = System.out) {
     fun bundle(args: List<String>): Int {
         val inputs = mutableListOf<String>()
         var outDir: String? = null
-        var keyFile: String? = null
+        var to: String? = null
         var dc = DataClass.SYNTHETIC
-        var cfp = env["PCS_AGENT_CFP"]
+        var cfp: String? = null
         var abstracts: String? = null
         var abstractsByPaper: String? = null
         var authors: String? = null
@@ -59,7 +61,7 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
         while (i < args.size) {
             when (args[i]) {
                 "--out" -> outDir = args[++i]
-                "--key-file" -> keyFile = args[++i]
+                "--to" -> to = (to?.plus(",") ?: "") + args[++i]
                 "--class" -> args[++i].let { v -> dc = DataClass.entries.first { it.name.equals(v, ignoreCase = true) } }
                 "--cfp" -> cfp = args[++i]
                 "--abstracts" -> abstracts = args[++i]
@@ -71,10 +73,21 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
             }
             i++
         }
-        if (inputs.isEmpty() || outDir == null || keyFile == null) {
+        if (inputs.isEmpty() || outDir == null || to == null) {
             out.appendLine(
-                "usage: pcs agent bundle <pdf|dir>... --out <dir> --key-file <file> [--class synthetic|public|confidential] [--cfp file] [--no-effect]",
+                "usage: pcs agent bundle <pdf|dir>... --out <dir> --to <chair public keys or files> [--class synthetic|public|confidential] [--cfp file] [--no-effect]",
             )
+            return 2
+        }
+        val recipients =
+            try {
+                ChairPublicKey.parseAll(to) { f -> runCatching { Files.readString(Path.of(f)) }.getOrNull() }
+            } catch (e: BundleException) {
+                out.appendLine("refused: ${e.message}")
+                return 2
+            }
+        if (recipients.isEmpty()) {
+            out.appendLine("refused: --to named no chair public key")
             return 2
         }
         val pdfs =
@@ -97,8 +110,11 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
             val quals = QualificationFile.load(qualPath)
             val store = store(dc)
             val dispatcher = Dispatcher(registered, store, gate = QualificationGate(quals))
-            val decisions = env["PCS_AGENT_DECISIONS"]?.let { Decisions.load(Path.of(it)) } ?: Decisions.EMPTY
             val routing = EngineConfigs.routing(env)
+            val cfpState = CfpSource.resolve(env, cfp)
+            CfpSource.warning(routing, cfpState)?.let { out.appendLine(it) }
+            // A missing CFP file reopens scope.cfp, so the bundle's manifest lists the scope check as unresolved.
+            val decisions = CfpSource.overlay(env["PCS_AGENT_DECISIONS"]?.let { Decisions.load(Path.of(it)) } ?: Decisions.EMPTY, cfpState)
             val checksDir = Path.of(env["PCS_AGENT_CHECKS"] ?: "agent/checks")
             val all = Screener.checks(checksDir)
             val routed = all.filter { it.id in routing }
@@ -114,7 +130,7 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
                     )
                 }.orEmpty()
             val deps = Screener.deterministicDeps(checksDir)
-            val cfpText = cfp?.let { Files.readString(Path.of(it)) }
+            val cfpText = cfpState.textOrNull
             val papers =
                 pdfs.map { f ->
                     val id = f.fileName.toString().removeSuffix(".pdf")
@@ -130,8 +146,7 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
                 }
             val rows = Manifest.rows(checksDir, decisions, quals)
             val payload = BundleBuilder.build(papers, screens, rows, quals, (at ?: Instant.now().truncatedTo(ChronoUnit.SECONDS).toString()))
-            val key = readOrCreateKey(Path.of(keyFile))
-            val file = BundleCodec.encrypt(payload, key)
+            val file = BundleCodec.encrypt(payload, recipients)
             val target = Path.of(outDir)
             Files.createDirectories(target)
             val dest = target.resolve(BundleCodec.fileName(payload.hash()))
@@ -142,7 +157,11 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
                 "papers ${papers.size}; findings ${payload.findings.size} (${payload.visible.size} verified, $unver unverified and withheld from every person); summaries ${payload.summaries.size}",
             )
             out.appendLine("LLM checks run: ${routed.joinToString { it.id }.ifEmpty { "none (set PCS_CHECK_<id>_ENGINE)" }}")
-            out.appendLine("wrote $dest (encrypted; the key is in $keyFile, send it separately from the file)")
+            out.appendLine(
+                "wrote $dest (encrypted for ${recipients.joinToString {
+                    it.fingerprint
+                }}; each chair opens it with their own key, nothing else to send)",
+            )
             0
         } catch (e: EngineConfigException) {
             out.appendLine("configuration problems:\n  " + e.problems.joinToString("\n  "))
@@ -168,14 +187,5 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
             dir != null -> FileResultStore(dir)
             else -> InMemoryResultStore()
         }
-    }
-
-    private fun readOrCreateKey(f: Path): BundleKey {
-        if (Files.isRegularFile(f)) return BundleKey.parse(Files.readString(f))
-        val k = BundleKey.generate()
-        f.toAbsolutePath().parent?.let { Files.createDirectories(it) }
-        Files.writeString(f, k.text + "\n")
-        runCatching { Files.setPosixFilePermissions(f, PosixFilePermissions.fromString("rw-------")) }
-        return k
     }
 }

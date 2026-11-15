@@ -34,7 +34,7 @@ The stock ARC runner image (`ghcr.io/actions/actions-runner`) has the docker CLI
 ## Runner labels
 
 - `ripley-cloud`: the default for the `ci` job (dind; 4 CPU / 8 Gi limit).
-- `ripley-cloud-large`: the nightly `scale` job (seeding ~10k reviews plus a full sync).
+- `ripley-cloud-large`: the nightly `scale` job (seeding ~10k reviews, then 59 runs per budget: `PCS_SCALE_RUNS=59`, so a clean sample shows fewer than 5% of runs over budget at 95% confidence; `docs/scale-budgets.json` makes 59 the minimum `check-evidence` accepts).
 - `ripley-cloud-ramdisk` is available if MariaDB/tmpfs I/O ever becomes the bottleneck. It shouldn't, since the DB is already on tmpfs inside the container.
 
 ## One-time setup (maintainer)

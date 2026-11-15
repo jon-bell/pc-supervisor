@@ -17,6 +17,11 @@ PCS_FORCE_SHOW=true
 # conference files are, so it can't live in one). Default: <OS app data>/conferences.
 # PCS_CONFERENCES=
 
+# Each PC chair's keypair for screening bundles lives in the OS keychain (`<conference>/chair-key`); `pcs chair-key` and the Settings screen export the public half.
+# For the CLI: the conference id (default: the instance's host), and, for a localhost instance only, a file standing in for the keychain (tests, CI).
+# PCS_CONFERENCE_ID=
+# PCS_KEYCHAIN_FILE=
+
 # --- Policy -------------------------------------------------------------------
 # The answers file: one "Qn = <reading>" line per settled question (model format).
 PCS_ANSWERS=
@@ -175,7 +180,7 @@ PCS_TAG_CHAIR_ATTENTION=chair-attention
 # PCS_CHECK_<check>_ENGINE=<engine id>        # production routing (set from the shootout)
 # PCS_AGENT_SCALE_PAPERS=4000                 # instance size for the shootout's cost and wall-time projections (default 4000)
 # PCS_AGENT_DECISIONS=/path/to/decisions.yaml   # the decision file (agent.md §3.1); venue-specific, kept outside the repo (agent/decisions.example.yaml is a synthetic example)
-# PCS_AGENT_CFP=/path/to/cfp.txt                # the call for papers' topic text, for the scope check
+# PCS_AGENT_CFP=/path/to/cfp.txt                # the call for papers' topic list (a text file the chair sets, kept with this conference config). The scope check reads it; if it is unset, missing or empty, scope.cfp is unresolved and the scope check is blocked (no silent default)
 # PCS_AGENT_CHECKS=agent/checks                 # the check directories (default agent/checks)
 # PCS_AGENT_QUALIFICATIONS=/path/to/quals.json  # qualification records (agent.md 7.4): shown in the manifest, and the gate that refuses confidential data to an unqualified check and engine
 # PCS_AGENT_STORE=/path/to/agent-store           # the content-addressed result store (agent.md 4.4)
@@ -197,3 +202,6 @@ PCS_CRITERION_4=Submitted on time [late]
 # The same key gives the same pseudonyms; a different key gives unrelated ones. Keep it out of any export you share.
 # PCS_PSEUDONYM_KEY=
 # PCS_PSEUDONYM_KEY_FILE=/path/to/pseudonym.key
+# How finely the exported rows write a time (UTC): day (the default; 2030-01-10, no time of day), hour (2030-01-10T17Z) or exact (epoch seconds).
+# Times of day let someone holding the export match rows against HotCRP's own records: use hour or exact only for a recipient you trust.
+# PCS_EXPORT_TIME_RESOLUTION=day

@@ -16,6 +16,7 @@ import net.jonbell.pcs.core.bundle.BundleCodec
 import net.jonbell.pcs.core.bundle.BundleImport
 import net.jonbell.pcs.core.bundle.BundleKey
 import net.jonbell.pcs.core.bundle.BundlePayload
+import net.jonbell.pcs.core.bundle.ChairIdentity
 import net.jonbell.pcs.core.bundle.ScreeningBundles
 import net.jonbell.pcs.core.imports.ImportKind
 import net.jonbell.pcs.core.imports.Imports
@@ -42,7 +43,7 @@ class BundleCliTest {
         return code to sb.toString()
     }
 
-    private fun importInto(dir: Path, name: String, file: ByteArray, key: BundleKey): Triple<List<Pair<String, Map<String, String>>>, BundlePayload?, Store> {
+    private fun importInto(dir: Path, name: String, file: ByteArray, key: ChairIdentity): Triple<List<Pair<String, Map<String, String>>>, BundlePayload?, Store> {
         val store = Store.open(dir.resolve(name), "test-key")
         val clock = Clock { Instant.parse("2026-11-15T12:00:00Z") }
         val imports = Imports(store, clock)
@@ -57,26 +58,29 @@ class BundleCliTest {
     ) {
         val items = BundleFixtures.items(10)
         val run = BundleFixtures.prepare(tmp, items.mapIndexed { i, it -> "${101 + i}" to it })
-        val key = tmp.resolve("keys/bundle.key")
+        val chairA = ChairIdentity.generate()
+        val chairB = ChairIdentity.generate()
+        val keyFile = tmp.resolve("chairs.txt").also { Files.writeString(it, "# the chairs\n${chairB.publicKey.text}\n") }
         val out = tmp.resolve("out")
-        val (code, text) = cli(BundleFixtures.env(run), BundleFixtures.args(run, out, key, "--at", "2026-11-15T12:00:00Z"))
+        // --to takes a public key and a file of them.
+        val (code, text) = cli(BundleFixtures.env(run), BundleFixtures.args(run, out, "${chairA.publicKey.text},$keyFile", "--at", "2026-11-15T12:00:00Z"))
         assertEquals(0, code, text)
         val file = Files.list(out).use { it.toList() }.single()
         val bytes = Files.readAllBytes(file)
         val hash = BundleCodec.headerHash(bytes)!!
         assertEquals("bundle-$hash.pcsb", file.fileName.toString(), "named by its content address")
         assertTrue(text.contains("# bundle $hash"))
-        // The key is in its file, owner-only, and never on the console.
-        val keyText = Files.readString(key).trim()
-        assertFalse(text.contains(keyText))
-        assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(key)))
+        // No secret was written or printed: the file names its recipients by fingerprint, and only their public keys went in.
+        assertEquals(setOf(chairA.publicKey.fingerprint, chairB.publicKey.fingerprint), BundleCodec.recipients(bytes).toSet())
+        assertTrue(text.contains(chairA.publicKey.fingerprint) && text.contains(chairB.publicKey.fingerprint))
+        assertFalse(Files.exists(tmp.resolve("keys")), "no key file is produced")
         // Nothing of any paper is in the clear.
         val clear = String(bytes, Charsets.ISO_8859_1)
         assertFalse(items.any { it.case.spec.title in clear })
 
-        val k = BundleKey.parse(keyText)
-        val a = importInto(tmp, "a.db", bytes, k)
-        val b = importInto(tmp, "b.db", bytes, k)
+        // Two chairs, each with their own private key, import the same file.
+        val a = importInto(tmp, "a.db", bytes, chairA)
+        val b = importInto(tmp, "b.db", bytes, chairB)
         a.third.close()
         b.third.close()
         assertEquals(a.first, b.first)
@@ -108,19 +112,20 @@ class BundleCliTest {
     }
 
     @Test
-    fun `the same run again writes the same bundle address, a different key does not open it`(
+    fun `the same run again writes the same bundle address, a chair it was not made for cannot open it`(
         @TempDir tmp: Path,
     ) {
         val run = BundleFixtures.prepare(tmp, BundleFixtures.items(4).mapIndexed { i, it -> "${7 + i}" to it })
-        val key = tmp.resolve("bundle.key")
+        val chair = ChairIdentity.generate()
+        val key = chair.publicKey.text
         val a = tmp.resolve("a")
         val b = tmp.resolve("b")
         assertEquals(0, cli(BundleFixtures.env(run), BundleFixtures.args(run, a, key, "--at", "2026-11-15T12:00:00Z")).first)
         assertEquals(0, cli(BundleFixtures.env(run), BundleFixtures.args(run, b, key, "--at", "2026-11-15T12:00:00Z")).first)
         assertEquals(Files.list(a).use { it.toList() }.single().fileName, Files.list(b).use { it.toList() }.single().fileName, "equal content, equal address")
         val bytes = Files.readAllBytes(Files.list(a).use { it.toList() }.single())
-        assertThrows<net.jonbell.pcs.core.bundle.BundleException> { BundleCodec.decrypt(bytes, BundleKey.generate()) }
-        assertNotNull(BundleCodec.decrypt(bytes, BundleKey.parse(Files.readString(key))))
+        assertThrows<net.jonbell.pcs.core.bundle.BundleException> { BundleCodec.decrypt(bytes, ChairIdentity.generate()) }
+        assertNotNull(BundleCodec.decrypt(bytes, chair))
     }
 
     @Test
@@ -128,7 +133,7 @@ class BundleCliTest {
         @TempDir tmp: Path,
     ) {
         val run = BundleFixtures.prepare(tmp, BundleFixtures.items(3).mapIndexed { i, it -> "${1 + i}" to it })
-        val args = BundleFixtures.args(run, tmp.resolve("out"), tmp.resolve("k"), "--class", "confidential")
+        val args = BundleFixtures.args(run, tmp.resolve("out"), ChairIdentity.generate().publicKey.text, "--class", "confidential")
         val noStore = cli(BundleFixtures.env(run), args)
         assertEquals(1, noStore.first)
         assertTrue(noStore.second.contains("encrypted store"), noStore.second)
@@ -142,6 +147,22 @@ class BundleCliTest {
         assertEquals(1, noQual.first)
         assertTrue(noQual.second.contains("is not qualified for confidential data"), noQual.second)
         assertFalse(Files.exists(tmp.resolve("out")), "no bundle was written")
+    }
+
+    @Test
+    fun `a bundle with no chair key, or a bad one, is refused and nothing is written`(
+        @TempDir tmp: Path,
+    ) {
+        val run = BundleFixtures.prepare(tmp, BundleFixtures.items(2).mapIndexed { i, it -> "${1 + i}" to it })
+        val withTo = BundleFixtures.args(run, tmp.resolve("out"), "x")
+        val noTo = cli(BundleFixtures.env(run), withTo.filterIndexed { i, _ -> i != withTo.indexOf("--to") && i != withTo.indexOf("--to") + 1 })
+        assertEquals(2, noTo.first, noTo.second)
+        val bad = cli(BundleFixtures.env(run), BundleFixtures.args(run, tmp.resolve("out"), "pcs-chair-1:AAAA"))
+        assertEquals(2, bad.first, bad.second)
+        assertTrue(bad.second.contains("refused"), bad.second)
+        val missing = cli(BundleFixtures.env(run), BundleFixtures.args(run, tmp.resolve("out"), tmp.resolve("nope.txt").toString()))
+        assertEquals(2, missing.first, missing.second)
+        assertFalse(Files.exists(tmp.resolve("out")))
     }
 
     @Test
@@ -198,7 +219,7 @@ class BundleCliTest {
         assertFalse(
             BundleCodec.encrypt(
                 BundlePayload(net.jonbell.pcs.core.bundle.BundleManifest(createdAt = "t", papers = emptyList(), checks = emptyList()), listOf(b)),
-                BundleKey.generate(),
+                listOf(ChairIdentity.generate().publicKey),
             ).let {
                 String(it, Charsets.ISO_8859_1)
             }.contains("QUOTE-NOT-FOUND"),

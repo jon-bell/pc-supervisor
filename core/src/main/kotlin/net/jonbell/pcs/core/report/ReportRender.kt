@@ -81,6 +81,6 @@ public object ReportFiles {
     /** The pseudonymous rows as CSV files in [dir]; the key comes from the settings. Null when no key is set (nothing is written). */
     public fun saveExport(s: Session, dir: java.nio.file.Path): List<java.nio.file.Path>? {
         val ps = Pseudonyms.resolve(s.settings.raw) ?: return null
-        return PseudonymousExport.write(PseudonymousExport.build(s, ps), dir)
+        return PseudonymousExport.write(PseudonymousExport.build(s, ps, TimeResolution.resolve(s.settings.raw)), dir)
     }
 }

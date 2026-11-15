@@ -136,17 +136,19 @@ class EvalKitTest {
 
     @Test
     @Covers("prop:C1")
-    fun `every count under 5 is suppressed in the seeded report, and the minimum cannot be lowered`() {
+    fun `every count of 1 to 4 is suppressed in the seeded report, a true zero is shown, and the minimum cannot be lowered`() {
         val (_, report) = base
-        val small = cellNumbers(report).filter { it < 5 }
-        assertTrue(small.isEmpty(), "a count under 5 is in the report: $small\n$report")
+        val small = cellNumbers(report).filter { it in 1..4 }
+        assertTrue(small.isEmpty(), "a count of 1 to 4 is in the report: $small\n$report")
         assertTrue(report.contains("<5") || report.contains("suppressed"), "the seeded conference has small cells, so something is suppressed")
+        assertTrue(report.contains("- Rows the kit could not read: 0"), "a zero is shown as 0, not as <5\n$report")
+        assertTrue(0 in cellNumbers(report))
         val (code, msg) = run(args("--min-cell", "4"))
         assertEquals(2, code)
         assertTrue(msg.contains("never lower"))
         val (c2, raised) = run(args("--min-cell", "9"))
         assertEquals(0, c2)
-        assertTrue(cellNumbers(raised).none { it < 9 }, "raising the minimum raises it everywhere")
+        assertTrue(cellNumbers(raised).none { it in 1..8 }, "raising the minimum raises it everywhere (zero stays visible)")
     }
 
     private fun report(
@@ -171,27 +173,28 @@ class EvalKitTest {
     @Test
     @Covers("prop:C1")
     fun `no small cell can be read back from the report whatever its value, including by subtraction`() {
-        // Non-interference: a number that is a small cell, or whose complement is, may change without changing one byte of the report.
-        for (n in 0..4) {
-            assertEquals(report(reviewed = 0), report(reviewed = n))
-            assertEquals(report(pc = 0), report(pc = n))
-            assertEquals(report(tpms = TpmsResult(24, n, 40, 30, 0, 0.4, 3)), report(tpms = TpmsResult(24, 0, 40, 30, 0, 0.4, 3)))
-            assertEquals(report(tpms = TpmsResult(24, 20, 40, 40 - n, 0, 0.4, 3)), report(tpms = TpmsResult(24, 20, 40, 40, 0, 0.4, 3)))
-            assertEquals(report(tpms = TpmsResult(24, 20, 40, 30, n, 0.4, 3)), report(tpms = TpmsResult(24, 20, 40, 30, 0, 0.4, 3)))
+        // Non-interference: a number that is a small cell (1 to 4), or whose complement is, may change among 1 to 4 without changing one byte of the report.
+        // Zero is not a small cell: it is shown (the next test), so the baseline here is 1.
+        for (n in 1..4) {
+            assertEquals(report(reviewed = 1), report(reviewed = n))
+            assertEquals(report(pc = 1), report(pc = n))
+            assertEquals(report(tpms = TpmsResult(24, n, 40, 30, 0, 0.4, 3)), report(tpms = TpmsResult(24, 1, 40, 30, 0, 0.4, 3)))
+            assertEquals(report(tpms = TpmsResult(24, 20, 40, 40 - n, 0, 0.4, 3)), report(tpms = TpmsResult(24, 20, 40, 39, 0, 0.4, 3)))
+            assertEquals(report(tpms = TpmsResult(24, 20, 40, 30, n, 0.4, 3)), report(tpms = TpmsResult(24, 20, 40, 30, 1, 0.4, 3)))
             val comp = { c: Int, s: Int -> CompositionResult(24, 8, 40, Q13.entries.map { CompositionRow(it, 40, c, s, s) }) }
-            assertEquals(report(comp = comp(n, 6)), report(comp = comp(0, 6)))
-            assertEquals(report(comp = comp(40 - n, 6)), report(comp = comp(40, 6)))
-            assertEquals(report(comp = comp(30, n)), report(comp = comp(30, 0)))
+            assertEquals(report(comp = comp(n, 6)), report(comp = comp(1, 6)))
+            assertEquals(report(comp = comp(40 - n, 6)), report(comp = comp(39, 6)))
+            assertEquals(report(comp = comp(30, n)), report(comp = comp(30, 1)))
             // the confusion group: any of the three cells small hides precision, recall, the true positives and the row
-            assertEquals(report(checksOf(60, 20, n, 30, 20, 12)), report(checksOf(60, 20, 0, 30, 20, 12)))
-            assertEquals(report(checksOf(60, 20, 12, n, 20, 12)), report(checksOf(60, 20, 12, 0, 20, 12)))
-            assertEquals(report(checksOf(60, 20 + 0, 20 - n, 30, 20, 12)), report(checksOf(60, 20, 20, 30, 20, 12)))
-            assertEquals(report(checksOf(n, 0, 0, 0, 0, 0)), report(checksOf(0, 0, 0, 0, 0, 0)))
+            assertEquals(report(checksOf(60, 20, n, 30, 20, 12)), report(checksOf(60, 20, 1, 30, 20, 12)))
+            assertEquals(report(checksOf(60, 20, 12, n, 20, 12)), report(checksOf(60, 20, 12, 1, 20, 12)))
+            assertEquals(report(checksOf(60, 20, 20 - n, 30, 20, 12)), report(checksOf(60, 20, 19, 30, 20, 12)))
+            assertEquals(report(checksOf(n, 0, 0, 0, 0, 0)), report(checksOf(1, 0, 0, 0, 0, 0)))
             // a check row that differs from the any-check row by a small number of papers
-            assertEquals(report(checksOf(60, 20, 15, 30, 45 - n, 15 - n)), report(checksOf(60, 20, 15, 30, 45, 15)))
+            assertEquals(report(checksOf(60, 20, 15, 30, 45 - n, 15 - n)), report(checksOf(60, 20, 15, 30, 44, 14)))
             val er = { c: Int -> EarlyRejectResult(40, Q15.entries.map { EarlyRejectRow(it, c, c) }) }
-            assertEquals(report(er = er(n)), report(er = er(0)))
-            assertEquals(report(er = er(40 - n)), report(er = er(40)))
+            assertEquals(report(er = er(n)), report(er = er(1)))
+            assertEquals(report(er = er(40 - n)), report(er = er(39)))
         }
         // and a large value is shown: the rules hide small cells, not everything
         assertTrue(report(checksOf(60, 20, 15, 30, 25, 8)).contains("| `format` | 25 | 8 |"))
@@ -199,19 +202,41 @@ class EvalKitTest {
 
     @Test
     @Covers("prop:C1")
-    fun `nested counts are shown only when they are 5 apart, and a rate hides its numerator and its complement`() {
+    fun `true zeros are shown, and only 1 to 4 is suppressed, in counts, rates, nested counts and the confusion group`() {
         val d = Disclosure()
+        for (n in 1..4) {
+            assertEquals("<5", d.count(n))
+            assertEquals("suppressed", d.rate(n, 40), "a numerator of $n")
+            assertEquals("suppressed", d.rate(40 - n, 40), "a complement of $n")
+        }
+        assertEquals("0", d.count(0))
+        assertEquals("5", d.count(5))
+        assertEquals("0.0% (0 of 40)", d.rate(0, 40), "a zero numerator is the failure worth seeing")
+        assertEquals("100.0% (40 of 40)", d.rate(40, 40), "a zero complement is a zero")
+        assertEquals("50.0% (20 of 40)", d.rate(20, 40))
+        assertEquals("suppressed", d.rate(0, 3), "the complement of 3 is a small cell")
+        assertEquals("suppressed", d.rate(2, 5))
+        // complements under 5 stay suppressed: 36 of 40 would give back a 4
+        assertEquals("suppressed", d.rate(36, 40))
         assertEquals(listOf(true, true, true), d.nested(listOf(5, 12, 30)))
         assertEquals(listOf(true, false, true), d.nested(listOf(5, 8, 30)))
-        assertEquals(listOf(false, false, false), d.nested(listOf(0, 3, 4)))
-        assertEquals(listOf(true, false, false), d.nested(listOf(10, 10, 12)))
-        assertEquals("suppressed", d.rate(4, 40))
-        assertEquals("suppressed", d.rate(36, 40))
-        assertEquals("50.0% (20 of 40)", d.rate(20, 40))
-        assertEquals("<5", d.count(0))
-        assertEquals("5", d.count(5))
+        assertEquals(listOf(true, false, false), d.nested(listOf(0, 3, 4)))
+        assertEquals(listOf(true, true, true), d.nested(listOf(0, 0, 0)), "equal counts differ by a zero")
+        assertEquals(listOf(true, true, false), d.nested(listOf(10, 10, 12)), "a difference of 2 is a small cell")
         assertEquals("suppressed", d.mean(java.math.BigDecimal.TEN, 4))
+        assertEquals("n/a", d.mean(java.math.BigDecimal.ZERO, 0))
         assertEquals("2.5000", d.mean(java.math.BigDecimal("100"), 40))
+        // the confusion group: zero cells are shown, a 1 to 4 hides all of it
+        assertTrue(Confusion(0, 12, 20).shown(d))
+        assertEquals("0.0%", Confusion(0, 12, 20).recall(d))
+        assertTrue(Confusion(0, 0, 0).shown(d))
+        assertEquals(false, Confusion(0, 12, 3).shown(d))
+        assertEquals("suppressed", Confusion(7, 2, 20).precision(d))
+        // and in the rendered report
+        assertTrue(report(reviewed = 0).contains("went to review (not withdrawn, not desk rejected): 0"))
+        assertTrue(report(checksOf(60, 20, 0, 30, 20, 0)).contains("recall 0.0%"), report(checksOf(60, 20, 0, 30, 20, 0)))
+        assertTrue(report(checksOf(60, 20, 0, 30, 20, 0)).contains("| `format` | 20 | 0 |"))
+        assertTrue(report(checksOf(60, 20, 2, 30, 20, 2)).contains("recall suppressed"), "a true-positive cell of 2 hides the group")
     }
 
     // ---- what the numbers are -------------------------------------------------------------------------------------------------------------

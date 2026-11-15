@@ -13,10 +13,10 @@ import net.jonbell.pcs.core.bundle.BundleAnchor
 import net.jonbell.pcs.core.bundle.BundleCodec
 import net.jonbell.pcs.core.bundle.BundleFinding
 import net.jonbell.pcs.core.bundle.BundleImport
-import net.jonbell.pcs.core.bundle.BundleKey
 import net.jonbell.pcs.core.bundle.BundleManifest
 import net.jonbell.pcs.core.bundle.BundlePaper
 import net.jonbell.pcs.core.bundle.BundlePayload
+import net.jonbell.pcs.core.bundle.ChairIdentity
 import net.jonbell.pcs.core.bundle.ScreeningBundles
 import net.jonbell.pcs.core.hotcrp.HotcrpClient
 import net.jonbell.pcs.core.imports.Imports
@@ -119,8 +119,8 @@ class ScreeningScenarioTest {
                 ),
                 findings,
             )
-        val key = BundleKey.generate()
-        val r = ScreeningBundles(store, Imports(store, clock), clock).import(BundleCodec.encrypt(payload, key), key, "test")
+        val chair = ChairIdentity.generate()
+        val r = ScreeningBundles(store, Imports(store, clock), clock).import(BundleCodec.encrypt(payload, listOf(chair.publicKey)), chair, "test")
         assertTrue(r is BundleImport.Imported, "$r")
     }
 

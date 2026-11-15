@@ -1,6 +1,6 @@
 {
-  "_comment": "M19 budgets, recorded at the first scale run (2026-11-15). Starting points from PLAN M19 and concepts Q1; kept unless a measurement says otherwise. Times in milliseconds. Each is judged by the 95th percentile (nearest rank) over `runs` runs and its percentile-bootstrap 95% confidence interval; a budget passes when the percentile and the interval's upper bound are both within it.",
-  "runs": 10,
+  "_comment": "M19 budgets, recorded at the first scale run (2026-11-15). Starting points from PLAN M19 and concepts Q1; kept unless a measurement says otherwise. Times in milliseconds. Each is judged by the 95th percentile (nearest rank) over the runs and its percentile-bootstrap 95% confidence interval; a budget passes when the percentile and the interval's upper bound are both within it. `runs` is the minimum number of runs a record must have (59 runs with none over budget support \"fewer than 5% of runs exceed it\" at 95% confidence, owner's ruling 2026-11-15); the nightly job sets PCS_SCALE_RUNS=59, and a shorter smoke run (PCS_SCALE_RUNS=3) deliberately fails check-evidence.",
+  "runs": 59,
   "budgets": {
     "sync.full": { "ms": 480000, "what": "first full sync of the scale scenario into an empty store" },
     "sync.noop": { "ms": 180000, "what": "re-sync with no change at HotCRP; must also write zero rows" },

@@ -4,6 +4,7 @@ import net.jonbell.pcs.agent.engines.PaperInput
 import net.jonbell.pcs.agent.llm.Flag
 import net.jonbell.pcs.agent.llm.FlagAnchor
 import net.jonbell.pcs.agent.llm.FlagStatus
+import net.jonbell.pcs.agent.llm.GroundPolicy
 import net.jonbell.pcs.agent.llm.ManifestRow
 import net.jonbell.pcs.agent.llm.PaperScreen
 import net.jonbell.pcs.agent.llm.Qualification
@@ -32,7 +33,7 @@ object BundleBuilder {
             f.check,
             f.version,
             f.kind,
-            f.ground,
+            GroundPolicy.groundOf(f),
             f.severity.name,
             if (f.status == FlagStatus.VERIFIED) BundleFinding.VERIFIED else BundleFinding.UNVERIFIED,
             f.engine,
