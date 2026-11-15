@@ -51,8 +51,11 @@ public object ScaleSummary {
                 )
             }
             appendLine()
+            val n = records.minOf { it["samplesMs"]!!.jsonArray.size }
+            val confidence = (100 * (1 - Math.pow(0.95, n.toDouble()))).toInt()
             appendLine(
-                "Each row: the 95th percentile (nearest rank) of the runs and its percentile-bootstrap interval; a budget holds when both are within it. With 10 runs that is the slowest run, so a clean row shows fewer than 5% of runs over budget only at 40% confidence.",
+                "Each row: the 95th percentile (nearest rank) of the runs and its percentile-bootstrap interval; a budget holds when both are within it. " +
+                    "With $n runs a clean row shows fewer than 5% of runs over budget at $confidence% confidence (59 clean runs give 95%; the nightly job takes 59).",
             )
             if (facts != null) {
                 appendLine()
