@@ -1,0 +1,15 @@
+id: scope
+version: content-hash  # computed by the build from this directory plus the code files below
+category: llm
+depends_on: [scope.cfp]
+inputs: [cfp.text, extraction.body-text]
+schema: schema.json
+grounds: [scope]
+evidence: >-
+  Flag only when the verdict is out_of_scope, with the paper's own claims quoted and anchored; every quotation must verify, or the flag is stored as unverified. An unclear verdict is not a flag.
+affected: >-
+  The authors, whose paper may be wrongly called out of scope; the AC, who sees the claims and the call's topics and decides.
+code:
+  - src/main/kotlin/pcs/agent/llm/ScopeCheck.kt
+  - src/main/kotlin/pcs/agent/llm/ScreenLlmCheck.kt
+  - src/main/kotlin/pcs/agent/llm/Anchoring.kt

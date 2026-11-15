@@ -1,0 +1,15 @@
+id: anonymity.llm
+version: content-hash  # computed by the build from this directory plus the code files below
+category: llm
+depends_on: [Q1]
+inputs: [extraction.body-text]
+schema: schema.json
+grounds: [anonymity]
+evidence: >-
+  Each item quotes the paper's own words; the harness finds the quotation in the text layer and anchors it, or stores the flag as unverified. The check never infers identity, never sees the author list, and never sees the bibliography.
+affected: >-
+  The authors, if an ordinary phrase is read as pointing to them; the venue's blind review otherwise.
+code:
+  - src/main/kotlin/pcs/agent/llm/AnonymityLlmCheck.kt
+  - src/main/kotlin/pcs/agent/llm/ScreenLlmCheck.kt
+  - src/main/kotlin/pcs/agent/llm/Anchoring.kt

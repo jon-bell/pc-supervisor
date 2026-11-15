@@ -1,0 +1,4 @@
+[
+  {"id": "refs-use/faithful", "kind": "negative", "description": "Three citations whose sentences match the cited abstracts."},
+  {"id": "refs-use/miscited", "kind": "positive", "description": "One citation re-pointed at a real but wrong work: the sentence says the opposite of the abstract."}
+]

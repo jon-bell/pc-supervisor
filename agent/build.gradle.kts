@@ -96,6 +96,8 @@ tasks.test {
     dependsOn(":core:claimsInventory")
     maxHeapSize = "2g"
     systemProperty("pcs.repoRoot", rootProject.projectDir.absolutePath)
+    // Tests never reach a live engine: the claude-code adapter refuses to start the real CLI (LiveGuard).
+    systemProperty("pcs.noLive", "true")
     systemProperty("pcs.claimsFile", coreBuild.file("claims/claims.json").get().asFile.absolutePath)
     systemProperty("pcs.coversDir", coreBuild.dir("covers-agent").get().asFile.absolutePath)
     systemProperty("pcs.corpusDir", layout.buildDirectory.dir("synthetic").get().asFile.absolutePath)
@@ -119,4 +121,15 @@ val screeningScore by tasks.registering(JavaExec::class) {
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("pcs.agent.eval.ScoreKt")
     args(layout.buildDirectory.dir("reports/screening").get().asFile.absolutePath)
+}
+
+// Records the fixed sample of live calls (synthetic papers only) through the claude-code adapter into
+// agent/fixtures/replay. By hand, never in `check`: PCS_LIVE_OK=1 ./gradlew :agent:liveSample -Pcap=<n> [-Pcase=<id>]
+val liveSample by tasks.registering(JavaExec::class) {
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("pcs.agent.llm.LiveSample")
+    workingDir = layout.projectDirectory.asFile
+    args(layout.projectDirectory.asFile.absolutePath, (findProperty("cap") ?: "0").toString())
+    findProperty("case")?.let { args(it.toString()) }
+    environment("PCS_LIVE_OK", System.getenv("PCS_LIVE_OK") ?: "")
 }

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "scope output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "claims", "matched_topics", "reason"],
+  "properties": {
+    "verdict": { "enum": ["in_scope", "out_of_scope", "unclear"] },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["quote"],
+        "properties": {
+          "quote": { "type": "string", "minLength": 10, "maxLength": 300 },
+          "page": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "matched_topics": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 200 } },
+    "reason": { "type": "string", "maxLength": 300 }
+  }
+}

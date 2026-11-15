@@ -1,0 +1,44 @@
+# Synthetic example of the decision file (agent.md §3.1). A venue's real file lives outside the repo
+# (PCS_AGENT_DECISIONS); this one is for the manifest, the tests, and the recorded live fixtures.
+# Editing a cited decision's status or statement reruns exactly the checks that cite it.
+decisions:
+  - id: Q1
+    title: Double-anonymity violation
+    status: provisional
+    statement: A violation is reported to the AC, who decides; there is no fix window this cycle.
+    owner_role: PC chairs
+    decided_at: 2026-10-01
+    source: synthetic example
+  - id: Q6
+    title: A fabricated reference is grounds on its own
+    status: assumed
+    statement: A fabricated reference is evidence for the AC, not grounds by itself.
+    owner_role: PC chairs
+    source: tool default, not confirmed
+  - id: format.limits
+    title: Page and layout limits
+    status: settled
+    statement: Nine pages of body text in the venue template, margins as the template sets them.
+    owner_role: program chairs
+    decided_at: 2026-09-15
+    source: synthetic example
+  - id: injection.policy
+    title: Text addressed to an AI reader
+    status: settled
+    statement: Hidden text addressed to an AI reader is evidence for the prompt-injection ground; a visible match is a signal for a person.
+    owner_role: PC chairs
+    decided_at: 2026-10-01
+    source: synthetic example
+  - id: scope.cfp
+    title: Which call text defines scope
+    status: provisional
+    statement: The scope of the venue is the topic list of the published call for papers.
+    owner_role: program chairs
+    decided_at: 2026-10-01
+    source: synthetic example
+  - id: refs.use.policy
+    title: Whether a misused citation can be grounds
+    status: unresolved
+    statement: Open. Until decided, a flag from refs.use is shown as blocked.
+    owner_role: PC chairs
+    source: synthetic example

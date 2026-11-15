@@ -1,0 +1,16 @@
+id: injection.addressed.llm
+version: content-hash  # computed by the build from this directory plus the code files below
+category: llm
+depends_on: [injection.policy]
+inputs: [injection.addressed.findings, extraction.text]
+schema: schema.json
+grounds: []
+evidence: >-
+  One call per candidate span, with a short excerpt around it and nothing else. The verdict is a signal for a person and never a ground by itself (a visible match is never a ground); the span is the one the pattern list found, anchored by the deterministic half.
+affected: >-
+  The authors, if a quotation in a paper about LLMs is read as an attack.
+code:
+  - src/main/kotlin/pcs/agent/llm/AddressedLlmCheck.kt
+  - src/main/kotlin/pcs/agent/llm/ScreenLlmCheck.kt
+  - src/main/kotlin/pcs/agent/llm/Anchoring.kt
+  - src/main/kotlin/pcs/agent/checks/AddressedPatterns.kt

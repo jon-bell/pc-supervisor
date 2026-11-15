@@ -36,14 +36,16 @@ class CheckSpecTest {
             @Suppress("UNCHECKED_CAST")
             (s["code"] as List<String>).forEach { assertTrue(File(System.getProperty("pcs.repoRoot"), "agent/$it").isFile, "$id code: $it") }
         }
-        assertEquals(Oracle.checks.toSet(), root.listFiles()!!.filter { it.isDirectory }.map { it.name }.toSet())
+        val deterministic = root.listFiles()!!.filter { it.isDirectory && spec(it.name)["category"] == "deterministic" }.map { it.name }
+        assertEquals(Oracle.checks.toSet(), deterministic.toSet(), "the other check directories are LLM, differential or escalated checks (LlmChecksSpecTest)")
     }
 
     @Test
     fun `the version of a check is a content hash computed by the build`() {
         for (id in Oracle.checks) assertTrue(Regex("[0-9a-f]{12}").matches(Checks.version(id)), "$id: ${Checks.version(id)}")
-        assertEquals(Oracle.checks.toSet(), Checks.ids())
-        assertEquals(Oracle.checks.size, Oracle.checks.map { Checks.version(it) }.toSet().size, "different directories, different versions")
+        val dirs = root.listFiles()!!.filter { it.isDirectory }.map { it.name }
+        assertEquals(dirs.toSet(), Checks.ids())
+        assertEquals(dirs.size, dirs.map { Checks.version(it) }.toSet().size, "different directories, different versions")
         assertEquals(Oracle.checks.toSet(), Checks.all().map { it.id }.toSet())
     }
 
