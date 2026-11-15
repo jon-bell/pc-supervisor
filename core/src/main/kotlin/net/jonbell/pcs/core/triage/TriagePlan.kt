@@ -6,6 +6,7 @@ import net.jonbell.pcs.core.imports.ImportRow
 import net.jonbell.pcs.core.readings.Q10
 import net.jonbell.pcs.core.readings.Q2
 import net.jonbell.pcs.core.readings.Readings
+import net.jonbell.pcs.core.rules.DeskFlow
 import net.jonbell.pcs.core.rules.DeskReject
 import net.jonbell.pcs.core.rules.Faults
 import net.jonbell.pcs.core.rules.Ground
@@ -155,12 +156,13 @@ public object TriagePlan {
         nowH: Long,
         tier: (String) -> Tier?,
         f: Faults = Faults.NONE,
+        remedyWindowH: Long = DeskFlow.REMEDY_WINDOW_H,
     ): TriageReport {
         val blocked = unresolved(readings)
         if (blocked.isNotEmpty()) return TriageReport.Blocked(blocked)
         val findings = bundle?.visible?.filter { it.ground != null || it.kind.isNotEmpty() }?.groupBy { it.pid.toLongOrNull() }.orEmpty()
         val flagged = findings.keys.filterNotNull().toSet()
-        val facts = DeskFactsReader.read(store, tier, also = flagged).associateBy { it.pid }
+        val facts = DeskFactsReader.read(store, tier, remedyWindowH, also = flagged).associateBy { it.pid }
         val titles =
             store.conn.createStatement().use { s ->
                 s.executeQuery("SELECT pid, coalesce(title,'') FROM paper WHERE gone_at IS NULL").use { rs ->

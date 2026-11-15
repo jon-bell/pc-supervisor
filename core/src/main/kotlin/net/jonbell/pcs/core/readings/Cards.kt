@@ -16,7 +16,7 @@ public data class Card(
     val text: String,
     val deps: List<QId>,
     val cases: List<CardCase>,
-    /** The venue parameters the outcome depends on (`nominees-max`, `pattern-min`, `acc-grace-h`); each case then names its venue. */
+    /** The venue parameters the outcome depends on (`nominees-max`, `pattern-min`, `acc-grace-h`, `remedy-window-h`); each case then names its venue. */
     val venueDeps: List<String> = emptyList(),
 ) {
     /**
@@ -99,6 +99,7 @@ public object ModelExport {
                                     v["nomineesMax"]!!.jsonPrimitive.content.toInt(),
                                     v["patternMin"]!!.jsonPrimitive.content.toInt(),
                                     v["accGraceH"]!!.jsonPrimitive.content.toLong(),
+                                    v["remedyWindowH"]?.jsonPrimitive?.content?.toLong() ?: Venue.DEFAULT_REMEDY_WINDOW_H,
                                 )
                             },
                         )

@@ -2,7 +2,7 @@
 answers file: answers/synthetic.txt
 questions in the model: 20; readings of the whole text: 358318080
 answered: 8; open: 12
-venue parameters: nominees per paper at most 3 (Q8 "up to n"); pattern shown at 3 nominations (Q9); accountability grace period 48 h (AR5)
+venue parameters: nominees per paper at most 3 (Q8 "up to n"); pattern shown at 3 nominations (Q9); accountability grace period 48 h (AR5); Q1 fix window 72 h
 not in the model (no rule depends on them yet): Q9 (who may be nominated), Q12 (withholding reviews)
 
 ## Legibility: does any card depend on a question it doesn't declare?
@@ -55,6 +55,10 @@ answered questions pinned to one reading by cards: 6 of 8
       if reject at once: the AC may not keep it; if referred, may be desk rejected
       if fix window, then reject if uncured: the AC may keep it; if referred, stays in review
       if the AC decides: the AC may keep it; if referred, may be desk rejected
+  [E3b] The chair offers the fix at hour 0 and the author does not cure it; asked at the last hour of the window and an hour later
+      if reject at once: at hour 72: may be desk rejected; at hour 73: may be desk rejected
+      if fix window, then reject if uncured: at hour 72: stays in review; at hour 73: may be desk rejected
+      if the AC decides: at hour 72: may be desk rejected; at hour 73: may be desk rejected
 ### Q4: when reviewers see the screening record
   [S12] A PC member submits their review of a paper the AC referred and then kept
       if never: they never see the screening record

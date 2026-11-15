@@ -20,14 +20,15 @@ def readingObj (xs : List (QId × Nat)) : Json :=
 
 /-- The values tried for each venue parameter: the default and others on either side. -/
 def venueValues : String → List Nat
-  | "nominees-max" => [1, 2, 3, 5] | "pattern-min" => [2, 3, 4] | "acc-grace-h" => [0, 24, 48, 72] | _ => []
+  | "nominees-max" => [1, 2, 3, 5] | "pattern-min" => [2, 3, 4] | "acc-grace-h" => [0, 24, 48, 72] | "remedy-window-h" => [24, 72, 120] | _ => []
 
 def setVenue (v : Venue) : String → Nat → Venue
   | "nominees-max", n => { v with nomineesMax := n } | "pattern-min", n => { v with patternMin := n }
-  | "acc-grace-h", n => { v with accGraceH := n } | _, _ => v
+  | "acc-grace-h", n => { v with accGraceH := n } | "remedy-window-h", n => { v with remedyWindowH := n } | _, _ => v
 
 def venueJson (v : Venue) : Json :=
-  Json.mkObj [("nomineesMax", Json.num v.nomineesMax), ("patternMin", Json.num v.patternMin), ("accGraceH", Json.num v.accGraceH)]
+  Json.mkObj [("nomineesMax", Json.num v.nomineesMax), ("patternMin", Json.num v.patternMin), ("accGraceH", Json.num v.accGraceH),
+    ("remedyWindowH", Json.num v.remedyWindowH)]
 
 /-- A card's cases: every combination of the readings it depends on, and, for a card that declares
     venue parameters, of the values tried for each (the card then says which venue it ran under). -/
@@ -82,10 +83,13 @@ def transitionsJson (a : Answers) : Json :=
   let fix := base.set .q1 (indexIn (QId.q1.labels.map (·.1)) "fix-window")
   let one (tag : String) (r : Reading) : Json :=
     let (states, ts) := deskTransitions r
-    Json.mkObj [("reading", tag), ("initial", obsKey (deskObserve r deskSys.init)),
+    Json.mkObj [("reading", tag), ("remedyWindowH", Json.num r.venue.remedyWindowH), ("initial", obsKey (deskObserve r deskSys.init)),
       ("states", Json.arr (states.toArray.map Json.str)),
       ("transitions", Json.arr (ts.toArray.map fun (f, m, t) => Json.arr #[Json.num f, Json.str m, Json.num t]))]
-  Json.mkObj [("subsystem", deskSys.name), ("readings", Json.arr #[one "signed" base, one "fix-window" fix])]
+  -- the fix window's length changes which states exist (a cure is possible until it ends), so the table is exported under each value tried
+  let windows := (venueValues "remedy-window-h").filter (· != base.venue.remedyWindowH)
+  let others := windows.map fun w => one "fix-window" { fix with venue := setVenue fix.venue "remedy-window-h" w }
+  Json.mkObj [("subsystem", deskSys.name), ("readings", Json.arr (#[one "signed" base, one "fix-window" fix] ++ others.toArray))]
 
 def tracesJson (a : Answers) : Json :=
   let base := a.base

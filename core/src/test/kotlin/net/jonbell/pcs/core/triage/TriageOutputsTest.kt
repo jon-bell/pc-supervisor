@@ -102,6 +102,10 @@ class TriageOutputsTest {
         val due = now.epochSecond + 72 * 3600
         assertEquals(listOf(Conventions.encode(Trace.RemedyDue(5, due))), (tag as TagArtifact).changes.single().add)
         assertTrue(Notices.lint(offer.body).isEmpty() && "You may upload a corrected version until" in offer.body)
+        for (w in listOf(24L, 120L)) { // the venue's window (PCS_REMEDY_WINDOW_H), not a constant
+            val (t, _) = TriageDrafts.offerRemedy(row, Q1.FIX_WINDOW, now, ZoneId.of("UTC"), w)
+            assertEquals(listOf(Conventions.encode(Trace.RemedyDue(5, now.epochSecond + w * 3600))), (t as TagArtifact).changes.single().add)
+        }
         assertThrows(IllegalArgumentException::class.java) { TriageDrafts.offerRemedy(row, Q1.REJECT_AT_ONCE, now, ZoneId.of("UTC")) }
         assertThrows(IllegalArgumentException::class.java) { TriageDrafts.warn(row) }
         store.close()

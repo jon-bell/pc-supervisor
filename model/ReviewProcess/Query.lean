@@ -31,7 +31,7 @@ def getD {α : Type} [FromJson α] (j : Json) (k : String) (d : α) : Except Str
 def parseVenue (j : Json) : Except String Venue := do
   let d : Venue := {}
   pure { nomineesMax := ← getD j "nomineesMax" d.nomineesMax, patternMin := ← getD j "patternMin" d.patternMin,
-         accGraceH := ← getD j "accGraceH" d.accGraceH }
+         accGraceH := ← getD j "accGraceH" d.accGraceH, remedyWindowH := ← getD j "remedyWindowH" d.remedyWindowH }
 
 def parseReading (j : Json) : Except String Reading := do
   let mut r : Reading := {}
@@ -295,6 +295,9 @@ def answer (j : Json) : Except String Json := do
       | .ok (.arr xs) => xs.toList.mapM fromJson?
       | _ => pure []
     pure (Json.mkObj [("result", decisionCounts nominating acs (← getD j "decider" 0) (← getD j "isChair" false))])
+  | "remedyDue" =>
+    let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
+    pure (Json.mkObj [("result", Json.num (remedyDueAt r.venue.remedyWindowH (← getD j "now" 0)))])
   | "overCap" =>
     let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
     pure (Json.mkObj [("result", Json.num (papersOverCap r (← getD j "papers" 0)))])

@@ -27,7 +27,7 @@ def randomReading (seed : Nat) : Json :=
 def randomVenue (seed : Nat) : Json :=
   let h (k : Nat) := hash2 seed (7000 + k)
   Json.mkObj [("nomineesMax", Json.num (1 + h 1 % 5 : Nat)), ("patternMin", Json.num (1 + h 2 % 5 : Nat)),
-    ("accGraceH", Json.num (h 3 % 100 : Nat))]
+    ("accGraceH", Json.num (h 3 % 100 : Nat)), ("remedyWindowH", Json.num (h 4 % 200 : Nat))]
 
 def randomReferral (seed : Nat) : Json :=
   let h (k : Nat) := hash2 seed (1000 + k)
@@ -126,6 +126,8 @@ def randomQuery (rule : String) (s : Nat) : Json :=
     Json.mkObj [("q", "appointmentAuthority"),
       ("nominating", Json.arr ((List.range nPapers).toArray.map fun i => pids (10 + 5 * i))),
       ("acs", pids 40), ("decider", Json.num (h 2 % 5 : Nat)), ("isChair", h 3 % 4 == 0)]
+  | "remedyDue" =>
+    Json.mkObj [("q", "remedyDue"), ("reading", withVenue (randomReading s) (randomVenue s)), ("now", Json.num (h 1 % 300 : Nat))]
   | "overCap" =>
     Json.mkObj [("q", "overCap"), ("reading", randomReading s), ("papers", Json.num (h 1 % 20 : Nat))]
   | "earlyReject" =>

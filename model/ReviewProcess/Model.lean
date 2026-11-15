@@ -103,6 +103,9 @@ def stageAllowed : Q3 → Ground → Stage → Bool
   | .anonAnyStage, g, s => s == .screening || g == .anonymity
   | .anyAnyStage, _, _ => true
 
+/-- When a fix window offered at `now` ends; `window` is the venue's `remedyWindowH`. -/
+def remedyDueAt (window : Nat) (now : Time) : Time := now + window
+
 def remedyHonored (r : Reading) (ref : Referral) : Bool :=
   if ref.ground == .anonymity && r.q1 == .fixWindow then
     ref.remedyOffered && ref.now > ref.remedyDue && !ref.cured

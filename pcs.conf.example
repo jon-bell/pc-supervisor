@@ -76,6 +76,8 @@ PCS_REVIEWS_REQUIRED=3
 # PCS_PATTERN_MIN=3
 # AR5: hours after a request's due date before "no reply" may be recorded (default 48).
 # PCS_ACC_GRACE_H=48
+# Q1 "fix window": hours the author has to cure an anonymity problem once the chair offers the fix (default 72).
+# PCS_REMEDY_WINDOW_H=72
 
 # --- Rule thresholds and weights (defaults in core; override any) -----------
 # PCS_THRESH_SPLIT_RANGE=2

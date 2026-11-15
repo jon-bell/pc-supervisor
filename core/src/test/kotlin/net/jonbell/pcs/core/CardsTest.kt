@@ -16,6 +16,7 @@ import net.jonbell.pcs.core.readings.Readings
 import net.jonbell.pcs.core.rules.Accountability
 import net.jonbell.pcs.core.rules.Change
 import net.jonbell.pcs.core.rules.Compliance
+import net.jonbell.pcs.core.rules.DeskFlow
 import net.jonbell.pcs.core.rules.DeskReject
 import net.jonbell.pcs.core.rules.ERCase
 import net.jonbell.pcs.core.rules.EarlyReject
@@ -119,6 +120,11 @@ class CardsTest {
                     "the AC may keep it",
                     "the AC may not keep it",
                 )}; if referred, ${removable(r, ref)}"
+            },
+            "E3b" to { r ->
+                val w = venue.remedyWindowH
+                val ref = refAt(Ground.ANONYMITY, Stage.SCREENING).copy(remedyOffered = true, remedyDue = DeskFlow.remedyDue(0, w))
+                "at hour $w: ${removable(r, ref.copy(now = w))}; at hour ${w + 1}: ${removable(r, ref.copy(now = w + 1))}"
             },
             "E4" to { r -> removable(r, refAt(Ground.ANONYMITY, Stage.IN_REVIEW)) },
             "E4b" to { r -> removable(r, refAt(Ground.ANONYMITY, Stage.RELEASED)) },

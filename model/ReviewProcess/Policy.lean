@@ -282,7 +282,7 @@ def deskRule (p : Params) (r : Reading) (s : DeskSt) (who : Option Role) : DeskA
   | .opinion o => if s.referred && s.disp == .inReview && !(s.ref.opinions.any (·.who == o.who))
       then some { s with ref := { s.ref with opinions := insertOpinion o s.ref.opinions } } else none
   | .offerRemedy => if s.referred && s.ref.ground == .anonymity && r.q1 == .fixWindow && !s.ref.remedyOffered
-      then some { s with ref := { s.ref with remedyOffered := true, remedyDue := s.ref.now + 72 } } else none
+      then some { s with ref := { s.ref with remedyOffered := true, remedyDue := remedyDueAt r.venue.remedyWindowH s.ref.now } } else none
   | .warn => if s.referred && s.ref.ground == .nominationNoncompliance && !s.ref.warned
       then some { s with ref := { s.ref with warned := true } } else none
   | .cure => if who == some .author && s.ref.remedyOffered && !s.ref.cured && s.ref.now ≤ s.ref.remedyDue

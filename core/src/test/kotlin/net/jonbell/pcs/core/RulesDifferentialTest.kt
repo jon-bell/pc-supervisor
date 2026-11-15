@@ -15,6 +15,7 @@ import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import net.jonbell.pcs.core.readings.Readings
 import net.jonbell.pcs.core.rules.Accountability
+import net.jonbell.pcs.core.rules.DeskFlow
 import net.jonbell.pcs.core.rules.ERCase
 import net.jonbell.pcs.core.rules.EarlyReject
 import net.jonbell.pcs.core.rules.Faults
@@ -134,6 +135,13 @@ class RulesDifferentialTest {
             val req = Request(5, sentBy = 1, due = x.l("due"), remindedAt = (x["remindedAt"] as? JsonPrimitive)?.longOrNull, replied = x.b("replied"))
             val d = ReqDisposition.valueOf(q["disp"]!!.jsonPrimitive.content.uppercase().replace('-', '_'))
             Accountability.mayDispose(req, d, q.l("now"), OracleJson.venue(q["reading"]!!.jsonObject["venue"]).accGraceH)
+        }
+
+    @Test
+    @Covers("prop:S10", "card:E3b")
+    fun `a fix window ends the venue's window length after the offer (Q1)`() =
+        check("remedyDue", { it.jsonPrimitive.longOrNull }) { q ->
+            DeskFlow.remedyDue(q.l("now"), OracleJson.venue(q["reading"]!!.jsonObject["venue"]).remedyWindowH)
         }
 
     @Test

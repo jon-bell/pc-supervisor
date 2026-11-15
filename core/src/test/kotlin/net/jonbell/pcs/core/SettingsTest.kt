@@ -57,10 +57,18 @@ class SettingsTest {
         assertEquals(3, d.nomineesMax)
         assertEquals(3, d.patternMin)
         assertEquals(48, d.accGraceH)
-        val v = Settings.load(ok + ("PCS_NOMINEES_MAX" to "5") + ("PCS_PATTERN_MIN" to "4") + ("PCS_ACC_GRACE_H" to "24")).getOrThrow().venue
-        assertEquals(net.jonbell.pcs.core.rules.Venue(5, 4, 24), v)
-        val e = Settings.load(ok + ("PCS_NOMINEES_MAX" to "0") + ("PCS_ACC_GRACE_H" to "soon")).exceptionOrNull() as SettingsException
+        assertEquals(72, d.remedyWindowH)
+        val v =
+            Settings.load(
+                ok + ("PCS_NOMINEES_MAX" to "5") + ("PCS_PATTERN_MIN" to "4") + ("PCS_ACC_GRACE_H" to "24") + ("PCS_REMEDY_WINDOW_H" to "120"),
+            ).getOrThrow().venue
+        assertEquals(net.jonbell.pcs.core.rules.Venue(5, 4, 24, 120), v)
+        val e =
+            Settings.load(
+                ok + ("PCS_NOMINEES_MAX" to "0") + ("PCS_ACC_GRACE_H" to "soon") + ("PCS_REMEDY_WINDOW_H" to "0"),
+            ).exceptionOrNull() as SettingsException
         assertTrue(e.problems.any { it.startsWith("PCS_NOMINEES_MAX") } && e.problems.any { it.startsWith("PCS_ACC_GRACE_H") }, e.problems.toString())
+        assertTrue(e.problems.any { it.startsWith("PCS_REMEDY_WINDOW_H") }, e.problems.toString())
     }
 
     @Test

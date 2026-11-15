@@ -37,10 +37,11 @@ class TriagePlanTest {
         f: Faults = Faults.NONE,
         nowHours: Long = nowH,
         findings: List<net.jonbell.pcs.core.bundle.BundleFinding> = emptyList(),
+        remedyWindowH: Long = 72,
         build: TriageFixture.() -> Unit,
     ): TriageReport.Ready {
         val store = TriageFixture.store(build)
-        return TriagePlan.compute(store, bundle(findings), emptyList(), r, stage, nowHours, TriageFixture.tiers, f) as TriageReport.Ready
+        return TriagePlan.compute(store, bundle(findings), emptyList(), r, stage, nowHours, TriageFixture.tiers, f, remedyWindowH) as TriageReport.Ready
     }
 
     @Test
@@ -159,6 +160,34 @@ class TriagePlanTest {
         assertEquals(TriageStatus.KEEP_REFUSED, keep(readings(q1 = Q1.REJECT_AT_ONCE)))
         assertEquals(TriageStatus.KEPT, keep(fix))
         assertEquals(TriageStatus.KEPT, keep(readings(q1 = Q1.AC_DECIDES)))
+    }
+
+    @Test
+    @Covers("prop:S10")
+    fun `Q1 - the venue's fix window length decides what counts as a cure (PCS_REMEDY_WINDOW_H)`() {
+        val fix = readings(q1 = Q1.FIX_WINDOW)
+        val due = nowH + 40
+        val tag = Conventions.encode(Trace.RemedyDue(10, due * 3600))
+
+        fun status(window: Long, editedHoursBeforeDue: Long) =
+            plan(
+                fix,
+                nowHours = due + 1,
+                findings = listOf(finding(10, "anonymity")),
+                remedyWindowH = window,
+            ) {
+                people()
+                paper(10, tags = listOf("pcs-refer-anonymity", tag), modifiedAt = (due - editedHoursBeforeDue) * 3600)
+                meta(10, ac, round = null)
+                opinion(10, "senior1@example.org")
+            }.status(10)
+        // an edit 30 h before the due hour: inside a 72 h window (offered 72 h before due), before the offer of a 24 h one
+        assertEquals(TriageStatus.CURED, status(72, 30))
+        assertEquals(TriageStatus.READY, status(24, 30))
+        assertEquals(TriageStatus.CURED, status(24, 20))
+        // 100 h before the due hour is before the offer unless the window is longer than 100 h
+        assertEquals(TriageStatus.READY, status(72, 100))
+        assertEquals(TriageStatus.CURED, status(120, 100))
     }
 
     private fun ready(r: Readings, stage: Stage, ground: String = "format", tags: List<String> = emptyList()) =

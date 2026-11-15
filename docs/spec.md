@@ -406,6 +406,7 @@ The PDF ZIP comes from HotCRP's own download.
 
 **B. Screening triage and desk reject** (concepts §3.4; the agent's side is agent.md)
 - A queue of `paper → findings (from the screening bundle), refcheck, AC flag → AC triage (keep, or refer with grounds) → second opinion (one unconflicted PC member who isn't the AC; Q2) → remedy where Q1 grants one → chair action → notice`.
+- **The fix window** (Q1's "fix window" reading) lasts `PCS_REMEDY_WINDOW_H` hours from the offer (default 72; the model's `Venue.remedyWindowH`, which `DeskFlow`, the triage plan's cure test, the cards and the transition export all take). The owner's ruling (2026-11-15): the length is a venue parameter, not a constant.
 - The timing follows Q3. Desk rejects after the desk-reject window (`PCS_PHASE_DESKREJECT_DUE`) are tracked as late.
 - Silence never removes (S8): with no verdict, an unanswered request, or a disagreement, the paper stays in review.
 - **TriageFeedback** under Q4: once a reviewer's review is submitted, they're shown the screening record and asked for feedback on the triage. Answers are collected for the evaluation (agent.md §8) and never affect that paper.

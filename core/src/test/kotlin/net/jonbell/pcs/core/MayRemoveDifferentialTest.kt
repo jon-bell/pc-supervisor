@@ -49,6 +49,7 @@ object OracleJson {
             nomineesMax = v["nomineesMax"]!!.jsonPrimitive.int,
             patternMin = v["patternMin"]!!.jsonPrimitive.int,
             accGraceH = v["accGraceH"]!!.jsonPrimitive.long,
+            remedyWindowH = v["remedyWindowH"]!!.jsonPrimitive.long,
         )
     }
 

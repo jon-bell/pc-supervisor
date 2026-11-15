@@ -17,7 +17,7 @@ structure Card where
   id : String
   text : String
   deps : List QId
-  /-- Venue parameters the outcome depends on (`nominees-max`, `pattern-min`, `acc-grace-h`). -/
+  /-- Venue parameters the outcome depends on (`nominees-max`, `pattern-min`, `acc-grace-h`, `remedy-window-h`). -/
   venueDeps : List String := []
   outcome : Params → Reading → String
 
@@ -135,6 +135,12 @@ def cards : List Card :=
       outcome := fun p r =>
         let ref : Referral := { refAt .anonymity .screening with remedyOffered := false }
         s!"{yesNo (acMayKeep r .anonymity) "the AC may keep it" "the AC may not keep it"}; if referred, {removable p r ref}" },
+    { id := "E3b", text := "The chair offers the fix at hour 0 and the author does not cure it; asked at the last hour of the window and an hour later",
+      deps := [.q1], venueDeps := ["remedy-window-h"],
+      outcome := fun p r =>
+        let w := r.venue.remedyWindowH
+        let ref : Referral := { refAt .anonymity .screening with remedyOffered := true, remedyDue := remedyDueAt w 0 }
+        s!"at hour {w}: {removable p r { ref with now := w }}; at hour {w + 1}: {removable p r { ref with now := w + 1 }}" },
     { id := "E4", text := "A self-reveal is found during review, before reviews are released", deps := [.q3],
       outcome := fun p r => removable p r (refAt .anonymity .inReview) },
     { id := "E4b", text := "A self-reveal is found after reviews are released", deps := [.q3],
@@ -249,6 +255,7 @@ def parseAnswers (text : String) : Answers := Id.run do
           | "venue.nominees-max" => a := { a with venue := { a.venue with nomineesMax := n } }
           | "venue.pattern-min" => a := { a with venue := { a.venue with patternMin := n } }
           | "venue.acc-grace-h" => a := { a with venue := { a.venue with accGraceH := n } }
+          | "venue.remedy-window-h" => a := { a with venue := { a.venue with remedyWindowH := n } }
           | _ => a := { a with errors := a.errors ++ [s!"unknown venue parameter {k}"] }
       else if k.startsWith "scale." then
         let n := v.toNat!

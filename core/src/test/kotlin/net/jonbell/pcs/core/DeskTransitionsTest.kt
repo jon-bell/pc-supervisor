@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import net.jonbell.pcs.core.readings.Q1
 import net.jonbell.pcs.core.readings.Q2
 import net.jonbell.pcs.core.readings.QId
@@ -124,11 +125,14 @@ class DeskTransitionsTest {
         fun fail(prop: String, msg: String) {
             failures.getOrPut(prop) { mutableListOf() }.let { if (it.size < 3) it += msg }
         }
+        val windows = mutableSetOf<Long>()
         var steps = 0
         var refusals = 0
         var removals = 0
         for (reading in doc["readings"]!!.jsonArray.map { it.jsonObject }) {
             val r = readingOf(reading["reading"]!!.jsonPrimitive.content)
+            val window = reading["remedyWindowH"]!!.jsonPrimitive.long
+            windows += window
             val states = reading["states"]!!.jsonArray.map { parse(it.jsonPrimitive.content) }
             val effective =
                 reading["transitions"]!!.jsonArray.map { it.jsonArray }.groupBy { it[0].jsonPrimitive.content.toInt() }
@@ -139,7 +143,7 @@ class DeskTransitionsTest {
                     val p = perm(key)
                     val allowed = p == null || (role!! to p) in grants
                     val a = act(key, params)
-                    val got = if (allowed) DeskFlow.rule(Faults.NONE, r, s, role, a) else null
+                    val got = if (allowed) DeskFlow.rule(Faults.NONE, r, s, role, a, window) else null
                     val want = effective[i]?.get(moveKey(role, key, params))?.let { states[it] }
                     steps++
                     if (want == null) refusals++
@@ -172,10 +176,17 @@ class DeskTransitionsTest {
                 }
                 // S8 on the state itself: tick and advance never remove
                 for (k in listOf("tick", "advance")) {
-                    DeskFlow.rule(Faults.NONE, r, s, null, act(k, emptyMap()))?.let { if (it.removed != s.removed) fail("prop:S8", "$k removed in state $i") }
+                    DeskFlow.rule(Faults.NONE, r, s, null, act(k, emptyMap()), window)?.let {
+                        if (it.removed !=
+                            s.removed
+                        ) {
+                            fail("prop:S8", "$k removed in state $i")
+                        }
+                    }
                 }
             }
         }
+        assertTrue(windows.size >= 3 && 72L in windows, "the table is exported under several fix-window lengths: $windows")
         assertTrue(steps > 50_000 && refusals > 0 && removals > 0, "$steps steps checked, $removals removals")
         assertEquals(emptyMap<String, List<String>>(), failures)
     }
