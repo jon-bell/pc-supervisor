@@ -169,7 +169,8 @@ testing {
                     doFirst { coversInt.get().asFile.deleteRecursively() }
                     finalizedBy(":core:assuranceReport")
                     dependsOn(":core:claimsInventory")
-                    mustRunAfter(":seed:integrationTest", ":core:integrationTest", ":runner:integrationTest") // the others change the harness; this one asserts it is unchanged by the agent
+                    // The others change the harness; this one asserts the agent leaves it unchanged.
+                    mustRunAfter(":seed:integrationTest", ":core:integrationTest", ":runner:integrationTest")
                     maxHeapSize = "2g"
                     systemProperty("pcs.repoRoot", rootProject.projectDir.absolutePath)
                     systemProperty("pcs.noLive", "true")
