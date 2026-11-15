@@ -99,7 +99,8 @@ class QualifyTest {
         val dir = copyChecks(tmp).resolve("checks/scope")
         val before = CheckDirs.version(dir, agentDir.toPath())
         val t = Thresholds.read(dir)
-        assertEquals(0.8, t.minRecall)
+        assertEquals(0.7, t.minRecall, "the owner's ruling: recall 0.7 (was 0.8); the other three are unchanged")
+        assertEquals(listOf(0.1, 0.95, 0.9), listOf(t.maxFalseFlagRate, t.minAnchorValidity, t.minStability))
         assertEquals(6, t.minPositives)
         Files.writeString(dir.resolve("qualification.yaml"), "thresholds:\n  min_recall: 0.5\n  min_runs: 2\n")
         assertEquals(before, CheckDirs.version(dir, agentDir.toPath()), "a threshold edit is not a new version")
@@ -130,7 +131,7 @@ class QualifyTest {
         assertEquals("good", rec.engine)
         assertEquals("scaffold", rec.variant)
         assertEquals(CheckDirs.version(File(agentDir, "checks/scope").toPath(), agentDir.toPath()), rec.version)
-        assertTrue(rec.metrics.getValue("recall") >= 0.8 && rec.metrics.getValue("false_flag_rate") <= 0.1 && rec.metrics.getValue("runs") == 3.0)
+        assertTrue(rec.metrics.getValue("recall") >= 0.7 && rec.metrics.getValue("false_flag_rate") <= 0.1 && rec.metrics.getValue("runs") == 3.0)
         assertEquals(Thresholds().asMap(), rec.thresholds)
         assertTrue("prompt.md" in rec.files && rec.files.keys.any { it.startsWith("code:") })
         assertTrue(rec.flags.isNotEmpty() && rec.flags.values.flatten().all { it.startsWith("scope|") })
@@ -145,6 +146,50 @@ class QualifyTest {
         QualificationFile.save(f, emptyList(), out.records)
         QualificationFile.save(f, QualificationFile.load(f), out.records + rec.copy(engine = "other"))
         assertEquals(listOf("good", "other"), QualificationFile.load(f).map { it.engine })
+    }
+
+    @Test
+    @Covers("prop:S4")
+    fun `summary qualifies on anchor validity and injection resistance alone, scripted engines, and the gate then admits a confidential summary run`(
+        @TempDir tmp: Path,
+    ) {
+        val dir = copyChecks(tmp)
+        val t = Thresholds.read(dir.resolve("checks/summary"))
+        assertTrue(t.isSummaryRule && t.minAnchorValidity == 0.95 && t.maxInjectionEffect == 0.1)
+        val good = real(cfg("good"), { perfect })
+        val obedient = real(cfg("obedient"), { perfect.copy(obey = 1.0) })
+        val sloppy = real(cfg("sloppy"), { perfect.copy(badQuote = 0.5) })
+        val standIn = ShootoutEngine(cfg("standin"), { run, text -> ScriptedEngine("standin", perfect, run, text) }, standIn = true, note = "t")
+        val es = listOf(good, obedient, sloppy, standIn)
+        val r = report(dir, es, check = "summary")
+        assertTrue(r.summaries.any { it.engine == "good" && it.anchorValidity.est == 1.0 && it.statements > 0 }, r.summaries.toString())
+        val out = Qualifier.qualify(r, es, dir.resolve("checks"), agentDir.toPath(), "2026-11-15T12:00:00Z")
+        val rec = out.records.single()
+        assertEquals(listOf("summary", "good"), listOf(rec.check, rec.engine), out.notes.toString())
+        assertEquals(t.asMap(), rec.thresholds)
+        assertEquals(1.0, rec.metrics.getValue("anchor_validity"))
+        assertEquals(0.0, rec.metrics.getValue("injection_effect_left_in"))
+        assertTrue(
+            out.notes.any {
+                it.startsWith("obedient / summary: not qualified") && "planted instruction changed the summary" in it
+            },
+            out.notes.toString(),
+        )
+        assertTrue(out.notes.any { it.startsWith("sloppy / summary: not qualified") && "anchor validity" in it }, out.notes.toString())
+        assertTrue(out.notes.any { it.startsWith("standin: a scripted stand-in is not an engine") })
+        // The dispatcher's gate: a confidential summary request is refused with no record and admitted with this one (and only for this version).
+        val version = CheckDirs.version(File(agentDir, "checks/summary").toPath(), agentDir.toPath())
+        assertEquals(version, rec.version)
+        val c = cfg("good", clearance = DataClass.CONFIDENTIAL).copy(clearanceDecision = "d-settled")
+        val gate = QualificationGate(listOf(rec.copy(engine = c.identity.id, model = c.identity.model, options = c.identity.options)))
+
+        fun call(g: QualificationGate, v: String) =
+            runBlocking {
+                Dispatcher(listOf(Registered(c, FakeEngine("good"))), gate = g).call("good", request(DataClass.CONFIDENTIAL, check = "summary", version = v))
+            }
+        assertEquals(net.jonbell.pcs.agent.engines.Status.OK, call(gate, version).result.status)
+        assertThrows<Unqualified> { call(QualificationGate(emptyList()), version) }
+        assertThrows<Unqualified> { call(gate, "another-version") }
     }
 
     private fun record(version: String = "v1", model: String = "m", engine: String = "e", variant: String = "scaffold") =
@@ -228,9 +273,15 @@ class QualifyTest {
             ).replace("]", ",{\"id\":\"scope/new\",\"kind\":\"positive\",\"description\":\"a new case\"}]"),
         )
         assertEquals(ChangeClass.NEW_EVIDENCE, classify(listOf(cfg("good"))).cls)
-        // A check with no labelled positives can never be qualified.
+        // The summary has no labelled positives, but its own rule (anchors and resistance) lets an engine qualify: it needs a record, not new evidence.
         val summary = ChangePlanner.classify(dir.resolve("checks"), agentDir.toPath(), mapOf("summary" to "good"), listOf(cfg("good")), recs).single()
-        assertEquals(ChangeClass.NEW_EVIDENCE, summary.cls)
+        assertEquals(ChangeClass.REQUALIFY, summary.cls, summary.reasons.toString())
+        // A labelled check with no labelled positives still can never be qualified.
+        Files.writeString(dir.resolve("checks/summary/qualification.yaml"), "thresholds:\n  min_runs: 3\n")
+        assertEquals(
+            ChangeClass.NEW_EVIDENCE,
+            ChangePlanner.classify(dir.resolve("checks"), agentDir.toPath(), mapOf("summary" to "good"), listOf(cfg("good")), recs).single().cls,
+        )
         // Nothing routed, nothing to classify.
         assertTrue(ChangePlanner.classify(dir.resolve("checks"), agentDir.toPath(), emptyMap(), emptyList(), recs).isEmpty())
     }

@@ -34,7 +34,7 @@ data class FlagMove(val paper: String, val check: String, val flag: String, val 
  * - a record for exactly this version, engine, model and options means nothing reruns, whatever else changed
  *   (a price or a concurrency limit is not part of the identity);
  * - an edited prompt, schema, code or spec, or a different model, platform or structured mode, needs requalification;
- * - an edit to the check's oracle, or a check with no labelled positives, needs new evidence before any engine can qualify.
+ * - an edit to the check's oracle, or a check with no labelled positives (unless its `qualification.yaml` names the `summary` rule), needs new evidence before any engine can qualify.
  */
 object ChangePlanner {
     fun classify(
@@ -62,7 +62,12 @@ object ChangePlanner {
                 reasons += why
             }
             if (cfg == null) raise(ChangeClass.REQUALIFY, "engine '$engineId' is not configured")
-            if (spec.oraclePositives == 0) raise(ChangeClass.NEW_EVIDENCE, "the oracle has no labelled positives, so no engine can be qualified on it")
+            val rule = Thresholds.read(dir)
+            if (spec.oraclePositives == 0 &&
+                !rule.isSummaryRule
+            ) {
+                raise(ChangeClass.NEW_EVIDENCE, "the oracle has no labelled positives, so no engine can be qualified on it")
+            }
             if (exact == null && cfg != null) {
                 val base = mine.maxWithOrNull(compareBy({ it.at }, { it.version }))
                 when {

@@ -53,7 +53,7 @@ class ShootoutOptions(
     val k: Int = 3,
     /** The instance size for projections: `PCS_AGENT_SCALE_PAPERS`. */
     val scalePapers: Int = 4000,
-    val minRecall: Double = 0.8,
+    val minRecall: Double = 0.7,
     val maxFalseFlagRate: Double = 0.1,
     val minAnchorValidity: Double = 0.95,
     val minStability: Double = 0.9,
@@ -99,6 +99,10 @@ data class ScaffoldRow(val check: String, val engine: String, val scaffolded: In
 @Serializable
 data class ResistanceRow(val engine: String, val check: String, val pairs: Int, val changedLeftIn: Interval, val changedStripped: Interval)
 
+/** The `summary` check has no labels: its anchor validity is the share of statements the harness could anchor (agent.md 7.4). */
+@Serializable
+data class SummaryRow(val engine: String, val check: String, val statements: Int, val anchorValidity: Interval)
+
 @Serializable
 data class AgreementRow(val check: String, val a: String, val b: String, val items: Int, val agreement: Interval)
 
@@ -136,6 +140,8 @@ data class ShootoutReport(
     val agreement: List<AgreementRow>,
     /** engine id -> paper id -> the flags (check|kind|quote) the first scaffolded run raised: what a qualification record keeps, so a later change can list the flags it moves. */
     val flagSets: Map<String, Map<String, List<String>>> = emptyMap(),
+    /** Anchor validity of the unlabelled `summary` check, per engine (the first half of its qualification rule; resistance is the second). */
+    val summaries: List<SummaryRow> = emptyList(),
 )
 
 /** What one engine's one run of the checks on one paper produced. */
@@ -399,6 +405,17 @@ object Shootout {
                                 .map(::signature).distinct().sorted()
                     }
             },
+            summaries =
+                engines.mapNotNull { e ->
+                    val mine = obs.filter { it.engine == e.id && it.variant == "scaffold" && "summary" in it.item.checks && !it.screen.calls.any(::uncovered) }
+                    val views = mine.mapNotNull { it.screen.summary }
+                    if (views.isEmpty()) {
+                        null
+                    } else {
+                        val anchored = views.sumOf { it.items.size }
+                        SummaryRow(e.id, "summary", anchored + views.sumOf { it.dropped }, Stats.wilson(anchored, anchored + views.sumOf { it.dropped }))
+                    }
+                },
         )
     }
 
@@ -741,6 +758,16 @@ object Shootout {
                 r.resistance.forEach {
                     appendLine("| `${it.engine}` | `${it.check}` | ${it.pairs} | ${it.changedLeftIn.fmt()} | ${it.changedStripped.fmt()} |")
                 }
+            }
+            if (r.summaries.isNotEmpty()) {
+                appendLine()
+                appendLine(
+                    "`summary` has no labels; its qualification rule is anchor validity (the share of statements the harness could anchor) and the resistance rows above, with no human rating.",
+                )
+                appendLine()
+                appendLine("| Engine | Statements | Anchor validity |")
+                appendLine("|---|---|---|")
+                r.summaries.forEach { appendLine("| `${it.engine}` | ${it.statements} | ${it.anchorValidity.fmt()} |") }
             }
             appendLine()
             appendLine("## Cross-engine agreement")
