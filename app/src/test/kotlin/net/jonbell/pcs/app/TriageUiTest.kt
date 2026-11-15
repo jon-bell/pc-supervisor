@@ -10,10 +10,10 @@ import net.jonbell.pcs.app.testing.screenshot
 import net.jonbell.pcs.core.bundle.BundleAnchor
 import net.jonbell.pcs.core.bundle.BundleCodec
 import net.jonbell.pcs.core.bundle.BundleFinding
-import net.jonbell.pcs.core.bundle.BundleKey
 import net.jonbell.pcs.core.bundle.BundleManifest
 import net.jonbell.pcs.core.bundle.BundlePaper
 import net.jonbell.pcs.core.bundle.BundlePayload
+import net.jonbell.pcs.core.bundle.ChairIdentity
 import net.jonbell.pcs.core.bundle.ScreeningBundles
 import net.jonbell.pcs.core.imports.Imports
 import net.jonbell.pcs.core.secrets.Accounts
@@ -89,9 +89,9 @@ class TriageUiTest {
                 ),
                 (1..3).map(finding),
             )
-        val key = BundleKey.generate()
+        val chair = ChairIdentity.generate()
         val clock = Clock { Instant.parse("2030-01-10T00:00:00Z") }
-        ScreeningBundles(store, Imports(store, clock), clock).import(BundleCodec.encrypt(payload, key), key, "ui-test")
+        ScreeningBundles(store, Imports(store, clock), clock).import(BundleCodec.encrypt(payload, listOf(chair.publicKey)), chair, "ui-test")
         store.close()
         Files.writeString(
             dir.resolve("tr.conf"),

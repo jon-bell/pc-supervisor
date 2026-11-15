@@ -22,7 +22,7 @@ public sealed interface BundleImport {
  * Imports screening bundles into the encrypted store (spec §10.3, §11). The findings become a version of
  * the `screening-bundle` import kind (so freshness, diffs and keys work as for every import), and the
  * manifest, the qualification records and the summaries are kept beside it by content address, inside
- * the same SQLCipher store. The key is used to open the file and is never stored.
+ * the same SQLCipher store. The chair's private key opens the file (it stays in the keychain) and nothing secret is stored.
  */
 public class ScreeningBundles(private val store: Store, private val imports: Imports, private val clock: Clock) {
     init {
@@ -35,8 +35,8 @@ public class ScreeningBundles(private val store: Store, private val imports: Imp
         }
     }
 
-    public fun import(file: ByteArray, key: BundleKey, source: String): BundleImport {
-        val payload = BundleCodec.decrypt(file, key)
+    public fun import(file: ByteArray, chair: ChairIdentity, source: String): BundleImport {
+        val payload = BundleCodec.decrypt(file, chair)
         val hash = payload.hash()
         existing(hash)?.let { return BundleImport.AlreadyImported(hash, it) }
         return when (val r = imports.import(ImportKind.SCREENING_BUNDLE, payload.importCsv().toByteArray(Charsets.UTF_8), source)) {

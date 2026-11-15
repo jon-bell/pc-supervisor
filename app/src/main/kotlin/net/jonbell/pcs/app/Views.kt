@@ -79,7 +79,7 @@ private fun reading(q: QId, key: String?): String = key?.let { k -> q.readings.f
  * readings, and the policy cells that are rulings on it (model/export/cards.json, policy.json).
  */
 @Composable
-fun SettingsScreen(answers: Answers, conference: String) {
+fun SettingsScreen(answers: Answers, conference: String, extra: @Composable () -> Unit = {}) {
     val blocked = remember(answers) { ModelExport.blocked(answers).associateBy { it.question } }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("settings"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Answers for $conference", style = MaterialTheme.typography.titleMedium)
@@ -88,6 +88,7 @@ fun SettingsScreen(answers: Answers, conference: String) {
             Modifier.testTag("answers-summary"),
             style = MaterialTheme.typography.bodyMedium,
         )
+        extra()
         if (answers.unresolved.isNotEmpty()) {
             Text(
                 "What an unresolved question blocks is derived from the model's example cards and policy table; there is no feature-level dependency map yet.",

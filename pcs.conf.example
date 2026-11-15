@@ -17,6 +17,11 @@ PCS_FORCE_SHOW=true
 # conference files are, so it can't live in one). Default: <OS app data>/conferences.
 # PCS_CONFERENCES=
 
+# Each PC chair's keypair for screening bundles lives in the OS keychain (`<conference>/chair-key`); `pcs chair-key` and the Settings screen export the public half.
+# For the CLI: the conference id (default: the instance's host), and, for a localhost instance only, a file standing in for the keychain (tests, CI).
+# PCS_CONFERENCE_ID=
+# PCS_KEYCHAIN_FILE=
+
 # --- Policy -------------------------------------------------------------------
 # The answers file: one "Qn = <reading>" line per settled question (model format).
 PCS_ANSWERS=
@@ -182,3 +187,6 @@ PCS_CRITERION_4=Submitted on time [late]
 # The same key gives the same pseudonyms; a different key gives unrelated ones. Keep it out of any export you share.
 # PCS_PSEUDONYM_KEY=
 # PCS_PSEUDONYM_KEY_FILE=/path/to/pseudonym.key
+# How finely the exported rows write a time (UTC): day (the default; 2030-01-10, no time of day), hour (2030-01-10T17Z) or exact (epoch seconds).
+# Times of day let someone holding the export match rows against HotCRP's own records: use hour or exact only for a recipient you trust.
+# PCS_EXPORT_TIME_RESOLUTION=day

@@ -148,7 +148,7 @@ Gradle modules:
 - **Clock injection:** all phase logic reads `now` from `core`'s `Clock`. `PCS_NOW` (ISO timestamp) pins it, for tests and for replaying a past state.
 - **Metrics** are SQL views plus a Kotlin rules module evaluated at read time, so changing a threshold and re-opening re-ranks everything. Indexes go on `pid` and `email`.
 - **UI:** Compose Desktop with lazy (virtualized) tables; 4,000 rows must stay smooth. Every row deep-links into HotCRP in the system browser: `/paper/{pid}`, `/review/{pid}{ordinal}`, `/search?q=…`.
-- **Screening runs outside the app.** It needs GROBID and engine credentials, so one process chair runs `pcs agent run` on a workstation. The resulting bundle (findings with anchors and quotations) goes to the other chairs, encrypted, with the key sent separately, and each app imports it. The app never calls an engine.
+- **Screening runs outside the app.** It needs GROBID and engine credentials, so one process chair runs `pcs agent run` on a workstation. The resulting bundle (findings with anchors and quotations) goes to the other chairs, encrypted for each chair's own public key (no shared secret travels), and each app imports it with that chair's private key from the keychain. The app never calls an engine.
 - **Packaging:** `jpackage` with a `jlink`ed runtime builds installers for macOS, Windows, and Linux. macOS builds are signed with the maintainer's Developer ID and notarized in CI, on a macOS runner attached to the repo. Windows builds are submitted to the Microsoft Store, which re-signs them, so the project holds no Windows certificate. There is no auto-update, because the only allowed outbound calls go to HotCRP (§7). A new version is a signed release a chair downloads.
 
 ### 4.1 Configuration
@@ -157,7 +157,7 @@ Configuration comes from three sources, and startup validates all of them and li
 
 1. **The answers file (policy).** The same format `model/` reads (`model/answers/synthetic.txt`): `Qn = <reading key>` lines. The app's reading types are generated from the Lean model, so a reading the model doesn't know is a startup error. A question with no line is unresolved (§2). This replaces the old `PCS_POLICY_*` variables. Each conference keeps its answers file outside this repo.
 2. **Settings.** `PCS_*` keys, read from the environment, else from the conference file `pcs.conf` (`KEY=value` lines, the same names). `pcs.conf.example` is the full, documented list.
-3. **Secrets.** The API token and the DB key live in the OS keychain (macOS Keychain, Windows Credential Manager, libsecret). `PCS_HOTCRP_TOKEN` and `PCS_DB_KEY` are read from the environment only when `PCS_HOTCRP_URL` is a `127.0.0.1`/`localhost` URL, which is to say in tests and CI.
+3. **Secrets.** The API token, the DB key and the chair's bundle keypair (the private half; `pcs chair-key` and the Settings screen export the public half) live in the OS keychain (macOS Keychain, Windows Credential Manager, libsecret). `PCS_HOTCRP_TOKEN` and `PCS_DB_KEY` are read from the environment only when `PCS_HOTCRP_URL` is a `127.0.0.1`/`localhost` URL, which is to say in tests and CI.
 
 | Variable | Meaning | Default |
 |---|---|---|
@@ -269,7 +269,7 @@ After an artifact is applied, the next sync must show its effect, or the artifac
   - The default path is the OS's app-data directory, outside the repo and outside any synced folder.
   - `pcs wipe` deletes it.
   - The repo holds **synthetic data only**. No real review text, names, or emails ever go into fixtures, tests, issues, or screenshots.
-- **The screening bundle** holds quotations from submissions. It is encrypted, and the key travels separately from the file.
+- **The screening bundle** holds quotations from submissions. It is encrypted, and its content key is wrapped for each named chair's public key, so each chair opens it with their own private key and no shared secret travels.
 - **No LLM over review text.** The screening agent reads submissions only, under the clearance and egress rules in agent.md §5.
 - **Wording:** "no comments yet", not "disengaged"; "no in-HotCRP activity", not "absent".
 - **Conflicts:** `PCS_FORCE_SHOW=false` hides papers the chair is conflicted with.
@@ -379,7 +379,7 @@ How the importer reads each kind (CSV with a header row; column names match case
 - `tpms-assignments`: `paper` and `email` (and optional `round`), after `--map`. Keyed by `paper|email`.
 - `tpms-scores`: `paper,email,score`, score a number in 0–1. Keyed by `paper|email`.
 - `tpms-registrations`: `email` alone means registered; otherwise `registered` is yes/no. Keyed by email.
-- `screening-bundle`: findings as CSV, one row per finding: `pid,check,version,ground,engine,status,bundle_hash[,anchors]`, anchors a JSON array. Keyed by `pid|check|ground`. The file is an encrypted bundle (agent.md §8, `pcs import bundle <file> --key-file <key>`); the manifest, the qualification records and the summaries are kept with it by content address, and rows keyed by the same `pid|check|ground` are merged (anchors of the verified findings only; a key with none is `unverified` with no anchors).
+- `screening-bundle`: findings as CSV, one row per finding: `pid,check,version,ground,engine,status,bundle_hash[,anchors]`, anchors a JSON array. Keyed by `pid|check|ground`. The file is an encrypted bundle (agent.md §8, `pcs import bundle <file>`, opened with the chair's own key from the keychain); the manifest, the qualification records and the summaries are kept with it by content address, and rows keyed by the same `pid|check|ground` are merged (anchors of the verified findings only; a key with none is `unverified` with no anchors).
 - `refcheck`: `pid,reference,status[,detail]`, status `verified`/`mismatch`/`not-found`/`unchecked`. Keyed by `pid|reference`.
 
 **Staleness (concepts M2).** `pcs import status` lists each kind as fresh, stale (older than its `PCS_IMPORT_FRESH_<KIND>_DAYS`), or never imported. `tpms-*` imports rest on assumption A3 and `appointments` on A4; each import records which in `import_run.assumption`.
@@ -445,6 +445,7 @@ The PDF ZIP comes from HotCRP's own download.
 - Nominee acceptance and dropout rates, early-reject yield, desk-reject counts, and TriageFeedback results.
 - **Pseudonymous IDs** (a keyed HMAC of the email, with a chair-held key, `PCS_PSEUDONYM_KEY`) on every exported row, so the data could join a future cross-conference baseline without exposing identities.
 - **What exists (M20).** The *Process report* tab (and `ProcessReports`, rendered as Markdown and HTML) has one section per module (overview, nominations and appointments, screening and desk reject, assignment, reviewing progress, accountability, early reject, discussion), each a few small tables of counts, timings and rule outcomes: no name, title or review or comment text. A module that cannot be computed yet says why. The export is four CSV tables (`reviews`, `comments`, `nominations`, `requests`) where every person and every paper is a pseudonym: HMAC-SHA256 under the key, over `person:<lower-cased email>` or `paper:<number>`, cut to 128 bits, so the same key gives the same pseudonyms and another key gives unrelated ones. The key is `PCS_PSEUDONYM_KEY` or the first line of the file `PCS_PSEUDONYM_KEY_FILE` (at least 16 characters); with neither, nothing is written. Other fields are numbers, epoch-second timestamps and enumerated labels (tier group, status, rating-flag names, dispositions).
+- **Timestamps in the export** (owner's ruling 2026-11-15) are rounded to the day by default (`2030-01-10`, UTC; no time of day), because a time of day lets someone holding the rows match them against HotCRP's own records. `PCS_EXPORT_TIME_RESOLUTION=hour` (`2030-01-10T17Z`) or `exact` (epoch seconds) is for a recipient the chair trusts; any other value is an error. `ProcessReportTest` checks the default has no time of day (and that the T7 canary scan passes).
 
 ### 10.5 Assignment solver (port of HotCRP's autoassigner)
 

@@ -129,13 +129,14 @@ object BundleFixtures {
             putAll(extra)
         }
 
-    fun args(run: Run, out: Path, key: Path, vararg more: String): List<String> =
+    /** [to] is the `--to` value: chair public keys (or files of them), comma separated. */
+    fun args(run: Run, out: Path, to: String, vararg more: String): List<String> =
         listOf(
             run.pdfDir.toString(),
             "--out",
             out.toString(),
-            "--key-file",
-            key.toString(),
+            "--to",
+            to,
             "--cfp",
             run.cfp.toString(),
             "--authors",

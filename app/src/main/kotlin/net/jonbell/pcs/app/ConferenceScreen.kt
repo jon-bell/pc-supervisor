@@ -144,7 +144,7 @@ fun ConferenceScreen(shell: Shell, session: Session, onSwitch: () -> Unit) {
                     TabName.Writeback -> WritebackScreen(session, shell.opener, version, selectedArtifact, { selectedArtifact = it }, { version++ })
                     TabName.ProcessReport -> ProcessReportView(session, version)
                     TabName.Report -> ReportScreen(session, version)
-                    TabName.Settings -> SettingsScreen(session.answers(), session.conference.id)
+                    TabName.Settings -> SettingsScreen(session.answers(), session.conference.id) { ChairKeySection(session) }
                     TabName.Cards -> CardGallery(session.answers().readings, venue = session.settings.venue)
                 }
             }

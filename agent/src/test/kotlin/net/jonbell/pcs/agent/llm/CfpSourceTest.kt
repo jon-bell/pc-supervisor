@@ -74,7 +74,7 @@ class CfpSourceTest {
         val items = BundleFixtures.items(2)
         val run = BundleFixtures.prepare(tmp, items.mapIndexed { i, it -> "${101 + i}" to it })
         val out = StringBuilder()
-        val args = BundleFixtures.args(run, tmp.resolve("out"), tmp.resolve("k.key")).toMutableList()
+        val args = BundleFixtures.args(run, tmp.resolve("out"), net.jonbell.pcs.core.bundle.ChairIdentity.generate().publicKey.text).toMutableList()
         val i = args.indexOf("--cfp")
         args.removeAt(i)
         args.removeAt(i)

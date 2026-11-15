@@ -54,12 +54,39 @@ public class OsKeychain(private val service: String = SERVICE) : Keychain {
     }
 }
 
-/** The two secrets of one conference, by keychain account name. */
+/** The secrets of one conference, by keychain account name. */
 public object Accounts {
     public fun token(conference: String): String = "$conference/hotcrp-token"
 
     public fun dbKey(conference: String): String = "$conference/db-key"
+
+    /** The chair's own X25519 keypair for screening bundles (the private half; the public half is shown and exported). */
+    public fun chairKey(conference: String): String = "$conference/chair-key"
 }
 
 /** A fresh random DB key, for a conference whose store doesn't exist yet. */
 public fun newDbKey(): String = ByteArray(32).also { SecureRandom().nextBytes(it) }.let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
+
+/**
+ * A keychain in one owner-only file, for headless runs against the local harness (`PCS_KEYCHAIN_FILE`, honoured only for a localhost instance,
+ * like `PCS_DB_KEY`). A real instance's secrets stay in the OS keychain.
+ */
+public class FileKeychain(private val path: java.nio.file.Path) : Keychain {
+    override val backend: String get() = "file keychain $path (local harness only)"
+
+    private fun load(): MutableMap<String, String> =
+        if (java.nio.file.Files.isRegularFile(path)) {
+            java.nio.file.Files.readAllLines(path).filter { '\t' in it }.associateTo(linkedMapOf()) { it.substringBefore('\t') to it.substringAfter('\t') }
+        } else {
+            linkedMapOf()
+        }
+
+    override fun read(account: String): String? = load()[account]
+
+    override fun write(account: String, secret: String) {
+        val m = load().also { it[account] = secret }
+        path.toAbsolutePath().parent?.let { java.nio.file.Files.createDirectories(it) }
+        java.nio.file.Files.writeString(path, m.entries.joinToString("\n", postfix = "\n") { "${it.key}\t${it.value}" })
+        runCatching { java.nio.file.Files.setPosixFilePermissions(path, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")) }
+    }
+}

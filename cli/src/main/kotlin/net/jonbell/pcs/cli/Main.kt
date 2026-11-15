@@ -17,6 +17,7 @@ fun main(args: Array<String>) {
         "sync" -> sync()
         "wipe" -> wipe()
         "import" -> importCmd(args.drop(1))
+        "chair-key" -> chairKey(args.drop(1))
         "export" -> exportCmd(args.drop(1))
         "nominations" -> nominationsCmd()
         "assign" -> assignCmd(args.drop(1))
@@ -24,7 +25,7 @@ fun main(args: Array<String>) {
         "eval" -> exitProcess(net.jonbell.pcs.cli.eval.EvalCommand(System.getenv()).run(args.drop(1)))
         else -> {
             System.err.println(
-                "usage: pcs probe | sync | wipe | import <kind> <file> [--map col=name,...] | import status | export tpms <dir> | nominations | assign [--csv <file>] | agent check|probe|plan|run | eval (--export <dir> | --token-file <file>) [...]",
+                "usage: pcs probe | sync | wipe | chair-key [--out <file>] | import <kind> <file> [--map col=name,...] | import status | export tpms <dir> | nominations | assign [--csv <file>] | agent check|probe|plan|run | eval (--export <dir> | --token-file <file>) [...]",
             )
             exitProcess(2)
         }
@@ -164,28 +165,83 @@ private fun offlineStore(): Triple<Settings, net.jonbell.pcs.core.store.Store, n
     return Triple(settings, net.jonbell.pcs.core.store.Store.open(path, key), net.jonbell.pcs.core.time.Clock.fromSettings(settings.now))
 }
 
-/** `pcs import bundle <file> --key-file <key>` (spec §10.3): opens an encrypted screening bundle and imports its findings. The key is read, used, and never stored. */
+/** The chair's keychain for bundle keys: the OS keychain, or for the local harness only `PCS_KEYCHAIN_FILE`. The conference is `PCS_CONFERENCE_ID` or the instance's host. */
+internal fun chairKeychain(env: Map<String, String>, settings: Settings): Pair<net.jonbell.pcs.core.secrets.Keychain, String> {
+    val conference = env["PCS_CONFERENCE_ID"]?.takeIf { it.isNotBlank() } ?: settings.hotcrpUrl.host
+    val file = env["PCS_KEYCHAIN_FILE"]?.takeIf { settings.isLocalHarness && it.isNotBlank() }
+    return (file?.let { net.jonbell.pcs.core.secrets.FileKeychain(Path.of(it)) } ?: net.jonbell.pcs.core.secrets.OsKeychain()) to conference
+}
+
+private fun chairKeychain(settings: Settings): Pair<net.jonbell.pcs.core.secrets.Keychain, String> =
+    try {
+        chairKeychain(System.getenv(), settings)
+    } catch (e: net.jonbell.pcs.core.secrets.KeychainException) {
+        System.err.println(e.message)
+        exitProcess(1)
+    }
+
+/**
+ * `pcs chair-key [--out <file>]`: prints this chair's public key for screening bundles (X25519; the keypair is made in the keychain on first use, and the
+ * private half never leaves it). Give the line to whoever runs `pcs agent bundle --to`.
+ */
+internal fun chairKeyRun(env: Map<String, String>, args: List<String>, out: Appendable, err: Appendable): Int {
+    val conf = env["PCS_CONF"]?.let { Path.of(it) }?.takeIf(Files::exists)?.let(Settings::readConf).orEmpty()
+    val settings =
+        try {
+            Settings.load(env + mapOf("PCS_ANSWERS" to (env["PCS_ANSWERS"] ?: "unused")), conf).getOrThrow()
+        } catch (e: SettingsException) {
+            err.appendLine(e.message)
+            return 1
+        }
+    val identity =
+        try {
+            val (kc, conference) = chairKeychain(env, settings)
+            net.jonbell.pcs.core.bundle.ChairKeychain.loadOrCreate(kc, conference).also {
+                err.appendLine("chair key for $conference, fingerprint ${it.publicKey.fingerprint} (public; the private key stays in the keychain)")
+            }
+        } catch (e: net.jonbell.pcs.core.secrets.KeychainException) {
+            err.appendLine(e.message)
+            return 1
+        }
+    val file = args.indexOf("--out").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
+    if (file != null) Files.writeString(Path.of(file), identity.publicKey.text + "\n") else out.appendLine(identity.publicKey.text)
+    return 0
+}
+
+fun chairKey(args: List<String>) {
+    val code = chairKeyRun(System.getenv(), args, System.out, System.err)
+    if (code != 0) exitProcess(code)
+}
+
+/** `pcs import bundle <file>` (spec §10.3): opens an encrypted screening bundle made for this chair's key and imports its findings. Nothing secret is read from a file or stored. */
 fun importBundle(
     args: List<String>,
+    settings: Settings,
     store: net.jonbell.pcs.core.store.Store,
     imports: net.jonbell.pcs.core.imports.Imports,
     clock: net.jonbell.pcs.core.time.Clock,
 ) {
     val file = args.firstOrNull()?.takeIf { !it.startsWith("--") }
-    val keyFile = args.indexOf("--key-file").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
-    if (file == null || keyFile == null) {
-        System.err.println("usage: pcs import bundle <file> --key-file <file holding the key>")
+    if (file == null) {
+        System.err.println("usage: pcs import bundle <file>   (opened with your chair key from the keychain; see `pcs chair-key`)")
         exitProcess(2)
     }
+    val (kc, conference) = chairKeychain(settings)
+    val me = net.jonbell.pcs.core.bundle.ChairKeychain.load(kc, conference)
+    if (me == null) {
+        System.err.println(
+            "nothing imported: no chair key in the keychain for $conference; run `pcs chair-key` and send the public key to whoever builds the bundle",
+        )
+        exitProcess(1)
+    }
     try {
-        val key = net.jonbell.pcs.core.bundle.BundleKey.parse(Files.readString(Path.of(keyFile)))
         when (
             val r =
                 net.jonbell.pcs.core.bundle.ScreeningBundles(
                     store,
                     imports,
                     clock,
-                ).import(Files.readAllBytes(Path.of(file)), key, Path.of(file).fileName.toString())
+                ).import(Files.readAllBytes(Path.of(file)), me, Path.of(file).fileName.toString())
         ) {
             is net.jonbell.pcs.core.bundle.BundleImport.Imported -> {
                 val p = r.payload
@@ -229,7 +285,7 @@ fun importCmd(args: List<String>) {
             return
         }
         if (args.firstOrNull() == "bundle") {
-            importBundle(args.drop(1), store, imports, clock)
+            importBundle(args.drop(1), settings, store, imports, clock)
             return
         }
         val kind = args.getOrNull(0)?.let(net.jonbell.pcs.core.imports.ImportKind::ofId)
@@ -408,7 +464,7 @@ fun agent(args: List<String>) {
     }
     if (args.firstOrNull() != "check" || args.size < 2) {
         System.err.println(
-            "usage: pcs agent check <pdf> [--authors authors.json] [--ocr [image]] [--grobid url] | probe [engine] | plan <pdf>... [--llm-check dir]... | run <pdf>... [--llm-check dir]... | manifest [--decisions file] | screen <pdf>... [--cfp file] | shootout --corpus held-out|recorded (--offline | --engines ids) | corpus validate|pin|standins | qualify --engines ids | bundle <pdf|dir>... --out dir --key-file f | plan --changes [--moves]",
+            "usage: pcs agent check <pdf> [--authors authors.json] [--ocr [image]] [--grobid url] | probe [engine] | plan <pdf>... [--llm-check dir]... | run <pdf>... [--llm-check dir]... | manifest [--decisions file] | screen <pdf>... [--cfp file] | shootout --corpus held-out|recorded (--offline | --engines ids) | corpus validate|pin|standins | qualify --engines ids | bundle <pdf|dir>... --out dir --to <chair public keys> | plan --changes [--moves]",
         )
         exitProcess(2)
     }

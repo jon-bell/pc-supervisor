@@ -8,7 +8,7 @@ import net.jonbell.pcs.agent.bundle.BundleCli
 import net.jonbell.pcs.agent.bundle.BundleFixtures
 import net.jonbell.pcs.core.bundle.BundleCodec
 import net.jonbell.pcs.core.bundle.BundleImport
-import net.jonbell.pcs.core.bundle.BundleKey
+import net.jonbell.pcs.core.bundle.ChairIdentity
 import net.jonbell.pcs.core.bundle.ScreeningBundles
 import net.jonbell.pcs.core.hotcrp.HotcrpClient
 import net.jonbell.pcs.core.imports.ImportKind
@@ -73,24 +73,27 @@ class SeededBundleTest {
 
             // The screening run: `pcs agent bundle`, on a workstation with no HotCRP credential, over replayed answers.
             val out = StringBuilder()
-            val key = tmp.resolve("bundle.key")
-            val code = BundleCli(BundleFixtures.env(run), out).bundle(BundleFixtures.args(run, tmp.resolve("out"), key, "--at", "2030-02-26T17:00:00Z"))
+            // Each chair has a keypair of their own (in their keychain); the run is told their public keys and nothing else.
+            val chairA = ChairIdentity.generate()
+            val chairB = ChairIdentity.generate()
+            val to = "${chairA.publicKey.text},${chairB.publicKey.text}"
+            val code = BundleCli(BundleFixtures.env(run), out).bundle(BundleFixtures.args(run, tmp.resolve("out"), to, "--at", "2030-02-26T17:00:00Z"))
             assertEquals(0, code, out.toString())
             val file = Files.list(tmp.resolve("out")).use { it.toList() }.single()
             val bytes = Files.readAllBytes(file)
             assertEquals("bundle-${BundleCodec.headerHash(bytes)}.pcsb", file.fileName.toString())
-            val k = BundleKey.parse(Files.readString(key))
+            assertEquals(setOf(chairA.publicKey.fingerprint, chairB.publicKey.fingerprint), BundleCodec.recipients(bytes).toSet())
 
-            // Both copies import the file with the key that travelled separately.
-            fun import(s: Store, tag: String): Pair<List<Pair<String, Map<String, String>>>, net.jonbell.pcs.core.bundle.BundlePayload> {
+            // Each copy imports the same file with its own chair's private key; no secret travelled.
+            fun import(s: Store, tag: String, chair: ChairIdentity): Pair<List<Pair<String, Map<String, String>>>, net.jonbell.pcs.core.bundle.BundlePayload> {
                 val imports = Imports(s, clock)
                 val bundles = ScreeningBundles(s, imports, clock)
-                val r = bundles.import(bytes, k, "$tag.pcsb")
+                val r = bundles.import(bytes, chair, "$tag.pcsb")
                 assertTrue(r is BundleImport.Imported, "$r")
                 return imports.latest(ImportKind.SCREENING_BUNDLE)!!.rows.map { it.key to it.data } to bundles.latest()!!
             }
-            val a = import(first, "a")
-            val b = import(second, "b")
+            val a = import(first, "a", chairA)
+            val b = import(second, "b", chairB)
             assertEquals(a.first, b.first, "identical imported findings")
             assertEquals(a.second, b.second, "identical payload: findings, summaries, manifest")
             assertTrue(a.first.isNotEmpty() && a.second.findings.any { it.verified })
@@ -122,7 +125,7 @@ class SeededBundleTest {
             }
             assertTrue(a.first.none { (_, d) -> d["status"] == "unverified" && d["anchors"]!!.isNotEmpty() })
             // The same file a second time is recognised, and changes nothing.
-            assertTrue(ScreeningBundles(second, Imports(second, clock), clock).import(bytes, k, "again.pcsb") is BundleImport.AlreadyImported)
+            assertTrue(ScreeningBundles(second, Imports(second, clock), clock).import(bytes, chairB, "again.pcsb") is BundleImport.AlreadyImported)
         } finally {
             first.close()
             second.close()

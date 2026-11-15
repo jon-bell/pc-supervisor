@@ -181,6 +181,70 @@ class ProcessReportTest {
 
     @Test
     @Covers("prop:C3")
+    fun `export timestamps are rounded to the day by default, with hour and exact as settings for a trusted recipient`(
+        @TempDir dir: Path,
+    ) {
+        open(dir, "PCS_PSEUDONYM_KEY=$keyA").use { s ->
+            seed(s)
+            val t = 1_900_000_123L // 2030-03-17T17:48:43Z: a time of day that must not survive the default
+            s.store.conn.createStatement().use {
+                it.executeUpdate("UPDATE review SET modified_at=$t, first_complete_seen_at=${t + 3600} WHERE rtype <> 5")
+                it.executeUpdate("UPDATE comment SET modified_at=$t")
+            }
+            val a = Pseudonyms(keyA.toByteArray())
+            val timeCols = mapOf("reviews" to listOf("modified_at", "first_complete_at"), "comments" to listOf("modified_at"))
+
+            fun times(tables: List<ExportTable>) =
+                tables.filter { it.name in timeCols }.flatMap { tb ->
+                    timeCols.getValue(tb.name).flatMap { c -> tb.rows.map { r -> r[tb.header.indexOf(c)] } }
+                }.filter { it.isNotEmpty() }
+            // The default (what the app's export button writes, with the setting unset): a date and nothing finer.
+            val byDefault = PseudonymousExport.build(s, a)
+            val dayCells = times(byDefault)
+            assertTrue(
+                dayCells.isNotEmpty() &&
+                    dayCells.all {
+                        Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}").matches(it)
+                    } &&
+                    "2030-03-17" in dayCells,
+                dayCells.toString(),
+            )
+            val text = byDefault.joinToString("\n") { it.csv() }
+            assertFalse(Regex("\\b1[0-9]{9}\\b").containsMatchIn(text), "no epoch seconds in the default export")
+            assertFalse(Regex("[0-9]{2}:[0-9]{2}").containsMatchIn(text) || "T17" in text, "no time of day in the default export")
+            // The saved files (the button's path) follow the same default; the setting changes them.
+            val out = dir.resolve("out")
+            ReportFiles.saveExport(s, out)!!.forEach { f -> assertFalse(Regex("\\b1[0-9]{9}\\b").containsMatchIn(Files.readString(f)), f.fileName.toString()) }
+            assertEquals(listOf("2030-03-17"), times(byDefault).distinct().filter { it.endsWith("17") })
+            val hour = times(PseudonymousExport.build(s, a, TimeResolution.HOUR))
+            assertTrue(
+                hour.all {
+                    Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}Z").matches(it)
+                } &&
+                    "2030-03-17T17Z" in hour &&
+                    "2030-03-17T18Z" in hour,
+                hour.toString(),
+            )
+            val exact = times(PseudonymousExport.build(s, a, TimeResolution.EXACT))
+            assertTrue(exact.contains(t.toString()) && exact.contains((t + 3600).toString()), exact.toString())
+            // The setting is read from the conference's settings, and a value that is not day, hour or exact is an error, not a finer default.
+            assertEquals(TimeResolution.DAY, TimeResolution.resolve(emptyMap()))
+            assertEquals(TimeResolution.HOUR, TimeResolution.resolve(mapOf("PCS_EXPORT_TIME_RESOLUTION" to "Hour")))
+            assertEquals(TimeResolution.EXACT, TimeResolution.resolve(mapOf("PCS_EXPORT_TIME_RESOLUTION" to "exact")))
+            assertThrows(IllegalArgumentException::class.java) { TimeResolution.resolve(mapOf("PCS_EXPORT_TIME_RESOLUTION" to "minute")) }
+            assertEquals("", TimeResolution.DAY.format(""), "an empty or malformed stored time is dropped")
+            assertEquals("", TimeResolution.EXACT.format("1900000123 08:00"))
+        }
+        open(dir.resolve("hr").also { Files.createDirectories(it) }, "PCS_PSEUDONYM_KEY=$keyA\nPCS_EXPORT_TIME_RESOLUTION=exact").use { s ->
+            seed(s)
+            s.store.conn.createStatement().use { it.executeUpdate("UPDATE review SET modified_at=1900000123 WHERE rtype <> 5") }
+            val files = ReportFiles.saveExport(s, dir.resolve("hr/out"))!!
+            assertTrue(files.any { "1900000123" in Files.readString(it) }, "the conference setting reaches the saved export")
+        }
+    }
+
+    @Test
+    @Covers("prop:C3")
     fun `T7 no email, name, title or text canary appears in any exported byte or in the report`(
         @TempDir dir: Path,
     ) {
