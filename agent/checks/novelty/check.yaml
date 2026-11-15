@@ -1,0 +1,10 @@
+id: novelty
+version: content-hash  # computed by the build from this directory plus the code files below
+category: escalated
+depends_on: []
+inputs: []
+grounds: []
+evidence: >-
+  Not in v1. ACs judge novelty and significance; the summary's prior-work and closest-cited-work fields help them decide where to look.
+affected: >-
+  The authors and the venue: a judgment of novelty is a person's.

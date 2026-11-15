@@ -1,0 +1,15 @@
+id: summary
+version: content-hash  # computed by the build from this directory plus the code files below
+category: llm
+depends_on: []
+inputs: [extraction.body-text, extraction.references]
+schema: schema.json
+grounds: []
+evidence: >-
+  Every statement carries a quotation from the paper that the harness finds and anchors; a statement without a verifiable anchor is left out and counted. A view for triage, never a recommendation: the output has no score or verdict field.
+affected: >-
+  The AC, who reads it to decide where to look; a wrong summary misdirects attention but moves no decision by itself.
+code:
+  - src/main/kotlin/pcs/agent/llm/SummaryCheck.kt
+  - src/main/kotlin/pcs/agent/llm/ScreenLlmCheck.kt
+  - src/main/kotlin/pcs/agent/llm/Anchoring.kt

@@ -1,0 +1,14 @@
+id: injection.effect
+version: content-hash  # computed by the build from this directory plus the code files below
+category: differential
+depends_on: [injection.policy]
+inputs: [suspect.spans, llm.outputs]
+schema: schema.json
+grounds: []
+evidence: >-
+  Reported with both outputs and the span. The rerun is with-and-without the suspect span; the output without it is the one shown. Per-call monitors flag an unasked recommendation, score or verdict, text about instructions, a refusal or schema failure, a quotation that does not verify, and a tool call outside the paper's scope.
+affected: >-
+  The authors, if a difference between two runs has another cause (the engine's own variation, which the evaluation measures); a person decides.
+code:
+  - src/main/kotlin/pcs/agent/llm/Screener.kt
+  - src/main/kotlin/pcs/agent/llm/Monitors.kt

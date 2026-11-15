@@ -1,0 +1,5 @@
+[
+  {"id": "anonymity-llm/clean", "kind": "negative", "description": "A clean synthetic paper: no phrasing that points to the authors."},
+  {"id": "anonymity-llm/own-prior-work", "kind": "positive", "description": "A sentence that cites the authors' own earlier tool by number in the first person."},
+  {"id": "anonymity-llm/identifying-link", "kind": "positive", "description": "A sentence that links to a repository under a made-up group handle."}
+]

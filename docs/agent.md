@@ -79,6 +79,8 @@ decision(id, title, status, statement, owner_role, decided_at, source, supersede
 | `injection.effect` | differential, at run time | Whether an instruction **worked**. When a suspect span exists, each LLM check also runs with the span removed; a material difference between the two outputs is strong evidence and is reported with both, and the output without the span is the one shown. Every LLM call is also monitored for: a recommendation, score, or verdict the check's schema doesn't ask for; text that talks about instructions; refusals and schema failures; quotations that don't verify (S4); and tool calls outside the paper's scope | Flag with the check, both outputs, and the span |
 | `novelty` | **not in v1** | Recorded so the manifest shows it as an escalated judgment: ACs judge novelty and significance. The summary helps them decide where to look. | |
 
+The LLM halves of `anonymity` and `injection.addressed` are directories of their own (`anonymity.llm`, `injection.addressed.llm`), so the deterministic half's version does not change when a prompt does. In the manifest each is its own row, and each claims the catalog row it belongs to.
+
 Each check is a directory, `agent/checks/<id>/`, containing:
 - `check.yaml`: id, version, category, `depends_on`, the inputs, the output schema reference, the evidence rule, and who is affected if it's wrong;
 - `prompt.md`, for LLM checks;
@@ -216,7 +218,7 @@ A call is refused, with an error naming the engine and the class, unless `engine
 
 Submissions are adversarial input.
 - Hidden text and non-page channels are screened, and hidden spans removed, before any model call (`injection.hidden`, `injection.channels`). Text addressed to an AI reader is flagged wherever it appears (`injection.addressed`).
-- When a suspect span is found, every LLM check also runs without it, and a difference is evidence the injection worked (`injection.effect`).
+- When a suspect span is found, every LLM check also runs without it, and a difference is evidence the injection worked (`injection.effect`). The span is cut out with its whole sentence, and the output without it is the one shown. Hidden spans are never sent; a probe that sends them to measure what stripping is worth exists for `synthetic` papers only.
 - Paper content is always passed as delimited data, never as instructions.
 - Outputs are schema-bound.
 - Tools are read-only and scoped to the one paper being checked.

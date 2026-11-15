@@ -1,0 +1,4 @@
+[
+  {"id": "injection-addressed-llm/attack", "kind": "positive", "description": "A visible instruction to an AI reviewer in the body text of an ordinary paper."},
+  {"id": "injection-addressed-llm/quotation", "kind": "control", "description": "The same kind of phrase quoted as an example in a paper about prompt injection."}
+]

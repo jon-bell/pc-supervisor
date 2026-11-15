@@ -100,9 +100,13 @@ class SchemaAndKeysTest {
     @Test
     fun `every existing check schema is a valid schema for the validator`() {
         val root = Path.of(System.getProperty("pcs.repoRoot"), "agent/checks")
-        for (d in root.toFile().listFiles()!!.filter { it.isDirectory }) {
+        for (d in root.toFile().listFiles()!!.filter { it.isDirectory && it.resolve("schema.json").isFile }) {
             val s = schema(d.resolve("schema.json").readText())
-            assertEquals(emptyList<String>(), JsonSchema.validate(s, Json.parseToJsonElement("[]")), d.name)
+            when (s["type"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }) {
+                "array" -> assertEquals(emptyList<String>(), JsonSchema.validate(s, Json.parseToJsonElement("[]")), d.name)
+                // An output schema is an object: the validator must accept the schema itself (it throws on a keyword it does not know).
+                else -> JsonSchema.validate(s, Json.parseToJsonElement("{}"))
+            }
         }
     }
 

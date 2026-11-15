@@ -1,0 +1,4 @@
+[
+  {"id": "scope/in-scope", "kind": "negative", "description": "A synthetic paper about test generation, against a call about software testing."},
+  {"id": "scope/domain-swap", "kind": "positive", "description": "The same call, and a synthetic paper whose subject is an unrelated field (the domain swap of agent.md section 7.2)."}
+]

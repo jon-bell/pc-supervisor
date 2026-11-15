@@ -37,7 +37,8 @@ class ClaudeCodeEngine(private val cfg: EngineConfig, private val timeoutSeconds
             "--output-format",
             "json",
             "--json-schema",
-            Keys.canonical(req.schema),
+            // The CLI validates the schema itself and does not know the draft 2020-12 meta-schema URI, so `$schema` is left out.
+            Keys.canonical(JsonObject(req.schema.filterKeys { it != "\$schema" })),
             "--strict-mcp-config",
             "--setting-sources",
             "",
@@ -51,6 +52,7 @@ class ClaudeCodeEngine(private val cfg: EngineConfig, private val timeoutSeconds
         )
 
     override suspend fun call(req: CallRequest): CallResult {
+        LiveGuard.check(cfg)
         if (req.parts.any { it is Part.Pdf }) return CallResult(req.key, Status.ERROR, detail = "claude-code takes text parts only")
         return withContext(Dispatchers.IO) {
             val work = Files.createTempDirectory("pcs-claude-")
@@ -71,6 +73,14 @@ class ClaudeCodeEngine(private val cfg: EngineConfig, private val timeoutSeconds
                     return@withContext CallResult(req.key, Status.ERROR, detail = "timed out after ${timeoutSeconds}s")
                 }
                 errT.join()
+                if (out.isBlank()) {
+                    // The CLI's own error text (never the paper: the paper goes in, and the CLI does not echo it).
+                    return@withContext CallResult(
+                        req.key,
+                        Status.ERROR,
+                        detail = "exit ${p.exitValue()}: no output on stdout; stderr: ${err.toString().trim().take(300)}",
+                    )
+                }
                 parse(req, out, p.exitValue())
             } finally {
                 work.toFile().deleteRecursively()
@@ -112,5 +122,23 @@ class ClaudeCodeEngine(private val cfg: EngineConfig, private val timeoutSeconds
         val structured = env["structured_output"]?.takeIf { it !is JsonNull }
         val value = structured ?: str("result")?.let { runCatching { json.parseToJsonElement(it) }.getOrNull() }
         return if (value == null) result(Status.SCHEMA_INVALID, detail = "no JSON in the envelope") else result(Status.OK, value)
+    }
+}
+
+/** Thrown when a live engine is reached where only recorded results may be used. An [Error], so the dispatcher's catch-all does not turn it into a result: a test that gets here fails. */
+class LiveCallBlocked(message: String) : Error(message)
+
+/**
+ * Tests and CI run with `pcs.noLive=true` (the Gradle test task sets it; `CI` also counts). A
+ * `claude-code` engine that would start the real `claude` binary from the PATH then refuses before any
+ * process starts. A command given as a path (the fake scripts of the adapter tests) is not live.
+ */
+object LiveGuard {
+    fun blocked(): Boolean = System.getProperty("pcs.noLive") == "true" || !System.getenv("CI").isNullOrEmpty()
+
+    fun check(cfg: EngineConfig) {
+        if (blocked() && '/' !in cfg.command && '\\' !in cfg.command) {
+            throw LiveCallBlocked("engine '${cfg.id}' would call the real '${cfg.command}' binary in a test or CI run; tests use replay only")
+        }
     }
 }

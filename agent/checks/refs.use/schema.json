@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "refs.use output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["results"],
+  "properties": {
+    "results": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "verdict", "abstract_quote", "reason"],
+        "properties": {
+          "id": { "type": "string", "maxLength": 20 },
+          "verdict": { "enum": ["supported", "not_supported", "unclear"] },
+          "abstract_quote": { "type": "string", "maxLength": 300 },
+          "reason": { "type": "string", "maxLength": 300 }
+        }
+      }
+    }
+  }
+}

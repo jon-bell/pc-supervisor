@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "injection.addressed.llm output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "reason"],
+  "properties": {
+    "verdict": { "enum": ["attack", "quotation", "unclear"] },
+    "reason": { "type": "string", "maxLength": 300 }
+  }
+}

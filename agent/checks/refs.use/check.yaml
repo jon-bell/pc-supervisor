@@ -1,0 +1,16 @@
+id: refs.use
+version: content-hash  # computed by the build from this directory plus the code files below
+category: llm
+depends_on: [refs.use.policy]
+inputs: [citing.sentences, reference.abstracts]
+schema: schema.json
+grounds: [misused-citation]
+variant: abstract
+evidence: >-
+  Abstract variant only. One flag per citation, never a paper-level verdict, with both quotations: the citing sentence (anchored in the paper by the harness) and a span of the cited work's abstract (found in the record the check was given). A citation whose reference has no abstract is not checked.
+affected: >-
+  The authors, if a citation is read wrongly from an abstract alone; a person decides.
+code:
+  - src/main/kotlin/pcs/agent/llm/RefsUseCheck.kt
+  - src/main/kotlin/pcs/agent/llm/ScreenLlmCheck.kt
+  - src/main/kotlin/pcs/agent/llm/Anchoring.kt

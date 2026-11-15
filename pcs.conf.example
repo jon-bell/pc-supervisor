@@ -131,6 +131,10 @@ PCS_TAG_CHAIR_ATTENTION=chair-attention
 # PCS_ENGINE_<id>_PRICE_IN=0                  # USD per 1M tokens; also _PRICE_OUT, _PRICE_CACHE_READ, _PRICE_CACHE_WRITE
 # PCS_ENGINE_<id>_CONCURRENCY=4               # _RPM and _TPM are read but not yet enforced
 # PCS_CHECK_<check>_ENGINE=<engine id>        # production routing (set from the shootout)
+# PCS_AGENT_DECISIONS=/path/to/decisions.yaml   # the decision file (agent.md §3.1); venue-specific, kept outside the repo (agent/decisions.example.yaml is a synthetic example)
+# PCS_AGENT_CFP=/path/to/cfp.txt                # the call for papers' topic text, for the scope check
+# PCS_AGENT_CHECKS=agent/checks                 # the check directories (default agent/checks)
+# PCS_AGENT_QUALIFICATIONS=/path/to/quals.json  # qualification records, shown in the manifest
 # PCS_AGENT_EGRESS=doi.org,api.crossref.org,api.openalex.org,export.arxiv.org,arxiv.org   # reference resolver allowlist
 
 # Accountability requests (spec §10.4 D): the PC chairs' criteria list. A request cites criteria from this list and nothing else.

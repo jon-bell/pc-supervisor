@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "injection.effect findings",
+  "type": "object",
+  "required": ["kind", "check"],
+  "properties": {
+    "kind": { "enum": ["output-differs", "unasked-verdict", "talks-about-instructions", "refusal", "schema-failure", "unverified-quotation", "tool-call"] },
+    "check": { "type": "string" }
+  }
+}
