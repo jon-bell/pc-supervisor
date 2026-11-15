@@ -2,6 +2,7 @@ package net.jonbell.pcs.core.config
 
 import net.jonbell.pcs.core.imports.ImportKind
 import net.jonbell.pcs.core.phases.Phases
+import net.jonbell.pcs.core.rules.JuniorSeats
 import net.jonbell.pcs.core.rules.ScoreScale
 import net.jonbell.pcs.core.rules.Venue
 import net.jonbell.pcs.core.triage.ConsistencyBand
@@ -91,6 +92,7 @@ public data class Settings(
                 "PCS_PATTERN_MIN",
                 "PCS_ACC_GRACE_H",
                 "PCS_REMEDY_WINDOW_H",
+                "PCS_JUNIOR_SEATS",
                 "PCS_CONSISTENCY_FENCE_PAD",
                 "PCS_CONSISTENCY_MIN_PAPERS",
                 "PCS_CONSISTENCY_MIN_ACS",
@@ -263,6 +265,10 @@ public data class Settings(
                             patternMin = int("PCS_PATTERN_MIN", Venue.DEFAULT_PATTERN_MIN, min = 1),
                             accGraceH = int("PCS_ACC_GRACE_H", Venue.DEFAULT_GRACE_H.toInt(), min = 0).toLong(),
                             remedyWindowH = int("PCS_REMEDY_WINDOW_H", Venue.DEFAULT_REMEDY_WINDOW_H.toInt(), min = 1).toLong(),
+                            juniorSeats =
+                                parse("PCS_JUNIOR_SEATS", JuniorSeats.FILL) { s ->
+                                    JuniorSeats.ofKey(s) ?: throw IllegalArgumentException("one of ${JuniorSeats.entries.joinToString { it.key }}: $s")
+                                } ?: JuniorSeats.FILL,
                         ),
                     consistency =
                         ConsistencyBand(

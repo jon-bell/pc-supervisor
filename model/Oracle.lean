@@ -126,6 +126,10 @@ def randomQuery (rule : String) (s : Nat) : Json :=
     Json.mkObj [("q", "appointmentAuthority"),
       ("nominating", Json.arr ((List.range nPapers).toArray.map fun i => pids (10 + 5 * i))),
       ("acs", pids 40), ("decider", Json.num (h 2 % 5 : Nat)), ("isChair", h 3 % 4 == 0)]
+  | "juniorRoom" =>
+    let mode := pick JuniorSeats.all (h 1)
+    Json.mkObj [("q", "juniorRoom"), ("reading", withVenue (Json.mkObj []) (Json.mkObj [("juniorSeats", mode.key)])),
+      ("nominee", h 2 % 2 == 0), ("cap", Json.num (h 3 % 4 : Nat)), ("seniors", Json.num (h 4 % 4 : Nat)), ("seated", Json.num (h 5 % 4 : Nat))]
   | "remedyDue" =>
     Json.mkObj [("q", "remedyDue"), ("reading", withVenue (randomReading s) (randomVenue s)), ("now", Json.num (h 1 % 300 : Nat))]
   | "overCap" =>

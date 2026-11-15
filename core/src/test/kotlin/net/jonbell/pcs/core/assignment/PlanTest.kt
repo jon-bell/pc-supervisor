@@ -3,6 +3,7 @@ package net.jonbell.pcs.core.assignment
 import net.jonbell.pcs.core.readings.Q13
 import net.jonbell.pcs.core.readings.Q14
 import net.jonbell.pcs.core.rules.Faults
+import net.jonbell.pcs.core.rules.JuniorSeats
 import net.jonbell.pcs.core.rules.Member
 import net.jonbell.pcs.core.rules.Tier
 import net.jonbell.pcs.testing.Covers
@@ -48,6 +49,115 @@ class PlanTest {
         assertTrue(r.shortfalls.isEmpty())
         assertTrue(r.loads.all { (w, n) -> n <= input.reviewers.first { it.who == w }.cap })
         assertTrue(r.edges.none { e -> e.who == e.pid - 100 }, "no author reviews their own paper")
+    }
+
+    /** Three papers; seniors 1 to 3 (two seats a paper), PC juniors 11 to 13 and a reciprocal nominee junior 21 who owes [owed] sixths. */
+    private fun seats(
+        mode: JuniorSeats,
+        seniors: Int = 6,
+        owed: Int = 18,
+        pinned: List<Pin> = emptyList(),
+        papers: Int = 3,
+    ): Pair<PlanResult, List<PlanPaper>> {
+        val rs = (1L..seniors).map { sen(it) } + (11L..13).map { jun(it) } + nominee(21, Tier.JUNIOR, (owed + 5) / 6, owed)
+        val ps = (101L..100 + papers).map { paper(it) }
+        val c = cfg(q13 = Q13.ZERO_TO_TWO_JUNIORS).copy(juniorSeats = mode)
+        return solve(PlanInput(rs, ps, everyone(rs, ps), pinned), c) to ps
+    }
+
+    private fun PlanResult.juniors(pid: Long) = edges.filter { it.pid == pid && it.who >= 11 }.map { it.who }
+
+    private fun PlanResult.seniors(pid: Long) = edges.filter { it.pid == pid && it.who < 11 }.map { it.who }
+
+    @Test
+    @Covers("rule:composition", "rule:load", "q:Q13=zero-to-two-juniors", "card:P6")
+    fun `junior seats fill - juniors take optional seats whenever load and what a nominee owes leave room, two a paper`() {
+        val (r, ps) = seats(JuniorSeats.FILL)
+        for (p in ps) {
+            assertEquals(2, r.seniors(p.pid).size)
+            assertEquals(2, r.juniors(p.pid).size, "two juniors on ${p.pid}")
+        }
+        assertEquals(3, r.composed)
+        assertEquals(3, r.loads[21L], "the nominee works off all of what they owe (18 sixths = 3 reviews)")
+    }
+
+    @Test
+    @Covers("rule:composition", "rule:load", "q:Q13=zero-to-two-juniors", "card:P6")
+    fun `junior seats when short - seniors first, and a junior only to bring a paper to three reviewers`() {
+        val (r, ps) = seats(JuniorSeats.WHEN_SHORT)
+        for (p in ps) {
+            assertEquals(2, r.seniors(p.pid).size)
+            assertEquals(1, r.juniors(p.pid).size, "both senior seats filled, so one junior makes three reviewers on ${p.pid}")
+        }
+        assertEquals(3, r.composed)
+        // one senior is all there is: the juniors make up the paper, up to the two the cap allows
+        val (short, _) = seats(JuniorSeats.WHEN_SHORT, seniors = 1, papers = 1)
+        assertEquals(1, short.seniors(101).size)
+        assertEquals(2, short.juniors(101).size, "short of a senior, two juniors")
+        assertEquals(1, short.seniorShort, "the paper still lacks a senior, and says so")
+        // no junior is available: nothing to take the seat, and no shortfall is reported for an optional seat
+        val rs = (1L..2).map { sen(it) }
+        val ps1 = listOf(paper(101))
+        val alone = solve(PlanInput(rs, ps1, everyone(rs, ps1)), cfg(q13 = Q13.ZERO_TO_TWO_JUNIORS).copy(juniorSeats = JuniorSeats.WHEN_SHORT))
+        assertEquals(0, alone.thirdShort)
+        assertEquals(1, alone.composed, "zero juniors meets the model's composition")
+    }
+
+    @Test
+    @Covers("rule:composition", "rule:load", "prop:V5", "q:Q13=zero-to-two-juniors", "card:P6")
+    fun `junior seats reciprocal only - the optional seats go to reciprocal nominees, PC juniors only when short`() {
+        val (r, ps) = seats(JuniorSeats.RECIPROCAL_ONLY)
+        // three papers, a nominee who owes three reviews: each paper gets the nominee's review, and with both seniors there no PC junior
+        for (p in ps) {
+            assertEquals(2, r.seniors(p.pid).size)
+            assertEquals(listOf(21L), r.juniors(p.pid), "the reciprocal nominee, not a PC junior, on ${p.pid}")
+        }
+        assertEquals(3, r.loads[21L])
+        // a nominee who owes only one review: the other papers make three reviewers with a PC junior ("when short"), not two
+        val (some, _) = seats(JuniorSeats.RECIPROCAL_ONLY, owed = 6)
+        assertEquals(1, some.edges.count { it.who == 21L })
+        val withNominee = some.edges.first { it.who == 21L }.pid
+        for (p in ps) {
+            val js = some.juniors(p.pid)
+            if (p.pid == withNominee) {
+                assertEquals(listOf(21L), js, "no PC junior beside the nominee when both seniors are there")
+            } else {
+                assertEquals(1, js.size, "paper ${p.pid} reaches three reviewers with a PC junior")
+                assertTrue(js.all { it in 11L..13L })
+            }
+        }
+        // short of a senior: the nominee and a PC junior both sit
+        val (short, _) = seats(JuniorSeats.RECIPROCAL_ONLY, seniors = 1, papers = 1)
+        assertEquals(2, short.juniors(101).size)
+        assertTrue(21L in short.juniors(101))
+    }
+
+    @Test
+    @Covers("rule:composition", "q:Q13=one-junior", "q:Q13=one-or-two-juniors", "q:Q13=one-junior-or-nominee")
+    fun `the choice of junior seats changes nothing under the other readings of Q13`() {
+        val rs = (1L..6).map { sen(it) } + (11L..13).map { jun(it) } + nominee(21, Tier.JUNIOR, 3, 18)
+        val ps = (101L..103).map { paper(it) }
+        for (q13 in listOf(Q13.ONE_JUNIOR, Q13.ONE_OR_TWO_JUNIORS, Q13.ONE_JUNIOR_OR_NOMINEE)) {
+            val base = solve(PlanInput(rs, ps, everyone(rs, ps)), cfg(q13 = q13))
+            for (m in JuniorSeats.entries) {
+                val r = solve(PlanInput(rs, ps, everyone(rs, ps)), cfg(q13 = q13).copy(juniorSeats = m))
+                assertEquals(base.edges, r.edges, "$q13 under $m")
+                assertEquals(base.objective, r.objective)
+            }
+        }
+    }
+
+    @Test
+    @Covers("rule:composition", "q:Q13=zero-to-two-juniors")
+    fun `pinned juniors count toward the optional seats in every mode, and a pinned reciprocal nominee is a junior`() {
+        for (m in JuniorSeats.entries) {
+            val (r, _) = seats(m, papers = 1, pinned = listOf(Pin(11, 101), Pin(21, 101)))
+            assertEquals(emptyList<Long>(), r.juniors(101).filter { it in 12L..13L }, "two pinned juniors fill the cap under $m")
+            assertEquals(2, r.seniors(101).size)
+        }
+        // when short counts a pinned junior toward the three reviewers: two seniors and one pinned junior leave no room
+        val (w, _) = seats(JuniorSeats.WHEN_SHORT, papers = 1, pinned = listOf(Pin(11, 101)))
+        assertEquals(emptyList<Long>(), w.juniors(101))
     }
 
     @Test

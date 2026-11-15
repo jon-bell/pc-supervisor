@@ -58,11 +58,18 @@ class SettingsTest {
         assertEquals(3, d.patternMin)
         assertEquals(48, d.accGraceH)
         assertEquals(72, d.remedyWindowH)
+        assertEquals(net.jonbell.pcs.core.rules.JuniorSeats.FILL, d.juniorSeats)
         val v =
             Settings.load(
-                ok + ("PCS_NOMINEES_MAX" to "5") + ("PCS_PATTERN_MIN" to "4") + ("PCS_ACC_GRACE_H" to "24") + ("PCS_REMEDY_WINDOW_H" to "120"),
+                ok + ("PCS_NOMINEES_MAX" to "5") + ("PCS_PATTERN_MIN" to "4") + ("PCS_ACC_GRACE_H" to "24") + ("PCS_REMEDY_WINDOW_H" to "120") +
+                    ("PCS_JUNIOR_SEATS" to "reciprocal-only"),
             ).getOrThrow().venue
-        assertEquals(net.jonbell.pcs.core.rules.Venue(5, 4, 24, 120), v)
+        assertEquals(net.jonbell.pcs.core.rules.Venue(5, 4, 24, 120, net.jonbell.pcs.core.rules.JuniorSeats.RECIPROCAL_ONLY), v)
+        for (m in net.jonbell.pcs.core.rules.JuniorSeats.entries) {
+            assertEquals(m, Settings.load(ok + ("PCS_JUNIOR_SEATS" to m.key)).getOrThrow().venue.juniorSeats)
+        }
+        val bad = Settings.load(ok + ("PCS_JUNIOR_SEATS" to "sometimes")).exceptionOrNull() as SettingsException
+        assertTrue(bad.problems.single().startsWith("PCS_JUNIOR_SEATS: one of fill, when-short, reciprocal-only"), bad.problems.toString())
         val e =
             Settings.load(
                 ok + ("PCS_NOMINEES_MAX" to "0") + ("PCS_ACC_GRACE_H" to "soon") + ("PCS_REMEDY_WINDOW_H" to "0"),

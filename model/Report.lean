@@ -119,6 +119,9 @@ def main (args : List String) : IO Unit := do
   let variants : List (String × Reading) := ("the answered reading", base) ::
     ([QId.q14, .q13, .q18].flatMap fun q => ((List.range q.count).filter (· != base.get q)).map fun v =>
       (s!"if {q.code} = {q.readingName v}", base.set q v))
+  let zeroToTwo := indexIn (QId.q13.labels.map (·.1)) "zero-to-two-juniors"
+  let variants := variants ++ JuniorSeats.all.map fun m =>
+    (s!"if Q13 = zero to two juniors and junior seats = {m.key}", { base.set .q13 zeroToTwo with venue := { base.venue with juniorSeats := m } })
   -- the solves are independent; run them in parallel
   let tasks := variants.map fun (name, r) => (name, Task.spawn fun _ => runConf r conf)
   for (name, t) in tasks do IO.println (showOutcome name t.get s.papers)

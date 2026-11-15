@@ -226,15 +226,24 @@ public class Session private constructor(
      * The assignment plan from the mirror and the latest imports (spec §10.4 C, §10.5): the solve report and its bulk-assign CSV, or what blocks it
      * (Q13, Q14 or the nominee questions unresolved, or no affinity import). Nothing here writes to HotCRP.
      */
-    public fun assignment(): AssignmentState =
-        when (val i = AssignmentData(store, Imports(store, clock)).build(answers().readings, AssignmentSettings.of(settings))) {
+    public fun assignment(juniorSeats: net.jonbell.pcs.core.rules.JuniorSeats? = null): AssignmentState =
+        when (
+            val i =
+                AssignmentData(store, Imports(store, clock)).build(
+                    answers().readings,
+                    AssignmentSettings.of(settings).let { a ->
+                        juniorSeats?.let { a.copy(juniorSeats = it) }
+                            ?: a
+                    },
+                )
+        ) {
             is AssignmentInput.Blocked -> AssignmentState.Blocked(i.reasons)
             is AssignmentInput.Ready -> AssignmentState.Ready(Assignment.report(i.build))
         }
 
     /** Drafts the plan's bulk-assign CSV as a Writeback artifact; nothing reaches HotCRP until it is dry-run, confirmed and applied. Returns the artifact's id. */
-    public fun draftAssignment(): Long {
-        val state = assignment() as? AssignmentState.Ready ?: throw IllegalStateException("the assignment plan is blocked")
+    public fun draftAssignment(juniorSeats: net.jonbell.pcs.core.rules.JuniorSeats? = null): Long {
+        val state = assignment(juniorSeats) as? AssignmentState.Ready ?: throw IllegalStateException("the assignment plan is blocked")
         return writeback().draft(state.report.csv.toArtifact())
     }
 

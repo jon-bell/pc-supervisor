@@ -145,6 +145,14 @@ class RulesDifferentialTest {
         }
 
     @Test
+    @Covers("rule:composition", "card:P6")
+    fun `the optional seats a junior may take, by the chair's choice of who takes them (Q13 zero to two juniors)`() =
+        check("juniorRoom", { it.jsonPrimitive.intOrNull }) { q ->
+            val mode = OracleJson.venue(q["reading"]!!.jsonObject["venue"]).juniorSeats
+            Pc.juniorRoom(mode, q.b("nominee"), q.l("cap").toInt(), q.l("seniors").toInt(), q.l("seated").toInt())
+        }
+
+    @Test
     @Covers("cell:pc-chair/classify", "cell:ac/classify")
     fun `appointment authority (an AC of a nominating paper, any AC for an un-nominated candidate, or a PC chair)`() =
         check("appointmentAuthority", { it.jsonPrimitive.booleanOrNull }) { q ->

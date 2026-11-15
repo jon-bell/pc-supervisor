@@ -31,7 +31,10 @@ def getD {α : Type} [FromJson α] (j : Json) (k : String) (d : α) : Except Str
 def parseVenue (j : Json) : Except String Venue := do
   let d : Venue := {}
   pure { nomineesMax := ← getD j "nomineesMax" d.nomineesMax, patternMin := ← getD j "patternMin" d.patternMin,
-         accGraceH := ← getD j "accGraceH" d.accGraceH, remedyWindowH := ← getD j "remedyWindowH" d.remedyWindowH }
+         accGraceH := ← getD j "accGraceH" d.accGraceH, remedyWindowH := ← getD j "remedyWindowH" d.remedyWindowH,
+         juniorSeats := ← (match j.getObjVal? "juniorSeats" with
+           | .ok (.str k) => match JuniorSeats.ofKey? k with | some m => pure m | none => throw s!"unknown junior-seats mode {k}"
+           | _ => pure d.juniorSeats) }
 
 def parseReading (j : Json) : Except String Reading := do
   let mut r : Reading := {}
@@ -298,6 +301,10 @@ def answer (j : Json) : Except String Json := do
   | "remedyDue" =>
     let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
     pure (Json.mkObj [("result", Json.num (remedyDueAt r.venue.remedyWindowH (← getD j "now" 0)))])
+  | "juniorRoom" =>
+    let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
+    pure (Json.mkObj [("result", Json.num (juniorRoom r.venue.juniorSeats (← getD j "nominee" false) (← getD j "cap" 2) (← getD j "seniors" 0)
+      (← getD j "seated" 0)))])
   | "overCap" =>
     let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
     pure (Json.mkObj [("result", Json.num (papersOverCap r (← getD j "papers" 0)))])

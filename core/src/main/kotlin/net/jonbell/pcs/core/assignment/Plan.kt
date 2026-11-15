@@ -3,6 +3,7 @@ package net.jonbell.pcs.core.assignment
 import net.jonbell.pcs.core.readings.Q13
 import net.jonbell.pcs.core.readings.Q14
 import net.jonbell.pcs.core.rules.Faults
+import net.jonbell.pcs.core.rules.JuniorSeats
 import net.jonbell.pcs.core.rules.Member
 import net.jonbell.pcs.core.rules.PaperFacts
 import net.jonbell.pcs.core.rules.Pc
@@ -73,6 +74,8 @@ public data class PlanConfig(
     val maxPerInstitution: Int? = null,
     /** A paper whose best candidate is below this affinity is reported as a weak match. */
     val weakAffinity: Int = 40,
+    /** `PCS_JUNIOR_SEATS`, or the chair's choice in the Assignment tab: who takes the optional seats under Q13's "zero to two juniors". */
+    val juniorSeats: JuniorSeats = JuniorSeats.FILL,
 )
 
 /** One repair: an edge forbidden, and why. */
@@ -151,8 +154,11 @@ public object Planner {
         val forbidden = HashSet<Pair<Long, Long>>()
         val repairs = mutableListOf<Repair>()
 
-        fun solveOnce(): Pair<List<Raw>, Triple<Long, Boolean, Int>> {
-            val usable = prune(eligible.filter { (it.cand.who to it.cand.pid) !in forbidden }, cfg.topK)
+        /** The seats of one paper in one solve: the capacity, and the lower bound the hard mode puts on it. */
+        class Seat(val cap: Long, val low: Long = 0)
+
+        /** One min-cost max-flow on the §10.5 network over [live] candidates, with each paper's senior and third seats from [seats]. */
+        fun network(usable: List<Raw>, seats: (PlanPaper) -> Pair<Seat, Seat>): Pair<List<Raw>, Triple<Long, Boolean, Int>> {
             val node = HashMap<Long, Int>()
             for (r in input.reviewers) {
                 val room = r.cap - (pinLoad[r.who] ?: 0)
@@ -173,18 +179,61 @@ public object Planner {
             val live = usable.filter { it.cand.who in node }
             for (e in live) net.addArc(node.getValue(e.cand.who), slotNode(e.cand.pid, e.slot), 1, cost(e.cand.aff))
             for (p in input.papers) {
-                val ps = pinSlot[p.pid].orEmpty()
-                val sen = maxOf(0, SENIOR_SEATS - ps.count { it == Slot.SENIOR })
-                // the seats the solve may fill (pinned juniors, reciprocal ones included, count toward the cap) and the ones it must
-                val thdCap = maxOf(0, thirdCap - ps.count { it == Slot.THIRD })
-                val thd = maxOf(0, third - ps.count { it == Slot.THIRD })
+                val (sen, thd) = seats(p)
                 // hard: the seat is a lower bound; a paper with no candidate for it makes the whole solve infeasible
-                net.addArc(slotNode(p.pid, Slot.SENIOR), 1, sen.toLong(), 0, if (cfg.hard) sen.toLong() else 0)
-                net.addArc(slotNode(p.pid, Slot.THIRD), 1, thdCap.toLong(), 0, if (cfg.hard) thd.toLong() else 0)
+                net.addArc(slotNode(p.pid, Slot.SENIOR), 1, sen.cap, 0, if (cfg.hard) sen.low else 0)
+                net.addArc(slotNode(p.pid, Slot.THIRD), 1, thd.cap, 0, if (cfg.hard) thd.low else 0)
             }
             val res = net.solve(0, 1)
             val used = live.filterIndexed { j, _ -> res.flow[first + j] > 0 }
             return used to Triple(res.cost, res.feasible, live.size)
+        }
+
+        /** The seats the solve may fill (pinned juniors, reciprocal ones included, count toward the cap) and the ones it must. */
+        fun seniorSeat(p: PlanPaper): Seat = maxOf(0, SENIOR_SEATS - pinSlot[p.pid].orEmpty().count { it == Slot.SENIOR }).toLong().let { Seat(it, it) }
+
+        fun solveOnce(): Pair<List<Raw>, Triple<Long, Boolean, Int>> {
+            val usable = prune(eligible.filter { (it.cand.who to it.cand.pid) !in forbidden }, cfg.topK)
+            if (cfg.q13 != Q13.ZERO_TO_TWO_JUNIORS || cfg.juniorSeats == JuniorSeats.FILL) {
+                val (used, meta) =
+                    network(usable) { p ->
+                        val thirds = pinSlot[p.pid].orEmpty().count { it == Slot.THIRD }
+                        seniorSeat(p) to Seat(maxOf(0, thirdCap - thirds).toLong(), maxOf(0, third - thirds).toLong())
+                    }
+                return used to meta
+            }
+            // "zero to two juniors" with a chair's choice of who takes the optional seats: the seats are filled in stages, seniors first, each stage's
+            // room read from what the earlier ones placed (`Pc.juniorRoom`; the model's `solveOnce`). Reviewers and seats of different stages don't overlap.
+            val none = Seat(0)
+            val (s1, m1) = network(usable.filter { it.slot == Slot.SENIOR }) { p -> seniorSeat(p) to none }
+            val seniors = s1.groupingBy { it.cand.pid }.eachCount()
+
+            fun seniorsOn(p: PlanPaper) = pinSlot[p.pid].orEmpty().count { it == Slot.SENIOR } + (seniors[p.pid] ?: 0)
+
+            fun pinnedThirds(p: PlanPaper) = pinSlot[p.pid].orEmpty().count { it == Slot.THIRD }
+            var cost = m1.first
+            var feasible = m1.second
+            var live = m1.third
+            val used = s1.toMutableList()
+
+            fun stage(pick: (Raw) -> Boolean, nominee: Boolean, placed: Map<Long, Int>): List<Raw> {
+                val (u, m) =
+                    network(usable.filter { it.slot == Slot.THIRD && pick(it) }) { p ->
+                        none to Seat(Pc.juniorRoom(cfg.juniorSeats, nominee, thirdCap, seniorsOn(p), pinnedThirds(p) + (placed[p.pid] ?: 0)).toLong())
+                    }
+                used += u
+                cost += m.first
+                feasible = feasible && m.second
+                live += m.third
+                return u
+            }
+            if (cfg.juniorSeats == JuniorSeats.RECIPROCAL_ONLY) {
+                val nominees = stage({ by.getValue(it.cand.who).member.nominee }, true, emptyMap())
+                stage({ !by.getValue(it.cand.who).member.nominee }, false, nominees.groupingBy { it.cand.pid }.eachCount())
+            } else {
+                stage({ true }, false, emptyMap())
+            }
+            return used to Triple(cost, feasible, live)
         }
 
         var (used, meta) = solveOnce()
@@ -453,6 +502,35 @@ public object Planner {
         for (cy in noCycle) if (plan.cyclesLeft.none { it.papers.toSet() == cy.papers.toSet() }) out += "A3: unreported cycle ${cy.papers}"
         for (pp in plan.papers) {
             if (!pp.composed && plan.shortfalls.none { it.pid == pp.pid }) out += "A1: #${pp.pid} is not composed and has no reason"
+        }
+        // the chair's choice of who takes the optional seats (Q13 "zero to two juniors"): what the plan added never exceeds the room that choice leaves
+        if (cfg.q13 == Q13.ZERO_TO_TWO_JUNIORS && cfg.juniorSeats != JuniorSeats.FILL) {
+            val cap = Pc.thirdCap(cfg.q13)
+            val planned = plan.edges.filter { by[it.who]?.let { r -> slotOf(cfg, r.member) } == Slot.THIRD }.groupBy { it.pid }
+            for (pp in plan.papers) {
+                val added = planned[pp.pid].orEmpty()
+                val nominees = added.count { by.getValue(it.who).member.nominee }
+                val pc = added.size - nominees
+                val before = pp.thirds.size - added.size
+                val seniors = pp.seniors.size
+                val roomN = if (cfg.juniorSeats == JuniorSeats.RECIPROCAL_ONLY) Pc.juniorRoom(cfg.juniorSeats, true, cap, seniors, before) else Int.MAX_VALUE
+                val roomAll = Pc.juniorRoom(cfg.juniorSeats, false, cap, seniors, before)
+                val roomPc =
+                    if (cfg.juniorSeats ==
+                        JuniorSeats.RECIPROCAL_ONLY
+                    ) {
+                        Pc.juniorRoom(cfg.juniorSeats, false, cap, seniors, before + nominees)
+                    } else {
+                        roomAll
+                    }
+                if (nominees > roomN ||
+                    (cfg.juniorSeats == JuniorSeats.RECIPROCAL_ONLY && pc > roomPc) ||
+                    (cfg.juniorSeats == JuniorSeats.WHEN_SHORT && added.size > roomAll)
+                ) {
+                    out +=
+                        "junior seats (${cfg.juniorSeats.key}): #${pp.pid} was given $nominees reciprocal and $pc PC juniors with $seniors seniors and $before juniors before"
+                }
+            }
         }
         return out
     }

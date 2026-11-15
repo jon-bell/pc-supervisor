@@ -41,6 +41,23 @@ public object Pc {
      */
     public fun thirdCap(q13: Q13): Int = if (q13 == Q13.ZERO_TO_TWO_JUNIORS) 2 else 1
 
+    /** Reviewers a paper should have: two seniors and one more, the composition every other reading of Q13 builds (the model's `compositionReviewers`). */
+    public const val COMPOSITION_REVIEWERS: Int = 3
+
+    /** Seats a junior may take to bring a paper with [seniors] seniors and [seated] juniors to [COMPOSITION_REVIEWERS] reviewers, never more than [cap] juniors (`shortRoom`). */
+    public fun shortRoom(cap: Int, seniors: Int, seated: Int): Int = maxOf(0, minOf(cap, maxOf(0, COMPOSITION_REVIEWERS - seniors)) - seated)
+
+    /**
+     * The optional seats a junior may take on a paper under Q13's "zero to two juniors", by the venue's [JuniorSeats]: [cap] is the most juniors a paper
+     * takes ([thirdCap]), [seniors] the senior reviewers it has, [seated] the juniors already on it, [nominee] whether this junior is a reciprocal
+     * nominee (the model's `juniorRoom`).
+     */
+    public fun juniorRoom(mode: JuniorSeats, nominee: Boolean, cap: Int, seniors: Int, seated: Int): Int =
+        when {
+            mode == JuniorSeats.FILL || (mode == JuniorSeats.RECIPROCAL_ONLY && nominee) -> maxOf(0, cap - seated)
+            else -> shortRoom(cap, seniors, seated)
+        }
+
     /** Rule `composition`: do these reviewers meet Q13 and Q14? */
     public fun compositionOk(q13: Q13, q14: Q14, seats: List<Member>): Boolean {
         val seniors = seats.filter { fillsSenior(q14, it) }

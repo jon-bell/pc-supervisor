@@ -6,6 +6,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import net.jonbell.pcs.core.readings.Q1
+import net.jonbell.pcs.core.readings.Q13
 import net.jonbell.pcs.core.readings.Q21
 import net.jonbell.pcs.core.readings.Q4
 import net.jonbell.pcs.core.readings.Q5
@@ -112,6 +113,21 @@ class CardsTest {
                         "never acted on",
                     )
                 "${counts(9, true)}; a PC member who is neither the paper's AC nor a chair: ${counts(9, false)}; an AC of another paper: ${counts(3, false)}"
+            },
+            "P6" to { r ->
+                if (r.q13 == Q13.ZERO_TO_TWO_JUNIORS) {
+                    val m = venue.juniorSeats
+                    val cap = Pc.thirdCap(Q13.ZERO_TO_TWO_JUNIORS)
+
+                    fun sit(seniors: Int): String {
+                        val nom = minOf(Pc.juniorRoom(m, true, cap, seniors, 0), 1)
+                        val pc = minOf(Pc.juniorRoom(m, false, cap, seniors, nom), 1)
+                        return "${nom + pc} junior seat(s) ($nom reciprocal, $pc PC)"
+                    }
+                    "two seniors: ${sit(2)}; one senior: ${sit(1)}"
+                } else {
+                    "the optional seats do not exist: ${Pc.thirdSlots(r.q13!!)} third seat a paper"
+                }
             },
             "E3" to { r ->
                 val ref = refAt(Ground.ANONYMITY, Stage.SCREENING).copy(remedyOffered = false)

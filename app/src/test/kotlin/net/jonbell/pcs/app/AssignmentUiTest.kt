@@ -33,11 +33,11 @@ import java.time.Instant
 @Family("T12")
 @OptIn(ExperimentalTestApi::class)
 class AssignmentUiTest {
-    private fun conference(dir: Path, answers: String, withScores: Boolean = true): Shell {
+    private fun conference(dir: Path, answers: String, withScores: Boolean = true, juniors: List<String> = listOf("j1"), extraConf: String = ""): Shell {
         val kc = MapKeychain().also { it.write(Accounts.dbKey("asg"), "test-only-key") }
         MirrorFixture.build(dir.resolve("asg.db"), "test-only-key") {
             (1L..3).forEach { paper(it, title = "Synthetic paper $it") }
-            val people = listOf("s1", "s2", "s3", "j1")
+            val people = listOf("s1", "s2", "s3") + juniors
             people.forEach { e ->
                 store.conn.createStatement().use {
                     it.executeUpdate("INSERT INTO person(email,name,roles,tags,first_seen_at,last_seen_at) VALUES('$e@example.org','$e','[]','[]',0,0)")
@@ -55,7 +55,7 @@ class AssignmentUiTest {
                 ImportKind.APPOINTMENTS,
                 (
                     "email,origin,nominated_by,area,ac_email,decision,tier,consent,on_pc_at\n" +
-                        "j1@example.org,invited,,x,ac@example.org,accept,junior,yes,\n"
+                        juniors.joinToString("") { "$it@example.org,invited,,x,ac@example.org,accept,junior,yes,\n" }
                 ).toByteArray(),
                 "sheet.csv",
             )
@@ -72,7 +72,7 @@ class AssignmentUiTest {
             dir.resolve("asg.conf"),
             "PCS_HOTCRP_URL=http://127.0.0.1:1\nPCS_ANSWERS=$a\nPCS_DB_PATH=${dir.resolve(
                 "asg.db",
-            )}\nPCS_TZ=UTC\nPCS_NOW=2030-02-02T01:00\nPCS_LOAD_SENIOR_MAX=3\nPCS_LOAD_JUNIOR_MAX=3\n",
+            )}\nPCS_TZ=UTC\nPCS_NOW=2030-02-02T01:00\nPCS_LOAD_SENIOR_MAX=3\nPCS_LOAD_JUNIOR_MAX=3\n$extraConf",
         )
         return Shell(mapOf("PCS_CONFERENCES" to dir.toString()), { kc }, RecordingOpener(), screenshotMode = true)
     }
@@ -111,6 +111,63 @@ class AssignmentUiTest {
             assertTrue(csv.drop(1).none { it.startsWith("2,") && ("s1@" in it || "s2@" in it) })
             assertTrue(view.text(AssignmentTags.SIGNALS).startsWith("none") || view.text(AssignmentTags.SIGNALS).contains("#2"))
             screenshot("assignment/plan")
+        }
+    }
+
+    @Test
+    @Covers("view:assignment", "rule:composition", "q:Q13=zero-to-two-juniors")
+    fun `the chair chooses who takes the optional seats, and the plan follows (PCS_JUNIOR_SEATS)`(
+        @TempDir dir: Path,
+    ) {
+        // two PC juniors, three papers, seniors s1 to s3 (paper 2 has only s3): fill gives each paper two juniors, 4 + 3 + 4 CSV rows;
+        // when-short stops at three reviewers, 3 + 3 + 3; the juniors are not reciprocal nominees, so reciprocal-only is when-short here
+        val shell = conference(dir, "Q13 = zero-to-two-juniors\nQ14 = tier-decides\n", juniors = listOf("j1", "j2"), extraConf = "PCS_JUNIOR_SEATS=fill\n")
+        runUi {
+            setContent { PcsApp(shell) }
+            val driver = AppDriver(this)
+            val view = ViewReader(this)
+            driver.waitFor(Tags.PICKER)
+            driver.openConference("asg")
+            driver.tab(TabName.Assignment)
+            driver.waitFor(AssignmentTags.SUMMARY)
+
+            fun rows() = Regex("(\\d+) CSV rows").find(view.text(AssignmentTags.SUMMARY))!!.groupValues[1].toInt()
+
+            fun choose(key: String, expectRows: Int) {
+                driver.click(AssignmentTags.seatsButton(key))
+                waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) {
+                    view.exists(AssignmentTags.SUMMARY) &&
+                        view.text(AssignmentTags.SEATS_NOTE).startsWith("Selected: $key.")
+                }
+                waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.exists(AssignmentTags.SUMMARY) && rows() == expectRows }
+                assertEquals(expectRows, rows(), key)
+            }
+            assertTrue(view.text(AssignmentTags.SEATS_NOTE).startsWith("Selected: fill."), "the setting is the starting point")
+            assertEquals(11, rows())
+            choose("when-short", 9)
+            choose("reciprocal-only", 9)
+            choose("fill", 11)
+            screenshot("assignment/junior-seats")
+        }
+    }
+
+    @Test
+    @Covers("view:assignment")
+    fun `the setting is the starting mode of the Assignment tab`(
+        @TempDir dir: Path,
+    ) {
+        val shell =
+            conference(dir, "Q13 = zero-to-two-juniors\nQ14 = tier-decides\n", juniors = listOf("j1", "j2"), extraConf = "PCS_JUNIOR_SEATS=when-short\n")
+        runUi {
+            setContent { PcsApp(shell) }
+            val driver = AppDriver(this)
+            val view = ViewReader(this)
+            driver.waitFor(Tags.PICKER)
+            driver.openConference("asg")
+            driver.tab(TabName.Assignment)
+            driver.waitFor(AssignmentTags.SUMMARY)
+            assertTrue(view.text(AssignmentTags.SEATS_NOTE).startsWith("Selected: when-short."))
+            assertTrue("9 CSV rows" in view.text(AssignmentTags.SUMMARY), view.text(AssignmentTags.SUMMARY))
         }
     }
 

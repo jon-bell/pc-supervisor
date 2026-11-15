@@ -20,15 +20,16 @@ def readingObj (xs : List (QId × Nat)) : Json :=
 
 /-- The values tried for each venue parameter: the default and others on either side. -/
 def venueValues : String → List Nat
-  | "nominees-max" => [1, 2, 3, 5] | "pattern-min" => [2, 3, 4] | "acc-grace-h" => [0, 24, 48, 72] | "remedy-window-h" => [24, 72, 120] | _ => []
+  | "nominees-max" => [1, 2, 3, 5] | "pattern-min" => [2, 3, 4] | "acc-grace-h" => [0, 24, 48, 72] | "remedy-window-h" => [24, 72, 120] | "junior-seats" => [0, 1, 2] | _ => []
 
 def setVenue (v : Venue) : String → Nat → Venue
   | "nominees-max", n => { v with nomineesMax := n } | "pattern-min", n => { v with patternMin := n }
-  | "acc-grace-h", n => { v with accGraceH := n } | "remedy-window-h", n => { v with remedyWindowH := n } | _, _ => v
+  | "acc-grace-h", n => { v with accGraceH := n } | "remedy-window-h", n => { v with remedyWindowH := n }
+  | "junior-seats", n => { v with juniorSeats := JuniorSeats.all.getD n .fill } | _, _ => v
 
 def venueJson (v : Venue) : Json :=
   Json.mkObj [("nomineesMax", Json.num v.nomineesMax), ("patternMin", Json.num v.patternMin), ("accGraceH", Json.num v.accGraceH),
-    ("remedyWindowH", Json.num v.remedyWindowH)]
+    ("remedyWindowH", Json.num v.remedyWindowH), ("juniorSeats", Json.str v.juniorSeats.key)]
 
 /-- A card's cases: every combination of the readings it depends on, and, for a card that declares
     venue parameters, of the values tried for each (the card then says which venue it ran under). -/

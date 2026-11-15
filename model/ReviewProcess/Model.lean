@@ -345,6 +345,23 @@ def thirdSlots (r : Reading) : Nat := if r.q13 == .zeroToTwoJuniors then 0 else 
     reviewers; both count toward the cap of two. -/
 def thirdCap (r : Reading) : Nat := if r.q13 == .zeroToTwoJuniors then 2 else 1
 
+/-- Reviewers a paper should have: two seniors and one more, the composition every other reading of Q13 builds. -/
+def compositionReviewers : Nat := 3
+
+/-- Seats a junior may take to bring a paper with `seniors` senior reviewers and `seated` juniors to `compositionReviewers`
+    reviewers, never more than `cap` juniors in all. -/
+def shortRoom (cap seniors seated : Nat) : Nat := min cap (compositionReviewers - seniors) - seated
+
+/-- The optional seats (Q13 "zero to two juniors") a junior may take on a paper, by the venue's `JuniorSeats`: `cap` is the most
+    juniors a paper takes (`thirdCap`), `seniors` the senior reviewers it has, `seated` the juniors already on it, and `nominee`
+    whether this junior is a reciprocal nominee. -/
+def juniorRoom (mode : JuniorSeats) (nominee : Bool) (cap seniors seated : Nat) : Nat :=
+  match mode, nominee with
+  | .fill, _ => cap - seated
+  | .whenShort, _ => shortRoom cap seniors seated
+  | .reciprocalOnly, true => cap - seated
+  | .reciprocalOnly, false => shortRoom cap seniors seated
+
 /-- Rule `composition`: does this set of reviewers meet Q13 and Q14? -/
 def compositionOk (r : Reading) (seats : List Member) : Bool :=
   let seniors := seats.filter (fillsSenior r)

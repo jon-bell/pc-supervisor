@@ -176,6 +176,7 @@ Configuration comes from three sources, and startup validates all of them and li
 | `PCS_RULE_<NAME>_WEIGHT`, `PCS_THRESH_<NAME>` | Rule weights and thresholds (§5c) | see code |
 | `PCS_LOAD_<TIER>_MAX` | Load band per tier (concepts rule `load`) | senior 15, junior 8 |
 | `PCS_CONSISTENCY_FENCE_PAD`, `PCS_CONSISTENCY_MIN_PAPERS`, `PCS_CONSISTENCY_MIN_ACS` | The AC consistency band (`prop:M1`): Tukey's fence widened by this much; ACs with fewer papers are listed, not compared; fewer comparable ACs form no band | `0.05` / `5` / `4` |
+| `PCS_JUNIOR_SEATS` | Who takes the optional seats under Q13's "zero to two juniors": `fill`, `when-short` or `reciprocal-only` (the model's `Venue.juniorSeats`; the Assignment tab can override it) | `fill` |
 | `PCS_REMEDY_WINDOW_H` | Hours of a Q1 fix window (the model's `Venue.remedyWindowH`) | `72` |
 | `PCS_DB_PATH` | SQLite file | the OS's app-data directory, `<host>.db` |
 | `PCS_SYNC_INTERVAL_MIN`, `PCS_SYNC_CHUNK`, `PCS_SYNC_CONCURRENCY`, `PCS_HISTORY_RPS` | Sync tuning | 15 / 200 / 2 / 1 |
@@ -466,6 +467,12 @@ p.third  ──(cap = Q13's remaining slots)──► sink   (junior PC, and nom
 ```
 
 Under Q13's "zero to two juniors" the third node's cap is 2 and none is required: juniors from the PC and reciprocal nominees both take seats there (the owner's ruling, 2026-11-15), so a paper never has more than two of them; pinned reviews count toward the cap. Under the other readings the cap is the one required seat, as before.
+
+**Who takes the optional seats** is the chair's choice (the owner's ruling, 2026-11-15): the setting `PCS_JUNIOR_SEATS`, which the Assignment tab can override for the plan it shows and drafts. It matters only under "zero to two juniors", and the model has it as `Venue.juniorSeats` (the oracle comparison `PlanOracleTest` runs each mode).
+- `fill` (default): the network above, one solve.
+- `when-short`: seniors first. The senior seats are solved, then the junior seats, whose room on each paper is what brings it to three reviewers (two seniors and one more, the composition the other readings of Q13 build): with both senior seats filled at most one junior sits, with one senior at most two, never more than the cap of two, and pinned juniors count.
+- `reciprocal-only`: the same stages, but the optional seats first go to reciprocal nominee juniors (up to the cap, as much as each owes), and only then to PC juniors, whose room is as in `when-short`.
+The stages share no reviewer and no seat (a reviewer fills one kind of seat), so together they are one solve; the repair rounds forbid edges and solve the stages again.
 
 - **Soft first, hard optionally.** Hard lower bounds make the whole solve infeasible if a single paper can't be staffed (e.g. too few unconflicted seniors in its area). The default models each required slot as an edge with a large negative cost (`PCS_SOLVER_SLOT_BONUS`), so the solve always succeeds, and every unmet requirement is reported per paper. This is the same technique as HotCRP's expertise gadget. `PCS_SOLVER_HARD=1` switches to true lower bounds.
 - **Load balance:** convex per-reviewer costs on the source edges, as in HotCRP (`paper_assignment_cost × i`), so loads spread within each band.
