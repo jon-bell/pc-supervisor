@@ -429,7 +429,23 @@ class World(
 
     /** What HotCRP holds, as a chair. */
     inner class HotcrpReader {
-        private fun reviews(): List<JsonObject> = api.reviews(pid).let { if (faults.hotcrpReaderDropsLastRow) it.dropLast(1) else it }
+        private fun reviews(): List<JsonObject> =
+            api.reviews(pid).let { rs ->
+                // the mutant drops the last review row that is not the AC's metareview (HotCRP lists a moved, unsubmitted metareview last)
+                if (faults.hotcrpReaderDropsLastRow) {
+                    rs.indexOfLast { it.str("rtype") != "5" }.let { i ->
+                        if (i <
+                            0
+                        ) {
+                            rs
+                        } else {
+                            rs.filterIndexed { j, _ -> j != i }
+                        }
+                    }
+                } else {
+                    rs
+                }
+            }
 
         /** The AC's triage as HotCRP holds it: the hidden tag a chair mirrored, else the Triage field of her screening metareview. */
         fun referral(): Ground? =
