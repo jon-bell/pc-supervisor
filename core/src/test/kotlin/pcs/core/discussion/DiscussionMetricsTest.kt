@@ -24,8 +24,15 @@ class DiscussionMetricsTest {
 
     private fun day(d: Double): Instant = open.plus(Duration.ofMinutes((d * 1440).toLong()))
 
-    private fun rev(who: String, merit: Int = 3, words: Int = 250, complete: Boolean = true, landed: Double = -9.0, ratings: List<String> = emptyList(), versions: List<Version> = emptyList()) =
-        ReviewView(who, false, complete, merit, 3, words, ratings, day(landed), versions, completeAt = day(landed))
+    private fun rev(
+        who: String,
+        merit: Int = 3,
+        words: Int = 250,
+        complete: Boolean = true,
+        landed: Double = -9.0,
+        ratings: List<String> = emptyList(),
+        versions: List<Version> = emptyList(),
+    ) = ReviewView(who, false, complete, merit, 3, words, ratings, day(landed), versions, completeAt = day(landed))
 
     private fun ac(who: String = "ac", status: String = "complete") =
         ReviewView(

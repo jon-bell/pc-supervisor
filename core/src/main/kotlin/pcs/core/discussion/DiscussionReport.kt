@@ -383,11 +383,9 @@ public object DiscussionReports {
                     )
             }
             for ((a, b) in r.versions.zipWithNext()) {
-                if (a.merit !=
-                    b.merit
-                ) {
+                if (a.merit != b.merit && a.merit != null && b.merit != null) {
                     out +=
-                        TimelineEvent(b.at, day(b.at), EventKind.SCORE, name(r.email), "$label merit ${a.merit ?: "?"} → ${b.merit ?: "?"}", b.approx)
+                        TimelineEvent(b.at, day(b.at), EventKind.SCORE, name(r.email), "$label merit ${a.merit} → ${b.merit}", b.approx)
                 }
                 if (a.expertise != b.expertise && a.expertise != null && b.expertise != null) {
                     out += TimelineEvent(b.at, day(b.at), EventKind.SCORE, name(r.email), "$label expertise ${a.expertise} → ${b.expertise}", b.approx)

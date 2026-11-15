@@ -30,6 +30,11 @@ public object DiscussionLoader {
         }
     }
 
+    /** Why "no movement" can't be trusted yet (H3): the mirror only knows scores from the syncs it has seen until the review history is read. */
+    public fun historyNote(unread: Int): String =
+        "$unread review(s) have no score history read from HotCRP yet, so 'no movement since discussion opened' may be premature. " +
+            "A chair's Backfill review history reads it."
+
     /** The discussion dashboard at the session clock's now, from the mirror alone, plus the reviewing-progress report for outstanding reviews. */
     public fun state(s: Session): DiscussionState {
         val (ph, missing) = phases(s.settings.phases)
@@ -37,6 +42,11 @@ public object DiscussionLoader {
         val st = s.settings
         val (thresholds, problems) = Thresholds.fromSettings(st.raw, st.meritAcceptMin, st.expertiseOkMin, st.reviewsRequired)
         val notes = problems.toMutableList()
+        val unread =
+            s.store.conn.query(
+                "SELECT count(*) FROM review r LEFT JOIN backfill b ON b.rid = r.rid WHERE b.rid IS NULL AND r.gone_at IS NULL AND r.rtype <> 5 AND r.status <> 'empty'",
+            ) { it.getInt(1) }.single()
+        if (unread > 0) notes += historyNote(unread)
         val papers = MirrorView.load(s.store, st.fieldMerit, st.fieldExpertise)
         val names = s.store.conn.query("SELECT lower(email), coalesce(name, email) FROM person") { it.getString(1) to it.getString(2) }.toMap()
         val tags =
