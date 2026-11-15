@@ -16,6 +16,7 @@ import java.nio.file.Path
 
 /** The manifest (agent.md §3.3): one table from the check directories, the decision file, and the qualification records. */
 @Covers(
+    "check:novelty",
     "check:format",
     "check:refs.doi",
     "check:anonymity",
