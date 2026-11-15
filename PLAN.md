@@ -588,8 +588,8 @@ Changing this table means changing the M3 and M18 tests in the same PR.
     - A qualification is earned on the scaffolded variant only, over at least `min_runs` (3) runs and `min_positives` (6) labelled positives; point estimates meet the thresholds (the shootout's lower bounds are reported, not required).
     - Replay is transparent for qualification as it is for keys: a replay of a qualified engine carries that engine's identity.
     - The agent never has a HotCRP credential: authors and abstracts come from files a chair exports (`--authors`, `--abstracts-by-paper`).
-    - Batch results are costed at the configured standard price (no batch discount modelled); the table of `check.yaml` fields, `unverified` flags and the summary travel in the bundle but the app has no screen for them yet (M13).
-    - The bundle manifest table (`screening-bundle` rows) was extended only by the importer's merge rule; `ImportKind.SCREENING_BUNDLE` and its columns are unchanged.
+    - Batch results are costed at the configured standard price (no batch discount modelled). The summaries travel in the bundle, but the app has no screen for them yet (M13).
+    - `ImportKind.SCREENING_BUNDLE` and its columns are unchanged; the importer merges findings that share a `pid|check|ground` key.
     - Fixed on the way: `--class confidential` in `AgentCli` advanced the argument cursor once per enum entry tried (it never worked for `confidential`).
   - **Deferred / not done:**
     - **`summary` cannot be qualified:** its oracle has no labelled positives (M11 notes), so a confidential run of `summary` is refused until a rule for it exists (anchor validity and resistance, plus human ratings).
