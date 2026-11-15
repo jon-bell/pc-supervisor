@@ -56,13 +56,14 @@ class ChairKeyUiTest {
                 assertTrue(Files.isRegularFile(saved), view.text(ChairKeyTags.STATUS))
                 assertEquals(shown, Files.readString(saved).trim())
                 // A bundle made for the saved key opens with the keychain's identity.
-                val file = BundleCodec.encrypt(
-                    net.jonbell.pcs.core.bundle.BundlePayload(
-                        net.jonbell.pcs.core.bundle.BundleManifest(createdAt = "2030-01-01T00:00:00Z", papers = emptyList(), checks = emptyList()),
-                        emptyList(),
-                    ),
-                    listOf(ChairPublicKey.parse(Files.readString(saved))),
-                )
+                val file =
+                    BundleCodec.encrypt(
+                        net.jonbell.pcs.core.bundle.BundlePayload(
+                            net.jonbell.pcs.core.bundle.BundleManifest(createdAt = "2030-01-01T00:00:00Z", papers = emptyList(), checks = emptyList()),
+                            emptyList(),
+                        ),
+                        listOf(ChairPublicKey.parse(Files.readString(saved))),
+                    )
                 BundleCodec.decrypt(file, me)
             }
         } finally {
