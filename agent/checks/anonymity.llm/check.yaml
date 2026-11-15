@@ -10,6 +10,6 @@ evidence: >-
 affected: >-
   The authors, if an ordinary phrase is read as pointing to them; the venue's blind review otherwise.
 code:
-  - src/main/kotlin/pcs/agent/llm/AnonymityLlmCheck.kt
-  - src/main/kotlin/pcs/agent/llm/ScreenLlmCheck.kt
-  - src/main/kotlin/pcs/agent/llm/Anchoring.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/AnonymityLlmCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/ScreenLlmCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/Anchoring.kt

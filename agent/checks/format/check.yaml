@@ -10,5 +10,5 @@ evidence: >-
 affected: >-
   The authors, whose paper is removed if the limits are misread.
 code:
-  - src/main/kotlin/pcs/agent/checks/FormatCheck.kt
-  - src/main/kotlin/pcs/agent/extract/PdfExtractor.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/checks/FormatCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/extract/PdfExtractor.kt

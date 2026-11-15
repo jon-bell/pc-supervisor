@@ -73,7 +73,7 @@ val checkVersions by tasks.registering {
             val hex = md.digest().joinToString("") { "%02x".format(it) }
             lines += "${dir.name}=${hex.take(12)}"
         }
-        val out = generatedResources.get().file("pcs/agent/check-versions.properties").asFile
+        val out = generatedResources.get().file("net/jonbell/pcs/agent/check-versions.properties").asFile
         out.parentFile.mkdirs()
         out.writeText(lines.joinToString("\n", postfix = "\n"))
     }
@@ -84,7 +84,7 @@ sourceSets.main {
 }
 tasks.processResources {
     dependsOn(checkVersions)
-    from(checksDir) { into("pcs/agent/checks") }
+    from(checksDir) { into("net/jonbell/pcs/agent/checks") }
 }
 
 // ---- Tests -------------------------------------------------------------------------------
@@ -112,14 +112,14 @@ tasks.test {
 // The synthetic corpus as files, for looking at by hand (tests generate their own copy).
 val syntheticCorpus by tasks.registering(JavaExec::class) {
     classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set("pcs.agent.eval.CorpusKt")
+    mainClass.set("net.jonbell.pcs.agent.eval.CorpusKt")
     args(layout.buildDirectory.dir("synthetic").get().asFile.absolutePath)
 }
 
 // Per-check mutation score and false-flag rate on the corpus (agent.md §7.2); also asserted by the tests.
 val screeningScore by tasks.registering(JavaExec::class) {
     classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set("pcs.agent.eval.ScoreKt")
+    mainClass.set("net.jonbell.pcs.agent.eval.ScoreKt")
     args(layout.buildDirectory.dir("reports/screening").get().asFile.absolutePath)
 }
 
@@ -127,7 +127,7 @@ val screeningScore by tasks.registering(JavaExec::class) {
 // agent/fixtures/replay. By hand, never in `check`: PCS_LIVE_OK=1 ./gradlew :agent:liveSample -Pcap=<n> [-Pcase=<id>]
 val liveSample by tasks.registering(JavaExec::class) {
     classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set("pcs.agent.llm.LiveSample")
+    mainClass.set("net.jonbell.pcs.agent.llm.LiveSample")
     workingDir = layout.projectDirectory.asFile
     args(layout.projectDirectory.asFile.absolutePath, (findProperty("cap") ?: "0").toString())
     findProperty("case")?.let { args(it.toString()) }

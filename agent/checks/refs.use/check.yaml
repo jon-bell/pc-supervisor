@@ -11,6 +11,6 @@ evidence: >-
 affected: >-
   The authors, if a citation is read wrongly from an abstract alone; a person decides.
 code:
-  - src/main/kotlin/pcs/agent/llm/RefsUseCheck.kt
-  - src/main/kotlin/pcs/agent/llm/ScreenLlmCheck.kt
-  - src/main/kotlin/pcs/agent/llm/Anchoring.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/RefsUseCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/ScreenLlmCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/Anchoring.kt

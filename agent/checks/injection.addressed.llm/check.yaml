@@ -10,7 +10,7 @@ evidence: >-
 affected: >-
   The authors, if a quotation in a paper about LLMs is read as an attack.
 code:
-  - src/main/kotlin/pcs/agent/llm/AddressedLlmCheck.kt
-  - src/main/kotlin/pcs/agent/llm/ScreenLlmCheck.kt
-  - src/main/kotlin/pcs/agent/llm/Anchoring.kt
-  - src/main/kotlin/pcs/agent/checks/AddressedPatterns.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/AddressedLlmCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/ScreenLlmCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/Anchoring.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/checks/AddressedPatterns.kt

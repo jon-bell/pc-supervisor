@@ -26,7 +26,7 @@ zip -q -d "$out/input/$(basename "$jar")" "META-INF/*.SF" "META-INF/*.RSA" "META
 "$JDK/bin/jlink" --add-modules "$MODULES" --strip-debug --no-header-files --no-man-pages --output "$out/runtime"
 "$JDK/bin/jpackage" --type deb --name pc-supervisor --app-version "$VERSION" --vendor "PC Supervisor contributors" \
   --description "Supervises a HotCRP review process for the conference chairs" \
-  --input "$out/input" --main-jar "$(basename "$jar")" --main-class pcs.app.MainKt \
+  --input "$out/input" --main-jar "$(basename "$jar")" --main-class net.jonbell.pcs.app.MainKt \
   --java-options --enable-native-access=ALL-UNNAMED --runtime-image "$out/runtime" --dest "$out"
 deb=$(ls "$out"/*.deb)
 dpkg-deb -x "$deb" "$out/root"

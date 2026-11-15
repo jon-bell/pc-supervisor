@@ -10,9 +10,9 @@ evidence: >-
 affected: >-
   The authors, if legitimate text is judged hidden; the whole review process otherwise.
 code:
-  - src/main/kotlin/pcs/agent/checks/Hidden.kt
-  - src/main/kotlin/pcs/agent/checks/InjectionChecks.kt
-  - src/main/kotlin/pcs/agent/checks/AddressedPatterns.kt
-  - src/main/kotlin/pcs/agent/extract/PdfExtractor.kt
-  - src/main/kotlin/pcs/agent/extract/TextNorm.kt
-  - src/main/kotlin/pcs/agent/extract/Render.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/checks/Hidden.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/checks/InjectionChecks.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/checks/AddressedPatterns.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/extract/PdfExtractor.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/extract/TextNorm.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/extract/Render.kt

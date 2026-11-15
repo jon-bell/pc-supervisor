@@ -10,5 +10,5 @@ evidence: >-
 affected: >-
   The authors, if a real reference is not in the index (assume A6); the AC otherwise.
 code:
-  - src/main/kotlin/pcs/agent/checks/RefsDoiCheck.kt
-  - src/main/kotlin/pcs/agent/extract/References.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/checks/RefsDoiCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/extract/References.kt

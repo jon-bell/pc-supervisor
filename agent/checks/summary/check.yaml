@@ -10,6 +10,6 @@ evidence: >-
 affected: >-
   The AC, who reads it to decide where to look; a wrong summary misdirects attention but moves no decision by itself.
 code:
-  - src/main/kotlin/pcs/agent/llm/SummaryCheck.kt
-  - src/main/kotlin/pcs/agent/llm/ScreenLlmCheck.kt
-  - src/main/kotlin/pcs/agent/llm/Anchoring.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/SummaryCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/ScreenLlmCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/Anchoring.kt

@@ -54,7 +54,7 @@ val generateReadings by tasks.registering {
         val qs = JsonSlurper().parse(input.asFile) as List<Map<String, Any>>
         val out = StringBuilder()
         out.appendLine("// GENERATED from model/export/readings.json by :core:generateReadings. Do not edit.")
-        out.appendLine("package pcs.core.readings")
+        out.appendLine("package net.jonbell.pcs.core.readings")
         out.appendLine()
         out.appendLine("/** One reading of an open question (docs/concepts.md §1). */")
         out.appendLine("public interface ReadingValue { public val key: String; public val desc: String }")
@@ -76,7 +76,7 @@ val generateReadings by tasks.registering {
         out.appendLine(
             qs.joinToString(",\n") { q ->
                 val code = q["code"] as String
-                "    ${code.uppercase()}(${kstr(code)}, ${kstr(q["text"] as String)}, pcs.core.readings.$code.entries.toList())"
+                "    ${code.uppercase()}(${kstr(code)}, ${kstr(q["text"] as String)}, net.jonbell.pcs.core.readings.$code.entries.toList())"
             } + ";",
         )
         out.appendLine("    public companion object { public fun ofCode(c: String): QId? = entries.firstOrNull { it.code == c } }")
@@ -113,7 +113,7 @@ val generateReadings by tasks.registering {
         )
         out.appendLine("    )")
         out.appendLine("}")
-        val f = generatedMain.get().file("pcs/core/readings/Generated.kt").asFile
+        val f = generatedMain.get().file("net/jonbell/pcs/core/readings/Generated.kt").asFile
         f.parentFile.mkdirs()
         f.writeText(out.toString())
     }
@@ -127,7 +127,7 @@ tasks.named("compileKotlin") { dependsOn(generateReadings) }
 tasks.named<ProcessResources>("processResources") {
     from(modelExport) {
         include("cards.json", "policy.json")
-        into("pcs/model")
+        into("net/jonbell/pcs/model")
     }
 }
 

@@ -44,7 +44,7 @@ val generateActions by tasks.registering {
         val systems = JsonSlurper().parse(input.asFile) as List<Map<String, Any>>
         val out = StringBuilder()
         out.appendLine("// GENERATED from model/export/actions.json by :runner:generateActions. Do not edit.")
-        out.appendLine("package pcs.runner.model")
+        out.appendLine("package net.jonbell.pcs.runner.model")
         out.appendLine()
         out.appendLine("/** An action of the Lean model; the bindings are exhaustive `when`s over these (PLAN §A4). */")
         out.appendLine("public sealed interface ModelAction {")
@@ -157,7 +157,7 @@ val generateActions by tasks.registering {
         out.appendLine("}")
         out.appendLine()
         out.append(obsOut)
-        val f = generatedMain.get().file("pcs/runner/model/Generated.kt").asFile
+        val f = generatedMain.get().file("net/jonbell/pcs/runner/model/Generated.kt").asFile
         f.parentFile.mkdirs()
         f.writeText(out.toString())
     }

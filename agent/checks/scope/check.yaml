@@ -10,6 +10,6 @@ evidence: >-
 affected: >-
   The authors, whose paper may be wrongly called out of scope; the AC, who sees the claims and the call's topics and decides.
 code:
-  - src/main/kotlin/pcs/agent/llm/ScopeCheck.kt
-  - src/main/kotlin/pcs/agent/llm/ScreenLlmCheck.kt
-  - src/main/kotlin/pcs/agent/llm/Anchoring.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/ScopeCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/ScreenLlmCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/llm/Anchoring.kt

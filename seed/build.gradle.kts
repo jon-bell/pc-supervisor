@@ -13,7 +13,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("pcs.seed.MainKt")
+    mainClass.set("net.jonbell.pcs.seed.MainKt")
 }
 
 tasks.named<JavaExec>("run") {

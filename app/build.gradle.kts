@@ -162,7 +162,7 @@ fun Test.configureUiTestCommon(coversName: String) {
 
 compose.desktop {
     application {
-        mainClass = "pcs.app.MainKt"
+        mainClass = "net.jonbell.pcs.app.MainKt"
         // jpackage and jlink come from the same JDK 25 the code is built with, not whatever runs Gradle
         javaHome = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(25)) }.get().metadata.installationPath.asFile.absolutePath
         jvmArgs("--enable-native-access=ALL-UNNAMED")
@@ -195,7 +195,7 @@ compose.desktop {
                 "jdk.zipfs",
             )
             macOS {
-                bundleID = "org.pcsupervisor.app"
+                bundleID = "net.jonbell.pcs"
                 // Signing and notarization run only in the release workflow, where these come from CI secrets;
                 // every other build, local ones included, is unsigned.
                 signing {

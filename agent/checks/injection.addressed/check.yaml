@@ -10,6 +10,6 @@ evidence: >-
 affected: >-
   The authors, if a quotation is read as an attack.
 code:
-  - src/main/kotlin/pcs/agent/checks/InjectionChecks.kt
-  - src/main/kotlin/pcs/agent/checks/AddressedPatterns.kt
-  - src/main/kotlin/pcs/agent/extract/TextNorm.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/checks/InjectionChecks.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/checks/AddressedPatterns.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/extract/TextNorm.kt

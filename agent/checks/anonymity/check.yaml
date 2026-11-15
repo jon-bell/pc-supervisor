@@ -10,5 +10,5 @@ evidence: >-
 affected: >-
   The authors, if a name in the text is a coincidence; the venue's blind review otherwise.
 code:
-  - src/main/kotlin/pcs/agent/checks/AnonymityCheck.kt
-  - src/main/kotlin/pcs/agent/extract/TextNorm.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/checks/AnonymityCheck.kt
+  - src/main/kotlin/net/jonbell/pcs/agent/extract/TextNorm.kt

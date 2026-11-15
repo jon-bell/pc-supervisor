@@ -17,6 +17,6 @@ dependencies {
 }
 
 application {
-    mainClass.set("pcs.cli.MainKt")
+    mainClass.set("net.jonbell.pcs.cli.MainKt")
     applicationName = "pcs"
 }
