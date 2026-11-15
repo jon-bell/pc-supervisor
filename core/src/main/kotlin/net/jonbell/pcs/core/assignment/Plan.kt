@@ -307,11 +307,14 @@ public object Planner {
                 )
             }
         val short = mutableListOf<Shortfall>()
+        // the candidates and the papers, indexed once: a scan per paper is quadratic, which at 4,000 papers and 240,000 edges is most of the solve (M19)
+        val paperOf = input.papers.associateBy { it.pid }
+        val candsOf = input.candidates.filter { it.who in by }.groupBy { it.pid }
         for (pp in papers) {
-            val p = input.papers.first { it.pid == pp.pid }
+            val p = paperOf.getValue(pp.pid)
             for ((slot, need, got) in listOf(Triple(Slot.SENIOR, SENIOR_SEATS, pp.seniors.size), Triple(Slot.THIRD, third, pp.thirds.size))) {
                 if (got >= need) continue
-                short += Shortfall(pp.pid, slot, need, got, reason(input, cfg, by, p, slot, need, got, eligible, forbidden, loads))
+                short += Shortfall(pp.pid, slot, need, got, reason(cfg, by, p, slot, need, got, candsOf[p.pid].orEmpty(), forbidden, loads))
             }
         }
         // a paper whose seats are all filled can still miss Q13 and Q14, through existing assignments the rules would not have made
@@ -326,6 +329,7 @@ public object Planner {
                 )
         }
         val violations = input.reviewers.filter { (loads[it.who] ?: 0) > it.cap }.map { it.who to (loads[it.who] ?: 0) }
+        val eligibleCount by lazy { eligible.filter { (it.who to it.pid) !in forbidden }.groupingBy { it.who }.eachCount().withDefault { 0 } }
         val nominees =
             input.reviewers.filter { it.member.nominee && it.member.accepted }.map { r ->
                 val load = loads[r.who] ?: 0
@@ -337,7 +341,7 @@ public object Planner {
                     if (ok) {
                         null
                     } else {
-                        val cands = eligible.count { it.who == r.who && (it.who to it.pid) !in forbidden }
+                        val cands = eligibleCount.getValue(r.who)
                         when {
                             cands < target -> "only $cands eligible candidate papers for ${r.who}"
                             else -> "the seats on its candidate papers were taken by others"
@@ -347,7 +351,7 @@ public object Planner {
             }
         val weak =
             input.papers.mapNotNull { p ->
-                val best = input.candidates.filter { it.pid == p.pid && it.who in by }.maxOfOrNull { it.aff } ?: return@mapNotNull null
+                val best = candsOf[p.pid]?.maxOfOrNull { it.aff } ?: return@mapNotNull null
                 if (best < cfg.weakAffinity) p.pid to best else null
             }
         return PlanResult(
@@ -370,19 +374,17 @@ public object Planner {
     }
 
     private fun reason(
-        input: PlanInput,
         cfg: PlanConfig,
         by: Map<Long, Reviewer>,
         p: PlanPaper,
         slot: Slot,
         need: Int,
         got: Int,
-        eligible: List<Candidate>,
+        raw: List<Candidate>,
         forbidden: Set<Pair<Long, Long>>,
         loads: Map<Long, Int>,
     ): String {
         val label = if (slot == Slot.SENIOR) "senior" else "non-senior"
-        val raw = input.candidates.filter { it.pid == p.pid && it.who in by }
         val ofSlot = raw.filter { by.getValue(it.who).member.let { m -> slotOf(cfg, m) } == slot }
         val unseated = raw.filter { slotOf(cfg, by.getValue(it.who).member) == null }
         val facts = facts(p)
@@ -475,14 +477,17 @@ public object Cycles {
         // hop A -> B: witnesses (u, B) with u an author of A
         val hop = HashMap<Pair<Long, Long>, List<Pair<Long, Long>>>()
         val next = HashMap<Long, MutableList<Long>>()
-        for (a in papers) {
-            for (b in papers) {
-                if (a.pid == b.pid) continue
-                val w = reviewsOf[b.pid].orEmpty().filter { it in authors.getValue(a.pid) }.distinct().map { it to b.pid }
-                if (w.isNotEmpty()) {
-                    hop[a.pid to b.pid] = w
-                    next.getOrPut(a.pid) { mutableListOf() } += b.pid
-                }
+        // through an index of who wrote what, so the work follows the reviews, not the pairs of papers (4,000 papers are 16 million pairs)
+        val authoredBy = HashMap<Long, MutableList<Long>>()
+        for (a in papers) for (u in a.authors.toSet()) authoredBy.getOrPut(u) { mutableListOf() } += a.pid
+        for (b in papers) {
+            val witnesses = HashMap<Long, MutableList<Pair<Long, Long>>>()
+            for (u in reviewsOf[b.pid].orEmpty().distinct()) {
+                for (a in authoredBy[u].orEmpty()) if (a != b.pid) witnesses.getOrPut(a) { mutableListOf() } += u to b.pid
+            }
+            for ((a, w) in witnesses) {
+                hop[a to b.pid] = w
+                next.getOrPut(a) { mutableListOf() } += b.pid
             }
         }
         val out = mutableListOf<PaperCycle>()
