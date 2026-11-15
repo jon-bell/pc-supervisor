@@ -313,6 +313,13 @@ jobs:
           name: pc-supervisor-linux-deb
           path: app/build/linux-package/*.deb
           if-no-files-found: error
+      - name: Build the pcs command line (pcs eval, the evaluation kit) as a .deb and run its smoke test
+        run: scripts/package-pcs-linux.sh "$JAVA_HOME"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pcs-linux-deb
+          path: cli/build/linux-package/*.deb
+          if-no-files-found: error
 
   model:
     runs-on: ripley-cloud

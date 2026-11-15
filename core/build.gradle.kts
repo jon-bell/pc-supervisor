@@ -270,6 +270,7 @@ val assuranceReport by tasks.registering {
         listOf("covers", "covers-integration", "covers-agent").map { layout.buildDirectory.file("$it/covers.tsv") } +
             listOf("covers", "covers-ui", "covers-scale").map { project(":app").layout.buildDirectory.file("$it/covers.tsv") } +
             listOf("covers", "covers-integration", "covers-scale").map { project(":runner").layout.buildDirectory.file("$it/covers.tsv") } +
+            listOf("covers", "covers-integration").map { project(":cli").layout.buildDirectory.file("$it/covers.tsv") } +
             project(":agent").layout.buildDirectory.file("covers-integration/covers.tsv")
     val evidenceTraces = project(":runner").layout.buildDirectory.dir("evidence/traces")
     val transitionsFile = rootProject.layout.projectDirectory.file("model/export/transitions-desk.json")

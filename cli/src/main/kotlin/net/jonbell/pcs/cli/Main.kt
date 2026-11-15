@@ -21,9 +21,10 @@ fun main(args: Array<String>) {
         "nominations" -> nominationsCmd()
         "assign" -> assignCmd(args.drop(1))
         "agent" -> agent(args.drop(1))
+        "eval" -> exitProcess(net.jonbell.pcs.cli.eval.EvalCommand(System.getenv()).run(args.drop(1)))
         else -> {
             System.err.println(
-                "usage: pcs probe | sync | wipe | import <kind> <file> [--map col=name,...] | import status | export tpms <dir> | nominations | assign [--csv <file>] | agent check|probe|plan|run",
+                "usage: pcs probe | sync | wipe | import <kind> <file> [--map col=name,...] | import status | export tpms <dir> | nominations | assign [--csv <file>] | agent check|probe|plan|run | eval (--export <dir> | --token-file <file>) [...]",
             )
             exitProcess(2)
         }
