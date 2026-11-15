@@ -176,3 +176,9 @@ PCS_CRITERION_4=Submitted on time [late]
 # PCS_REQUEST_DUE_H=48
 # PCS_FIELD_WEAKNESS=
 # PCS_FIELDS_REQUIRED=PapSum
+
+# --- Pseudonymous export (spec §10.4 G) -----------------------------------------
+# The chair-held key for the keyed pseudonyms on exported rows. Either the key itself or a file whose first line is the key (at least 16 characters).
+# The same key gives the same pseudonyms; a different key gives unrelated ones. Keep it out of any export you share.
+# PCS_PSEUDONYM_KEY=
+# PCS_PSEUDONYM_KEY_FILE=/path/to/pseudonym.key
