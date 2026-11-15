@@ -102,7 +102,14 @@ class TriageFixture(val store: Store) {
             q10: Q10 = Q10.DESK_REJECT,
         ) = Readings(q1 = q1, q2 = q2, q3 = q3, q6 = q6, q10 = q10)
 
-        fun finding(pid: Long, ground: String?, engine: String = "stand-in", check: String = "format-check", quote: String = "a quoted sentence", verified: Boolean = true) =
+        fun finding(
+            pid: Long,
+            ground: String?,
+            engine: String = "stand-in",
+            check: String = "format-check",
+            quote: String = "a quoted sentence",
+            verified: Boolean = true,
+        ) =
             BundleFinding(
                 pid = "$pid",
                 check = check,

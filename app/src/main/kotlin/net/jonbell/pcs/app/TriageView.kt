@@ -69,7 +69,12 @@ fun TriageView(session: Session, opener: UrlOpener, version: Int) {
     Column(Modifier.fillMaxSize().testTag(TriageTags.SCREEN), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (val s = state.firstOrNull()) {
             null -> Text("Computing…", style = MaterialTheme.typography.bodyMedium)
-            is TriageReport.Blocked -> s.reasons.forEach { Text("Blocked: $it", Modifier.testTag(TriageTags.BLOCKED), color = MaterialTheme.colorScheme.error) }
+            is TriageReport.Blocked ->
+                Text(
+                    "Blocked: ${s.reasons.joinToString("; ")}",
+                    Modifier.testTag(TriageTags.BLOCKED),
+                    color = MaterialTheme.colorScheme.error,
+                )
             is TriageReport.Ready -> {
                 val view = session.consistency(s)
                 Text(triageSummary(s), Modifier.testTag(TriageTags.SUMMARY), style = MaterialTheme.typography.titleSmall)

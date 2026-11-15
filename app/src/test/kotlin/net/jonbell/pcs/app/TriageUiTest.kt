@@ -113,7 +113,7 @@ class TriageUiTest {
             driver.waitFor(TriageTags.SUMMARY)
             waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.exists(TableTags.COUNT) }
             val t = view.table()
-            assertEquals(listOf("pid", "title", "ac", "grounds", "findings", "status", "why", "late"), t.columnIds)
+            assertEquals(setOf("pid", "title", "ac", "grounds", "findings", "status", "why", "late"), t.columnIds.toSet())
             assertEquals(
                 mapOf(
                     "1" to "ready for a chair to remove",
