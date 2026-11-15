@@ -69,7 +69,8 @@ class ProcessReportTest {
         return Session.open(c, MapKeychain().also { it.write("pcs/c/db-key", "k") }, env)
     }
 
-    private fun seed(s: Session) {
+    /** [triage] adds 4 refers (format) with a second opinion, 5 kept, 6 refers (scope) and rejected. */
+    private fun seed(s: Session, triage: Boolean = false) {
         val f = AccFixture(s.store)
         people.forEach { (n, e) ->
             val tags = if (n == "cy") listOf("junior") else emptyList()
@@ -90,6 +91,19 @@ class ProcessReportTest {
         f.comment(1, people.getValue("eve"), "rev", 1)
         f.comment(1, people.getValue("bob"), "rev", 2)
         s.store.conn.createStatement().use { it.executeUpdate("INSERT INTO comment_text(cid,modified_at,text) VALUES(1,0,'CANARY-COMMENT-TEXT quokka')") }
+        if (triage) {
+            for (pid in 4L..6L) f.paper(pid)
+            val tri = mapOf(4L to 2, 5L to 1, 6L to 3)
+            tri.forEach { (pid, code) ->
+                val rid = f.review(pid, people.getValue("eve"), null, rtype = 5, words = 10, merit = null, round = "screen")
+                s.store.conn.createStatement().use { it.executeUpdate("UPDATE review SET scores='{\"Tri\":$code}' WHERE rid=$rid") }
+            }
+            f.review(4, people.getValue("bob"), null, rtype = 2, words = 10, merit = null, round = "screen")
+            s.store.conn.createStatement().use {
+                it.executeUpdate("UPDATE paper SET decision='Reject', title='CANARY-TITLE-6' WHERE pid=6")
+                it.executeUpdate("UPDATE paper SET tags='[\"pcs-keep\"]' WHERE pid=5")
+            }
+        }
         val csv =
             "email,origin,nominated_by,area,ac_email,decision,tier,consent,on_pc_at\n" +
                 "${people["cy"]},nominee,1,area,${people["eve"]},accept,junior,yes,\n" +
@@ -171,10 +185,11 @@ class ProcessReportTest {
         @TempDir dir: Path,
     ) {
         open(dir, "PCS_PSEUDONYM_KEY=$keyA").use { s ->
-            seed(s)
+            seed(s, triage = true)
             val out = dir.resolve("out")
             val files = ReportFiles.saveExport(s, out)!! + ReportFiles.saveReport(s, out)
             assertEquals(6, files.size)
+            assertTrue("Triage outcomes" in String(Files.readAllBytes(files.last())), "the triage tables are in the report that was scanned")
             for (f in files) {
                 val bytes = String(Files.readAllBytes(f), Charsets.ISO_8859_1).lowercase()
                 for (c in canaries) assertFalse(c in bytes, "$c appears in ${f.fileName}")
@@ -225,6 +240,29 @@ class ProcessReportTest {
             assertEquals("1", juniors[3], "one review under the 150-word floor")
             assertEquals("2", juniors[4], "two negative flags")
             assertTrue("<h2 id=\"progress\">" in ReportRender.html(r))
+        }
+    }
+
+    @Test
+    @Covers("prop:C3")
+    fun `the screening section counts triage outcomes, and only counts`(
+        @TempDir dir: Path,
+    ) {
+        open(dir).use { s ->
+            seed(s, triage = true)
+            val sec = ProcessReports.build(s).section("screening")
+            assertTrue(sec.available)
+            val outcomes = sec.tables.first { it.title == "Triage outcomes" }.rows.associate { it[0] to it[1] }
+            assertEquals("3", outcomes["papers in the triage queue"])
+            assertEquals("1", outcomes["kept by the AC"])
+            assertEquals("2", outcomes["referred by the AC"])
+            assertEquals("1", outcomes["referred, with a second opinion given"])
+            assertEquals("1", outcomes["removed (desk rejected)"])
+            assertEquals(mapOf("format" to "1", "scope" to "1"), sec.tables.first { it.title == "Referrals by ground" }.rows.associate { it[0] to it[1] })
+            assertEquals(mapOf("scope" to "1"), sec.tables.first { it.title == "Removed by ground" }.rows.associate { it[0] to it[1] })
+            val timing = sec.tables.first { it.title.startsWith("Timing of removals (Q3 reading:") }.rows.associate { it[0] to it[1] }
+            assertEquals(1, timing.filterKeys { it.startsWith("removed at the") }.values.sumOf { it.toInt() })
+            assertTrue(sec.tables.all { t -> t.rows.flatten().none { "@" in it || "CANARY" in it } })
         }
     }
 }

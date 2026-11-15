@@ -68,14 +68,16 @@ class ViewReader(private val ui: ComposeUiTest) {
 
     fun textOrNull(tag: String): String? = withTag(exact = tag).singleOrNull()?.let(::textOf)
 
+    // Positions are read unclipped: a node scrolled out of a narrow viewport reports empty clipped bounds, which would sort it first.
+
     /** The tags under [prefix], with the prefix removed, in screen order (top to bottom, then left to right). */
     fun tagsWith(prefix: String): List<String> =
-        withTag(prefix).sortedWith(compareBy({ it.boundsInRoot.top }, { it.boundsInRoot.left })).mapNotNull { tagOf(it)?.removePrefix(prefix) }
+        withTag(prefix).sortedWith(compareBy({ it.positionInRoot.y }, { it.positionInRoot.x })).mapNotNull { tagOf(it)?.removePrefix(prefix) }
 
     fun table(): TableView {
         val headers =
-            withTag("header-").sortedBy { it.boundsInRoot.left }.map { tagOf(it)!!.removePrefix("header-") to textOf(it).removeSuffix(" ▲").removeSuffix(" ▼") }
-        val keys = withTag("row-").filter { tagOf(it) != TableTags.COUNT }.sortedBy { it.boundsInRoot.top }.map { tagOf(it)!!.removePrefix("row-") }
+            withTag("header-").sortedBy { it.positionInRoot.x }.map { tagOf(it)!!.removePrefix("header-") to textOf(it).removeSuffix(" ▲").removeSuffix(" ▼") }
+        val keys = withTag("row-").filter { tagOf(it) != TableTags.COUNT }.sortedBy { it.positionInRoot.y }.map { tagOf(it)!!.removePrefix("row-") }
         val rows =
             keys.map { k ->
                 k to headers.mapNotNull { (id, _) -> textOrNull(TableTags.cell(k, id))?.let { id to it } }.toMap()

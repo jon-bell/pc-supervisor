@@ -112,12 +112,12 @@ class OpenAiCompatEngine(
                                 buildJsonObject {
                                     put("name", "result")
                                     put("strict", true)
-                                    put("schema", req.schema)
+                                    put("schema", JsonSchema.forProvider(req.schema))
                                 },
                             )
                         },
                     )
-                "guided" -> put("guided_json", req.schema)
+                "guided" -> put("guided_json", JsonSchema.forProvider(req.schema))
                 "tool" -> {
                     put(
                         "tools",
@@ -130,7 +130,7 @@ class OpenAiCompatEngine(
                                         buildJsonObject {
                                             put("name", "result")
                                             put("description", "Report the result.")
-                                            put("parameters", req.schema)
+                                            put("parameters", JsonSchema.forProvider(req.schema))
                                         },
                                     )
                                 },

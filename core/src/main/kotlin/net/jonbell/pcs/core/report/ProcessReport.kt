@@ -11,9 +11,14 @@ import net.jonbell.pcs.core.imports.Imports
 import net.jonbell.pcs.core.nominations.Decision
 import net.jonbell.pcs.core.nominations.NominationData
 import net.jonbell.pcs.core.nominations.Resolved
+import net.jonbell.pcs.core.rules.Stage
+import net.jonbell.pcs.core.rules.TriageChoice
 import net.jonbell.pcs.core.session.EarlyRejectState
 import net.jonbell.pcs.core.session.Session
 import net.jonbell.pcs.core.store.query
+import net.jonbell.pcs.core.triage.TriageReport
+import net.jonbell.pcs.core.triage.TriageStatus
+import net.jonbell.pcs.core.triage.triage
 import java.time.Instant
 
 /*
@@ -153,6 +158,7 @@ public object ProcessReports {
     private fun screening(s: Session): ReportSection {
         val c = s.store.conn
         val desk = c.query("SELECT count(*) FROM paper WHERE gone_at IS NULL AND lower(coalesce(decision,'')) LIKE '%desk%'") { it.getInt(1) }.single()
+        val triage = triageOutcomes(s)
         val protocol = HashMap<String, Int>()
         c.query("SELECT tags FROM paper WHERE gone_at IS NULL") { r ->
             Json.parseToJsonElement(r.getString(1)).jsonArray.map { it.jsonPrimitive.content.substringBefore('#') }.filter {
@@ -164,13 +170,53 @@ public object ProcessReports {
             "screening",
             "Screening and desk reject",
             true,
-            "Triage outcomes (keep, refer, second opinion) arrive with the triage module; this part reads the papers' decisions and PC Supervisor's own tags.",
+            triage.note,
             listOf(
                 ReportTable("Desk rejects", listOf("measure", "value"), listOf(listOf("papers with a desk-reject decision", desk.toString()))),
                 count("Papers carrying PC Supervisor tags", "tag", protocol),
-            ),
+            ) + triage.tables,
         )
     }
+
+    private class TriagePart(val note: String?, val tables: List<ReportTable>)
+
+    /** Triage outcomes as counts of enumerated labels (status, ground, stage, reading); never a pid, title, person or text. */
+    private fun triageOutcomes(s: Session): TriagePart =
+        when (val t = s.triage()) {
+            is TriageReport.Blocked ->
+                TriagePart("Triage outcomes are not computed: ${t.reasons.size} of the questions they depend on are unresolved.", emptyList())
+            is TriageReport.Ready -> {
+                val rows = t.rows
+                val q3 = s.answers().readings.q3?.key ?: "unresolved"
+                val choice = rows.mapNotNull { it.facts?.choice }
+                val removed = rows.filter { it.status == TriageStatus.REMOVED }
+                val outcomes =
+                    listOf(
+                        "papers in the triage queue" to rows.size,
+                        "kept by the AC" to choice.count { it is TriageChoice.Keep },
+                        "referred by the AC" to choice.count { it is TriageChoice.Refer },
+                        "referred, with a second opinion given" to rows.count { r -> r.facts?.opinions?.any { !it.isAcNote } == true },
+                        "second opinion requested, not yet given" to rows.count { it.status == TriageStatus.OPINION_PENDING },
+                        "referred, second opinion still to ask for" to rows.count { it.status == TriageStatus.NEEDS_SECOND_OPINION },
+                        "removed (desk rejected)" to removed.size,
+                    )
+                TriagePart(
+                    null,
+                    listOf(
+                        ReportTable("Triage outcomes", listOf("measure", "papers"), outcomes.map { listOf(it.first, it.second.toString()) }),
+                        count("Triage status of each queued paper", "status", rows.groupingBy { it.status.label }.eachCount()),
+                        count("Referrals by ground", "ground", rows.mapNotNull { it.facts?.ground?.key }.groupingBy { it }.eachCount()),
+                        count("Removed by ground", "ground", removed.mapNotNull { it.grounds.firstOrNull()?.key }.groupingBy { it }.eachCount()),
+                        ReportTable(
+                            "Timing of removals (Q3 reading: $q3)",
+                            listOf("measure", "papers"),
+                            Stage.entries.map { st -> listOf("removed at the ${st.key} stage", removed.count { it.stage == st }.toString()) } +
+                                listOf(listOf("removed late (after the desk-reject date)", removed.count { it.late }.toString())),
+                        ),
+                    ),
+                )
+            }
+        }
 
     private fun groups(s: Session): (String) -> String {
         val c = s.store.conn

@@ -40,9 +40,13 @@ import java.time.Instant
 class TriageUiTest {
     private fun sql(store: net.jonbell.pcs.core.store.Store, q: String) = store.conn.createStatement().use { it.executeUpdate(q) }
 
-    private fun conference(dir: Path, answers: String): Shell {
+    private fun conference(dir: Path, answers: String, extra: (net.jonbell.pcs.core.store.Store) -> Unit = {}): Shell {
         val file = Files.writeString(dir.resolve("answers.txt"), answers)
-        val kc = MapKeychain().also { it.write(Accounts.dbKey("tr"), "test-only-key") }
+        val kc =
+            MapKeychain().also {
+                it.write(Accounts.dbKey("tr"), "test-only-key")
+                it.write(Accounts.token("tr"), "unused-no-call-is-made")
+            }
         val store =
             MirrorFixture.build(dir.resolve("tr.db"), "test-only-key") {
                 for (pid in 1L..4L) paper(pid, title = "Triage paper $pid", tags = if (pid == 1L || pid == 2L) listOf("pcs-refer-format") else emptyList())
@@ -58,6 +62,7 @@ class TriageUiTest {
             store,
             "INSERT INTO review(rid,pid,email,rtype,status,round,scores,word_count,ratings,first_seen_at,last_seen_at) VALUES(200,1,'s@example.org',2,'complete','screen','{}',0,'[]',0,0)",
         )
+        extra(store)
         val finding = { pid: Int ->
             BundleFinding(
                 "$pid",
@@ -145,6 +150,55 @@ class TriageUiTest {
             driver.openConference("tr")
             driver.tab(TabName.Triage)
             driver.waitFor(TriageTags.BLOCKED)
+        }
+    }
+
+    @Test
+    @Covers("view:triage", "prop:S2")
+    fun `each chair step drafts into Writeback and applies nothing`(
+        @TempDir dir: Path,
+    ) {
+        val shell =
+            conference(dir, full) { store ->
+                // paper 4: the AC's complete screening metareview says keep, and no chair has mirrored it
+                sql(
+                    store,
+                    "INSERT INTO review(rid,pid,email,rtype,status,round,scores,word_count,ratings,first_seen_at,last_seen_at) " +
+                        "VALUES(304,4,'ac@example.org',5,'complete','screen','{\"Tri\":1}',0,'[]',0,0)",
+                )
+                sql(store, "INSERT INTO person(email,name,roles,tags,first_seen_at,last_seen_at) VALUES('senior@example.org','S','[\"pc\"]','[]',0,0)")
+            }
+        runUi {
+            setContent { PcsApp(shell) }
+            val driver = AppDriver(this)
+            val view = ViewReader(this)
+            driver.waitFor(Tags.PICKER)
+            driver.openConference("tr")
+            driver.tab(TabName.Triage)
+            driver.waitFor(TriageTags.SUMMARY)
+            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.exists(TableTags.COUNT) }
+            driver.click(TriageTags.MIRROR)
+            driver.waitFor(TriageTags.MESSAGE)
+            assertTrue(view.text(TriageTags.MESSAGE).startsWith("Drafted into Writeback: #1, #2"), view.text(TriageTags.MESSAGE))
+            driver.click(TriageTags.FINDINGS)
+            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.text(TriageTags.MESSAGE).contains("#3") }
+            driver.click(TriageTags.DECISION)
+            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.text(TriageTags.MESSAGE).contains("#6") }
+            driver.clickRow("2")
+            driver.waitFor(TriageTags.SELECTED)
+            driver.click(TriageTags.ask("senior@example.org"))
+            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.text(TriageTags.MESSAGE).contains("#7") }
+            assertTrue(view.text("${TriageTags.MAIL}-0").contains("Second opinion on paper #2"))
+            driver.tab(TabName.Writeback)
+            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.exists(TableTags.COUNT) }
+            val t = view.table()
+            assertEquals(
+                listOf("tags", "review-move", "comment", "comment", "comment", "decision", "assignments").sorted(),
+                t.keys.map { t.cell(it, "kind")!! }.sorted(),
+                "one of each step, as drafts",
+            )
+            assertEquals(setOf("drafted"), t.keys.map { t.cell(it, "status")!! }.toSet(), "nothing is applied or dry-run")
+            screenshot("triage/drafted")
         }
     }
 }

@@ -1,17 +1,21 @@
 package net.jonbell.pcs.app
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,7 +26,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -33,19 +40,30 @@ import net.jonbell.pcs.core.writeback.FirstActions
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-enum class TabName(val label: String) {
-    Papers("Papers"),
-    Reviews("Reviews"),
-    Discussion("Discussion"),
+/** The groups of the navigation rail, in process order. */
+enum class NavGroup(val label: String) {
+    Setup("Setup"),
+    Screening("Screening"),
     Assignment("Assignment"),
-    Triage("Triage"),
-    EarlyReject("Early reject"),
-    Accountability("Accountability"),
-    Writeback("Writeback"),
-    ProcessReport("Process report"),
-    Report("Sync report"),
-    Settings("Settings"),
-    Cards("Cards"),
+    Reviewing("Reviewing"),
+    Discussion("Discussion"),
+    Afterwards("Afterwards"),
+    Tools("Tools"),
+}
+
+enum class TabName(val label: String, val group: NavGroup) {
+    Settings("Settings", NavGroup.Setup),
+    Cards("Cards", NavGroup.Setup),
+    Triage("Triage", NavGroup.Screening),
+    Assignment("Assignment", NavGroup.Assignment),
+    EarlyReject("Early reject", NavGroup.Reviewing),
+    Accountability("Accountability", NavGroup.Reviewing),
+    Discussion("Discussion", NavGroup.Discussion),
+    ProcessReport("Process report", NavGroup.Afterwards),
+    Papers("Papers", NavGroup.Tools),
+    Reviews("Reviews", NavGroup.Tools),
+    Writeback("Writeback", NavGroup.Tools),
+    Report("Sync report", NavGroup.Tools),
 }
 
 /** What the sync button shows. */
@@ -102,32 +120,34 @@ fun ConferenceScreen(shell: Shell, session: Session, onSwitch: () -> Unit) {
             OutlinedButton(onSwitch) { Text("Switch conference") }
         }
         SyncStatus(sync)
-        PrimaryTabRow(tab.ordinal, Modifier.testTag(Tags.TABS)) {
-            TabName.entries.forEach { t -> Tab(tab == t, { tab = t }, Modifier.testTag(Tags.tab(t.name)), text = { Text(t.label) }) }
-        }
-        when (tab) {
-            TabName.Papers ->
-                PapersView(session, shell.opener, version) { id ->
-                    selectedArtifact = id
-                    version++
-                    tab = TabName.Writeback
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            NavRail(tab) { tab = it }
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                when (tab) {
+                    TabName.Papers ->
+                        PapersView(session, shell.opener, version) { id ->
+                            selectedArtifact = id
+                            version++
+                            tab = TabName.Writeback
+                        }
+                    TabName.Reviews -> ReviewsView(session, shell.opener, version)
+                    TabName.Discussion -> DiscussionView(session, shell.opener, version)
+                    TabName.Assignment ->
+                        AssignmentView(session, shell.opener, version) { id ->
+                            selectedArtifact = id
+                            version++
+                            tab = TabName.Writeback
+                        }
+                    TabName.Triage -> TriageView(session, shell.opener, version)
+                    TabName.EarlyReject -> EarlyRejectView(session, shell.opener, version) { version++ }
+                    TabName.Accountability -> AccountabilityView(session, shell.opener, version) { version++ }
+                    TabName.Writeback -> WritebackScreen(session, shell.opener, version, selectedArtifact, { selectedArtifact = it }, { version++ })
+                    TabName.ProcessReport -> ProcessReportView(session, version)
+                    TabName.Report -> ReportScreen(session, version)
+                    TabName.Settings -> SettingsScreen(session.answers(), session.conference.id)
+                    TabName.Cards -> CardGallery(session.answers().readings, venue = session.settings.venue)
                 }
-            TabName.Reviews -> ReviewsView(session, shell.opener, version)
-            TabName.Discussion -> DiscussionView(session, shell.opener, version)
-            TabName.Assignment ->
-                AssignmentView(session, shell.opener, version) { id ->
-                    selectedArtifact = id
-                    version++
-                    tab = TabName.Writeback
-                }
-            TabName.Triage -> TriageView(session, shell.opener, version)
-            TabName.EarlyReject -> EarlyRejectView(session, shell.opener, version) { version++ }
-            TabName.Accountability -> AccountabilityView(session, shell.opener, version) { version++ }
-            TabName.Writeback -> WritebackScreen(session, shell.opener, version, selectedArtifact, { selectedArtifact = it }, { version++ })
-            TabName.ProcessReport -> ProcessReportView(session, version)
-            TabName.Report -> ReportScreen(session, version)
-            TabName.Settings -> SettingsScreen(session.answers(), session.conference.id)
-            TabName.Cards -> CardGallery(session.answers().readings, venue = session.settings.venue)
+            }
         }
     }
 }
@@ -195,3 +215,37 @@ private fun ReviewsView(session: Session, opener: UrlOpener, version: Int) {
     val rows by produceRows(version) { Tables.reviews(session.store, session.settings.fieldMerit, session.settings.fieldExpertise) }
     LazyTable("reviews", "reviews", rows, { it.rid.toString() }, reviewColumns(), { session.links.review(it.pid, it.ordinal, it.rid) }, opener)
 }
+
+/**
+ * The navigation: a left rail grouped by phase, so the number of views no longer has to fit one row. Each item carries the same
+ * `tab-<name>` test tag the tab row had, so a driver clicks it the same way. The rail scrolls if the window is short.
+ */
+@Composable
+private fun NavRail(selected: TabName, onSelect: (TabName) -> Unit) {
+    Column(
+        Modifier.testTag(Tags.TABS).width(NAV_WIDTH).fillMaxHeight().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        NavGroup.entries.forEach { g ->
+            Text(
+                g.label.uppercase(),
+                Modifier.padding(start = 8.dp, top = 10.dp, bottom = 2.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+            TabName.entries.filter { it.group == g }.forEach { t ->
+                val on = t == selected
+                Text(
+                    t.label,
+                    Modifier.testTag(Tags.tab(t.name)).fillMaxWidth().clip(MaterialTheme.shapes.small)
+                        .background(if (on) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                        .selectable(on, role = Role.Tab, onClick = { onSelect(t) }).padding(horizontal = 8.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+private val NAV_WIDTH = 168.dp
