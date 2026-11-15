@@ -46,6 +46,7 @@ docker compose -p pcs -f hotcrp/compose.yaml down -v   # reset
 set -a; . ./.env.test; set +a
 ./gradlew integrationTest
 ./gradlew uiTest
+./gradlew scaleTest                  # nightly only: needs a harness seeded with `scale` (`:seed:run --args=scale`, about 20 minutes; see the CI `scale` job); writes build/scale/summary.md
 (cd model && lake build && lake exe report answers/synthetic.txt)
 ```
 

@@ -116,7 +116,12 @@ class Driver(
                     )
                 }
             }
-        php("batch/saveusers.php", "-e", users.toString())
+        // through a file: a scale-sized PC overflows the argument list of `-e`
+        val usersFile = Files.createTempFile("pcs-users", ".json")
+        Files.writeString(usersFile, users.toString())
+        dc("cp", usersFile.toString(), "hotcrp:/tmp/users.json")
+        Files.delete(usersFile)
+        php("batch/saveusers.php", "/tmp/users.json")
 
         dc("exec", "-T", "hotcrp", "cp", "test/sample50pg.pdf", "/tmp/seed.pdf")
         val papers =

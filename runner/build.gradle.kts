@@ -219,6 +219,44 @@ testing {
     }
 }
 
+// ---- T9, the scale scenario (PLAN M19): sync, re-sync, solve and table loads on the 4,000-paper harness; nightly only.
+// `./gradlew scaleTest` (root) runs this, then :app:scaleUiTest, then writes the summary and re-derives the verdicts.
+val scaleDir = rootProject.layout.buildDirectory.dir("scale")
+
+testing {
+    suites {
+        register<JvmTestSuite>("scaleTest") {
+            useJUnitJupiter(libs.versions.junit.get())
+            dependencies {
+                implementation(project())
+                implementation(project(":core"))
+                implementation(project(":seed"))
+                implementation(testFixtures(project(":core")))
+                implementation(libs.serialization.json)
+                implementation(libs.coroutines.core)
+            }
+            targets.all {
+                testTask.configure {
+                    dependsOn(claimsInventory)
+                    // the 4,000-paper analyses need more than the default heap
+                    maxHeapSize = "4g"
+                    jvmArgs("--enable-native-access=ALL-UNNAMED")
+                    systemProperty("pcs.repoRoot", rootProject.projectDir.absolutePath)
+                    systemProperty("pcs.claimsFile", claimsFile.get().asFile.absolutePath)
+                    systemProperty("pcs.coversDir", layout.buildDirectory.dir("covers-scale").get().asFile.absolutePath)
+                    systemProperty("pcs.scaleDir", scaleDir.get().asFile.absolutePath)
+                    listOf("PCS_HOTCRP_URL", "PCS_HOTCRP_TOKEN", "HOTCRP_COMPOSE_PROJECT", "PCS_SCALE_RUNS").forEach { k ->
+                        System.getenv(k)?.let { environment(k, it) }
+                    }
+                    outputs.upToDateWhen { false }
+                    testLogging { showStandardStreams = true }
+                    doFirst { if (System.getenv("PCS_SCALE_KEEP") == null) scaleDir.get().asFile.deleteRecursively() }
+                }
+            }
+        }
+    }
+}
+
 // ---- Re-derive every verdict from the evidence records (PLAN §A6); CI runs this after the integration tests ----
 tasks.register<Exec>("checkEvidence") {
     description = "Runs `lake exe check-evidence` on the evidence records the integration tests wrote."

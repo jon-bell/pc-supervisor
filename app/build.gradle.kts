@@ -42,7 +42,7 @@ val screenshotDir = layout.buildDirectory.dir("screenshots")
 
 // Plain unit tests (table logic, view reader); the Compose UI tests are tagged "ui" and run in uiTest.
 tasks.test {
-    useJUnitPlatform { excludeTags("ui") }
+    useJUnitPlatform { excludeTags("ui", "scale") }
     configureUiTestCommon("covers")
 }
 
@@ -95,6 +95,22 @@ val uiTest by tasks.registering(Test::class) {
     // the process never touches the user's keychain or conference directory
     environment("PCS_CONFERENCES", layout.buildDirectory.dir("ui-conferences").get().asFile.absolutePath)
     finalizedBy("uiTestStopXvfb")
+}
+
+// T9 (PLAN M19): table render and filter times on the store the runner's scaleTest left in build/scale. Nightly only; needs a display.
+val scaleUiTest by tasks.registering(Test::class) {
+    description = "Times the main tables on the scale store (run :runner:scaleTest first)"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { includeTags("scale") }
+    configureUiTestCommon("covers-scale")
+    maxHeapSize = "4g"
+    systemProperty("pcs.scaleDir", rootProject.layout.buildDirectory.dir("scale").get().asFile.absolutePath)
+    System.getenv("PCS_SCALE_RUNS")?.let { environment("PCS_SCALE_RUNS", it) }
+    outputs.upToDateWhen { false }
+    testLogging { showStandardStreams = true }
+    mustRunAfter(":runner:scaleTest")
 }
 
 tasks.register("uiTestStopXvfb") {

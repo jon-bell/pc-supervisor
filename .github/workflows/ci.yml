@@ -154,10 +154,6 @@ jobs:
           fi
           npx --yes @argos-ci/cli upload app/build/screenshots
 
-      - name: Scale scenario (nightly only)
-        if: github.event_name == 'schedule' && hashFiles('settings.gradle.kts') != ''
-        run: set -a && . ./.env.test && set +a && ./gradlew scaleTest
-
       - name: Collect harness logs
         if: failure()
         run: docker compose -f hotcrp/compose.yaml logs --no-color > hotcrp-logs.txt 2>&1 || true
@@ -176,6 +172,78 @@ jobs:
       - name: Tear down harness
         if: always()
         run: docker compose -f hotcrp/compose.yaml down -v --remove-orphans || true
+
+  # T9 (PLAN M19), nightly only: the `scale` scenario (4,000 papers) on a harness of its own with raised API limits (the golden harness of
+  # the `ci` job keeps HotCRP's defaults). Seeding takes about 35 minutes, then ten full syncs, ten re-syncs, ten solves and ten
+  # table runs. The job summary carries the budgets, the 95th percentiles with their intervals, and the store's size; the measurement
+  # records are re-derived by `lake exe check-evidence`, so a missed budget fails the job.
+  scale:
+    if: github.event_name == 'schedule'
+    runs-on: ripley-cloud-large
+    timeout-minutes: 240
+    env:
+      COMPOSE_PROJECT_NAME: pcs-scale-${{ github.run_id }}
+      HOTCRP_PORT: "18097"
+      HOTCRP_API_PER_HOUR: "1000000"
+      HOTCRP_API_PER_MINUTE: "50000"
+      PCS_ENV_OUT: ${{ github.workspace }}/.env.scale
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install docker compose plugin
+        run: |
+          if ! docker compose version >/dev/null 2>&1; then
+            mkdir -p ~/.docker/cli-plugins
+            curl -fsSL -o ~/.docker/cli-plugins/docker-compose \
+              https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-x86_64
+            chmod +x ~/.docker/cli-plugins/docker-compose
+          fi
+          docker compose version
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install xvfb and the libraries Skiko loads
+        run: |
+          sudo -n apt-get update -q
+          sudo -n apt-get install -y -q --no-install-recommends xvfb libgl1 libegl1 \
+            libfontconfig1 libfreetype6 libx11-6 libxext6 libxrender1 libxi6 libxtst6 \
+            libxrandr2 libxcursor1 libxinerama1 libglu1-mesa fonts-dejavu-core
+      - name: Install elan and build the evidence checker
+        run: |
+          if ! command -v lake >/dev/null 2>&1; then
+            curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.elan/bin:$PATH"
+          cd model && lake build check-evidence
+      - name: Start the scale harness
+        run: scripts/hotcrp-up.sh
+      - name: Seed the scale scenario
+        run: set -a && . ./.env.scale && set +a && ./gradlew :seed:run --args=scale
+      - name: Measure (sync, re-sync, solve, table render and filter)
+        id: measure
+        continue-on-error: true
+        run: set -a && . ./.env.scale && set +a && xvfb-run -a ./gradlew scaleTest
+      - name: Job summary and the verdicts
+        run: |
+          export PATH="$HOME/.elan/bin:$PATH"
+          if [ -f build/scale/summary.md ]; then cat build/scale/summary.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -d build/scale/records ]; then (cd model && lake exe check-evidence ../build/scale/records); fi
+          [ "${{ steps.measure.outcome }}" = "success" ]
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scale-results
+          path: |
+            build/scale/summary.md
+            build/scale/records/
+            build/scale/facts.json
+            runner/build/reports/
+          if-no-files-found: ignore
+      - name: Tear down the scale harness
+        if: always()
+        run: docker compose -p "$COMPOSE_PROJECT_NAME" -f hotcrp/compose.yaml down -v --remove-orphans || true
 
   # The Linux package: jpackage from the uber jar with a jlink'd runtime (scripts/package-linux.sh says why not :app:packageDeb: Temurin 25 has
   # no jmods, and Compose's launcher crashes on its long classpath). The script starts the installed app headless (--smoke).

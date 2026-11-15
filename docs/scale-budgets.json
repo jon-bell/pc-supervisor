@@ -1,0 +1,13 @@
+{
+  "_comment": "M19 budgets, recorded at the first scale run (2026-11-15). Starting points from PLAN M19 and concepts Q1; kept unless a measurement says otherwise. Times in milliseconds. Each is judged by the 95th percentile (nearest rank) over `runs` runs and its percentile-bootstrap 95% confidence interval; a budget passes when the percentile and the interval's upper bound are both within it.",
+  "runs": 10,
+  "budgets": {
+    "sync.full": { "ms": 480000, "what": "first full sync of the scale scenario into an empty store" },
+    "sync.noop": { "ms": 180000, "what": "re-sync with no change at HotCRP; must also write zero rows" },
+    "solve.full": { "ms": 30000, "what": "full assignment solve from scratch (no pinned reviews) over every paper and TPMS affinity: build, flow, repair, audit, CSV" },
+    "table.papers.render": { "ms": 2000, "what": "open the Papers tab on 4,000 papers: load from the store and first rows on screen" },
+    "table.reviews.render": { "ms": 2000, "what": "open the Reviews tab on the scale reviews: load and first rows on screen" },
+    "table.papers.filter": { "ms": 300, "what": "slowest keystroke while typing a filter into the Papers table" },
+    "table.reviews.filter": { "ms": 300, "what": "slowest keystroke while typing a filter into the Reviews table" }
+  }
+}
