@@ -11,6 +11,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -18,10 +21,13 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import pcs.core.earlyreject.ErCandidate
 import pcs.core.earlyreject.ErReport
 import pcs.core.earlyreject.ErStatus
+import pcs.core.earlyreject.SnapshotGap
 import pcs.core.session.EarlyRejectState
 import pcs.core.session.Session
 import java.awt.datatransfer.StringSelection
@@ -41,6 +47,9 @@ object EarlyRejectTags {
     const val DECISION_CSV = "er-decision-csv"
     const val COPY_CSV = "er-copy-csv"
     const val TABLE = "er-candidates"
+    const val GAP = "er-gap"
+    const val BACKFILL = "er-backfill"
+    const val BACKFILL_STATUS = "er-backfill-status"
 }
 
 fun candidateColumns(): List<Col<ErCandidate>> =
@@ -76,6 +85,14 @@ internal fun summaryLine(report: ErReport): String {
     return "${report.candidates.size} candidates: $by"
 }
 
+internal fun gapLine(gap: SnapshotGap): String =
+    if (gap.reviewsToBackfill > 0) {
+        "The window has opened, but the mirror has no review snapshot at or before the opening, so the initial scores are unknown " +
+            "(${gap.reviews} reviews; the history of ${gap.reviewsToBackfill} has not been read)."
+    } else {
+        "The window has opened and the review history has been read, but no review existed at the opening: there are no initial scores."
+    }
+
 /**
  * Early reject (spec §10.4 E): the candidates under Q15, with the bump window under Q16 read from the mirror's snapshots,
  * the drafted Mail-tool search for their reviewers, and the decision artifact. The screen only shows and copies; the chair
@@ -83,7 +100,7 @@ internal fun summaryLine(report: ErReport): String {
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun EarlyRejectView(session: Session, opener: UrlOpener, version: Int) {
+fun EarlyRejectView(session: Session, opener: UrlOpener, version: Int, onChanged: () -> Unit = {}) {
     val state by produceRows(version) { listOf(session.earlyReject()) }
     Column(Modifier.fillMaxSize().testTag(EarlyRejectTags.SCREEN), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (val s = state.firstOrNull()) {
@@ -91,6 +108,7 @@ fun EarlyRejectView(session: Session, opener: UrlOpener, version: Int) {
             is EarlyRejectState.Blocked ->
                 s.reasons.forEach { Text("Blocked: $it", Modifier.testTag(EarlyRejectTags.BLOCKED), color = MaterialTheme.colorScheme.error) }
             is EarlyRejectState.Ready -> {
+                s.gap?.let { BackfillGap(session, it, onChanged) }
                 Text(windowLine(s.report, session.settings.zone), Modifier.testTag(EarlyRejectTags.WINDOW), style = MaterialTheme.typography.titleSmall)
                 Text(summaryLine(s.report), Modifier.testTag(EarlyRejectTags.SUMMARY), style = MaterialTheme.typography.bodyMedium)
                 val clip = LocalClipboard.current
@@ -132,6 +150,42 @@ fun EarlyRejectView(session: Session, opener: UrlOpener, version: Int) {
                     opener,
                     Modifier.weight(1f),
                 )
+            }
+        }
+    }
+}
+
+/** The gap in the mirror's history and the chair's button for it; the backfill never runs unless this button is pressed. */
+@Composable
+private fun BackfillGap(session: Session, gap: SnapshotGap, onChanged: () -> Unit) {
+    var running by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(gapLine(gap), Modifier.testTag(EarlyRejectTags.GAP), color = MaterialTheme.colorScheme.error)
+        if (gap.reviewsToBackfill > 0) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(
+                    {
+                        running = true
+                        status = "Reading review history at ${session.settings.historyRps} requests per second…"
+                        scope.launch {
+                            status =
+                                try {
+                                    val added = withContext(Dispatchers.IO) { session.backfillReviewHistory() }
+                                    onChanged()
+                                    "Backfilled: $added review versions added"
+                                } catch (e: Exception) {
+                                    "Backfill failed: ${e.message ?: e.javaClass.simpleName}"
+                                } finally {
+                                    running = false
+                                }
+                        }
+                    },
+                    Modifier.testTag(EarlyRejectTags.BACKFILL),
+                    enabled = !running,
+                ) { Text("Backfill review history") }
+                status?.let { Text(it, Modifier.testTag(EarlyRejectTags.BACKFILL_STATUS), style = MaterialTheme.typography.bodyMedium) }
             }
         }
     }

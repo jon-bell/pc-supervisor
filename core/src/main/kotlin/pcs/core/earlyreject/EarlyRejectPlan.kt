@@ -102,7 +102,40 @@ public data class ErReport(val window: ErWindow, val now: Instant, val candidate
     public val neverResponded: List<Pair<Long, String>> get() = candidates.flatMap { c -> c.neverResponded.map { c.pid to it } }
 }
 
+/**
+ * The window has opened but the mirror holds no review snapshot at or before the opening, so the initial scores can't be
+ * read: [reviewsToBackfill] reviews have not had their `/reviewhistory` read yet (zero means the history was read and no review
+ * existed at the opening).
+ */
+public data class SnapshotGap(val reviews: Int, val reviewsToBackfill: Int)
+
 public object EarlyRejectPlan {
+    /** The gap at [now], or null when the window hasn't opened, nothing has been reviewed, or a snapshot at or before the opening exists. */
+    public fun snapshotGap(store: Store, window: ErWindow, now: Instant): SnapshotGap? {
+        if (now.isBefore(window.open)) return null
+        fun count(sql: String, vararg args: Long): Int =
+            store.conn.prepareStatement(sql).use { st ->
+                args.forEachIndexed { i, a -> st.setLong(i + 1, a) }
+                st.executeQuery().use {
+                    it.next()
+                    it.getInt(1)
+                }
+            }
+        val reviews = count("SELECT count(*) FROM review WHERE gone_at IS NULL AND rtype <> 5 AND status <> 'empty'")
+        if (reviews == 0) return null
+        val before =
+            count(
+                "SELECT count(*) FROM review_version v JOIN review r ON r.rid = v.rid WHERE r.gone_at IS NULL AND r.rtype <> 5 AND v.seen_at <= ?",
+                window.open.epochSecond,
+            )
+        if (before > 0) return null
+        val todo =
+            count(
+                "SELECT count(*) FROM review r LEFT JOIN backfill b ON b.rid = r.rid WHERE b.rid IS NULL AND r.gone_at IS NULL AND r.status <> 'empty'",
+            )
+        return SnapshotGap(reviews, todo)
+    }
+
     private class Version(val at: Long, val merit: Int?, val complete: Boolean)
 
     private class ReviewHistory(val pid: Long, val email: String, val versions: MutableList<Version> = mutableListOf())

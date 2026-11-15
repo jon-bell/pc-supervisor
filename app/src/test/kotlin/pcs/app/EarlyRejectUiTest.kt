@@ -167,4 +167,95 @@ class EarlyRejectUiTest {
             assertFalse(view.exists(EarlyRejectTags.SUMMARY), "no candidates are listed while Q16 is open")
         }
     }
+
+    /**
+     * The mirror first synced after the window opened, so it holds no snapshot at or before the opening. A stub of HotCRP's
+     * `/reviewhistory` (a local server; no harness) gives each review's version its true earlier time.
+     */
+    @Test
+    @Covers("view:early-reject", "prop:E-1")
+    fun `a window that opened before the mirror's first sync shows the gap, and only the chair's button backfills it`(
+        @TempDir dir: Path,
+    ) {
+        val seenAfter = open.plus(Duration.ofHours(2)).epochSecond
+        val trueTime = open.minus(Duration.ofHours(30)).epochSecond
+        val reviews = mutableMapOf<Long, Pair<Long, Int>>() // rid -> (pid, merit)
+        val gapHistory: MirrorFixture.() -> Unit = {
+            var rid = 1L
+            for (pid in 1L..2L) {
+                paper(pid, title = "Late first sync $pid")
+                for (who in listOf("ra", "rb", "rc")) {
+                    review(pid, who, Triple(seenAfter, 1, "complete"))
+                    reviews[rid++] = pid to 1
+                }
+            }
+            paper(3, title = "A positive review")
+            review(3, "ra", Triple(seenAfter, 1, "complete"))
+            review(3, "rb", Triple(seenAfter, 1, "complete"))
+            review(3, "rc", Triple(seenAfter, 4, "complete"))
+            reviews[rid++] = 3L to 1
+            reviews[rid++] = 3L to 1
+            reviews[rid++] = 3L to 4
+        }
+        val requests = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val server =
+            com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0).apply {
+                createContext("/api") { ex ->
+                    requests += ex.requestURI.toString()
+                    val rid = Regex("(?:^|&)r=([0-9]+)").find(ex.requestURI.rawQuery.orEmpty())!!.groupValues[1].toLong()
+                    val (pid, merit) = reviews.getValue(rid)
+                    val body =
+                        """{"ok":true,"pid":$pid,"rid":$rid,"versions":[{"rid":$rid,"pid":$pid,"status":"complete","version":"v0","modified_at":$trueTime,"OveMer":$merit}]}"""
+                            .toByteArray()
+                    ex.responseHeaders.add("Content-Type", "application/json")
+                    ex.sendResponseHeaders(200, body.size.toLong())
+                    ex.responseBody.use { it.write(body) }
+                    ex.close()
+                }
+                start()
+            }
+        try {
+            val answers = Files.writeString(dir.resolve("answers.txt"), "Q15 = reject-or-weak\nQ16 = bump-window\n")
+            val kc = MapKeychain().also { it.write(Accounts.dbKey("er"), "test-only-key") }
+            MirrorFixture.build(dir.resolve("er.db"), "test-only-key", gapHistory).close()
+            Files.writeString(
+                dir.resolve("er.conf"),
+                "PCS_HOTCRP_URL=http://127.0.0.1:${server.address.port}\nPCS_ANSWERS=$answers\nPCS_DB_PATH=${dir.resolve("er.db")}\nPCS_TZ=UTC\n" +
+                    "PCS_NOW=2030-02-02T03:00\nPCS_PHASE_EARLYREJECT_OPEN=2030-02-02T00:00\nPCS_HISTORY_RPS=100\n",
+            )
+            val shell =
+                Shell(mapOf("PCS_CONFERENCES" to dir.toString(), "PCS_HOTCRP_TOKEN" to "hct_stub"), { kc }, RecordingOpener(), screenshotMode = true)
+            runUi {
+                setContent { PcsApp(shell) }
+                val driver = AppDriver(this)
+                val view = ViewReader(this)
+                driver.waitFor(Tags.PICKER)
+                driver.openConference("er")
+                driver.tab(TabName.EarlyReject)
+                driver.waitFor(EarlyRejectTags.SUMMARY)
+                driver.waitFor(EarlyRejectTags.GAP)
+                assertTrue(view.text(EarlyRejectTags.GAP).contains("no review snapshot at or before the opening"), view.text(EarlyRejectTags.GAP))
+                assertEquals("0 candidates: 0 window open, 0 bumped, 0 AC objects, 0 ready to confirm", view.text(EarlyRejectTags.SUMMARY))
+                screenshot("early-reject/gap")
+                // the screen waits for the chair: nothing has asked HotCRP for history
+                Thread.sleep(500)
+                assertEquals(emptyList<String>(), requests.toList(), "the backfill never runs by itself")
+
+                driver.click(EarlyRejectTags.BACKFILL)
+                waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { !view.exists(EarlyRejectTags.GAP) }
+                assertEquals(9, requests.size, "one history request per review")
+                assertTrue(requests.all { "reviewhistory" in it }, requests.toString())
+                // recomputed: papers 1 and 2 had three negative reviews at the opening; paper 3 has a positive one
+                waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.text(EarlyRejectTags.SUMMARY).startsWith("2 candidates") }
+                waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.exists(TableTags.COUNT) }
+                val t = view.table()
+                assertEquals(setOf("1", "2"), t.keys.toSet())
+                assertEquals("reject, reject, reject", t.cell("1", "scores"))
+                assertFalse(view.exists(EarlyRejectTags.BACKFILL), "once the history is read the button is gone")
+                screenshot("early-reject/backfilled")
+            }
+        } finally {
+            server.stop(0)
+        }
+    }
 }
