@@ -34,9 +34,9 @@ object LlmCorpus {
             "mutation analysis, flaky tests, fuzzing, program analysis, debugging and fault localization, and empirical studies of software engineering practice. " +
             "Papers on topics outside software engineering are out of scope."
 
-    private class Topic(val title: (String) -> String, val abstract: (String) -> String, val intro: (String) -> List<String>, val method: (String) -> List<String>, val evaluation: (String) -> List<String>, val related: List<String>, val conclusion: (String) -> String, val refs: List<Triple<String, String, String>>)
+    internal class Topic(val title: (String) -> String, val abstract: (String) -> String, val intro: (String) -> List<String>, val method: (String) -> List<String>, val evaluation: (String) -> List<String>, val related: List<String>, val conclusion: (String) -> String, val refs: List<Triple<String, String, String>>)
 
-    private val testing =
+    internal val testing =
         Topic(
             title = { t -> "$t: Mutation-Guided Test Generation for Java Programs" },
             abstract = { t ->
@@ -99,7 +99,7 @@ object LlmCorpus {
                 ),
         )
 
-    private val kelp =
+    internal val kelp =
         Topic(
             title = { t -> "$t: Estimating Kelp Forest Canopy Density from Sonar Surveys" },
             abstract = { t ->
@@ -150,7 +150,7 @@ object LlmCorpus {
                 ),
         )
 
-    private fun spec(seed: Long, topic: Topic, extraIntro: List<String> = emptyList(), extraConclusion: List<String> = emptyList(), swapRef2: Boolean = false, aboutAttacks: Boolean = false): Pair<PaperSpec, Map<String, String>> {
+    internal fun spec(seed: Long, topic: Topic, extraIntro: List<String> = emptyList(), extraConclusion: List<String> = emptyList(), swapRef2: Boolean = false, aboutAttacks: Boolean = false): Pair<PaperSpec, Map<String, String>> {
         val r = Random(seed)
         val used = mutableSetOf<String>()
         val authors = (1..2).map { Names.person(r, used) }
@@ -205,13 +205,13 @@ object LlmCorpus {
             s.authors.map { it.handle },
         )
 
-    private fun case(id: String, kind: String, built: Pair<PaperSpec, Map<String, String>>): LlmCase {
+    internal fun case(id: String, kind: String, built: Pair<PaperSpec, Map<String, String>>): LlmCase {
         val bytes = PaperRenderer.render(built.first, Hooks()).bytes
         return LlmCase(id, kind, bytes, authorsOf(built.first), built.second, built.first)
     }
 
     /** A sentence with a prior-work reference in the first person. The tool name is the paper's own. */
-    private fun priorWork(seed: Long): String {
+    internal fun priorWork(seed: Long): String {
         val r = Random(seed)
         return "This work builds on our previous tool ${Names.word(r, 2)} [5], which we released last year and which our group still maintains."
     }

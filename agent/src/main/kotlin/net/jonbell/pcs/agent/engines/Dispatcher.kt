@@ -1,5 +1,6 @@
 package net.jonbell.pcs.agent.engines
 
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlin.time.TimeSource
@@ -10,6 +11,9 @@ class ClearanceRefused(val engineId: String, val ceiling: DataClass, val request
 
 /** Thrown before any I/O: a guard (the boundary observer) rejected the request. */
 class RequestRejected(val engineId: String, why: String) : RuntimeException("request to engine '$engineId' rejected: $why")
+
+/** Thrown before any I/O: a result came back for a key that was not asked for, or a batch lost one. */
+class BatchProblem(message: String) : RuntimeException(message)
 
 class UnknownEngine(id: String) : RuntimeException("no engine '$id' is configured")
 
@@ -47,6 +51,8 @@ class Dispatcher(
     engines: List<Registered>,
     private val store: ResultStore? = null,
     private val guards: List<RequestGuard> = emptyList(),
+    /** Production runs set this: a confidential request to an unqualified (check, engine) pair is refused (agent.md §7.4). */
+    private val gate: net.jonbell.pcs.agent.qualify.QualificationGate? = null,
 ) {
     private val byId = engines.associateBy { it.config.id }
     private val gates = engines.associate { it.config.id to Semaphore(it.config.concurrency) }
@@ -65,11 +71,36 @@ class Dispatcher(
 
     fun keyFor(engineId: String, req: CallRequest): String = Keys.key(req, config(engineId).identity)
 
+    /** The refusals that apply before anything else happens: clearance first, then qualification, then the guards. */
+    private fun admit(reg: Registered, req: CallRequest) {
+        val cfg = reg.config
+        if (cfg.clearance < req.dataClass) throw ClearanceRefused(cfg.id, cfg.clearance, req.dataClass)
+        if (req.dataClass == DataClass.CONFIDENTIAL) {
+            gate?.refusal(req, cfg.identity)?.let { throw net.jonbell.pcs.agent.qualify.Unqualified(req.check.id, cfg.id, it) }
+        }
+        for (g in guards) g.inspect(req)?.let { throw RequestRejected(cfg.id, it) }
+    }
+
+    /** Cost, schema validation and the store, the same for a call and for a batched result. */
+    private fun finish(cfg: EngineConfig, req: CallRequest, key: String, raw: CallResult, paperId: String, latencyFallback: Long): Dispatched {
+        var res = raw.copy(key = key, latencyMs = raw.latencyMs.takeIf { it > 0 } ?: latencyFallback)
+        if (res.costUsd.signum() == 0) res = res.copy(costUsd = cfg.prices.cost(res.usage))
+        if (res.status == Status.OK) {
+            val out = res.output
+            val errs = if (out == null) listOf("no output") else JsonSchema.validate(req.schema, out)
+            if (errs.isNotEmpty()) res = res.copy(status = Status.SCHEMA_INVALID, detail = errs.take(5).joinToString("; "))
+        }
+        // Only definitive outcomes are cached; a transport error or a truncation is worth retrying.
+        if (store != null && (res.status == Status.OK || res.status == Status.REFUSAL)) {
+            store.put(StoredResult(key, req.check.id, req.check.version, cfg.id, paperId, req.dataClass, res))
+        }
+        return Dispatched(res, cached = false)
+    }
+
     suspend fun call(engineId: String, req: CallRequest, paperId: String = ""): Dispatched {
         val reg = byId[engineId] ?: throw UnknownEngine(engineId)
         val cfg = reg.config
-        if (cfg.clearance < req.dataClass) throw ClearanceRefused(engineId, cfg.clearance, req.dataClass)
-        for (g in guards) g.inspect(req)?.let { throw RequestRejected(engineId, it) }
+        admit(reg, req)
         val key = Keys.key(req, cfg.identity)
         store?.get(key)?.result?.let { return Dispatched(it, cached = true) }
         val keyed = req.copy(key = key)
@@ -84,17 +115,43 @@ class Dispatcher(
                     CallResult(key, Status.ERROR, detail = "${e::class.simpleName}: ${e.message?.take(200)}")
                 }
             }
-        var res = raw.copy(key = key, latencyMs = raw.latencyMs.takeIf { it > 0 } ?: t0.elapsedNow().inWholeMilliseconds)
-        if (res.costUsd.signum() == 0) res = res.copy(costUsd = cfg.prices.cost(res.usage))
-        if (res.status == Status.OK) {
-            val out = res.output
-            val errs = if (out == null) listOf("no output") else JsonSchema.validate(req.schema, out)
-            if (errs.isNotEmpty()) res = res.copy(status = Status.SCHEMA_INVALID, detail = errs.take(5).joinToString("; "))
+        return finish(cfg, req, key, raw, paperId, t0.elapsedNow().inWholeMilliseconds)
+    }
+
+    /**
+     * Many requests to one engine as one batch when the engine has batch support (`Caps.batch`), otherwise one
+     * call each. Every request passes the same refusals as [call] before anything is submitted, so a batch cannot
+     * carry a request a single call would be refused; stored results are served without being resubmitted, and
+     * results are validated and stored as for a call. The answers come back in the order of [items].
+     */
+    suspend fun callBatch(engineId: String, items: List<Pair<CallRequest, String>>): List<Dispatched> {
+        val reg = byId[engineId] ?: throw UnknownEngine(engineId)
+        val cfg = reg.config
+        for ((req, _) in items) admit(reg, req)
+        val keys = items.map { (req, _) -> Keys.key(req, cfg.identity) }
+        val out = arrayOfNulls<Dispatched>(items.size)
+        val pending = mutableListOf<Int>()
+        for (i in items.indices) {
+            val hit = store?.get(keys[i])?.result
+            if (hit != null) out[i] = Dispatched(hit, cached = true) else pending += i
         }
-        // Only definitive outcomes are cached; a transport error or a truncation is worth retrying.
-        if (store != null && (res.status == Status.OK || res.status == Status.REFUSAL)) {
-            store.put(StoredResult(key, req.check.id, req.check.version, engineId, paperId, req.dataClass, res))
+        if (pending.isNotEmpty()) {
+            val distinct = pending.distinctBy { keys[it] }
+            val handle = if (reg.engine.caps.batch) reg.engine.submitBatch(distinct.map { items[it].first.copy(key = keys[it]) }) else null
+            if (handle == null) {
+                for (i in distinct) out[i] = call(engineId, items[i].first, items[i].second)
+            } else {
+                val t0 = TimeSource.Monotonic.markNow()
+                val got = reg.engine.collectBatch(handle).toList().associateBy { it.key }
+                val extra = got.keys - distinct.map { keys[it] }.toSet()
+                if (extra.isNotEmpty()) throw BatchProblem("batch ${handle.id} returned ${extra.size} result(s) for keys that were not submitted")
+                for (i in distinct) {
+                    val r = got[keys[i]] ?: CallResult(keys[i], Status.ERROR, detail = "batch ${handle.id}: no result for this request")
+                    out[i] = finish(cfg, items[i].first, keys[i], r, items[i].second, t0.elapsedNow().inWholeMilliseconds)
+                }
+            }
+            for (i in pending) if (out[i] == null) out[i] = out[distinct.first { keys[it] == keys[i] }]
         }
-        return Dispatched(res, cached = false)
+        return out.map { it!! }
     }
 }

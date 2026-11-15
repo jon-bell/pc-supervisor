@@ -379,7 +379,7 @@ How the importer reads each kind (CSV with a header row; column names match case
 - `tpms-assignments`: `paper` and `email` (and optional `round`), after `--map`. Keyed by `paper|email`.
 - `tpms-scores`: `paper,email,score`, score a number in 0–1. Keyed by `paper|email`.
 - `tpms-registrations`: `email` alone means registered; otherwise `registered` is yes/no. Keyed by email.
-- `screening-bundle`: findings as CSV, one row per finding: `pid,check,version,ground,engine,status,bundle_hash[,anchors]`, anchors a JSON array. Keyed by `pid|check|ground`. The manifest and qualification records arrive with M12.
+- `screening-bundle`: findings as CSV, one row per finding: `pid,check,version,ground,engine,status,bundle_hash[,anchors]`, anchors a JSON array. Keyed by `pid|check|ground`. The file is an encrypted bundle (agent.md §8, `pcs import bundle <file> --key-file <key>`); the manifest, the qualification records and the summaries are kept with it by content address, and rows keyed by the same `pid|check|ground` are merged (anchors of the verified findings only; a key with none is `unverified` with no anchors).
 - `refcheck`: `pid,reference,status[,detail]`, status `verified`/`mismatch`/`not-found`/`unchecked`. Keyed by `pid|reference`.
 
 **Staleness (concepts M2).** `pcs import status` lists each kind as fresh, stale (older than its `PCS_IMPORT_FRESH_<KIND>_DAYS`), or never imported. `tpms-*` imports rest on assumption A3 and `appointments` on A4; each import records which in `import_run.assumption`.

@@ -28,6 +28,9 @@ data class CallRecord(
     val cached: Boolean,
     val costUsd: BigDecimal,
     val servedModel: String,
+    val latencyMs: Long = 0,
+    /** Why the call is not OK (never paper text); a replay miss starts with `no recording`. */
+    val detail: String? = null,
 )
 
 /** The screen of one paper: every flag (verified or not), the summary view, and the calls made. */
@@ -60,6 +63,10 @@ class Screener(
     private val deterministicDeps: Map<String, List<String>> = emptyMap(),
     private val effectCheckVersion: String = Checks.version(EFFECT),
     private val options: ScreenOptions = ScreenOptions(),
+    /** Appended to every request's variant, so a repeated run has its own content address (stability runs, agent.md 7.3). Empty keeps the plain key. */
+    private val runTag: String = "",
+    /** Rewrites a unit before it is sent: the evaluation uses it for the raw-PDF variant (scaffold delta). */
+    private val unitTransform: ((ScreenLlmCheck, LlmUnit, PaperInput) -> LlmUnit)? = null,
 ) {
     private fun engineFor(c: ScreenLlmCheck) = routing[c.id] ?: error("no engine routed to check ${c.id} (PCS_CHECK_${c.id}_ENGINE)")
 
@@ -98,7 +105,8 @@ class Screener(
 
             suspend fun runAll(v: PaperView, run: String): List<Run> =
                 c.units(v, env).map { u ->
-                    val d = dispatcher.call(engine, c.request(u, p.dataClass, decisions), p.id)
+                    val req = c.request(unitTransform?.invoke(c, u, p) ?: u, p.dataClass, decisions)
+                    val d = dispatcher.call(engine, if (runTag.isEmpty()) req else req.copy(variant = req.variant + "#" + runTag), p.id)
                     calls +=
                         CallRecord(
                             c.id,
@@ -109,6 +117,8 @@ class Screener(
                             d.cached,
                             if (d.cached) BigDecimal.ZERO else d.result.costUsd,
                             d.result.servedModel,
+                            d.result.latencyMs,
+                            d.result.detail,
                         )
                     Run(u, d.result, d.cached)
                 }

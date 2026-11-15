@@ -87,7 +87,7 @@ Each check is a directory, `agent/checks/<id>/`, containing:
 - `schema.json` (JSON Schema, from which the Kotlin output type is generated);
 - `oracle/`: synthetic and public labeled examples, plus the mutation operators that create its known positives (§7.2).
 
-The version is a content hash of the directory, so any edit is a new version.
+The version is a content hash of the directory, so any edit is a new version. The one exception is `qualification.yaml` (§7.4), the check's thresholds: it states what evidence a version needs, so editing a threshold is not an edit of the check, and it is left out of the hash.
 
 ### 3.3 The manifest
 
@@ -166,7 +166,7 @@ Each adapter uses its provider's official client. Claude is always called throug
 | Adapter | Covers | Structured output | Notes |
 |---|---|---|---|
 | `claude-code` | Claude through the `claude` CLI (`claude -p`) | `--json-schema` | **The development engine.** Authenticates with the developer's Claude Code login (OAuth), so no API key is needed. Uses isolation flags so a call carries only our prompt: `--strict-mcp-config --setting-sources "" --tools "" --system-prompt … --no-session-persistence --output-format json`. `--bare` is **not** usable here, because it reads only an API key. Cost, tokens, model, and latency come from the JSON envelope. Harness mode (`--mcp-config` pointed at the agent's tool server) runs the agent-loop variant. The same adapter also runs with an API key, or through Claude Code's cloud-provider modes (Bedrock / Vertex / Foundry environment switches; check the names against current Claude Code docs), which lets us confirm that dev and production produce the same results. |
-| `anthropic` | Claude on the first-party API, Amazon Bedrock (Mantle client), Microsoft Foundry, Google Vertex | native (`output_config.format`) | Message Batches where the platform offers them. Prompt caching on the stable prefix (system + CFP + instructions). Handle the `refusal` stop reason explicitly. |
+| `anthropic` | Claude on the first-party API, Amazon Bedrock (Mantle client), Microsoft Foundry, Google Vertex | native (`output_config.format`) | Message Batches where the platform offers them (the first-party API: `submitBatch` posts the requests with their content address as `custom_id`, `collectBatch` polls until `processing_status` is `ended` and reads the JSON-lines results; an errored, canceled or expired request is an `ERROR` result, never cached). `Dispatcher.callBatch` puts every request through the same clearance, qualification and guard checks as a single call before anything is submitted. Prompt caching on the stable prefix (system + CFP + instructions). Handle the `refusal` stop reason explicitly. |
 | `openai-compat` | Self-hosted servers (vLLM, SGLang, llama.cpp), Azure OpenAI, other OpenAI-API hosts | `response_format: json_schema` where supported, otherwise grammar (vLLM guided decoding), otherwise tool-call | The self-hosted path. The base URL and model come from env. Capabilities are probed at startup (`pcs agent probe <engine>`), not assumed. |
 | `bedrock-converse` | Non-Claude models on Bedrock | tool-call JSON | Only if the comparison needs Bedrock-hosted open models. |
 | `replay` | Recorded results | n/a | Serves stored `CallResult`s by key. Used in CI and to re-render views without spending tokens. |
@@ -232,7 +232,7 @@ The only runtime destinations are the HotCRP instance, the configured engines' e
 
 ### 5.4 Storage
 
-Extracted text, call payloads, raw outputs, and flags live in the SQLCipher store (spec §7). The repo, CI, issues, and screenshots contain synthetic or public data only, as everywhere else in this project.
+Extracted text, call payloads, raw outputs, and flags live in the SQLCipher store (spec §7). On the agent's workstation the result store is `EncryptedFileResultStore` (`PCS_AGENT_STORE`, key from `PCS_AGENT_STORE_KEY_FILE`): one AES-256-GCM file per content address, the address authenticated, so a result cannot be moved to another key. The plain `FileResultStore` refuses `confidential` results, and `pcs agent bundle --class confidential` refuses to start without the encrypted store. The repo, CI, issues, and screenshots contain synthetic or public data only, as everywhere else in this project.
 
 ---
 
@@ -299,6 +299,51 @@ Variants include: the effort level; PDF input vs. extracted text; abstract-only 
 
 `pcs agent shootout --corpus held-out --checks … --engines …` writes a report. For each check it shows the quality/cost frontier across engines, with confidence intervals, and a recommended engine.
 
+### 7.3a The shootout, as built (M11)
+
+`pcs agent shootout --corpus held-out|recorded (--offline | --engines a,b,c) [--checks …] [--k 3] [--out dir] [--no-raw] [--confirm-spend]` runs every engine `k` times on every paper of a corpus through the same `Screener`, dispatcher and anchor verification as production, and writes `shootout-<corpus>.md` and `.json` (`./gradlew :agent:shootout -Pcorpus=held-out` is the offline run).
+
+- **Corpora.** `held-out` is generated from a fixed seed (`HeldOut.SEED`) that no prompt, test or fixture uses: clean papers, one planted defect per paper for each LLM check, benign quotations of an attack, and injected/clean-twin pairs. `recorded` is the development cases of `LlmCorpus` with their live recordings, so that a `replay` of real results can take part; prompts were written against them, so it is optimistic and is labelled so. `public` is a manifest (`agent/corpora/public/manifest.json`) plus a loader and checksums; it ships placeholders only.
+- **Per (check, engine, variant).** Recall, false-flag rate, precision (Wilson intervals over papers; a paper's verdict is the majority of its runs); balanced accuracy (seeded bootstrap); the share of anchors that verify; refusal, schema-invalid, truncation and error rates over calls; stability over the papers for which all `k` runs were served (agreement of the flag set, pass^k, flaky flags: flags that appear in some runs and not others); cost per paper from the recorded usage and prices (plus `PCS_ENGINE_<id>_GPU_HOUR_USD` over the engine's concurrency), projected to `PCS_AGENT_SCALE_PAPERS` (default 4000), and the wall time under the engine's `CONCURRENCY`.
+- **Frontier and recommendation.** An engine is on a check's frontier when no other is at least as cheap and at least as good by balanced accuracy, one strictly. The recommended engine is the cheapest whose point estimates meet the thresholds (`ShootoutOptions`: recall 0.8, false-flag rate 0.1, anchor validity 0.95, stability 0.9); the report says when a lower confidence bound or a missing stability measurement makes that provisional. The per-check thresholds of §7.4 are still to be read from `check.yaml` (M12).
+- **Scaffold delta.** The raw variant hands the PDF itself, with the same prompt and schema, to the two checks whose input is plain paper text (`anonymity.llm`, `scope`); the delta is the paired difference in balanced accuracy. `refs.use`, `injection.addressed.llm` and `summary` have no raw variant yet (their input is built by extraction and reference fetching).
+- **Injection.** Detection by vector for the classifier; resistance as the share of runs in which a planted instruction changes a check's output with the span left in and after stripping, measured against the injected paper's clean twin.
+- **Coverage.** A replay with no recording for a request leaves that paper (that run) out of its numbers and the report says how many calls were missing; nothing is filled in.
+- **Scripted stand-ins.** `--offline` adds three deterministic engines (`scripted-strong`, `scripted-noisy`, `scripted-selfhosted`) that read the planted phrases of this repository's synthetic papers and degrade their answers by a rate profile (misses, false alarms, flips between runs, unverifiable quotations, refusals, truncations, obedience to injections, a penalty on raw PDFs). They are not models and the report marks them as such; their prices and the GPU rate are illustrative. They exist so that the frontier, interval, stability and scaffold code has differences to measure.
+
+### 7.3b What a real three-engine run needs
+
+1. **Engines** in the environment (or `pcs.conf`); prices are USD per million tokens and are never defaults:
+
+```
+PCS_ENGINES=dev,api,selfhost
+# the maintainer's login, public ceiling by default
+PCS_ENGINE_dev_ADAPTER=claude-code
+PCS_ENGINE_dev_MODEL=<model id>
+# an API engine
+PCS_ENGINE_api_ADAPTER=anthropic
+PCS_ENGINE_api_PLATFORM=api
+PCS_ENGINE_api_MODEL=<model id>
+PCS_ENGINE_api_API_KEY_ENV=ANTHROPIC_API_KEY
+PCS_ENGINE_api_CLEARANCE=public
+PCS_ENGINE_api_PRICE_IN=<usd per M>   PCS_ENGINE_api_PRICE_OUT=<usd per M>
+PCS_ENGINE_api_CONCURRENCY=4
+# a self-hosted vLLM / llama.cpp / SGLang server speaking the OpenAI chat API
+PCS_ENGINE_selfhost_ADAPTER=openai-compat
+PCS_ENGINE_selfhost_BASE_URL=http://gpu.example.org:8000/v1
+PCS_ENGINE_selfhost_MODEL=<served model name>
+PCS_ENGINE_selfhost_STRUCTURED=json_schema        # or guided (vLLM guided_json), tool, prompt
+PCS_ENGINE_selfhost_CLEARANCE=public
+PCS_ENGINE_selfhost_PRICE_IN=0   PCS_ENGINE_selfhost_PRICE_OUT=0
+PCS_ENGINE_selfhost_GPU_HOUR_USD=<usd per GPU hour>
+PCS_ENGINE_selfhost_CONCURRENCY=2
+PCS_AGENT_SCALE_PAPERS=<papers at the real venue>
+```
+
+2. **Run:** `pcs agent shootout --corpus held-out --engines dev,api,selfhost --k 3` prints what it would call and stops; add `--confirm-spend` to make the calls. Held-out is synthetic, so no confidential data is involved; any engine with a `synthetic` ceiling is enough. The default held-out corpus (58 papers) makes about 450 requests per engine across `k = 3`, plus about 120 for the raw-PDF variant.
+3. **Reach:** the server must be reachable from the machine running `pcs`, and its `BASE_URL` host is the only host that engine may contact. No GPU or key is needed by the tool itself.
+4. **For the `public` corpus** (not yet shootout-able, see below): replace the placeholders in `agent/corpora/public/manifest.json` with openly licensed SE papers (DOI or arXiv id, a license from `PublicCorpus.OPEN_LICENSES`, a `split` of `dev` or `held-out`), fetch each PDF by hand into a directory outside git as `<id>.pdf`, then `pcs agent corpus pin <manifest> <dir>` records the checksums and `pcs agent corpus validate <manifest> <dir>` re-checks them. `pcs agent corpus standins <dir>` writes synthetic stand-ins to try the loader. The mutation operators of §7.2 work on generated papers (`PaperSpec`); applying them to a fetched PDF needs a PDF-level mutator that does not exist yet.
+
 ### 7.4 Qualification
 
 A `(check version, engine, model, variant)` tuple may run on `confidential` data only if it has a **qualification record**: an evaluation run on `held-out` that meets the check's thresholds (`check.yaml`: minimum recall on its mutants, maximum false-flag rate, minimum anchor validity, minimum stability). Production runs refuse unqualified tuples.
@@ -309,6 +354,13 @@ Every change to the agent falls into one of three classes:
 3. **Needs new evidence**, such as a new check, a new input kind, or a new mutation operator. It needs new oracles before it can be qualified.
 
 The planner (§4.4) reports which class a change falls into. Failures found in production become new oracle cases.
+
+**As built (M12).**
+- **Thresholds** are in `agent/checks/<id>/qualification.yaml` (`min_recall`, `max_false_flag_rate`, `min_anchor_validity`, `min_stability`, `min_positives`, `min_runs`), outside the version hash. They live there and not in `check.yaml` because any edit of `check.yaml` is a new version, which would invalidate the check's replay fixtures.
+- **Records** are a JSON list (`PCS_AGENT_QUALIFICATIONS`), one per (check version, engine, model, engine options, variant), written by `pcs agent qualify --engines ids [--k 3] [--confirm-spend]`. It runs the held-out evaluation and records a tuple only if every threshold is met on the scaffolded variant over at least `min_runs` runs. A scripted stand-in never earns a record. A record keeps its metrics, the thresholds it met, the hash of each file of the version, and the flags raised on each held-out paper.
+- **The gate** is in the dispatcher, after the clearance check and before the store, the guards or the adapter: a `confidential` request needs a record for exactly its check version, engine id, model, options and variant (`raw-pdf` if the request carries a PDF). Synthetic and public requests need none. `pcs agent run`, `screen` and `bundle` all build the dispatcher with the gate.
+- **`pcs agent plan --changes [--moves]`** compares what is routed with the records and classifies each LLM check: *covered* (a record matches; a price or concurrency edit is here, because neither is part of an engine's identity), *needs requalification* (a prompt, schema, code or `check.yaml` edit, with the files named; another model, platform or structured mode; no record yet), or *needs new evidence* (an edit under `oracle/`, or a check with no labelled positives, such as `summary` today). `--moves` runs the held-out evaluation for each changed check and lists the flags gained and lost against the flags the record kept; like `qualify` it calls a live engine only with `--confirm-spend`.
+- **Not classified:** a decision edit marks the checks that cite it stale (their keys change) but does not change qualification.
 
 ---
 
@@ -324,4 +376,6 @@ agent/            Gradle module (Kotlin); depends on core
   eval/           corpora manifests (no PDFs in git for non-synthetic), mutation operators, shootout + qualification
 ```
 
-The CLI commands are `pcs agent probe | plan | run | manifest | shootout | qualify | export-hotcrp | bundle`. `pcs agent bundle` writes the encrypted screening bundle that the chairs' apps import (spec §4, §10.3). GROBID runs as a local container next to the HotCRP harness, or in-process where its native libraries support the platform.
+The CLI commands are `pcs agent probe | plan | run | manifest | shootout | qualify | export-hotcrp | bundle`. `pcs agent bundle <pdf|dir>... --out dir --key-file f [--class c] [--cfp f] [--authors f] [--abstracts-by-paper f]` screens papers named `<paper id>.pdf` and writes the encrypted screening bundle that the chairs' apps import (spec §4, §10.3). `pcs import bundle <file> --key-file f` imports it.
+
+**The bundle.** One file, `bundle-<sha256>.pcsb`: a header line `PCSBUNDLE1 <sha256 of the plaintext>`, then AES-256-GCM (header as associated data) of one JSON document: `manifest` (format, creation time, each paper's id and PDF hash, the manifest rows, the qualification records the run relied on, the engines and the models they served), `findings` (every flag, with its anchors and engine; an unverified flag carries no quotation or engine prose), and `summaries`. The document is canonical (sorted), so equal content has equal address, and the address is recomputed after decryption. The key is 32 random bytes in URL-safe base64, written to `--key-file` (owner-only; never printed) and sent to the other chairs by a different channel. `core` owns the format (`net.jonbell.pcs.core.bundle`): the agent builds the payload, and the app imports it as a version of the `screening-bundle` import kind (one row per `pid|check|ground`, unverified keys without anchors) and keeps the manifest and summaries beside it in the encrypted store. The agent holds no HotCRP credential: authors and abstracts come in as files a chair exports from the mirror (`--authors`, `--abstracts-by-paper`). GROBID runs as a local container next to the HotCRP harness, or in-process where its native libraries support the platform.

@@ -14,6 +14,16 @@ import java.nio.file.Path
 class AgentCli(private val env: Map<String, String>, private val out: Appendable = System.out) {
     private fun configs() = EngineConfigs.parse(env)
 
+    /** Production refuses unqualified (check, engine) pairs for confidential data (agent.md §7.4). */
+    private fun gate() =
+        net.jonbell.pcs.agent.qualify.QualificationGate(
+            net.jonbell.pcs.agent.qualify.QualificationFile.load(
+                env["PCS_AGENT_QUALIFICATIONS"]?.let {
+                    Path.of(it)
+                },
+            ),
+        )
+
     private fun store(): ResultStore = FileResultStore(Path.of(env["PCS_AGENT_STORE"] ?: "agent-store"))
 
     fun probe(only: String?): Int {
@@ -44,15 +54,28 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
         val store = store()
         val registered = cs.map { EngineFactory.create(it, env) }
         EgressPolicy.assertDisjoint(cs.mapNotNull { it.egressHost() }, EgressPolicy.forResolver(env["PCS_AGENT_EGRESS"]))
-        val dispatcher = Dispatcher(registered, store)
+        val dispatcher = Dispatcher(registered, store, gate = gate())
         val llm = llmDirs.map { d -> DirLlmCheck(Path.of(d), partsOf = DirLlmCheck.FULL_TEXT) }
         val runner = Runner(dispatcher, store, llm = llm, routing = EngineConfigs.routing(env))
         val papers = pdfs.map { f -> PaperInput(Path.of(f).fileName.toString(), dataClass, Files.readAllBytes(Path.of(f))) }
         return Setup(dispatcher, runner, papers)
     }
 
-    /** `plan <pdf>... [--llm-check dir]... [--class synthetic|public|confidential]` */
+    /** `bundle ...`: see [net.jonbell.pcs.agent.bundle.BundleCli]. */
+    fun bundle(args: List<String>): Int = net.jonbell.pcs.agent.bundle.BundleCli(env, out).bundle(args)
+
+    /** `qualify ...`: see [net.jonbell.pcs.agent.qualify.QualifyCli]. */
+    fun qualify(args: List<String>): Int = net.jonbell.pcs.agent.qualify.QualifyCli(env, out).qualify(args)
+
+    /** `plan --changes [--moves]` classifies what is routed against the qualification records; `plan <pdf>... [--llm-check dir]... [--class synthetic|public|confidential]` plans calls. */
     fun plan(args: List<String>): Int =
+        if ("--changes" in args) {
+            net.jonbell.pcs.agent.qualify.QualifyCli(env, out).planChanges(args)
+        } else {
+            planCalls(args)
+        }
+
+    private fun planCalls(args: List<String>): Int =
         withSetup(args) { s ->
             out.append(s.runner.plan(s.papers).render())
             0
@@ -123,7 +146,7 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
         var i = 0
         while (i < args.size) {
             when (args[i]) {
-                "--class" -> dc = DataClass.entries.first { it.name.equals(args[++i], ignoreCase = true) }
+                "--class" -> args[++i].let { v -> dc = DataClass.entries.first { it.name.equals(v, ignoreCase = true) } }
                 "--cfp" -> cfp = args[++i]
                 "--abstracts" -> abstracts = args[++i]
                 "--no-effect" -> effect = false
@@ -135,7 +158,7 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
             val cs = configs()
             val registered = cs.map { EngineFactory.create(it, env) }
             EgressPolicy.assertDisjoint(cs.mapNotNull { it.egressHost() }, EgressPolicy.forResolver(env["PCS_AGENT_EGRESS"]))
-            val dispatcher = Dispatcher(registered, store())
+            val dispatcher = Dispatcher(registered, store(), gate = gate())
             val decisions = decisions()
             val routing = EngineConfigs.routing(env)
             val dir = checksDir()
@@ -184,6 +207,11 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
         }
     }
 
+    /** `shootout ...` and `corpus ...`: see [net.jonbell.pcs.agent.eval.ShootoutCli]. */
+    fun shootout(args: List<String>): Int = net.jonbell.pcs.agent.eval.ShootoutCli(env, out).shootout(args)
+
+    fun corpus(args: List<String>): Int = net.jonbell.pcs.agent.eval.ShootoutCli(env, out).corpus(args)
+
     private fun withSetup(args: List<String>, f: (Setup) -> Int): Int {
         val pdfs = mutableListOf<String>()
         val dirs = mutableListOf<String>()
@@ -192,7 +220,7 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
         while (i < args.size) {
             when (args[i]) {
                 "--llm-check" -> dirs += args[++i]
-                "--class" -> dc = DataClass.entries.first { it.name.equals(args[++i], ignoreCase = true) }
+                "--class" -> args[++i].let { v -> dc = DataClass.entries.first { it.name.equals(v, ignoreCase = true) } }
                 else -> pdfs += args[i]
             }
             i++

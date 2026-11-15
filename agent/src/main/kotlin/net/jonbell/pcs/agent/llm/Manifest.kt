@@ -13,7 +13,25 @@ import java.nio.file.Path
  * for another version of the check as stale.
  */
 @Serializable
-data class Qualification(val check: String, val version: String, val engine: String, val model: String, val variant: String = "", val evidence: String = "")
+data class Qualification(
+    val check: String,
+    val version: String,
+    val engine: String,
+    val model: String,
+    val variant: String = "",
+    val evidence: String = "",
+    /** The engine identity's options string (platform, structured mode): a change there is a different engine for caching and for qualification. */
+    val options: String = "",
+    val corpus: String = "",
+    val fingerprint: String = "",
+    val at: String = "",
+    val metrics: Map<String, Double> = emptyMap(),
+    val thresholds: Map<String, Double> = emptyMap(),
+    /** SHA-256 of each file of the check version at qualification, so a later edit can be named (`CheckDirs.fileHashes`). */
+    val files: Map<String, String> = emptyMap(),
+    /** Paper id -> the flags the evaluation raised, for listing the flags a later change moves. */
+    val flags: Map<String, List<String>> = emptyMap(),
+)
 
 /** One judgment of the system, in exactly one category (agent.md §1.2, §3.3). */
 data class ManifestRow(
