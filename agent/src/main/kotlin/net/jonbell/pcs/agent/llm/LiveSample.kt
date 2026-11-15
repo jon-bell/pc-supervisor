@@ -91,7 +91,7 @@ object LiveSample {
     }
 
     /**
-     * `LiveSampleKt <repo agent dir> <cap>`: records the sample through the `claude-code` adapter into
+     * `LiveSample <repo agent dir> <cap> [case|*] [run tag]`: records the sample through the `claude-code` adapter into
      * `fixtures/replay`. Calls already recorded are not repeated. Run by hand with `PCS_LIVE_OK=1`.
      */
     @JvmStatic
@@ -100,7 +100,9 @@ object LiveSample {
         check(System.getProperty("pcs.noLive") != "true" && System.getenv("CI").isNullOrEmpty()) { "refusing to make live calls in a test or CI run" }
         val agentDir = Path.of(args[0])
         val cap = args[1].toInt()
-        val only = args.getOrNull(2)
+        val only = args.getOrNull(2)?.takeIf { it != "*" }
+        // A run tag (r2, r3) records a repeat of the same requests under its own keys, for run-to-run stability (agent.md 7.3).
+        val tag = args.getOrNull(3).orEmpty()
         val store = FileResultStore(agentDir.resolve("fixtures/replay"))
         val log = agentDir.resolve("fixtures/live-calls.log")
         val cfg = liveConfig()
@@ -122,6 +124,7 @@ object LiveSample {
                     decisions,
                     env(c),
                     Screener.deterministicDeps(agentDir.resolve("checks")),
+                    runTag = tag,
                 )
             val screen = runBlocking { screener.screen(paper(c)) }
             println(

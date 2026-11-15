@@ -184,6 +184,11 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
         }
     }
 
+    /** `shootout ...` and `corpus ...`: see [net.jonbell.pcs.agent.eval.ShootoutCli]. */
+    fun shootout(args: List<String>): Int = net.jonbell.pcs.agent.eval.ShootoutCli(env, out).shootout(args)
+
+    fun corpus(args: List<String>): Int = net.jonbell.pcs.agent.eval.ShootoutCli(env, out).corpus(args)
+
     private fun withSetup(args: List<String>, f: (Setup) -> Int): Int {
         val pdfs = mutableListOf<String>()
         val dirs = mutableListOf<String>()
