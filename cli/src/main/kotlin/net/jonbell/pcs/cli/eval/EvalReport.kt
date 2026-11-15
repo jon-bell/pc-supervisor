@@ -35,10 +35,10 @@ class EvalReport(
             appendLine("# pcs eval: aggregate report")
             appendLine()
             appendLine(
-                "Format 1. This file holds counts and rates only. A count under ${d.min} is shown as `<${d.min}`, and a rate whose numerator or complement is under",
+                "Format 1. This file holds counts and rates only. A count of 1 to ${d.min - 1} is shown as `<${d.min}` (zero is shown as 0), and a rate whose numerator or complement is 1 to",
             )
             appendLine(
-                "${d.min} is shown as `${Disclosure.SUPPRESSED}`. It names no paper, person, title, or text. Read it before you send it; `pcs eval` never sends anything.",
+                "${d.min - 1} is shown as `${Disclosure.SUPPRESSED}`. It names no paper, person, title, or text. Read it before you send it; `pcs eval` never sends anything.",
             )
             appendLine()
             appendLine("- Data read from: ${facts.source}")
@@ -150,7 +150,17 @@ class EvalReport(
         val rejShown = d.nested(e.rows.map { it.candidatesRejected })
         e.rows.forEachIndexed { i, r ->
             val rate = if (shown[i]) d.rate(r.candidates, e.reviewed) else Disclosure.SUPPRESSED
-            val rej = if (shown[i] && rejShown[i]) d.rate(r.candidatesRejected, r.candidates) else Disclosure.SUPPRESSED
+            // The second column prints the candidate count as its denominator, so it needs the first column's cell to be showable too: with
+            // zero shown, "36 of 36" would give back 40 - 36 = 4.
+            val rej =
+                if (shown[i] &&
+                    d.showsRate(r.candidates, e.reviewed) &&
+                    rejShown[i]
+                ) {
+                    d.rate(r.candidatesRejected, r.candidates)
+                } else {
+                    Disclosure.SUPPRESSED
+                }
             sb.appendLine("| `${r.q15.key}` | $rate | $rej |")
         }
         sb.appendLine()
