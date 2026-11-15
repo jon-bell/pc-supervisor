@@ -145,14 +145,19 @@ class LlmScreenerTest {
         assertEquals("misused-citation", f.ground)
         assertEquals(2, f.anchors.size, "both quotations: the citing sentence and the abstract")
         assertEquals(setOf("citing sentence", "abstract of [2]"), f.anchors.map { it.label }.toSet())
-        val blocked = FlagCards.view(f, decisions)
+        // The example file now settles refs.use.policy (evidence only), so the mechanism is shown with the decision reopened.
+        val reopened = Decisions(decisions.all.map { if (it.id == "refs.use.policy") it.copy(status = DecisionStatus.UNRESOLVED) else it })
+        val blocked = FlagCards.view(f, reopened)
         assertTrue(blocked.blocked && blocked.state == "BLOCKED" && blocked.blockedBy == listOf("refs.use.policy"))
         assertTrue(blocked.text().contains("refs.use.policy"))
         assertTrue(blocked.text().startsWith("[BLOCKED]"))
-        val settled = Decisions(decisions.all.map { if (it.id == "refs.use.policy") it.copy(status = DecisionStatus.SETTLED) else it })
-        assertEquals("OPEN", FlagCards.view(f, settled).state)
+        assertEquals("OPEN", FlagCards.view(f, decisions).state, "the example decisions settle refs.use.policy, so the card is not blocked")
         assertEquals("BLOCKED", FlagCards.view(f, Decisions.EMPTY).state, "a decision with no record is unresolved")
-        assertTrue(FlagCards.view(f, decisions).markdown().contains("Blocked: waiting on unresolved refs.use.policy"))
+        assertTrue(FlagCards.view(f, reopened).markdown().contains("Blocked: waiting on unresolved refs.use.policy"))
+        // refs.use is evidence only: the card carries no ground and says so.
+        val card = FlagCards.view(f, decisions)
+        assertTrue(card.facts.none { it.first == "Ground" } && card.facts.any { it.first == "Role" && it.second.contains("evidence only") })
+        assertEquals(null, GroundPolicy.groundOf(f))
     }
 
     @Test
@@ -282,6 +287,11 @@ class LlmScreenerTest {
         assertTrue(e.fields.keys.any { it.startsWith("shown.output with") } && e.fields.keys.any { it.startsWith("shown.output without") })
         val view = FlagCards.view(e, decisions)
         assertTrue(view.text().contains("without the span"))
+        assertEquals("prompt-injection", GroundPolicy.groundOf(e), "a verified effect flag carries the ground")
+        assertTrue(view.facts.contains("Ground" to "prompt-injection"))
+        // The monitors' flags are signals: no ground.
+        assertTrue(r.flags.filter { it.check == "injection.effect" && it.kind != "output-differs" }.all { GroundPolicy.groundOf(it) == null })
+        assertEquals(null, GroundPolicy.groundOf(e.copy(status = FlagStatus.UNVERIFIED)), "an unverified effect flag carries nothing")
         // The summary shown is from the run without the span.
         assertFalse(r.summary!!.text().contains("10/10"))
         // The with-span request contained the instruction; the shown request did not.
@@ -417,7 +427,7 @@ class LlmScreenerTest {
             }
         assertEquals(2, e.problems.size)
         assertEquals(6, decisions.all.size)
-        assertEquals(listOf("refs.use.policy"), decisions.blockers(listOf("Q1", "refs.use.policy", "scope.cfp")))
+        assertEquals(emptyList<String>(), decisions.blockers(listOf("Q1", "refs.use.policy", "scope.cfp")))
         assertEquals(listOf("Q1@" + decisions["Q1"]!!.version, "zzz@none"), decisions.keyTokens(listOf("Q1", "zzz")))
     }
 }

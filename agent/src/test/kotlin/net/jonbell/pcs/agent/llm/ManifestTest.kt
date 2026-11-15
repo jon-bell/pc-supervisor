@@ -51,16 +51,17 @@ class ManifestTest {
 
     @Test
     fun `decisions appear with their status and a check that cites an unresolved one is listed as blocked`() {
-        val rows = Manifest.rows(checks, decisions)
-        val text = Manifest.render(rows, decisions)
+        // The example file settles every decision, so open one to see a check listed as blocked.
+        val reopened = Decisions(decisions.all.map { if (it.id == "refs.use.policy") it.copy(status = DecisionStatus.UNRESOLVED) else it })
+        val rows = Manifest.rows(checks, reopened)
+        val text = Manifest.render(rows, reopened)
         assertTrue(text.contains("| Check | Version | Category | Established by | Qualified on | Decisions (status) |"))
         assertTrue(text.contains("Q1 (provisional)") && text.contains("Q6 (assumed)") && text.contains("format.limits (settled)"))
         assertEquals(listOf("refs.use"), rows.filter { it.blockedBy.isNotEmpty() }.map { it.check })
         assertTrue(text.contains("- `refs.use`: refs.use.policy"))
         assertTrue(text.contains("Decisions not settled:") && text.contains("refs.use.policy (unresolved"))
         // Settling the decision changes the manifest, with no change to any check.
-        val settled = Decisions(decisions.all.map { if (it.id == "refs.use.policy") it.copy(status = DecisionStatus.SETTLED) else it })
-        assertTrue(Manifest.render(Manifest.rows(checks, settled), settled).contains("No check depends on an unresolved decision."))
+        assertTrue(Manifest.render(Manifest.rows(checks, decisions), decisions).contains("No check depends on an unresolved decision."))
         // With no decision file at all, every cited decision is unresolved.
         val none = Manifest.rows(checks, Decisions.EMPTY)
         assertTrue(none.filter { it.decisions.isNotEmpty() }.all { it.blockedBy.isNotEmpty() })

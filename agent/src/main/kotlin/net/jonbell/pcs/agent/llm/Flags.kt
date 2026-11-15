@@ -142,7 +142,8 @@ object FlagCards {
             buildList {
                 add("Paper" to flag.pid)
                 add("Kind" to flag.kind)
-                flag.ground?.let { add("Ground" to it) }
+                GroundPolicy.groundOf(flag)?.let { add("Ground" to it) }
+                if (GroundPolicy.evidenceOnly(flag)) add("Role" to "evidence only; never a ground for removal")
                 add("Severity" to flag.severity.name)
                 flag.fields.filterKeys { it.startsWith("measured.") }.forEach { (k, v) -> add(k.removePrefix("measured.") to v) }
                 flag.fields["message"]?.let { add("What was found" to it) }

@@ -38,7 +38,8 @@ decisions:
     source: synthetic example
   - id: refs.use.policy
     title: Whether a misused citation can be grounds
-    status: unresolved
-    statement: Open. Until decided, a flag from refs.use is shown as blocked.
+    status: settled
+    statement: A flag from refs.use is evidence for a person and never carries a removal ground; it is shown as evidence, not as blocked.
     owner_role: PC chairs
-    source: synthetic example
+    decided_at: 2026-11-15
+    source: synthetic example (owner's ruling)
