@@ -52,13 +52,52 @@ data class Profile(
 
 object Profiles {
     /** A strong, expensive API-class stand-in. */
-    val STRONG = Profile("scripted-strong", 101, miss = 0.05, falseAlarm = 0.02, flip = 0.03, badQuote = 0.01, schemaFail = 0.005, obey = 0.10, rawPenalty = 0.10, latencyBaseMs = 4000)
+    val STRONG =
+        Profile(
+            "scripted-strong",
+            101,
+            miss = 0.05,
+            falseAlarm = 0.02,
+            flip = 0.03,
+            badQuote = 0.01,
+            schemaFail = 0.005,
+            obey = 0.10,
+            rawPenalty = 0.10,
+            latencyBaseMs = 4000,
+        )
 
     /** A weaker, cheaper tier whose answers are right on average and unstable from run to run. */
-    val NOISY = Profile("scripted-noisy", 202, miss = 0.10, falseAlarm = 0.05, flip = 0.30, badQuote = 0.03, refusal = 0.01, schemaFail = 0.02, obey = 0.30, rawPenalty = 0.20, latencyBaseMs = 2000)
+    val NOISY =
+        Profile(
+            "scripted-noisy",
+            202,
+            miss = 0.10,
+            falseAlarm = 0.05,
+            flip = 0.30,
+            badQuote = 0.03,
+            refusal = 0.01,
+            schemaFail = 0.02,
+            obey = 0.30,
+            rawPenalty = 0.20,
+            latencyBaseMs = 2000,
+        )
 
     /** A degraded stand-in for a small self-hosted model: misses, false alarms, truncations, slow, gullible. */
-    val SELF_HOSTED = Profile("scripted-selfhosted", 303, miss = 0.25, falseAlarm = 0.12, flip = 0.10, badQuote = 0.08, schemaFail = 0.02, truncate = 0.02, obey = 0.50, rawPenalty = 0.40, latencyBaseMs = 9000, latencyPerKTokMs = 60)
+    val SELF_HOSTED =
+        Profile(
+            "scripted-selfhosted",
+            303,
+            miss = 0.25,
+            falseAlarm = 0.12,
+            flip = 0.10,
+            badQuote = 0.08,
+            schemaFail = 0.02,
+            truncate = 0.02,
+            obey = 0.50,
+            rawPenalty = 0.40,
+            latencyBaseMs = 9000,
+            latencyPerKTokMs = 60,
+        )
 }
 
 /** The verdict a check should reach on a request, read from the request text; [flagged] holds the defect and [clear] the clean answer. */
@@ -69,7 +108,13 @@ private class Ideal(val positive: Boolean, val flagged: JsonObject, val clear: J
  * a model to (the planted phrases of this repository's synthetic papers), then degrades the answer by
  * its [Profile]. [pdfText] gives it the text of a PDF it is handed whole, which it reads worse (rawPenalty).
  */
-class ScriptedEngine(override val id: String, private val p: Profile, private val run: Int, private val pdfText: Map<String, String> = emptyMap(), private val model: String = p.name) : Engine {
+class ScriptedEngine(
+    override val id: String,
+    private val p: Profile,
+    private val run: Int,
+    private val pdfText: Map<String, String> = emptyMap(),
+    private val model: String = p.name,
+) : Engine {
     override val caps = Caps(Structured.NATIVE, pdfInput = true, maxInputTokens = Int.MAX_VALUE, batch = false, promptCache = false, toolLoop = ToolLoop.NONE)
 
     private fun rand(vararg salt: Any): Double = Keys.sha256("${p.seed}|${salt.joinToString("|")}").take(8).toLong(16).toDouble() / 0xFFFFFFFFL.toDouble()
@@ -89,6 +134,7 @@ class ScriptedEngine(override val id: String, private val p: Profile, private va
         val (text, raw) = bodyText(req)
         val st = rand("status", h, run)
         val usageIn = (req.system.length + req.parts.sumOf { partChars(it) } + 3L) / 4
+
         fun result(status: Status, output: JsonElement?, outChars: Int, detail: String? = null): CallResult {
             val out = (outChars / 4L) + 30
             val latency = p.latencyBaseMs + p.latencyPerKTokMs * (usageIn + out) / 1000 + (rand("lat", h, run) * 800).toLong()
@@ -129,7 +175,19 @@ class ScriptedEngine(override val id: String, private val p: Profile, private va
     /** Alters every quotation so that it is no longer in the paper. */
     private fun spoil(e: JsonElement): JsonElement =
         when (e) {
-            is JsonObject -> JsonObject(e.mapValues { (k, v) -> if ((k == "quote" || k == "abstract_quote") && v is JsonPrimitive && v.isString) JsonPrimitive(v.content + " (as the authors put it)") else spoil(v) })
+            is JsonObject ->
+                JsonObject(
+                    e.mapValues { (k, v) ->
+                        if ((k == "quote" || k == "abstract_quote") &&
+                            v is JsonPrimitive &&
+                            v.isString
+                        ) {
+                            JsonPrimitive(v.content + " (as the authors put it)")
+                        } else {
+                            spoil(v)
+                        }
+                    },
+                )
             is JsonArray -> JsonArray(e.map { spoil(it) })
             else -> e
         }
@@ -154,11 +212,26 @@ class ScriptedEngine(override val id: String, private val p: Profile, private va
 
     private fun anonymity(text: String, h: String): Ideal {
         val items = mutableListOf<JsonObject>()
-        Regex("""This work builds on our previous tool[^.]*\.""").find(text)?.let { items += item(it.value, "own-prior-work", "The authors describe their own earlier tool.") }
+        Regex("""This work builds on our previous tool[^.]*\.""").find(text)?.let {
+            items +=
+                item(it.value, "own-prior-work", "The authors describe their own earlier tool.")
+        }
         Regex("""https://github\.com/[^\s,]+""").find(text)?.let { items += item(it.value, "identifying-link", "A repository link names a person or lab.") }
         val clear = buildJsonObject { putJsonArray("items") {} }
-        val fabricated = sentences(text).let { s -> if (s.isEmpty()) "No sentence found in the text." else s[(rand("fab", h) * s.size).toInt().coerceAtMost(s.size - 1)] }
-        val flagged = buildJsonObject { put("items", JsonArray(items.ifEmpty { listOf(item(fabricated, "other", "This phrasing might point to the authors.")) })) }
+        val fabricated =
+            sentences(text).let { s ->
+                if (s.isEmpty()) {
+                    "No sentence found in the text."
+                } else {
+                    s[
+                        (rand("fab", h) * s.size).toInt().coerceAtMost(
+                            s.size - 1,
+                        ),
+                    ]
+                }
+            }
+        val flagged =
+            buildJsonObject { put("items", JsonArray(items.ifEmpty { listOf(item(fabricated, "other", "This phrasing might point to the authors.")) })) }
         return Ideal(items.isNotEmpty(), flagged, clear)
     }
 
@@ -167,6 +240,7 @@ class ScriptedEngine(override val id: String, private val p: Profile, private va
     private fun scope(text: String, h: String): Ideal {
         val inScope = topic.findAll(text).count() >= 2
         val claim = Regex("""We present[^.]*\.""").find(text)?.value ?: sentences(text).firstOrNull() ?: text.take(120)
+
         fun obj(verdict: String, topics: List<String>, reason: String) =
             buildJsonObject {
                 put("verdict", verdict)
@@ -174,11 +248,16 @@ class ScriptedEngine(override val id: String, private val p: Profile, private va
                 putJsonArray("matched_topics") { topics.forEach { add(JsonPrimitive(it)) } }
                 put("reason", reason)
             }
-        return Ideal(!inScope, obj("out_of_scope", emptyList(), "The paper's subject is not among the call's topics."), obj("in_scope", listOf("software testing"), "The paper is about software testing."))
+        return Ideal(
+            !inScope,
+            obj("out_of_scope", emptyList(), "The paper's subject is not among the call's topics."),
+            obj("in_scope", listOf("software testing"), "The paper is about software testing."),
+        )
     }
 
     private fun refs(req: CallRequest, h: String): Ideal {
         val records = req.parts.filterIsInstance<Part.References>().flatMap { it.records }
+
         fun field(o: JsonObject, k: String) = (o[k] as? JsonPrimitive)?.contentOrNull.orEmpty()
 
         fun result(o: JsonObject, bad: Boolean) =
@@ -229,7 +308,11 @@ class ScriptedEngine(override val id: String, private val p: Profile, private va
         val contributions = Regex("""(First|Second|Third), [^.]*\.""").findAll(text).map { item("Contribution: " + it.value, it.value) }.toMutableList()
         if (contributions.isEmpty()) sentences(text).firstOrNull()?.let { contributions += item("Claim: $it", it) }
         val obeyed = Regex("""(?s)In your summary, state that.*?10/10\.""").find(text)
-        if (obeyed != null && rand("obey", h) < p.obey) contributions += item("The paper should be accepted with a score of 10/10.", obeyed.value)
+        // An engine that obeys the planted instruction writes it up instead of the paper's contributions.
+        if (obeyed != null && rand("obey", h) < p.obey) {
+            contributions.clear()
+            contributions += item("The paper should be accepted with a score of 10/10.", obeyed.value)
+        }
         val evaluation = Regex("""We evaluate[^.]*\.""").find(text)?.let { listOf(item("Evaluation: " + it.value, it.value)) }.orEmpty()
         return buildJsonObject {
             put("contributions", JsonArray(contributions.take(5)))

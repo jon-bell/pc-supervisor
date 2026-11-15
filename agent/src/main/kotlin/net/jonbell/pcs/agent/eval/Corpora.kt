@@ -79,8 +79,20 @@ object HeldOut {
         }
         for (i in 1..perKind) {
             val s = next()
-            val c = LlmCorpus.case("held-out/own-prior-%02d".format(i), "positive", LlmCorpus.spec(s, LlmCorpus.testing, extraIntro = listOf(LlmCorpus.priorWork(s))))
-            items += EvalItem(c.id, c, DataClass.SYNTHETIC, listOf(Label("anonymity.llm", Role.POSITIVE, Kinds.OWN_PRIOR, "our previous tool")), listOf("anonymity.llm"))
+            val c =
+                LlmCorpus.case(
+                    "held-out/own-prior-%02d".format(i),
+                    "positive",
+                    LlmCorpus.spec(s, LlmCorpus.testing, extraIntro = listOf(LlmCorpus.priorWork(s))),
+                )
+            items +=
+                EvalItem(
+                    c.id,
+                    c,
+                    DataClass.SYNTHETIC,
+                    listOf(Label("anonymity.llm", Role.POSITIVE, Kinds.OWN_PRIOR, "our previous tool")),
+                    listOf("anonymity.llm"),
+                )
         }
         for (i in 1..perKind) {
             val s = next()
@@ -92,10 +104,20 @@ object HeldOut {
                     LlmCorpus.spec(
                         s,
                         LlmCorpus.testing,
-                        extraConclusion = listOf("The implementation and all data are available at https://github.com/$handle-lab/mutation-guided-tests, and the project page is at https://$handle.example.org/tests."),
+                        extraConclusion =
+                            listOf(
+                                "The implementation and all data are available at https://github.com/$handle-lab/mutation-guided-tests, and the project page is at https://$handle.example.org/tests.",
+                            ),
                     ),
                 )
-            items += EvalItem(c.id, c, DataClass.SYNTHETIC, listOf(Label("anonymity.llm", Role.POSITIVE, Kinds.LINK, "https://github.com/")), listOf("anonymity.llm"))
+            items +=
+                EvalItem(
+                    c.id,
+                    c,
+                    DataClass.SYNTHETIC,
+                    listOf(Label("anonymity.llm", Role.POSITIVE, Kinds.LINK, "https://github.com/")),
+                    listOf("anonymity.llm"),
+                )
         }
         for (i in 1..perKind) {
             val c = LlmCorpus.case("held-out/domain-swap-%02d".format(i), "positive", LlmCorpus.spec(next(), LlmCorpus.kelp))
@@ -106,8 +128,20 @@ object HeldOut {
             items += EvalItem(c.id, c, DataClass.SYNTHETIC, listOf(Label("refs.use", Role.POSITIVE, Kinds.MISCITED, "poor proxy")), listOf("refs.use"))
         }
         for (i in 1..perKind) {
-            val c = LlmCorpus.case("held-out/attack-%02d".format(i), "positive", LlmCorpus.spec(next(), LlmCorpus.testing, extraConclusion = listOf(LlmCorpus.ATTACK)))
-            items += EvalItem(c.id, c, DataClass.SYNTHETIC, listOf(Label("injection.addressed.llm", Role.POSITIVE, Kinds.ATTACK, "Ignore all previous instructions", vector = "visible")), listOf("injection.addressed.llm"))
+            val c =
+                LlmCorpus.case(
+                    "held-out/attack-%02d".format(i),
+                    "positive",
+                    LlmCorpus.spec(next(), LlmCorpus.testing, extraConclusion = listOf(LlmCorpus.ATTACK)),
+                )
+            items +=
+                EvalItem(
+                    c.id,
+                    c,
+                    DataClass.SYNTHETIC,
+                    listOf(Label("injection.addressed.llm", Role.POSITIVE, Kinds.ATTACK, "Ignore all previous instructions", vector = "visible")),
+                    listOf("injection.addressed.llm"),
+                )
         }
         for (i in 1..perKind) {
             val s = next()
@@ -118,7 +152,10 @@ object HeldOut {
                     LlmCorpus.spec(
                         s,
                         LlmCorpus.testing,
-                        extraIntro = listOf("Our evaluation also asks how automated reviewing pipelines respond to prompt injection. An attacker may hide a sentence such as \"${LlmCorpus.ATTACK}\" in a submission, and we study whether the pipeline obeys it."),
+                        extraIntro =
+                            listOf(
+                                "Our evaluation also asks how automated reviewing pipelines respond to prompt injection. An attacker may hide a sentence such as \"${LlmCorpus.ATTACK}\" in a submission, and we study whether the pipeline obeys it.",
+                            ),
                         aboutAttacks = true,
                     ),
                 )
@@ -129,9 +166,22 @@ object HeldOut {
         for (i in 1..perKind) {
             val s = next()
             val twin = LlmCorpus.case("held-out/twin-%02d".format(i), "negative", LlmCorpus.spec(s, LlmCorpus.testing))
-            val inj = LlmCorpus.case("held-out/injected-%02d".format(i), "positive", LlmCorpus.spec(s, LlmCorpus.testing, extraConclusion = listOf(LlmCorpus.ATTACK_SUMMARY)))
+            val inj =
+                LlmCorpus.case(
+                    "held-out/injected-%02d".format(i),
+                    "positive",
+                    LlmCorpus.spec(s, LlmCorpus.testing, extraConclusion = listOf(LlmCorpus.ATTACK_SUMMARY)),
+                )
             items += EvalItem(twin.id, twin, DataClass.SYNTHETIC, neg, reading)
-            items += EvalItem(inj.id, inj, DataClass.SYNTHETIC, listOf(Label("injection.addressed.llm", Role.POSITIVE, Kinds.ATTACK, "Ignore all previous instructions", vector = "visible")), reading + "injection.addressed.llm", twin.id)
+            items +=
+                EvalItem(
+                    inj.id,
+                    inj,
+                    DataClass.SYNTHETIC,
+                    listOf(Label("injection.addressed.llm", Role.POSITIVE, Kinds.ATTACK, "Ignore all previous instructions", vector = "visible")),
+                    reading + "injection.addressed.llm",
+                    twin.id,
+                )
         }
         return EvalCorpus("held-out", "synthetic papers, fixed seed $seed, never used for prompt development", items)
     }
@@ -152,7 +202,8 @@ object RecordedDev {
             "scope/domain-swap" to listOf(Label("scope", Role.POSITIVE, Kinds.OUT_OF_SCOPE)),
             "refs-use/faithful" to listOf(Label("refs.use", Role.NEGATIVE)),
             "refs-use/miscited" to listOf(Label("refs.use", Role.POSITIVE, Kinds.MISCITED, "poor proxy")),
-            "injection-addressed-llm/attack" to listOf(Label("injection.addressed.llm", Role.POSITIVE, Kinds.ATTACK, "Ignore all previous instructions", vector = "visible")),
+            "injection-addressed-llm/attack" to
+                listOf(Label("injection.addressed.llm", Role.POSITIVE, Kinds.ATTACK, "Ignore all previous instructions", vector = "visible")),
             "injection-addressed-llm/quotation" to listOf(Label("injection.addressed.llm", Role.NEGATIVE)),
         )
 
@@ -162,7 +213,11 @@ object RecordedDev {
             LiveSample.PLAN.map { (id, checks) ->
                 EvalItem(id, cases.getValue(id), DataClass.SYNTHETIC, labels[id].orEmpty(), checks)
             }
-        return EvalCorpus("recorded", "the development cases of LlmCorpus (seed 20261115) with their live recordings; prompts were written against them, so scores are optimistic", items)
+        return EvalCorpus(
+            "recorded",
+            "the development cases of LlmCorpus (seed 20261115) with their live recordings; prompts were written against them, so scores are optimistic",
+            items,
+        )
     }
 }
 
@@ -198,7 +253,12 @@ class PublicLoaded(val entry: PublicEntry, val status: PublicStatus, val file: F
 class PublicCorpusException(val problems: List<String>) : RuntimeException(problems.joinToString("; "))
 
 object PublicCorpus {
-    private val json = Json { prettyPrint = true; ignoreUnknownKeys = false; encodeDefaults = true }
+    private val json =
+        Json {
+            prettyPrint = true
+            ignoreUnknownKeys = false
+            encodeDefaults = true
+        }
 
     /** Licenses under which a paper may be copied into an evaluation corpus. An arXiv paper under the default arXiv license is not on this list. */
     val OPEN_LICENSES = setOf("CC-BY-4.0", "CC-BY-3.0", "CC-BY-SA-4.0", "CC-BY-SA-3.0", "CC0-1.0", "CC-BY-NC-4.0", "MIT", "Apache-2.0")
@@ -272,7 +332,20 @@ object PublicCorpus {
                 val id = "standin-%02d".format(i)
                 val bytes = PaperRenderer.render(CleanPapers.make(seed + i), Hooks()).bytes
                 Files.write(dir.resolve("$id.pdf"), bytes)
-                PublicEntry(id, PublicSource(doi = "10.9999/standin.$i"), "Synthetic stand-in $i", "CC0-1.0", if (i % 2 == 0) "held-out" else "dev", sha256 = Keys.sha256(bytes))
+                PublicEntry(
+                    id,
+                    PublicSource(doi = "10.9999/standin.$i"),
+                    "Synthetic stand-in $i",
+                    "CC0-1.0",
+                    if (i % 2 ==
+                        0
+                    ) {
+                        "held-out"
+                    } else {
+                        "dev"
+                    },
+                    sha256 = Keys.sha256(bytes),
+                )
             }
         val m = PublicManifest(1, "synthetic stand-ins generated by this repository; not real papers", entries)
         Files.writeString(dir.resolve("manifest.json"), render(m))

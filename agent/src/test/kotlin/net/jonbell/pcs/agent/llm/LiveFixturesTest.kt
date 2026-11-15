@@ -58,7 +58,7 @@ class LiveFixturesTest {
     @Test
     fun `every recorded call is found by its key, and nothing was recorded for a paper that is not synthetic`() {
         val all = recordings.all()
-        assertEquals(12, all.size)
+        assertEquals(18, all.size, "12 first runs and 6 repeats (r2, r3) for stability")
         assertTrue(all.all { it.dataClass == DataClass.SYNTHETIC && it.engineId == LiveSample.ENGINE })
         assertTrue(all.all { it.result!!.status == Status.OK && it.result.servedModel.startsWith("claude-") && it.result.costUsd.signum() > 0 })
         assertTrue(all.all { r -> r.paperId in cases }, "the paper of every fixture is a corpus case")

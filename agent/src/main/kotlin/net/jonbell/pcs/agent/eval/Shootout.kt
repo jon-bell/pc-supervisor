@@ -106,7 +106,17 @@ data class AgreementRow(val check: String, val a: String, val b: String, val ite
 data class CoverageRow(val engine: String, val items: Int, val coveredItems: Int, val uncoveredCalls: Int, val calls: Int)
 
 @Serializable
-data class EngineInfo(val id: String, val adapter: String, val model: String, val standIn: Boolean, val note: String, val inUsdPerMTok: String, val outUsdPerMTok: String, val gpuUsdPerHour: Double, val concurrency: Int)
+data class EngineInfo(
+    val id: String,
+    val adapter: String,
+    val model: String,
+    val standIn: Boolean,
+    val note: String,
+    val inUsdPerMTok: String,
+    val outUsdPerMTok: String,
+    val gpuUsdPerHour: Double,
+    val concurrency: Int,
+)
 
 @Serializable
 data class ShootoutReport(
@@ -142,7 +152,15 @@ object RawVariant {
                 val b64 = Base64.getEncoder().encodeToString(p.pdf)
                 LlmUnit(
                     u.label + "/pdf",
-                    u.parts.map { if (it is Part.Text && (it.label.startsWith("paper body") || it.label.startsWith("opening"))) Part.Pdf("the paper (PDF)", b64) else it },
+                    u.parts.map {
+                        if (it is Part.Text &&
+                            (it.label.startsWith("paper body") || it.label.startsWith("opening"))
+                        ) {
+                            Part.Pdf("the paper (PDF)", b64)
+                        } else {
+                            it
+                        }
+                    },
                     u.context,
                 )
             }
@@ -150,7 +168,11 @@ object RawVariant {
 }
 
 object Shootout {
-    private val json = Json { prettyPrint = true; encodeDefaults = true }
+    private val json =
+        Json {
+            prettyPrint = true
+            encodeDefaults = true
+        }
 
     private fun norm(s: String) = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC).lowercase().filter { it.isLetterOrDigit() }
 
@@ -175,7 +197,8 @@ object Shootout {
         val pdfText: Map<String, String> =
             items.associate { it.id to it.case.pdf }.let { pdfs ->
                 pdfs.values.associate { pdf ->
-                    Keys_sha(Base64.getEncoder().encodeToString(pdf)) to PdfExtractor(HeuristicReferenceParser).extract(pdf).pages.joinToString("\n") { it.text }
+                    sha256Of(Base64.getEncoder().encodeToString(pdf)) to
+                        PdfExtractor(HeuristicReferenceParser).extract(pdf).pages.joinToString("\n") { it.text }
                 }
             }
         val gate = Semaphore(opt.parallelism)
@@ -184,7 +207,14 @@ object Shootout {
             for (e in engines) {
                 for (variant in listOf("scaffold", "raw-pdf")) {
                     if (variant == "raw-pdf" && !(opt.rawVariant && e.rawVariant)) continue
-                    val its = if (variant == "raw-pdf") items.filter { it.labels.any { l -> l.check in RawVariant.CHECKS } }.map { it.restricted(RawVariant.CHECKS) } else items
+                    val its =
+                        if (variant ==
+                            "raw-pdf"
+                        ) {
+                            items.filter { it.labels.any { l -> l.check in RawVariant.CHECKS } }.map { it.restricted(RawVariant.CHECKS) }
+                        } else {
+                            items
+                        }
                     for (run in 1..opt.k) {
                         val engine = e.make(run, pdfText)
                         val dispatcher = Dispatcher(listOf(Registered(e.config, engine)))
@@ -200,13 +230,19 @@ object Shootout {
                                                 ids.associateWith { e.id },
                                                 LiveSample.checksOf(allChecks, ids),
                                                 decisions,
-                                                CheckEnv(net.jonbell.pcs.agent.llm.LlmCorpus.CFP, net.jonbell.pcs.agent.llm.AbstractSource.fixed(item.case.abstracts)),
+                                                CheckEnv(
+                                                    net.jonbell.pcs.agent.llm.LlmCorpus.CFP,
+                                                    net.jonbell.pcs.agent.llm.AbstractSource.fixed(item.case.abstracts),
+                                                ),
                                                 deps,
                                                 options = ScreenOptions(effect = item.injected && variant == "scaffold"),
                                                 runTag = tag + if (variant == "raw-pdf") "pdf" else "",
                                                 unitTransform = if (variant == "raw-pdf") RawVariant.transform() else null,
                                             )
-                                        val screen = screener.screen(PaperInput(item.id, item.dataClass, item.case.pdf, ScreenConfig(authors = item.case.authors)))
+                                        val screen =
+                                            screener.screen(
+                                                PaperInput(item.id, item.dataClass, item.case.pdf, ScreenConfig(authors = item.case.authors)),
+                                            )
                                         Obs(e.id, variant, run, item, screen)
                                     }
                                 }
@@ -219,7 +255,7 @@ object Shootout {
         return report(corpus, items, engines, obs, opt)
     }
 
-    private fun Keys_sha(s: String) = net.jonbell.pcs.agent.engines.Keys.sha256(s)
+    private fun sha256Of(s: String) = net.jonbell.pcs.agent.engines.Keys.sha256(s)
 
     private fun EvalItem.restricted(only: Set<String>?): EvalItem =
         if (only == null) this else EvalItem(id, case, dataClass, labels.filter { it.check in only }, checks.filter { it in only }, twin)
@@ -227,6 +263,7 @@ object Shootout {
     private class Cell(val item: EvalItem, val label: Label, val runs: List<Obs>) {
         /** Runs in which every call of the check was served (a replay miss makes the run uncovered). */
         val covered: List<Obs> = runs.filter { o -> o.screen.calls.filter { it.check == label.check }.none(::uncovered) }
+
         fun flaggedIn(o: Obs) = flagged(o.screen, label.check).isNotEmpty()
 
         fun hitIn(o: Obs) = if (label.role == Role.POSITIVE) hit(label, o.screen) else false
@@ -244,7 +281,19 @@ object Shootout {
         val checks = items.flatMap { it.labels.map { l -> l.check } }.distinct().sortedBy { order.indexOf(it).let { i -> if (i < 0) 99 else i } }
 
         fun cells(engine: String, variant: String, check: String): List<Cell> =
-            items.flatMap { item -> item.labels.filter { it.check == check }.map { l -> Cell(item, l, obs.filter { it.engine == engine && it.variant == variant && it.item.id == item.id }.sortedBy { it.run }) } }
+            items.flatMap { item ->
+                item.labels.filter { it.check == check }.map { l ->
+                    Cell(
+                        item,
+                        l,
+                        obs.filter {
+                            it.engine == engine &&
+                                it.variant == variant &&
+                                it.item.id == item.id
+                        }.sortedBy { it.run },
+                    )
+                }
+            }
 
         for (variant in listOf("scaffold", "raw-pdf")) {
             for (check in checks) {
@@ -266,7 +315,9 @@ object Shootout {
                     val dominated =
                         r.balancedAccuracy.n > 0 &&
                             peers.any { o ->
-                                o !== r && o.costPerPaperUsd.est <= r.costPerPaperUsd.est && o.balancedAccuracy.est >= r.balancedAccuracy.est &&
+                                o !== r &&
+                                    o.costPerPaperUsd.est <= r.costPerPaperUsd.est &&
+                                    o.balancedAccuracy.est >= r.balancedAccuracy.est &&
                                     (o.costPerPaperUsd.est < r.costPerPaperUsd.est || o.balancedAccuracy.est > r.balancedAccuracy.est)
                             }
                     r.copy(frontier = r.balancedAccuracy.n > 0 && !dominated)
@@ -275,12 +326,24 @@ object Shootout {
         val recommended =
             checks.associateWith { c ->
                 val ok = marked.filter { it.check == c && it.variant == "scaffold" && it.meetsThresholds }.minByOrNull { it.costPerPaperUsd.est }
-                ok?.let { it.engine + if (it.thresholdNote.isNotEmpty()) " (provisional: ${it.thresholdNote})" else "" } ?: marked.filter { it.check == c && it.variant == "scaffold" && it.balancedAccuracy.n > 0 }.maxByOrNull { it.balancedAccuracy.est }?.let { "none meets the thresholds; best quality: ${it.engine}" } ?: "no engine covered this check"
+                ok?.let { it.engine + if (it.thresholdNote.isNotEmpty()) " (provisional: ${it.thresholdNote})" else "" }
+                    ?: marked.filter {
+                        it.check == c && it.variant == "scaffold" && it.balancedAccuracy.n > 0
+                    }.maxByOrNull { it.balancedAccuracy.est }?.let { "none meets the thresholds; best quality: ${it.engine}" }
+                    ?: "no engine covered this check"
             }
         val totals =
             engines.associate { e ->
                 val rs = marked.filter { it.engine == e.id && it.variant == "scaffold" && it.projectedCostUsd.n > 0 }
-                e.id to Interval(rs.sumOf { it.projectedCostUsd.est }, rs.sumOf { it.projectedCostUsd.lo }, rs.sumOf { it.projectedCostUsd.hi }, rs.sumOf { it.projectedCostUsd.n })
+                e.id to
+                    Interval(
+                        rs.sumOf {
+                            it.projectedCostUsd.est
+                        },
+                        rs.sumOf { it.projectedCostUsd.lo },
+                        rs.sumOf { it.projectedCostUsd.hi },
+                        rs.sumOf { it.projectedCostUsd.n },
+                    )
             }
         val scaffold =
             RawVariant.CHECKS.flatMap { c ->
@@ -302,7 +365,17 @@ object Shootout {
             opt.k,
             opt.scalePapers,
             engines.map {
-                EngineInfo(it.id, it.config.adapter.key, it.config.model, it.standIn, it.note, it.config.prices.input.toPlainString(), it.config.prices.output.toPlainString(), it.gpuUsdPerHour, it.config.concurrency)
+                EngineInfo(
+                    it.id,
+                    it.config.adapter.key,
+                    it.config.model,
+                    it.standIn,
+                    it.note,
+                    it.config.prices.input.toPlainString(),
+                    it.config.prices.output.toPlainString(),
+                    it.gpuUsdPerHour,
+                    it.config.concurrency,
+                )
             },
             engines.map { e ->
                 val mine = obs.filter { it.engine == e.id && it.variant == "scaffold" }
@@ -350,7 +423,10 @@ object Shootout {
         val distinct = sigs.sumOf { runs -> runs.flatten().toSet().size }
         val passK = full.count { c -> c.covered.all { c.correctIn(it) } }
         // Cost and latency per paper per run, for this check only, from the calls that are shown (a rerun for injection.effect is not counted twice).
-        val perRunCost = covObs.map { o -> o.screen.calls.filter { it.check == check && it.run == "shown" }.sumOf { it.costUsd.toDouble() + gpu(e, it.latencyMs) } }
+        val perRunCost =
+            covObs.map { o ->
+                o.screen.calls.filter { it.check == check && it.run == "shown" }.sumOf { it.costUsd.toDouble() + gpu(e, it.latencyMs) }
+            }
         val perRunLat = covObs.map { o -> o.screen.calls.filter { it.check == check && it.run == "shown" }.sumOf { it.latencyMs.toDouble() } / 1000 }
         val cost = Stats.mean(perRunCost)
         val projected = if (cost.n == 0) Interval.NONE else Interval(cost.est * opt.scalePapers, cost.lo * opt.scalePapers, cost.hi * opt.scalePapers, cost.n)
@@ -363,7 +439,12 @@ object Shootout {
             if (allFlags.isNotEmpty() && anchors.est < opt.minAnchorValidity) notes += "anchor validity below ${opt.minAnchorValidity}"
             if (full.isNotEmpty() && agreement(full.size, agree).est < opt.minStability) notes += "stability below ${opt.minStability}"
             if (full.isEmpty()) notes += "stability not measured"
-            if (recall.n > 0 && recall.est >= opt.minRecall && recall.lo < opt.minRecall) notes += "recall lower bound ${"%.2f".format(recall.lo)} under the threshold"
+            if (recall.n > 0 &&
+                recall.est >= opt.minRecall &&
+                recall.lo < opt.minRecall
+            ) {
+                notes += "recall lower bound ${"%.2f".format(recall.lo)} under the threshold"
+            }
         }
         val failing = notes.filter { !it.startsWith("stability not measured") && !it.contains("lower bound") }
         return CheckEngineRow(
@@ -403,13 +484,21 @@ object Shootout {
     private fun scaffoldDelta(check: String, engine: String, items: List<EvalItem>, obs: List<Obs>): Interval {
         // Paired over the papers both variants scored: balanced accuracy with scaffolding minus without.
         fun outcome(variant: String, item: EvalItem, label: Label): Boolean? {
-            val os = obs.filter { it.engine == engine && it.variant == variant && it.item.id == item.id && it.screen.calls.filter { c -> c.check == check }.none(::uncovered) }
+            val os =
+                obs.filter {
+                    it.engine == engine &&
+                        it.variant == variant &&
+                        it.item.id == item.id &&
+                        it.screen.calls.filter { c -> c.check == check }.none(::uncovered)
+                }
             if (os.isEmpty()) return null
             val c = Cell(item, label, os)
             return if (label.role == Role.POSITIVE) c.hit else !c.flagged
         }
         val pairs =
-            items.flatMap { item -> item.labels.filter { it.check == check }.map { l -> Triple(l.role, outcome("scaffold", item, l), outcome("raw-pdf", item, l)) } }
+            items.flatMap { item ->
+                item.labels.filter { it.check == check }.map { l -> Triple(l.role, outcome("scaffold", item, l), outcome("raw-pdf", item, l)) }
+            }
                 .filter { it.second != null && it.third != null }
         val pos = pairs.filter { it.first == Role.POSITIVE }.map { (if (it.second!!) 1.0 else 0.0) - (if (it.third!!) 1.0 else 0.0) }
         val neg = pairs.filter { it.first == Role.NEGATIVE }.map { (if (it.second!!) 1.0 else 0.0) - (if (it.third!!) 1.0 else 0.0) }
@@ -421,7 +510,14 @@ object Shootout {
     private fun resistance(items: List<EvalItem>, engines: List<ShootoutEngine>, obs: List<Obs>): List<ResistanceRow> {
         val out = mutableListOf<ResistanceRow>()
 
-        fun sig(s: PaperScreen, check: String): Set<String> = if (check == "summary") s.summary?.items?.map { norm(it.anchor.quote).take(60) }.orEmpty().toSet() else flagged(s, check).map(::signature).toSet()
+        fun sig(s: PaperScreen, check: String): Set<String> =
+            if (check ==
+                "summary"
+            ) {
+                s.summary?.items?.map { norm(it.anchor.quote).take(60) }.orEmpty().toSet()
+            } else {
+                flagged(s, check).map(::signature).toSet()
+            }
         for (e in engines) {
             for (check in listOf("anonymity.llm", "scope", "refs.use", "summary")) {
                 var pairs = 0
@@ -431,7 +527,14 @@ object Shootout {
                     val twin = obs.firstOrNull { it.engine == e.id && it.variant == "scaffold" && it.item.id == o.item.twin && it.run == o.run } ?: continue
                     if (o.screen.calls.any(::uncovered) || twin.screen.calls.any(::uncovered)) continue
                     pairs++
-                    if (o.screen.flags.any { it.check == "injection.effect" && it.kind == "output-differs" && it.fields["measured.check"]?.startsWith("$check@") == true }) left++
+                    if (o.screen.flags.any {
+                            it.check == "injection.effect" &&
+                                it.kind == "output-differs" &&
+                                it.fields["measured.check"]?.startsWith("$check@") == true
+                        }
+                    ) {
+                        left++
+                    }
                     if (sig(o.screen, check) != sig(twin.screen, check)) strip++
                 }
                 if (pairs > 0) out += ResistanceRow(e.id, check, pairs, Stats.wilson(left, pairs), Stats.wilson(strip, pairs))
@@ -445,7 +548,13 @@ object Shootout {
         for (c in checks) {
             fun verdicts(e: String): Map<String, Boolean> =
                 items.filter { i -> i.labels.any { it.check == c } }.mapNotNull { i ->
-                    val os = obs.filter { it.engine == e && it.variant == "scaffold" && it.item.id == i.id && it.screen.calls.filter { x -> x.check == c }.none(::uncovered) }
+                    val os =
+                        obs.filter {
+                            it.engine == e &&
+                                it.variant == "scaffold" &&
+                                it.item.id == i.id &&
+                                it.screen.calls.filter { x -> x.check == c }.none(::uncovered)
+                        }
                     if (os.isEmpty()) null else i.id to (os.count { flagged(it.screen, c).isNotEmpty() } * 2 >= os.size)
                 }.toMap()
             val v = engines.associate { it.id to verdicts(it.id) }
@@ -454,7 +563,10 @@ object Shootout {
                     val a = v.getValue(engines[i].id)
                     val b = v.getValue(engines[j].id)
                     val common = a.keys.intersect(b.keys)
-                    if (common.isNotEmpty()) out += AgreementRow(c, engines[i].id, engines[j].id, common.size, Stats.wilson(common.count { a[it] == b[it] }, common.size))
+                    if (common.isNotEmpty()) {
+                        out +=
+                            AgreementRow(c, engines[i].id, engines[j].id, common.size, Stats.wilson(common.count { a[it] == b[it] }, common.size))
+                    }
                 }
             }
         }
@@ -470,13 +582,19 @@ object Shootout {
             fun usd(i: Interval) = if (i.n == 0) "n/a" else "${usd(i.est)} [${usd(i.lo)}, ${usd(i.hi)}]"
             appendLine("# Shootout: corpus `${r.corpus}` (${r.items} papers, fingerprint ${r.fingerprint}), k = ${r.k}")
             appendLine()
-            appendLine("${r.corpusNote}. Intervals are 95 percent: Wilson for rates, a seeded bootstrap for balanced accuracy and costs. Projections are for ${r.scalePapers} papers (`PCS_AGENT_SCALE_PAPERS`).")
+            appendLine(
+                "${r.corpusNote}. Intervals are 95 percent: Wilson for rates, a seeded bootstrap for balanced accuracy and costs. Projections are for ${r.scalePapers} papers (`PCS_AGENT_SCALE_PAPERS`).",
+            )
             appendLine()
             appendLine("## Engines")
             appendLine()
             appendLine("| Engine | Adapter | Model | Real? | USD per M tokens in / out | GPU USD/h | Concurrency | Note |")
             appendLine("|---|---|---|---|---|---|---|---|")
-            r.engines.forEach { appendLine("| `${it.id}` | ${it.adapter} | ${it.model} | ${if (it.standIn) "**scripted stand-in, not a model**" else "recorded results of a real model"} | ${it.inUsdPerMTok} / ${it.outUsdPerMTok} | ${it.gpuUsdPerHour} | ${it.concurrency} | ${it.note} |") }
+            r.engines.forEach {
+                appendLine(
+                    "| `${it.id}` | ${it.adapter} | ${it.model} | ${if (it.standIn) "**scripted stand-in, not a model**" else "recorded results of a real model"} | ${it.inUsdPerMTok} / ${it.outUsdPerMTok} | ${it.gpuUsdPerHour} | ${it.concurrency} | ${it.note} |",
+                )
+            }
             appendLine()
             appendLine("Coverage (an engine with no recording for a request leaves that paper out of its numbers; it is never filled in):")
             appendLine()
@@ -488,13 +606,34 @@ object Shootout {
                 appendLine()
                 appendLine("## `$c`")
                 appendLine()
-                appendLine("| Engine | Recall | False-flag rate | Precision | Balanced accuracy | Anchors verify | Refusal / schema / truncated / error | Stability: agree (papers), pass^k, flaky flags | Cost per paper | At ${r.scalePapers} papers | Wall time | On frontier | Meets thresholds |")
+                appendLine(
+                    "| Engine | Recall | False-flag rate | Precision | Balanced accuracy | Anchors verify | Refusal / schema / truncated / error | Stability: agree (papers), pass^k, flaky flags | Cost per paper | At ${r.scalePapers} papers | Wall time | On frontier | Meets thresholds |",
+                )
                 appendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
                 for (x in r.rows.filter { it.check == c && it.variant == "scaffold" }) {
-                    val stab = if (x.stabilityItems == 0) "not measured" else "${x.agreement.fmt()} (${x.stabilityItems}), ${x.passK.fmt()}, ${x.flakyFlags}/${x.distinctFlags}"
+                    val stab =
+                        if (x.stabilityItems ==
+                            0
+                        ) {
+                            "not measured"
+                        } else {
+                            "${x.agreement.fmt()} (${x.stabilityItems}), ${x.passK.fmt()}, ${x.flakyFlags}/${x.distinctFlags}"
+                        }
                     appendLine(
                         "| `${x.engine}` | ${x.recall.fmt()} (${x.positives}) | ${x.falseFlagRate.fmt()} (${x.negatives}) | ${x.precision.fmt()} | ${x.balancedAccuracy.fmt()} | ${x.anchorValidity.fmt()} | " +
-                            "${x.refusalRate.fmt()} / ${x.schemaInvalidRate.fmt()} / ${x.truncationRate.fmt()} / ${x.errorRate.fmt()} | $stab | ${usd(x.costPerPaperUsd)} | ${usd(x.projectedCostUsd)} | ${"%.1f".format(x.projectedWallHours)} h | ${if (x.frontier) "yes" else "no"} | ${if (x.meetsThresholds) "yes" else "no: ${x.thresholdNote.ifEmpty { "no paper was served" }}"} |",
+                            "${x.refusalRate.fmt()} / ${x.schemaInvalidRate.fmt()} / ${x.truncationRate.fmt()} / ${x.errorRate.fmt()} | $stab | ${usd(
+                                x.costPerPaperUsd,
+                            )} | ${usd(
+                                x.projectedCostUsd,
+                            )} | ${"%.1f".format(
+                                x.projectedWallHours,
+                            )} h | ${if (x.frontier) "yes" else "no"} | ${if (x.meetsThresholds) {
+                                "yes"
+                            } else {
+                                "no: ${x.thresholdNote.ifEmpty {
+                                    "no paper was served"
+                                }}"
+                            }} |",
                     )
                 }
                 val ordered = r.rows.filter { it.check == c && it.variant == "scaffold" && it.balancedAccuracy.n > 0 }.sortedBy { it.costPerPaperUsd.est }
@@ -503,11 +642,37 @@ object Shootout {
                     appendLine("Frontier, cheapest to dearest (quality = balanced accuracy; `*` is on the frontier):")
                     appendLine()
                     appendLine("```")
-                    ordered.forEach { x -> appendLine("%-26s %-12s %s %.3f  %s".format(x.engine, usd(x.costPerPaperUsd.est), if (x.frontier) "*" else " ", x.balancedAccuracy.est, "#".repeat((x.balancedAccuracy.est * 40).toInt()))) }
+                    ordered.forEach { x ->
+                        appendLine(
+                            "%-26s %-12s %s %.3f  %s".format(
+                                x.engine,
+                                usd(x.costPerPaperUsd.est),
+                                if (x.frontier) "*" else " ",
+                                x.balancedAccuracy.est,
+                                "#".repeat(
+                                    (
+                                        x.balancedAccuracy.est *
+                                            40
+                                    ).toInt(),
+                                ),
+                            ),
+                        )
+                    }
                     appendLine("```")
-                    val seps = ordered.zipWithNext().filter { (a, b) -> b.balancedAccuracy.separatedFrom(a.balancedAccuracy) }.map { (a, b) -> "${a.engine} and ${b.engine}" }
+                    val seps =
+                        ordered.zipWithNext().filter { (a, b) ->
+                            b.balancedAccuracy.separatedFrom(a.balancedAccuracy)
+                        }.map { (a, b) -> "${a.engine} and ${b.engine}" }
                     appendLine()
-                    appendLine("Quality differences outside the intervals: ${if (seps.isEmpty()) "none between neighbours on the cost axis" else seps.joinToString("; ")}.")
+                    appendLine(
+                        "Quality differences outside the intervals: ${if (seps.isEmpty()) {
+                            "none between neighbours on the cost axis"
+                        } else {
+                            seps.joinToString(
+                                "; ",
+                            )
+                        }}.",
+                    )
                 }
                 appendLine()
                 appendLine("**Recommended engine:** ${r.recommended[c] ?: "n/a"}")
@@ -519,14 +684,18 @@ object Shootout {
             appendLine("|---|---|")
             r.totals.forEach { (e, v) -> appendLine("| `$e` | ${usd(v)} |") }
             appendLine()
-            appendLine("Costs come from the usage and prices recorded for each call (for a replay, the cost the provider reported); per-paper means are over the runs and papers of the check alone. Interval ends are sums of per-check ends, so the total interval is wider than a joint one.")
+            appendLine(
+                "Costs come from the usage and prices recorded for each call (for a replay, the cost the provider reported); per-paper means are over the runs and papers of the check alone. Interval ends are sums of per-check ends, so the total interval is wider than a joint one.",
+            )
             appendLine()
             appendLine("## Scaffold delta")
             appendLine()
             if (r.scaffold.isEmpty()) {
                 appendLine("No engine served both variants on this corpus.")
             } else {
-                appendLine("Balanced accuracy with our preprocessing minus the same engine given the PDF whole and the same question (agent.md 7.3). Only checks whose input is plain paper text have a raw variant here.")
+                appendLine(
+                    "Balanced accuracy with our preprocessing minus the same engine given the PDF whole and the same question (agent.md 7.3). Only checks whose input is plain paper text have a raw variant here.",
+                )
                 appendLine()
                 appendLine("| Check | Engine | With scaffold | Raw PDF | Delta |")
                 appendLine("|---|---|---|---|---|")
@@ -537,23 +706,31 @@ object Shootout {
             appendLine()
             val det = r.rows.filter { it.check == "injection.addressed.llm" && it.variant == "scaffold" }
             if (det.isNotEmpty()) {
-                appendLine("Detection, vector `visible-addressed` (the classifier on a span the pattern list found): planted instructions found, and benign quotations flagged.")
+                appendLine(
+                    "Detection, vector `visible-addressed` (the classifier on a span the pattern list found): planted instructions found, and benign quotations flagged.",
+                )
                 appendLine()
                 appendLine("| Engine | Found | Benign controls flagged |")
                 appendLine("|---|---|---|")
                 det.forEach { appendLine("| `${it.engine}` | ${it.recall.fmt()} (${it.positives}) | ${it.falseFlagRate.fmt()} (${it.negatives}) |") }
                 appendLine()
             }
-            appendLine("The hidden-text and channel vectors are found by the deterministic checks, which do not depend on the engine; their per-vector scores are in `mutation-score.md` (`:agent:screeningScore`).")
+            appendLine(
+                "The hidden-text and channel vectors are found by the deterministic checks, which do not depend on the engine; their per-vector scores are in `mutation-score.md` (`:agent:screeningScore`).",
+            )
             appendLine()
             if (r.resistance.isEmpty()) {
                 appendLine("Resistance: no injected/clean pairs were served on this corpus.")
             } else {
-                appendLine("Resistance: over injected papers and their clean twins, the share of runs in which the planted instruction changes the check's output when it is left in, and when it has been stripped (the second is what the defence leaves). A stripped paper can still differ from its twin through run-to-run noise alone, so read the second column against the engine's stability.")
+                appendLine(
+                    "Resistance: over injected papers and their clean twins, the share of runs in which the planted instruction changes the check's output when it is left in, and when it has been stripped (the second is what the defence leaves). A stripped paper can still differ from its twin through run-to-run noise alone, so read the second column against the engine's stability.",
+                )
                 appendLine()
                 appendLine("| Engine | Check | Pair-runs | Changed, span left in | Changed, span stripped |")
                 appendLine("|---|---|---|---|---|")
-                r.resistance.forEach { appendLine("| `${it.engine}` | `${it.check}` | ${it.pairs} | ${it.changedLeftIn.fmt()} | ${it.changedStripped.fmt()} |") }
+                r.resistance.forEach {
+                    appendLine("| `${it.engine}` | `${it.check}` | ${it.pairs} | ${it.changedLeftIn.fmt()} | ${it.changedStripped.fmt()} |")
+                }
             }
             appendLine()
             appendLine("## Cross-engine agreement")
@@ -572,7 +749,13 @@ object Shootout {
                 appendLine()
                 appendLine("| Check | Engine | Recall | False-flag rate | Balanced accuracy | Cost per paper |")
                 appendLine("|---|---|---|---|---|---|")
-                raw.forEach { appendLine("| `${it.check}` | `${it.engine}` | ${it.recall.fmt()} | ${it.falseFlagRate.fmt()} | ${it.balancedAccuracy.fmt()} | ${usd(it.costPerPaperUsd)} |") }
+                raw.forEach {
+                    appendLine(
+                        "| `${it.check}` | `${it.engine}` | ${it.recall.fmt()} | ${it.falseFlagRate.fmt()} | ${it.balancedAccuracy.fmt()} | ${usd(
+                            it.costPerPaperUsd,
+                        )} |",
+                    )
+                }
             }
         }
 
