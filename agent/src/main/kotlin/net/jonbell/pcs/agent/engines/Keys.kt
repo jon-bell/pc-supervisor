@@ -72,11 +72,32 @@ data class EngineIdentity(val id: String, val model: String, val options: String
  * lists under `code:`, truncated to 12 hex digits. Editing a prompt, a schema, or code is a new version.
  */
 object CheckDirs {
+    /**
+     * `qualification.yaml` (a check's thresholds, agent.md §7.4) is outside the version: it states what
+     * evidence a version needs, so editing a threshold must not invalidate that version or its fixtures.
+     */
+    const val QUALIFICATION_FILE = "qualification.yaml"
+
+    /** The files that make up a check's version, by relative path. */
+    fun hashedFiles(dir: Path): List<Pair<String, Path>> =
+        Files.walk(dir).use { s -> s.filter { Files.isRegularFile(it) }.map { dir.relativize(it).joinToString("/") to it }.toList() }
+            .filter { it.first != QUALIFICATION_FILE }
+            .sortedBy { it.first }
+
+    /** SHA-256 of each file of the version (and of each listed code file, as `code:<path>`), so a change can be named. */
+    fun fileHashes(dir: Path, codeRoot: Path? = null): Map<String, String> {
+        val m = sortedMapOf<String, String>()
+        for ((rel, f) in hashedFiles(dir)) m[rel] = Keys.sha256(Files.readAllBytes(f))
+        val yaml = dir.resolve("check.yaml").takeIf { Files.isRegularFile(it) }?.let { Files.readString(it) }.orEmpty()
+        val code = yaml.substringAfter("\ncode:", "").lineSequence().drop(1).takeWhile { it.startsWith("  - ") }.map { it.removePrefix("  - ").trim() }.toList()
+        if (codeRoot != null) for (rel in code) m["code:$rel"] = Keys.sha256(Files.readAllBytes(codeRoot.resolve(rel)))
+        return m
+    }
+
     fun version(dir: Path, codeRoot: Path? = null): String {
         val md = MessageDigest.getInstance("SHA-256")
         val files =
-            Files.walk(dir).use { s -> s.filter { Files.isRegularFile(it) }.map { dir.relativize(it).joinToString("/") to it }.toList() }
-                .sortedBy { it.first }
+            hashedFiles(dir)
         for ((rel, f) in files) {
             md.update(rel.toByteArray())
             md.update(0)

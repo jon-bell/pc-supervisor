@@ -134,6 +134,8 @@ data class ShootoutReport(
     val scaffold: List<ScaffoldRow>,
     val resistance: List<ResistanceRow>,
     val agreement: List<AgreementRow>,
+    /** engine id -> paper id -> the flags (check|kind|quote) the first scaffolded run raised: what a qualification record keeps, so a later change can list the flags it moves. */
+    val flagSets: Map<String, Map<String, List<String>>> = emptyMap(),
 )
 
 /** What one engine's one run of the checks on one paper produced. */
@@ -389,6 +391,14 @@ object Shootout {
             scaffold,
             resistance(items, engines, obs),
             agreement(checks, items, engines, obs),
+            engines.associate { e ->
+                e.id to
+                    obs.filter { it.engine == e.id && it.variant == "scaffold" && it.run == 1 }.associate { o ->
+                        o.item.id to
+                            o.screen.flags.filter { f -> f.verified && f.severity >= Severity.MEDIUM && o.item.labels.any { it.check == f.check } }
+                                .map(::signature).distinct().sorted()
+                    }
+            },
         )
     }
 

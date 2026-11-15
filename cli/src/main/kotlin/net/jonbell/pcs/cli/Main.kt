@@ -163,11 +163,60 @@ private fun offlineStore(): Triple<Settings, net.jonbell.pcs.core.store.Store, n
     return Triple(settings, net.jonbell.pcs.core.store.Store.open(path, key), net.jonbell.pcs.core.time.Clock.fromSettings(settings.now))
 }
 
+/** `pcs import bundle <file> --key-file <key>` (spec §10.3): opens an encrypted screening bundle and imports its findings. The key is read, used, and never stored. */
+fun importBundle(
+    args: List<String>,
+    store: net.jonbell.pcs.core.store.Store,
+    imports: net.jonbell.pcs.core.imports.Imports,
+    clock: net.jonbell.pcs.core.time.Clock,
+) {
+    val file = args.firstOrNull()?.takeIf { !it.startsWith("--") }
+    val keyFile = args.indexOf("--key-file").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
+    if (file == null || keyFile == null) {
+        System.err.println("usage: pcs import bundle <file> --key-file <file holding the key>")
+        exitProcess(2)
+    }
+    try {
+        val key = net.jonbell.pcs.core.bundle.BundleKey.parse(Files.readString(Path.of(keyFile)))
+        when (
+            val r =
+                net.jonbell.pcs.core.bundle.ScreeningBundles(
+                    store,
+                    imports,
+                    clock,
+                ).import(Files.readAllBytes(Path.of(file)), key, Path.of(file).fileName.toString())
+        ) {
+            is net.jonbell.pcs.core.bundle.BundleImport.Imported -> {
+                val p = r.payload
+                println(
+                    "imported bundle ${r.hash.take(
+                        12,
+                    )}: ${p.findings.size} findings (${p.visible.size} verified), ${p.summaries.size} summaries, ${p.manifest.papers.size} papers, version ${r.run.id}",
+                )
+                println("manifest: ${p.manifest.checks.size} checks, ${p.manifest.qualifications.size} qualification records, created ${p.manifest.createdAt}")
+            }
+            is net.jonbell.pcs.core.bundle.BundleImport.AlreadyImported ->
+                println(
+                    "bundle ${r.hash.take(12)} was already imported (version ${r.runId}); nothing changed",
+                )
+            is net.jonbell.pcs.core.bundle.BundleImport.Rejected -> {
+                System.err.println("nothing imported: ${r.problems.size} problems")
+                r.problems.take(20).forEach { System.err.println("  $it") }
+                exitProcess(1)
+            }
+        }
+    } catch (e: net.jonbell.pcs.core.bundle.BundleException) {
+        System.err.println("nothing imported: ${e.message}")
+        exitProcess(1)
+    }
+}
+
 /**
  * PLAN M6, spec §10.3: `pcs import <kind> <file> [--map col=name,...]` imports a file as a new
  * version (all rows or none; a rejected file prints its row errors and exits 1), and
  * `pcs import status` lists each kind's freshness and the current phase.
  */
+
 fun importCmd(args: List<String>) {
     val kinds = net.jonbell.pcs.core.imports.ImportKind.entries.joinToString("|") { it.id }
     val (settings, store, clock) = offlineStore()
@@ -176,6 +225,10 @@ fun importCmd(args: List<String>) {
         if (args.firstOrNull() == "status") {
             println("phase: ${settings.phaseModel.current(clock.now())} at ${clock.now()}")
             imports.staleness(settings.importFreshDays).forEach { println(it.describe()) }
+            return
+        }
+        if (args.firstOrNull() == "bundle") {
+            importBundle(args.drop(1), store, imports, clock)
             return
         }
         val kind = args.getOrNull(0)?.let(net.jonbell.pcs.core.imports.ImportKind::ofId)
@@ -349,10 +402,12 @@ fun agent(args: List<String>) {
         "screen" -> exitProcess(cli.screen(args.drop(1)))
         "shootout" -> exitProcess(cli.shootout(args.drop(1)))
         "corpus" -> exitProcess(cli.corpus(args.drop(1)))
+        "bundle" -> exitProcess(cli.bundle(args.drop(1)))
+        "qualify" -> exitProcess(cli.qualify(args.drop(1)))
     }
     if (args.firstOrNull() != "check" || args.size < 2) {
         System.err.println(
-            "usage: pcs agent check <pdf> [--authors authors.json] [--ocr [image]] [--grobid url] | probe [engine] | plan <pdf>... [--llm-check dir]... | run <pdf>... [--llm-check dir]... | manifest [--decisions file] | screen <pdf>... [--cfp file] | shootout --corpus held-out|recorded (--offline | --engines ids) | corpus validate|pin|standins",
+            "usage: pcs agent check <pdf> [--authors authors.json] [--ocr [image]] [--grobid url] | probe [engine] | plan <pdf>... [--llm-check dir]... | run <pdf>... [--llm-check dir]... | manifest [--decisions file] | screen <pdf>... [--cfp file] | shootout --corpus held-out|recorded (--offline | --engines ids) | corpus validate|pin|standins | qualify --engines ids | bundle <pdf|dir>... --out dir --key-file f | plan --changes [--moves]",
         )
         exitProcess(2)
     }

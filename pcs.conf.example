@@ -162,7 +162,9 @@ PCS_TAG_CHAIR_ATTENTION=chair-attention
 # PCS_AGENT_DECISIONS=/path/to/decisions.yaml   # the decision file (agent.md §3.1); venue-specific, kept outside the repo (agent/decisions.example.yaml is a synthetic example)
 # PCS_AGENT_CFP=/path/to/cfp.txt                # the call for papers' topic text, for the scope check
 # PCS_AGENT_CHECKS=agent/checks                 # the check directories (default agent/checks)
-# PCS_AGENT_QUALIFICATIONS=/path/to/quals.json  # qualification records, shown in the manifest
+# PCS_AGENT_QUALIFICATIONS=/path/to/quals.json  # qualification records (agent.md 7.4): shown in the manifest, and the gate that refuses confidential data to an unqualified check and engine
+# PCS_AGENT_STORE=/path/to/agent-store           # the content-addressed result store (agent.md 4.4)
+# PCS_AGENT_STORE_KEY_FILE=/path/to/store.key    # a 32-byte URL-safe base64 key: the store is then encrypted (required for confidential papers); never in git
 # PCS_AGENT_EGRESS=doi.org,api.crossref.org,api.openalex.org,export.arxiv.org,arxiv.org   # reference resolver allowlist
 
 # Accountability requests (spec §10.4 D): the PC chairs' criteria list. A request cites criteria from this list and nothing else.

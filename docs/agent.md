@@ -87,7 +87,7 @@ Each check is a directory, `agent/checks/<id>/`, containing:
 - `schema.json` (JSON Schema, from which the Kotlin output type is generated);
 - `oracle/`: synthetic and public labeled examples, plus the mutation operators that create its known positives (§7.2).
 
-The version is a content hash of the directory, so any edit is a new version.
+The version is a content hash of the directory, so any edit is a new version. The one exception is `qualification.yaml` (§7.4), the check's thresholds: it states what evidence a version needs, so editing a threshold is not an edit of the check, and it is left out of the hash.
 
 ### 3.3 The manifest
 
@@ -166,7 +166,7 @@ Each adapter uses its provider's official client. Claude is always called throug
 | Adapter | Covers | Structured output | Notes |
 |---|---|---|---|
 | `claude-code` | Claude through the `claude` CLI (`claude -p`) | `--json-schema` | **The development engine.** Authenticates with the developer's Claude Code login (OAuth), so no API key is needed. Uses isolation flags so a call carries only our prompt: `--strict-mcp-config --setting-sources "" --tools "" --system-prompt … --no-session-persistence --output-format json`. `--bare` is **not** usable here, because it reads only an API key. Cost, tokens, model, and latency come from the JSON envelope. Harness mode (`--mcp-config` pointed at the agent's tool server) runs the agent-loop variant. The same adapter also runs with an API key, or through Claude Code's cloud-provider modes (Bedrock / Vertex / Foundry environment switches; check the names against current Claude Code docs), which lets us confirm that dev and production produce the same results. |
-| `anthropic` | Claude on the first-party API, Amazon Bedrock (Mantle client), Microsoft Foundry, Google Vertex | native (`output_config.format`) | Message Batches where the platform offers them. Prompt caching on the stable prefix (system + CFP + instructions). Handle the `refusal` stop reason explicitly. |
+| `anthropic` | Claude on the first-party API, Amazon Bedrock (Mantle client), Microsoft Foundry, Google Vertex | native (`output_config.format`) | Message Batches where the platform offers them (the first-party API: `submitBatch` posts the requests with their content address as `custom_id`, `collectBatch` polls until `processing_status` is `ended` and reads the JSON-lines results; an errored, canceled or expired request is an `ERROR` result, never cached). `Dispatcher.callBatch` puts every request through the same clearance, qualification and guard checks as a single call before anything is submitted. Prompt caching on the stable prefix (system + CFP + instructions). Handle the `refusal` stop reason explicitly. |
 | `openai-compat` | Self-hosted servers (vLLM, SGLang, llama.cpp), Azure OpenAI, other OpenAI-API hosts | `response_format: json_schema` where supported, otherwise grammar (vLLM guided decoding), otherwise tool-call | The self-hosted path. The base URL and model come from env. Capabilities are probed at startup (`pcs agent probe <engine>`), not assumed. |
 | `bedrock-converse` | Non-Claude models on Bedrock | tool-call JSON | Only if the comparison needs Bedrock-hosted open models. |
 | `replay` | Recorded results | n/a | Serves stored `CallResult`s by key. Used in CI and to re-render views without spending tokens. |
@@ -232,7 +232,7 @@ The only runtime destinations are the HotCRP instance, the configured engines' e
 
 ### 5.4 Storage
 
-Extracted text, call payloads, raw outputs, and flags live in the SQLCipher store (spec §7). The repo, CI, issues, and screenshots contain synthetic or public data only, as everywhere else in this project.
+Extracted text, call payloads, raw outputs, and flags live in the SQLCipher store (spec §7). On the agent's workstation the result store is `EncryptedFileResultStore` (`PCS_AGENT_STORE`, key from `PCS_AGENT_STORE_KEY_FILE`): one AES-256-GCM file per content address, the address authenticated, so a result cannot be moved to another key. The plain `FileResultStore` refuses `confidential` results, and `pcs agent bundle --class confidential` refuses to start without the encrypted store. The repo, CI, issues, and screenshots contain synthetic or public data only, as everywhere else in this project.
 
 ---
 
@@ -355,6 +355,13 @@ Every change to the agent falls into one of three classes:
 
 The planner (§4.4) reports which class a change falls into. Failures found in production become new oracle cases.
 
+**As built (M12).**
+- **Thresholds** are in `agent/checks/<id>/qualification.yaml` (`min_recall`, `max_false_flag_rate`, `min_anchor_validity`, `min_stability`, `min_positives`, `min_runs`), outside the version hash. They live there and not in `check.yaml` because any edit of `check.yaml` is a new version, which would invalidate the check's replay fixtures.
+- **Records** are a JSON list (`PCS_AGENT_QUALIFICATIONS`), one per (check version, engine, model, engine options, variant), written by `pcs agent qualify --engines ids [--k 3] [--confirm-spend]`. It runs the held-out evaluation and records a tuple only if every threshold is met on the scaffolded variant over at least `min_runs` runs. A scripted stand-in never earns a record. A record keeps its metrics, the thresholds it met, the hash of each file of the version, and the flags raised on each held-out paper.
+- **The gate** is in the dispatcher, after the clearance check and before the store, the guards or the adapter: a `confidential` request needs a record for exactly its check version, engine id, model, options and variant (`raw-pdf` if the request carries a PDF). Synthetic and public requests need none. `pcs agent run`, `screen` and `bundle` all build the dispatcher with the gate.
+- **`pcs agent plan --changes [--moves]`** compares what is routed with the records and classifies each LLM check: *covered* (a record matches; a price or concurrency edit is here, because neither is part of an engine's identity), *needs requalification* (a prompt, schema, code or `check.yaml` edit, with the files named; another model, platform or structured mode; no record yet), or *needs new evidence* (an edit under `oracle/`, or a check with no labelled positives, such as `summary` today). `--moves` runs the held-out evaluation for each changed check and lists the flags gained and lost against the flags the record kept; like `qualify` it calls a live engine only with `--confirm-spend`.
+- **Not classified:** a decision edit marks the checks that cite it stale (their keys change) but does not change qualification.
+
 ---
 
 ## 8. Layout
@@ -369,4 +376,6 @@ agent/            Gradle module (Kotlin); depends on core
   eval/           corpora manifests (no PDFs in git for non-synthetic), mutation operators, shootout + qualification
 ```
 
-The CLI commands are `pcs agent probe | plan | run | manifest | shootout | qualify | export-hotcrp | bundle`. `pcs agent bundle` writes the encrypted screening bundle that the chairs' apps import (spec §4, §10.3). GROBID runs as a local container next to the HotCRP harness, or in-process where its native libraries support the platform.
+The CLI commands are `pcs agent probe | plan | run | manifest | shootout | qualify | export-hotcrp | bundle`. `pcs agent bundle <pdf|dir>... --out dir --key-file f [--class c] [--cfp f] [--authors f] [--abstracts-by-paper f]` screens papers named `<paper id>.pdf` and writes the encrypted screening bundle that the chairs' apps import (spec §4, §10.3). `pcs import bundle <file> --key-file f` imports it.
+
+**The bundle.** One file, `bundle-<sha256>.pcsb`: a header line `PCSBUNDLE1 <sha256 of the plaintext>`, then AES-256-GCM (header as associated data) of one JSON document: `manifest` (format, creation time, each paper's id and PDF hash, the manifest rows, the qualification records the run relied on, the engines and the models they served), `findings` (every flag, with its anchors and engine; an unverified flag carries no quotation or engine prose), and `summaries`. The document is canonical (sorted), so equal content has equal address, and the address is recomputed after decryption. The key is 32 random bytes in URL-safe base64, written to `--key-file` (owner-only; never printed) and sent to the other chairs by a different channel. `core` owns the format (`net.jonbell.pcs.core.bundle`): the agent builds the payload, and the app imports it as a version of the `screening-bundle` import kind (one row per `pid|check|ground`, unverified keys without anchors) and keeps the manifest and summaries beside it in the encrypted store. The agent holds no HotCRP credential: authors and abstracts come in as files a chair exports from the mirror (`--authors`, `--abstracts-by-paper`). GROBID runs as a local container next to the HotCRP harness, or in-process where its native libraries support the platform.
