@@ -167,7 +167,7 @@ Every claim has a stable, namespaced ID, and every test names the claims it is e
 | `card:` | concepts §3.11 example cards (`card:X9`, `card:C3`), one claim per card and reading | 41 cards |
 | `rule:` | concepts §3.8 rules (`rule:may-remove`, `rule:owes`, `rule:composition`) | ~10 |
 | `cell:` | concepts §3.9 policy cells (`cell:ac/triage`), one per role and permission | 207 (9 roles × 23) |
-| `conv:` | spec §11 HotCRP conventions, one per row | 12 |
+| `conv:` | spec §11 HotCRP conventions, one per row | 17 |
 | `golden:` | the golden table rows (PLAN M2) | 13 |
 | `assume:` | concepts §3.12 assumptions (`assume:A2`) | 8 |
 | `q:` | open questions and their readings (`q:Q13=one-junior-or-nominee`) | 20 questions |
