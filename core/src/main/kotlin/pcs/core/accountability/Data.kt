@@ -21,6 +21,8 @@ public data class AccConfig(
     val signal: SignalConfig = SignalConfig(),
     /** Hours after the due date before "no reply" may be recorded (`PCS_ACC_GRACE_H`, the model's `Venue.accGraceH`). */
     val graceH: Long = Venue.DEFAULT_GRACE_H,
+    /** `PCS_SYNC_INTERVAL_MIN`: first-seen and HotCRP's own submission time may differ by this much before the report says so. */
+    val syncIntervalMin: Long = 15,
 ) {
     public companion object {
         private val signalSuffix = Regex("""\s*\[([a-z, -]+)]\s*$""")
@@ -40,6 +42,7 @@ public data class AccConfig(
                 criteria = criteria,
                 dueH = s.raw["PCS_REQUEST_DUE_H"]?.toLongOrNull() ?: 48,
                 graceH = s.venue.accGraceH,
+                syncIntervalMin = s.syncIntervalMin.toLong(),
                 signal =
                     SignalConfig(
                         minWords = s.raw["PCS_THRESH_MIN_WORDS"]?.toIntOrNull() ?: 150,
@@ -84,11 +87,40 @@ public data class AccReview(
     val words: Int,
     val ratings: List<String>,
     val merit: Int?,
+    /** When a sync first saw the review complete. A cross-check only: it says when the mirror looked, not when the reviewer submitted. */
     val firstCompleteAt: Instant?,
     val round: String?,
     val filled: Set<String>,
     val versionSeenAt: List<Long>,
-)
+    /** HotCRP's own time of the review's current version (`modified_at`). */
+    val modifiedAt: Instant? = null,
+    /** HotCRP's time of the review's first complete version, from `/reviewhistory`; null if that history was not read. */
+    val historyCompleteAt: Instant? = null,
+) {
+    /**
+     * When the reviewer submitted, by HotCRP's timestamps (never by when a sync first saw it): the first complete version in the
+     * history if it was read; else the current version's `modified_at` when that is not after [due] (a version at or before the
+     * deadline means the submission was too); else unknown (a revision after the deadline hides the original time, so the history is needed).
+     */
+    public fun submitted(due: Instant?): Submitted =
+        when {
+            status != "complete" -> Submitted.NotYet
+            historyCompleteAt != null -> Submitted.At(historyCompleteAt, exact = true)
+            modifiedAt != null && (due == null || !modifiedAt.isAfter(due)) -> Submitted.At(modifiedAt, exact = false)
+            else -> Submitted.Unknown
+        }
+}
+
+/** A review's submission time as HotCRP dates it. */
+public sealed interface Submitted {
+    public data object NotYet : Submitted
+
+    /** [exact]: from the version history; otherwise the current version's time, which is the submission time or later. */
+    public data class At(val at: Instant, val exact: Boolean) : Submitted
+
+    /** Complete, but revised after the deadline with no history read, so HotCRP's submission time is not in the mirror. */
+    public data object Unknown : Submitted
+}
 
 /** A suggestion an AC or the junior PC chair asked PC Supervisor to keep (spec §10.4 D). */
 public data class ManualSuggestion(val pid: Long, val ordinal: String, val source: Source, val criteria: List<Int>, val reasons: List<String>)
@@ -118,9 +150,15 @@ public object AccLoader {
                 .groupBy({ it.first }, { it.second })
         val versions =
             c.query("SELECT rid, seen_at FROM review_version ORDER BY rid, seen_at") { it.getLong(1) to it.getLong(2) }.groupBy({ it.first }, { it.second })
+        // HotCRP's time of each review's first complete version, for the reviews whose `/reviewhistory` was read (Backfill gives each
+        // version HotCRP's own time, and corrects a snapshot's first-seen time to it)
+        val completeAt =
+            c.query(
+                "SELECT v.rid, min(v.seen_at) FROM review_version v JOIN backfill b ON b.rid = v.rid WHERE v.status = 'complete' GROUP BY v.rid",
+            ) { it.getLong(1) to it.getLong(2) }.toMap()
         val reviews =
             c.query(
-                "SELECT rid, pid, lower(email), rtype, status, ordinal, word_count, ratings, scores, first_complete_seen_at, round " +
+                "SELECT rid, pid, lower(email), rtype, status, ordinal, word_count, ratings, scores, first_complete_seen_at, round, modified_at " +
                     "FROM review WHERE gone_at IS NULL AND email IS NOT NULL",
             ) {
                 val rid = it.getLong(1)
@@ -138,6 +176,8 @@ public object AccLoader {
                     it.getString(11),
                     filled[rid].orEmpty().toSet(),
                     versions[rid].orEmpty(),
+                    it.getObject(12)?.toString()?.toLongOrNull()?.let(Instant::ofEpochSecond),
+                    completeAt[rid]?.let(Instant::ofEpochSecond),
                 )
             }
         val tags =

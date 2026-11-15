@@ -98,6 +98,85 @@ class AccountabilityPlanTest {
     }
 
     @Test
+    @Covers("prop:AR3")
+    fun `lateness is dated from HotCRP's timestamps, so a mirror that first syncs after the deadline does not make on-time reviews late`() {
+        val firstSync = at(30).epochSecond
+        val s =
+            store {
+                person("sen@example.org", "Sam Senior")
+                person("jun@example.org", "Jo Junior")
+                person("nom@example.org", "Nia Nominee")
+                paper(1)
+                // submitted a day before the deadline, never revised; the mirror saw it a day after
+                review(1, "sen@example.org", ordinal = "A", words = 400, firstCompleteAt = firstSync, modifiedAt = at(-24).epochSecond, versionSeenAt = listOf(firstSync))
+                // submitted on time, revised after the deadline; its history was read and says so
+                review(
+                    1,
+                    "jun@example.org",
+                    ordinal = "B",
+                    words = 400,
+                    firstCompleteAt = firstSync,
+                    modifiedAt = at(26).epochSecond,
+                    historyCompleteAt = at(-5).epochSecond,
+                    versionSeenAt = listOf(at(-5).epochSecond),
+                )
+                // really late: the history says it was submitted two days after the deadline
+                review(
+                    1,
+                    "nom@example.org",
+                    ordinal = "C",
+                    words = 400,
+                    firstCompleteAt = firstSync,
+                    modifiedAt = at(48).epochSecond,
+                    historyCompleteAt = at(48).epochSecond,
+                    versionSeenAt = listOf(at(48).epochSecond),
+                )
+            }
+        val r = report(s, at(60))
+        val late = r.suggestions.filter { sg -> sg.reasons.any { "after the deadline" in it } }
+        assertEquals(listOf("C"), late.map { it.ordinal }, "only the review HotCRP says was submitted late")
+        assertTrue(late.single().reasons.any { "2 day(s) after the deadline" in it }, late.single().reasons.toString())
+        // the cross-check reports the reviews the mirror saw far from HotCRP's time, and what it used instead
+        assertTrue(r.dating.any { "first seen complete more than 15 minutes from HotCRP" in it && "#1 A" in it && "#1 B" in it }, r.dating.toString())
+        // a sync interval of four days makes the same gaps unremarkable
+        val loose = report(s, at(60), config = cfg.copy(syncIntervalMin = 60 * 100))
+        assertTrue(loose.dating.none { "first seen" in it }, loose.dating.toString())
+    }
+
+    @Test
+    @Covers("prop:AR3")
+    fun `a review revised after the deadline with no history read is not called late, and the report asks for the history`() {
+        val s =
+            store {
+                person("sen@example.org", "Sam Senior")
+                paper(1)
+                review(1, "sen@example.org", ordinal = "A", words = 400, firstCompleteAt = at(3).epochSecond, modifiedAt = at(2).epochSecond)
+            }
+        val r = report(s, at(10))
+        assertTrue(r.suggestions.none { sg -> sg.reasons.any { "after the deadline" in it } })
+        assertTrue(r.dating.single().contains("not flagged late") && r.dating.single().contains("#1 A"), r.dating.toString())
+        // once its history is read the same review is dated, and late
+        val read =
+            store {
+                person("sen@example.org", "Sam Senior")
+                paper(1)
+                review(
+                    1,
+                    "sen@example.org",
+                    ordinal = "A",
+                    words = 400,
+                    firstCompleteAt = at(3).epochSecond,
+                    modifiedAt = at(2).epochSecond,
+                    historyCompleteAt = at(1).epochSecond,
+                    versionSeenAt = listOf(at(1).epochSecond),
+                )
+            }
+        val after = report(read, at(10))
+        assertEquals(listOf("A"), after.suggestions.filter { sg -> sg.reasons.any { "after the deadline" in it } }.map { it.ordinal })
+        assertTrue(after.dating.none { "not flagged late" in it }, "no longer undetermined: ${after.dating}")
+    }
+
+    @Test
     fun `the coaching queue holds junior and nominee reviews below the floor or rated short and vague`() {
         val q = report(store(base), at(24)).coaching
         assertEquals(listOf(1L to "B", 2L to "B", 2L to "C"), q.map { it.pid to it.ordinal })

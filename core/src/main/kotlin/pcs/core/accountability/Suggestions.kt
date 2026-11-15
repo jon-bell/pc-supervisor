@@ -23,7 +23,8 @@ public data class ReviewMeta(
     /** The ids of the form fields that hold any text (never what the text says). */
     val filledFields: Set<String>,
     val ratings: List<String>,
-    val firstCompleteAt: Instant?,
+    /** When the reviewer submitted, by HotCRP's timestamps; null if it isn't complete or the time is not known (see `AccReview.submitted`). */
+    val submittedAt: Instant?,
 )
 
 public data class SignalConfig(
@@ -63,8 +64,8 @@ public object Suggestions {
         val missing = c.requiredFields.filter { it !in r.filledFields }
         if (missing.isNotEmpty()) out += Fired("empty-field", "required field(s) empty: ${missing.sorted().joinToString()}")
         val due = c.reviewDue
-        if (due != null && r.firstCompleteAt != null && r.firstCompleteAt.isAfter(due)) {
-            out += Fired("late", "submitted ${java.time.Duration.between(due, r.firstCompleteAt).toDays()} day(s) after the deadline")
+        if (due != null && r.submittedAt != null && r.submittedAt.isAfter(due)) {
+            out += Fired("late", "submitted ${java.time.Duration.between(due, r.submittedAt).toDays()} day(s) after the deadline")
         }
         return out
     }

@@ -156,6 +156,8 @@ public data class AccountabilityReport(
     val acPapers: Map<Long, Set<String>> = emptyMap(),
     /** The rules' view of the requests: what a person sent, and each open suggestion as a request nobody sent (so the model's mutants show). */
     val modelRequests: List<pcs.core.rules.Request> = emptyList(),
+    /** How lateness was dated: reviews whose HotCRP time is unknown, and reviews first seen by a sync far from HotCRP's own time (empty when all agree). */
+    val dating: List<String> = emptyList(),
 ) {
     /**
      * Who sees a reviewer's engagement record (Q21, policy cell `see-engagement`): the PC chairs see all; an AC the
