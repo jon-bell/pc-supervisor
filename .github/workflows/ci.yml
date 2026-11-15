@@ -189,12 +189,10 @@ jobs:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v4
-      - name: jpackage needs fakeroot and dpkg-deb
+      - name: Tools for jlink and jpackage (objcopy, zip, fakeroot, dpkg-deb)
         run: |
-          if ! command -v fakeroot >/dev/null 2>&1 || ! command -v dpkg-deb >/dev/null 2>&1; then
-            sudo -n apt-get update -q
-            sudo -n apt-get install -y -q --no-install-recommends fakeroot dpkg
-          fi
+          sudo -n apt-get update -q
+          sudo -n apt-get install -y -q --no-install-recommends binutils zip fakeroot dpkg
       - name: Build the .deb and start it headless
         run: scripts/package-linux.sh "$JAVA_HOME"
       - uses: actions/upload-artifact@v4
