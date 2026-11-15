@@ -9,6 +9,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import net.jonbell.pcs.testing.Covers
@@ -142,6 +144,28 @@ class OpenAiCompatEngineTest {
     }
 
     @Test
+    fun `the schema declaration is left out of every structured path, and the rest of the schema is sent unchanged`() {
+        val declared = JsonObject(TOY_SCHEMA + ("\$schema" to kotlinx.serialization.json.JsonPrimitive("https://json-schema.org/draft/2020-12/schema")))
+        val toolAnswer =
+            """{"model":"m","choices":[{"finish_reason":"tool_calls","message":{"tool_calls":""" +
+                """[{"function":{"name":"result","arguments":"{\"summary\":\"t\",\"notes\":[]}"}}]}}]}"""
+        for (mode in listOf("json_schema", "guided", "tool")) {
+            val (d, seen) = engine(mode, { HttpStatusCode.OK to if (mode == "tool") toolAnswer else ok("""{"summary":"s","notes":[]}""") })
+            assertEquals(Status.OK, d.run("sh", request().copy(schema = declared)).status, mode)
+            val body = seen.single().third
+            assertFalse(body.contains("\$schema"), "$mode sent a schema declaration: $body")
+            val b = json.parseToJsonElement(body).jsonObject
+            val sent =
+                when (mode) {
+                    "json_schema" -> b["response_format"]!!.jsonObject["json_schema"]!!.jsonObject["schema"]
+                    "guided" -> b["guided_json"]
+                    else -> b["tools"]!!.jsonArray.single().jsonObject["function"]!!.jsonObject["parameters"]
+                }
+            assertEquals(TOY_SCHEMA, sent, mode)
+        }
+    }
+
+    @Test
     fun `it refuses to send a PDF and never contacts a host other than its own`() {
         val (d, seen) = engine(handler = { HttpStatusCode.OK to ok("{}") })
         val pdf = request().copy(parts = listOf(Part.Pdf("p", "AAAA")))
@@ -225,6 +249,18 @@ class AnthropicEngineTest {
         assertEquals("high", oc["effort"]!!.jsonPrimitive.content)
         assertTrue(body.contains("cache_control"), "the stable system prefix has a cache breakpoint")
         assertTrue(body.contains("<<<DATA"))
+    }
+
+    @Test
+    fun `the schema declaration is left out of the native structured request`() {
+        val f = Fake { 200 to message("""{"summary":"s","notes":[]}""") }
+        val declared = JsonObject(TOY_SCHEMA + ("\$schema" to kotlinx.serialization.json.JsonPrimitive("https://json-schema.org/draft/2020-12/schema")))
+        assertEquals(Status.OK, dispatcher(f).run("api", request().copy(schema = declared)).status)
+        val body = f.requests.single().third
+        assertFalse(body.contains("\$schema"), "the request carried a schema declaration: $body")
+        val sent = json.parseToJsonElement(body).jsonObject["output_config"]!!.jsonObject["format"]!!.jsonObject["schema"]!!.jsonObject
+        assertEquals(TOY_SCHEMA["required"], sent["required"])
+        assertEquals(TOY_SCHEMA["properties"], sent["properties"])
     }
 
     @Test

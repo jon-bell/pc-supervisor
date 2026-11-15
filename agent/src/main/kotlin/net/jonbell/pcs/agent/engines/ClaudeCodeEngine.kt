@@ -38,7 +38,7 @@ class ClaudeCodeEngine(private val cfg: EngineConfig, private val timeoutSeconds
             "json",
             "--json-schema",
             // The CLI validates the schema itself and does not know the draft 2020-12 meta-schema URI, so `$schema` is left out.
-            Keys.canonical(JsonObject(req.schema.filterKeys { it != "\$schema" })),
+            Keys.canonical(JsonSchema.forProvider(req.schema)),
             "--strict-mcp-config",
             "--setting-sources",
             "",

@@ -113,7 +113,7 @@ class AnthropicEngine(
         listOf(TextBlockParam.builder().text(req.system).cacheControl(CacheControlEphemeral.builder().build()).build())
 
     private fun outputConfig(req: CallRequest): OutputConfig {
-        val schemaMap = req.schema.mapValues { jsonValue(it.value) }
+        val schemaMap = JsonSchema.forProvider(req.schema).mapValues { jsonValue(it.value) }
         return OutputConfig.builder().format(
             JsonOutputFormat.builder().schema(JsonOutputFormat.Schema.builder().additionalProperties(schemaMap).build()).build(),
         ).apply {

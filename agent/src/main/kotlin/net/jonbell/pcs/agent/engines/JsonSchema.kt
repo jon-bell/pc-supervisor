@@ -19,6 +19,13 @@ import kotlinx.serialization.json.longOrNull
  * schema, so a schema never silently validates less than it says.
  */
 object JsonSchema {
+    /**
+     * The schema as a provider's structured-output path takes it. Some of them (the `claude` CLI, and the endpoints behind `openai-compat`
+     * and the Anthropic API) do not know the draft 2020-12 meta-schema URI and reject `$schema`, so the top-level declaration is left out.
+     * Adapters call this; the request, its cache key and the validator still see the schema as the check wrote it.
+     */
+    fun forProvider(schema: JsonObject): JsonObject = JsonObject(schema.filterKeys { it != "\$schema" })
+
     private val annotations = setOf("\$schema", "\$id", "\$comment", "title", "description", "default", "examples", "\$defs", "definitions", "deprecated")
     private val known =
         setOf(
