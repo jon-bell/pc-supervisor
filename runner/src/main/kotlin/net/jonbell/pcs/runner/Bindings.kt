@@ -20,13 +20,10 @@ import net.jonbell.pcs.core.readings.Q16
 import net.jonbell.pcs.core.readings.QId
 import net.jonbell.pcs.core.readings.Readings
 import net.jonbell.pcs.core.rules.Conventions
-import net.jonbell.pcs.core.rules.DeskReject
 import net.jonbell.pcs.core.rules.ERCase
 import net.jonbell.pcs.core.rules.EarlyReject
 import net.jonbell.pcs.core.rules.Faults
 import net.jonbell.pcs.core.rules.Ground
-import net.jonbell.pcs.core.rules.Opinion
-import net.jonbell.pcs.core.rules.Referral
 import net.jonbell.pcs.core.rules.Score
 import net.jonbell.pcs.core.rules.ScoreScale
 import net.jonbell.pcs.core.rules.Stage
@@ -34,6 +31,13 @@ import net.jonbell.pcs.core.rules.Trace
 import net.jonbell.pcs.core.store.Store
 import net.jonbell.pcs.core.store.Sync
 import net.jonbell.pcs.core.time.Clock
+import net.jonbell.pcs.core.triage.DeskFactsReader
+import net.jonbell.pcs.core.triage.TriageDrafts
+import net.jonbell.pcs.core.triage.TriagePlan
+import net.jonbell.pcs.core.triage.TriageReport
+import net.jonbell.pcs.core.triage.TriageRow
+import net.jonbell.pcs.core.triage.TriageStatus
+import net.jonbell.pcs.core.writeback.Writeback
 import net.jonbell.pcs.runner.model.AccountabilityRequestsAction
 import net.jonbell.pcs.runner.model.AppointmentAndAssignmentAction
 import net.jonbell.pcs.runner.model.DeskRejectAction
@@ -246,6 +250,9 @@ class World(
             is DeskRejectOpinion -> {
                 if (faults.actorSkipsAction) {
                     Outcome.EFFECTIVE // the mutant: HotCRP is never touched, and the actor reports success
+                } else if (role == "pc-member" && a.who == Persons.AC_PERSON.who) {
+                    // the referring AC adds her own note to the PC in her screening review: HotCRP allows it, and it is never a second opinion
+                    outcome(tryReview(Persons.AC_REFERRING, """{"object":"review","ComPC":"$reviewText"}"""))
                 } else if (role == "pc-member") {
                     val who = Persons.byWho(a.who)
                     if (given.add(a.who)) {
@@ -257,20 +264,8 @@ class World(
                     outcome(tryReview(userOf(role!!), """{"object":"review","ComPC":"$reviewText","status":"complete"}"""))
                 }
             }
-            is DeskRejectOfferRemedy -> {
-                val due = clock.now().epochSecond + 72 * 3600
-                outcome(
-                    api.ok(
-                        api.call(
-                            "POST",
-                            "$pid/tags",
-                            form =
-                                "addtags=" + java.net.URLEncoder.encode(Conventions.encode(Trace.RemedyDue(pid, due)), Charsets.UTF_8),
-                        ),
-                    ),
-                )
-            }
-            is DeskRejectWarn -> outcome(api.ok(api.call("POST", "$pid/tags", form = "addtags=pcs-warned")))
+            is DeskRejectOfferRemedy -> chairActs { row -> TriageDrafts.offerRemedy(row, readings.q1!!, clock.now(), java.time.ZoneOffset.UTC).first }
+            is DeskRejectWarn -> chairActs { row -> TriageDrafts.warn(row).first }
             is DeskRejectCure -> {
                 val ok =
                     api.ok(
@@ -381,37 +376,46 @@ class World(
 
     // ---- `core` standing in for the chair's UI actions (the chair token) --------------------------------
 
-    /** PC Supervisor reads the AC's triage and mirrors it into the hidden tag (spec §11, conv:1). */
-    private fun mirrorTriage() {
-        val tri = hotcrp.referral() ?: return
-        api.call("POST", "$pid/tags", form = "addtags=pcs-refer-${tri.key}")
+    private fun writeback() = Writeback(store, clock, api.base, token)
+
+    /** A chair's confirmed artifact: draft, HotCRP's dry run, confirmation, apply (spec §6); the next sync observes it. */
+    private fun applyThroughWriteback(artifacts: List<net.jonbell.pcs.core.writeback.Artifact>) {
+        val wb = writeback()
+        for (a in artifacts) {
+            val id = wb.draft(a)
+            check(wb.dryRun(id).valid) { "HotCRP's dry run refused ${a.summary()}" }
+            wb.confirm(id)
+            wb.apply(id)
+        }
         sync()
+    }
+
+    /** PC Supervisor reads the AC's triage, mirrors it into the hidden tag, and moves her screening metareview to the normal round (spec §11, conv:1). */
+    private fun mirrorTriage() {
+        sync()
+        applyThroughWriteback(TriageDrafts.mirrorTriage(store))
+    }
+
+    private fun tier(email: String): net.jonbell.pcs.core.rules.Tier? = Persons.byEmail(email)?.tier
+
+    private fun plan(f: Faults = implFaults): TriageReport.Ready? =
+        TriagePlan.compute(store, null, emptyList(), readings, files.readStage(pid), clock.now().epochSecond / 3600, ::tier, f) as? TriageReport.Ready
+
+    /** The chair's action on this paper, drafted by core from the synced mirror and applied through Writeback. */
+    private fun chairActs(draft: (TriageRow) -> net.jonbell.pcs.core.writeback.Artifact): Outcome {
+        sync()
+        val row = plan()?.rows?.firstOrNull { it.pid == pid } ?: return Outcome.REFUSED
+        val art = runCatching { draft(row) }.getOrNull() ?: return Outcome.REFUSED
+        applyThroughWriteback(listOf(art))
+        return Outcome.EFFECTIVE
     }
 
     private fun chairRemove(): Outcome {
         sync()
-        val ref = referral() ?: return Outcome.REFUSED
-        if (!DeskReject.mayRemove(implFaults, readings, ref)) return Outcome.REFUSED
-        return outcome(api.ok(api.call("POST", "$pid/decision", mapOf("decision" to "Reject"))))
-    }
-
-    /** The referral as `core` derives it from the synced mirror (and the one fact only HotCRP's paper holds: the cure). */
-    private fun referral(): Referral? {
-        val tags = state.traces()
-        val ground = tags.filterIsInstance<Trace.Refer>().firstOrNull()?.ground ?: return null
-        val due = tags.filterIsInstance<Trace.RemedyDue>().firstOrNull()?.dueEpoch
-        return Referral(
-            ac = 1,
-            ground = ground,
-            opinions = state.opinionPersons().map { Opinion(it.who, it.isAc, it.tier) },
-            stage = files.readStage(pid),
-            remedyOffered = due != null,
-            remedyDue = due?.let { (it - clock.start.epochSecond) / 3600 } ?: 0,
-            cured = hotcrp.cured(),
-            warned = tags.any { it is Trace.Warned },
-            askedAt = askedAt,
-            now = clock.modelHours(),
-        )
+        val row = plan(implFaults)?.rows?.firstOrNull { it.pid == pid } ?: return Outcome.REFUSED
+        if (row.status != TriageStatus.READY) return Outcome.REFUSED
+        applyThroughWriteback(listOf(TriageDrafts.remove(listOf(row)).first))
+        return Outcome.EFFECTIVE
     }
 
     // ---- readers -----------------------------------------------------------------------------
@@ -425,10 +429,41 @@ class World(
 
     /** What HotCRP holds, as a chair. */
     inner class HotcrpReader {
-        private fun reviews(): List<JsonObject> = api.reviews(pid).let { if (faults.hotcrpReaderDropsLastRow) it.dropLast(1) else it }
+        private fun reviews(): List<JsonObject> =
+            api.reviews(pid).let { rs ->
+                // the mutant drops the last review row that is not the AC's metareview (HotCRP lists a moved, unsubmitted metareview last)
+                if (faults.hotcrpReaderDropsLastRow) {
+                    rs.indexOfLast { it.str("rtype") != "5" }.let { i ->
+                        if (i <
+                            0
+                        ) {
+                            rs
+                        } else {
+                            rs.filterIndexed { j, _ -> j != i }
+                        }
+                    }
+                } else {
+                    rs
+                }
+            }
 
+        /** The AC's triage as HotCRP holds it: the hidden tag a chair mirrored, else the Triage field of her screening metareview. */
         fun referral(): Ground? =
-            reviews().firstOrNull { it.str("reviewer_email") == Persons.AC_REFERRING }?.str("Tri")?.toIntOrNull()?.let { s -> Ground.entries.getOrNull(s - 2) }
+            paperTags().filter { it.startsWith("pcs-refer-") }.firstNotNullOfOrNull { Ground.ofKey(it.removePrefix("pcs-refer-").substringBefore('#')) }
+                ?: reviews().firstOrNull { it.str("reviewer_email") == Persons.AC_REFERRING }?.str("Tri")?.toIntOrNull()?.let { s ->
+                    Ground.entries.getOrNull(
+                        s - 2,
+                    )
+                }
+
+        private fun paperTags(): List<String> =
+            api.paper(pid)["tags"].let { t ->
+                when (t) {
+                    is JsonArray -> t.map { it.jsonPrimitive.content }
+                    null, is JsonNull -> emptyList()
+                    else -> t.jsonPrimitive.content.split(' ').filter { it.isNotBlank() }
+                }
+            }
 
         fun cured(): Boolean = api.paper(pid).str("abstract") == CURED_ABSTRACT
 
@@ -438,7 +473,10 @@ class World(
                 DeskRejectHotcrpObs.GROUND -> referral()?.let { JsonPrimitive(it.key) } ?: JsonNull
                 DeskRejectHotcrpObs.OPINIONS ->
                     JsonArray(
-                        reviews().filter { it.str("rtype") != "5" && it.str("status") == "complete" }
+                        reviews().filter {
+                            (it.str("rtype") != "5" && it.str("status") == "complete") ||
+                                (it.str("rtype") == "5" && !it.str("ComPC").isNullOrBlank())
+                        }
                             .mapNotNull { r -> r.str("reviewer_email")?.let { Persons.byEmail(it) } }.map { it.who }.sorted().map { JsonPrimitive(it) },
                     )
                 DeskRejectHotcrpObs.CURED -> JsonPrimitive(cured())
@@ -459,11 +497,8 @@ class World(
         }
 
         fun opinionPersons(): List<Giver> =
-            store.conn.createStatement().use { st ->
-                st.executeQuery("SELECT email FROM review WHERE pid = $pid AND rtype != 5 AND status = 'complete' AND gone_at IS NULL").use { rs ->
-                    buildList { while (rs.next()) Persons.byEmail(rs.getString(1))?.let { add(Giver(it.who, it.isAc, it.tier)) } }
-                }
-            }.sortedBy { it.who }
+            DeskFactsReader.read(store, ::tier).firstOrNull { it.pid == pid }?.opinions.orEmpty()
+                .mapNotNull { o -> Persons.byEmail(o.email)?.let { Giver(it.who, it.isAc, it.tier) } }.sortedBy { it.who }
 
         fun lastSync(): Instant =
             store.conn.createStatement().use { st ->

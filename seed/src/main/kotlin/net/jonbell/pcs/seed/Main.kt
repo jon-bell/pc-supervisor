@@ -8,6 +8,7 @@ val scenarios: Map<String, () -> Scenario> =
     mapOf(
         "golden" to { Golden.scenario },
         "early-reject" to { EarlyRejectScenario.scenario },
+        "screening" to { ScreeningScenario.scenario },
         "accountability" to { AccountabilityScenario.scenario },
         "nomination" to { Nomination.scenario },
         "assignment" to { AssignScenario.scenario },

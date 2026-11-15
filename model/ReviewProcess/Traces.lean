@@ -217,6 +217,11 @@ def deskTraces (tag : String) (r : Reading) : List Trace :=
     { id := s!"desk/{tag}/junior-alone-does-not-remove", family := "T5", claims := ["rule:may-remove"], reading := r,
       moves := [⟨some .ac, .refer .format⟩, ⟨some .pcMember, .opinion { who := 4, tier := some .junior }⟩,
                 ⟨some .pcChair, .remove⟩], verdict := .refused }
+  -- the referring AC's own opinion never counts (S1, `validOpinions`); this is what the "second opinion from anyone" mutant breaks
+  let acOwn : Trace :=
+    { id := s!"desk/{tag}/ac-own-opinion-does-not-count", family := "T5", claims := ["prop:S1", "rule:may-remove"], reading := r,
+      moves := [⟨some .ac, .refer .format⟩, ⟨some .pcMember, .opinion { who := 1, isAc := true, tier := some .senior }⟩,
+                ⟨some .pcChair, .remove⟩], verdict := .refused }
   let authorRefer : Trace :=
     { id := s!"desk/{tag}/author-cannot-refer", family := "T6", claims := ["cell:author/triage"], reading := r,
       moves := [⟨some .author, .refer .format⟩], verdict := .denied }
@@ -224,7 +229,7 @@ def deskTraces (tag : String) (r : Reading) : List Trace :=
     { id := s!"desk/{tag}/ac-cannot-remove", family := "T6", claims := ["cell:ac/remove"], reading := r,
       moves := [⟨some .ac, .refer .format⟩, ⟨some .pcMember, .opinion { who := 2, isAc := true, tier := some .senior }⟩,
                 ⟨some .ac, .remove⟩], verdict := .denied }
-  goals ++ uses ++ [silence, junior, authorRefer, acRemove]
+  goals ++ uses ++ [silence, junior, acOwn, authorRefer, acRemove]
 
 /-- A canonical string for an observation: keys sorted, values compressed. The report matches evidence by it. -/
 def obsKey (j : Json) : String :=

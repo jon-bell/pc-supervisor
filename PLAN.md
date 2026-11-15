@@ -606,6 +606,39 @@ Changing this table means changing the M3 and M18 tests in the same PR.
 - **Done when:** the model's desk-reject cards (P1–P5, E3–E11, S12) pass as generated tests; on the `screening` scenario, every paper's disposition matches the model's, including a referral with no second opinion that stays in review (S8) and an anonymity case honoring Q1's fix window; the decision artifact passes its dry run.
 - **Evidence:** `rule:may-remove` (T1, T2); `prop:S1`, `prop:S2`, `prop:S7`–`prop:S10`, `prop:S12` through T3 over every transition of the desk-reject subsystem (1,356 states today); `prop:S7`, `prop:S11`, `prop:C2` through T4; every admitted ground reached end to end and every unadmitted one unreachable (T5); `prop:M1`; the specification mutants "second opinion from anyone" and "silence removes" killed end to end.
 
+- **Progress (2026-11-15, branch `m13-desk-reject`):** done locally on fresh harnesses (CI not run); no LLM call: the bundle in the scenario is built from synthetic findings.
+  - **Built:**
+    - **Model:** one desk-reject witness trace per reading, `ac-own-opinion-does-not-count` (the referring AC's own note is an opinion that never counts), so the "second opinion from anyone" mutant has something to break. No rule or proof changed.
+    - **`core.rules.DeskFlow`:** the desk-reject step function (`deskRule`) behind the policy's grants, for T3.
+    - **`core.triage`:**
+      - `DeskFactsReader`/`DeskFacts`: a paper's referral read from the mirror (the hidden tag, else the Triage field of the AC's complete screen-round metareview; second opinions are complete screen-round reviews; the fix window, warning and decision from tags; a cure is an edit of the paper inside the window).
+      - `TriagePlan`: the queue from the latest bundle's verified findings, the refcheck import and the AC's flag. Each paper gets a status (`UNTRIAGED`, `KEPT`, `NEEDS_SECOND_OPINION`, `OPINION_PENDING`, `NEEDS_WARNING`, `NOT_ADMISSIBLE`, `TOO_LATE`, `NEEDS_REMEDY`, `REMEDY_OPEN`, `CURED`, `READY`, `REMOVED`) and the conjuncts of `mayRemove` that fail, in words. `READY` is `DeskReject.mayRemove`. Q3 timing is the stage from the phase dates; a removal after `PCS_PHASE_DESKREJECT_DUE` is `late`. `SecondOpinions.candidates` lists unconflicted PC members of Q2's kind.
+      - `Notices`: texts rendered from grounds (removal, fix window, warning, second-opinion request, the `[pcs:findings]` comment), with a `lint` for C2.
+      - `TriageDrafts`: Writeback artifacts and mail drafts for each chair step.
+      - `TriageFeedback`: S12's reveal rule, who is owed the Q4 form, answers kept locally (migration 007). The plan never reads them.
+      - `Consistency`: per-AC counts and spreads, listed alphabetically, plus the `prop:M1` band (Tukey fence widened by 0.05).
+      - `Session.triage()` and `Session.consistency()` as extension functions.
+    - **Store:** migration `007-screening.sql` (`paper.modified_at`, `triage_feedback`) and one line in `Sync` that records the paper's modified time.
+    - **`runner`:** the desk bindings now go through `core`: facts and plan from the synced mirror, and the AC's triage mirror, the unsubmit-and-move of her metareview (**M3a's leftover**), the fix window, the warning and the removal all through Writeback (draft, dry run, confirm, apply). A new control kills the "second opinion from anyone" mutant end to end (the AC's own note); "silence removes" is still killed.
+    - **`seed`:** the `screening` scenario (papers 401-416 and 451-475; `Scenario.settings`, `Assign.round`, `ScreenReview` and `EditPaper` events). **`app`:** a Triage tab.
+  - **Evidence:**
+    - T1/T2: `CardsTest` (all desk cards, E3-E11, S12, under every reading) and `MayRemoveDifferentialTest`, unchanged and green.
+    - T3: `DeskTransitionsTest` replays every transition of `transitions-desk.json` (both Q1 readings) against `DeskFlow` behind the policy's cells, refuses every other move, and evaluates S1, S2, S8, S9, S10 on each removal. `TriagePlanTest` checks `READY` iff `mayRemove` over 5 readings x grounds x stages x opinions x remedy states (over 100,000 states). `RunnerTest` runs all desk traces (37) end to end through `core`.
+    - T4: `TriagePairedTest` (200 pairs differing in the giver and the engine give the authors identical text; C2), `TriagePlanTest` (S7: revising a ruling never removes a paper; S11 is `SecondOpinionPairTest`).
+    - T10: `TriageMonitorTest` (`prop:M1` positive and negative) and `ScreeningScenarioTest` (end to end: an AC who refers every paper is outside the band).
+    - Done-when: `ScreeningScenarioTest` (seeded `screening`): every case paper's status equals the scenario's written table at two instants, including a referral with no second opinion that stays in review (S8, 402) and the anonymity cases honoring Q1's fix window (405 needs the window, 406 open then ready after it closes, 407 cured and kept). Each paper's removability equals the Lean oracle's answer for the referral the mirror gives. The chair's steps run through Writeback against the harness, and the removal's decision artifact passes its dry run.
+    - T12: `TriageUiTest`. `ControlsTest`: both named mutants caught.
+  - **Not done / deviations:**
+    - **Topic areas** are not in the mirror, so the consistency view is per AC only (it says so).
+    - **Disagreement** has no trace: a second opinion agrees by completing its screen-round review; a member who disagrees leaves it and says so in a PC comment. A disagreement is therefore "no agreement yet", which is what the model needs (the model's `agrees` is always true in traces).
+    - **Conflicted opinions** cannot be reached end to end (HotCRP gives a conflicted member no review), only by T2/T3. The AC's own note is the end-to-end case.
+    - The **feedback form** is a drafted mail the chair sends, with answers entered by the chair; there is no reviewer-facing form. The app has no buttons for the chair's steps yet (the artifacts are in `TriageDrafts`, tested through Writeback); the tab shows the queue.
+    - A "late" removal is judged by the stage at the clock's now: HotCRP records no decision time.
+    - The fix window is a constant 72 hours (the model's), not a setting.
+    - M1's notification is the tab's banner; no mail goes out.
+    - Mail for notices is drafted, never sent (the Mail page takes no token).
+  - **Decisions needed:** (1) the disagreement convention above; (2) whether the fix window length should be `PCS_REMEDY_WINDOW_H`; (3) the M1 band (Tukey fence, 5 papers, 4 ACs) is mine, not the spec's; (4) migration 007 may collide with another branch's.
+
 ---
 
 # Phase C: Assignment
