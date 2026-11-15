@@ -45,10 +45,13 @@ object OracleJson {
     /** The venue parameters a query or card case carries (`venue` object), or the defaults. */
     fun venue(o: JsonElement?): net.jonbell.pcs.core.rules.Venue {
         val v = (o as? JsonObject) ?: return net.jonbell.pcs.core.rules.Venue()
+        val d = net.jonbell.pcs.core.rules.Venue()
         return net.jonbell.pcs.core.rules.Venue(
-            nomineesMax = v["nomineesMax"]!!.jsonPrimitive.int,
-            patternMin = v["patternMin"]!!.jsonPrimitive.int,
-            accGraceH = v["accGraceH"]!!.jsonPrimitive.long,
+            nomineesMax = v["nomineesMax"]?.jsonPrimitive?.int ?: d.nomineesMax,
+            patternMin = v["patternMin"]?.jsonPrimitive?.int ?: d.patternMin,
+            accGraceH = v["accGraceH"]?.jsonPrimitive?.long ?: d.accGraceH,
+            remedyWindowH = v["remedyWindowH"]?.jsonPrimitive?.long ?: d.remedyWindowH,
+            juniorSeats = v["juniorSeats"]?.jsonPrimitive?.content?.let { net.jonbell.pcs.core.rules.JuniorSeats.ofKey(it) } ?: d.juniorSeats,
         )
     }
 

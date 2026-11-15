@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import net.jonbell.pcs.core.rules.JuniorSeats
 import net.jonbell.pcs.core.rules.Venue
 
 /** One case of an example card: a reading of the card's questions and the model's outcome under it. */
@@ -16,7 +17,7 @@ public data class Card(
     val text: String,
     val deps: List<QId>,
     val cases: List<CardCase>,
-    /** The venue parameters the outcome depends on (`nominees-max`, `pattern-min`, `acc-grace-h`); each case then names its venue. */
+    /** The venue parameters the outcome depends on (`nominees-max`, `pattern-min`, `acc-grace-h`, `remedy-window-h`, `junior-seats`); each case then names its venue. */
     val venueDeps: List<String> = emptyList(),
 ) {
     /**
@@ -99,6 +100,8 @@ public object ModelExport {
                                     v["nomineesMax"]!!.jsonPrimitive.content.toInt(),
                                     v["patternMin"]!!.jsonPrimitive.content.toInt(),
                                     v["accGraceH"]!!.jsonPrimitive.content.toLong(),
+                                    v["remedyWindowH"]?.jsonPrimitive?.content?.toLong() ?: Venue.DEFAULT_REMEDY_WINDOW_H,
+                                    v["juniorSeats"]?.jsonPrimitive?.content?.let { JuniorSeats.ofKey(it) } ?: JuniorSeats.FILL,
                                 )
                             },
                         )

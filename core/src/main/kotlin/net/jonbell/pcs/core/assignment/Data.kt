@@ -11,6 +11,7 @@ import net.jonbell.pcs.core.nominations.NominationRules
 import net.jonbell.pcs.core.readings.QId
 import net.jonbell.pcs.core.readings.Readings
 import net.jonbell.pcs.core.rules.Faults
+import net.jonbell.pcs.core.rules.JuniorSeats
 import net.jonbell.pcs.core.rules.Member
 import net.jonbell.pcs.core.rules.Tier
 import net.jonbell.pcs.core.store.Store
@@ -33,6 +34,8 @@ public data class AssignmentSettings(
     val weights: Map<String, Double> = emptyMap(),
     /** The conflict-engineering monitor's numbers (M3): `PCS_M3_AFFINITY_MIN`, `PCS_M3_MIN_EXCLUDED`, `PCS_M3_MIN_SHARE`, `PCS_M3_SIGMA`. */
     val monitor: MonitorConfig = MonitorConfig(),
+    /** Who takes the optional seats under Q13's "zero to two juniors" (`PCS_JUNIOR_SEATS`; the chair may choose another when running the plan). */
+    val juniorSeats: JuniorSeats = JuniorSeats.FILL,
 ) {
     public companion object {
         public fun of(s: Settings): AssignmentSettings =
@@ -41,6 +44,7 @@ public data class AssignmentSettings(
                 cycleMaxK = s.raw["PCS_CYCLE_MAX_K"]?.toIntOrNull()?.takeIf { it >= 1 } ?: 3,
                 topK = s.raw["PCS_SOLVER_TOPK"]?.toIntOrNull()?.takeIf { it >= 1 } ?: 25,
                 hard = s.raw["PCS_SOLVER_HARD"] == "1",
+                juniorSeats = s.venue.juniorSeats,
                 repairRounds = s.raw["PCS_CYCLE_REPAIR_MAX_ROUNDS"]?.toIntOrNull()?.takeIf { it >= 0 } ?: DEFAULT_REPAIR_ROUNDS,
                 monitor =
                     MonitorConfig(
@@ -201,6 +205,7 @@ public class AssignmentData(private val store: Store, private val imports: Impor
                 repairRounds = s.repairRounds,
                 topK = s.topK,
                 hard = s.hard,
+                juniorSeats = s.juniorSeats,
             )
         return AssignmentInput.Ready(
             AssignmentBuild(

@@ -44,7 +44,7 @@ Each sentence leaves questions open. Q1–Q6 concern screening. Q7–Q12 and Q18
 | Q10 | reciprocal   | Consequence of non-compliance (no nominee, or a nominee who never registers with the matching system) | desk reject; warning, then desk reject; warning only                                                                                                                                      |
 | Q11 | reciprocal   | Consequence of a failed review by an accepted nominee (absent, or grossly inadequate)                 | desk reject the nominee's own submissions; recorded for the PC chairs only; none                                                                                                                       |
 | Q12 | reciprocal   | Withhold an author's own reviews until their reviews as a nominee are in                              | yes; no (revisit in a later year)                                                                                                                                                         |
-| Q13 | assignment   | The slots beyond the two senior ones                                                                  | exactly one junior; one or two juniors; zero to two juniors ("when appropriate"); exactly one, filled by a junior or a nominee *Ruling (2026-11-15): under "zero to two juniors", juniors may fill seats in the first pass beside the seniors, or come in as reciprocal reviewers; both count toward the cap of two.* |
+| Q13 | assignment   | The slots beyond the two senior ones                                                                  | exactly one junior; one or two juniors; zero to two juniors ("when appropriate"); exactly one, filled by a junior or a nominee *Ruling (2026-11-15): under "zero to two juniors", juniors may fill seats in the first pass beside the seniors, or come in as reciprocal reviewers; both count toward the cap of two. Who takes the optional seats is a choice of the chair running the assignment (setting `PCS_JUNIOR_SEATS`, and the Assignment tab): `fill`, `when-short` or `reciprocal-only`, see rule `composition`.* |
 | Q14 | assignment   | Does a nominee the AC classifies as senior count toward the two senior slots                          | yes, tier alone decides; no, nominees fill only the non-senior slot, and their tier is kept for evaluation and expectations only                                                          |
 | Q15 | early reject | What counts as a negative initial review                                                              | reject only; reject or weak reject; anything below the accept side of the scale                                                                                                           |
 | Q16 | early reject | Do reviewers get a last word before an automatic early reject                                         | no, scores decide (reviewers are told up front to lean positive when borderline); a bump window of 24–72 h                                                                                |
@@ -284,7 +284,7 @@ state  Ground = format | scope | anonymity | fabricated-reference | misused-cita
 - **Finding:** `{ check@version, kind: Ground, anchors, depends: set Ruling, engine, status: unverified | verified }`. The agent's only action is to propose one. The harness verifies it.
 - **Triage:** the AC keeps or refers. Keeping needs nobody else. A referral names grounds, each backed by an upheld, usable finding.
 - **TriageFeedback:** under Q4's "after their own review" reading, each reviewer gets the paper's screening record once their review is submitted, with a short form: was the flag right, was anything missed, would you have referred it. The answers are the field evaluation of the screening (agent.md §8), and they never feed back into that paper's outcome.
-- **SecondOpinion:** one unconflicted PC member who isn't the AC agrees or disagrees. The answer never changes that member's review load. Load is capped.
+- **SecondOpinion:** one unconflicted PC member who isn't the AC agrees or disagrees: keep or remove, recorded in the `Triage` field of their own screen-round review (the same field as the AC's) and mirrored by a chair like the AC's. The answer never changes that member's review load. Load is capped.
 - **Remedy:** `{ ground, notified, due, cured }`, for curable grounds where a ruling grants it.
 - **Disposition:** `in-review | removed { grounds, path: desk-reject | early-reject, by: chair, at }`, initially in-review. The outcome is written to HotCRP through Writeback.
 - **Notice:** a template rendered from grounds and upheld findings. It never names an engine or asserts how a paper was written.
@@ -461,7 +461,12 @@ rule composition (p) -> Requirement
   two senior slots, plus Q13's remaining slots. Under "zero to two juniors" the
   remaining slots are optional: up to two juniors may sit beside the seniors in the
   first pass, or arrive as reciprocal reviewers working off owes(u), and both kinds
-  count toward the two. Who may fill which slot is Q14:
+  count toward the two. The chair running the assignment chooses who takes them
+  (a venue parameter, `Venue.juniorSeats`): `fill` (the default), juniors whenever load
+  and owes(u) leave room; `when-short`, seniors first, and a junior only to bring a
+  paper to three reviewers, two seniors and one more (so with both senior seats filled,
+  at most one junior); `reciprocal-only`, reciprocal nominees take the optional seats
+  and PC juniors sit only as in `when-short`. Who may fill which slot is Q14:
   under "tier alone decides", a nominee fills the slot of their tier; under
   "nominees fill only the non-senior slot", a senior slot needs a senior who is
   not there as a nominee, and the nominee's tier is recorded but not used here
@@ -606,6 +611,7 @@ These are synthetic cases with the outcome a signer confirms. Each card shows th
 | C7 | The conference ends | Engagement records kept for this conference only, or summarized for the next chairs | **Q21** |
 | **Assignment** ||||
 | P1 | The solver's first pass gives a paper three juniors | Repaired to two seniors plus Q13's remaining slot(s), or reported. Under "zero to two juniors", two juniors are fine and a third is not, reciprocal nominees counting | A1; **Q13** |
+| P6 | Two seniors, a reciprocal junior who owes a review and a PC junior can sit on a paper under "zero to two juniors"; and the same with one senior | `fill`: two juniors either way; `when-short`: one junior with both seniors, two with one; `reciprocal-only`: the reciprocal one with both seniors, both with one | **Q13**; the venue's junior seats |
 | P2 | A senior would get 17 papers with a band of 10–15 | Load spread, or reported | A4 |
 | P3 | The authors of A and B are each the best match for the other's paper | The cycle is broken at its weakest edge; reported | A3 |
 | P4 | A junior with no TPMS profile | Local affinity used and labeled; weak-match report if needed | Affinity |

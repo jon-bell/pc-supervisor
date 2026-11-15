@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -17,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
@@ -28,6 +30,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.jonbell.pcs.core.assignment.Slot
 import net.jonbell.pcs.core.assignment.SolveReport
+import net.jonbell.pcs.core.rules.JuniorSeats
 import net.jonbell.pcs.core.session.AssignmentState
 import net.jonbell.pcs.core.session.Session
 import java.awt.datatransfer.StringSelection
@@ -48,6 +51,11 @@ object AssignmentTags {
     const val DRAFT = "asg-draft"
     const val DRAFT_ERROR = "asg-draft-error"
     const val AUDIT = "asg-audit"
+    const val SEATS = "asg-seats"
+    const val SEATS_NOTE = "asg-seats-note"
+
+    /** The button that chooses a mode of `PCS_JUNIOR_SEATS` for the plan shown. */
+    fun seatsButton(key: String) = "asg-seats-$key"
 }
 
 /** One paper's line of the report. */
@@ -87,20 +95,44 @@ internal fun assignmentSummary(r: SolveReport): String =
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun AssignmentView(session: Session, opener: UrlOpener, version: Int, onDrafted: (Long) -> Unit) {
-    val state by produceRows(version) { listOf(session.assignment()) }
+    // the chair running the assignment chooses who takes the optional seats under Q13's "zero to two juniors"; the setting is the starting point
+    var seats by remember { mutableStateOf(session.settings.venue.juniorSeats) }
+    val state by produceRows(version, seats) { listOf(session.assignment(seats)) }
     Column(Modifier.fillMaxSize().testTag(AssignmentTags.SCREEN), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Junior seats (zero to two juniors):", Modifier.testTag(AssignmentTags.SEATS), style = MaterialTheme.typography.labelLarge)
+            JuniorSeats.entries.forEach { m ->
+                if (m == seats) {
+                    Button({ }, Modifier.testTag(AssignmentTags.seatsButton(m.key))) { Text(m.key) }
+                } else {
+                    OutlinedButton({ seats = m }, Modifier.testTag(AssignmentTags.seatsButton(m.key))) { Text(m.key) }
+                }
+            }
+        }
+        Text(
+            "Selected: ${seats.key}. ${seatsNote(seats)}",
+            Modifier.testTag(AssignmentTags.SEATS_NOTE),
+            style = MaterialTheme.typography.bodySmall,
+        )
         when (val s = state.firstOrNull()) {
             null -> Text("Computing…", style = MaterialTheme.typography.bodyMedium)
             is AssignmentState.Blocked ->
                 Text(s.reasons.joinToString("\n") { "Blocked: $it" }, Modifier.testTag(AssignmentTags.BLOCKED), color = MaterialTheme.colorScheme.error)
-            is AssignmentState.Ready -> Ready(session, opener, s.report, onDrafted)
+            is AssignmentState.Ready -> Ready(session, opener, s.report, seats, onDrafted)
         }
     }
 }
 
+internal fun seatsNote(m: JuniorSeats): String =
+    when (m) {
+        JuniorSeats.FILL -> "Juniors take the optional seats whenever load and what a nominee owes leave room, up to two a paper."
+        JuniorSeats.WHEN_SHORT -> "Seniors first; a junior sits only to bring a paper to three reviewers (two seniors and one more)."
+        JuniorSeats.RECIPROCAL_ONLY -> "The optional seats go to reciprocal nominees working off what they owe; PC juniors sit only as in when-short."
+    } + " It matters only under Q13's zero to two juniors."
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun Ready(session: Session, opener: UrlOpener, r: SolveReport, onDrafted: (Long) -> Unit) {
+private fun Ready(session: Session, opener: UrlOpener, r: SolveReport, seats: JuniorSeats, onDrafted: (Long) -> Unit) {
     val clip = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var error by remember { mutableStateOf<String?>(null) }
@@ -178,7 +210,7 @@ private fun Ready(session: Session, opener: UrlOpener, r: SolveReport, onDrafted
                 OutlinedButton({
                     scope.launch {
                         try {
-                            val id = withContext(Dispatchers.IO) { session.draftAssignment() }
+                            val id = withContext(Dispatchers.IO) { session.draftAssignment(seats) }
                             error = null
                             onDrafted(id)
                         } catch (e: Exception) {

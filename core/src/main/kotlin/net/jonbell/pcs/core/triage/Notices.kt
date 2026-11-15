@@ -41,8 +41,10 @@ public object Notices {
     /** What a chair sends to ask one PC member for a second opinion (Q2). The member is told no more than they need. */
     public fun secondOpinionRequest(g: Ground): String =
         "Hello,\n\nCould you give a second opinion on paper #%NUMBER%, \"%TITLE%\"? The area chair thinks the paper ${groundText(g)}. " +
-            "Please read the paper only as far as you need to say whether you agree, and then complete the short screening review in HotCRP. " +
-            "If you disagree, leave it, and tell the chairs why in a PC comment. Completing the review means you agree.\n"
+            "Please read the paper only as far as you need to decide, and then complete the short screening review in HotCRP: in its Triage field choose " +
+            "Keep if the paper should stay in review, or any of the Refer values if you agree it should be desk rejected. " +
+            "Your choice is recorded as it stands; " +
+            "a review left without one is not an opinion.\n"
 
     /**
      * The screening record as a comment (spec §11): its first line is the marker, so a sync reads it as a trace. It lists the verified

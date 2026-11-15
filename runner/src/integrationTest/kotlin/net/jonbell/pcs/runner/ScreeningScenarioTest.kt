@@ -55,7 +55,7 @@ import java.nio.file.Files
 import java.time.Instant
 
 /**
- * PLAN M13's scenario: the harness is seeded with `screening` (papers 401-416 beside golden's, and 451-475), synced, a screening
+ * PLAN M13's scenario: the harness is seeded with `screening` (papers 401-417 beside golden's, and 451-475), synced, a screening
  * bundle imported, and the triage queue computed. Every case paper's status is the scenario's own table
  * (`ScreeningScenario.expected`, written down, not computed) and its removability is the Lean model's answer (`lake exe oracle`,
  * asked for each referral as the mirror gave it). Then the chair's steps run through Writeback against the harness.
@@ -74,7 +74,7 @@ class ScreeningScenarioTest {
     private val readings =
         Readings(q1 = Q1.FIX_WINDOW, q2 = Q2.AC_PLUS_SENIOR, q3 = Q3.ANY_UNTIL_RELEASE, q6 = Q6.GROUNDS, q10 = Q10.WARN_THEN_REJECT)
     private val tier: (String) -> Tier? = { if (it.startsWith("sc-junior")) Tier.JUNIOR else Tier.SENIOR }
-    private val cases = 401L..416L
+    private val cases = 401L..417L
 
     private fun sync() =
         runBlocking { HotcrpClient(Session.harness, Session.token, chunk = 50, strict = true).use { Sync(store, clock).run(it) } }

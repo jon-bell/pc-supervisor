@@ -14,6 +14,7 @@ import net.jonbell.pcs.core.LiveOracle
 import net.jonbell.pcs.core.readings.Q13
 import net.jonbell.pcs.core.readings.Q14
 import net.jonbell.pcs.core.rules.Faults
+import net.jonbell.pcs.core.rules.JuniorSeats
 import net.jonbell.pcs.core.rules.Member
 import net.jonbell.pcs.core.rules.Tier
 import net.jonbell.pcs.testing.Covers
@@ -42,6 +43,7 @@ import org.junit.jupiter.api.TestFactory
     "q:Q13=one-junior",
     "q:Q14=nominee-not-senior",
     "prop:A5",
+    "card:P6",
 )
 class PlanOracleTest {
     private fun tier(j: kotlinx.serialization.json.JsonElement): Tier? =
@@ -55,7 +57,7 @@ class PlanOracleTest {
             }
         }
 
-    private data class Variant(val name: String, val q13: Q13, val q14: Q14, val q18: String)
+    private data class Variant(val name: String, val q13: Q13, val q14: Q14, val q18: String, val juniorSeats: JuniorSeats = JuniorSeats.FILL)
 
     private val variants =
         listOf(
@@ -63,6 +65,13 @@ class PlanOracleTest {
             Variant("one junior", Q13.ONE_JUNIOR, Q14.TIER_DECIDES, "once"),
             Variant("zero to two", Q13.ZERO_TO_TWO_JUNIORS, Q14.TIER_DECIDES, "once"),
             Variant("zero to two, nominee not senior", Q13.ZERO_TO_TWO_JUNIORS, Q14.NOMINEE_NOT_SENIOR, "once"),
+            // the chair's choice of who takes the optional seats (PCS_JUNIOR_SEATS): each mode against the Lean solver, under both readings of Q14
+            Variant("zero to two, junior seats when short", Q13.ZERO_TO_TWO_JUNIORS, Q14.TIER_DECIDES, "once", JuniorSeats.WHEN_SHORT),
+            Variant("zero to two, junior seats reciprocal only", Q13.ZERO_TO_TWO_JUNIORS, Q14.TIER_DECIDES, "once", JuniorSeats.RECIPROCAL_ONLY),
+            Variant("zero to two, nominee not senior, when short", Q13.ZERO_TO_TWO_JUNIORS, Q14.NOMINEE_NOT_SENIOR, "once", JuniorSeats.WHEN_SHORT),
+            Variant("zero to two, nominee not senior, reciprocal only", Q13.ZERO_TO_TWO_JUNIORS, Q14.NOMINEE_NOT_SENIOR, "once", JuniorSeats.RECIPROCAL_ONLY),
+            Variant("zero to two, nominee not senior, fill", Q13.ZERO_TO_TWO_JUNIORS, Q14.NOMINEE_NOT_SENIOR, "once", JuniorSeats.FILL),
+            Variant("one or two juniors ignores the choice", Q13.ONE_OR_TWO_JUNIORS, Q14.TIER_DECIDES, "once", JuniorSeats.RECIPROCAL_ONLY),
             Variant("junior or nominee", Q13.ONE_JUNIOR_OR_NOMINEE, Q14.TIER_DECIDES, "once"),
             Variant("nominee not senior", Q13.ONE_OR_TWO_JUNIORS, Q14.NOMINEE_NOT_SENIOR, "once"),
             Variant("per paper", Q13.ONE_OR_TWO_JUNIORS, Q14.TIER_DECIDES, "per-paper"),
@@ -79,6 +88,7 @@ class PlanOracleTest {
                         put("Q13", v.q13.key)
                         put("Q14", v.q14.key)
                         put("Q18", v.q18)
+                        put("venue", buildJsonObject { put("juniorSeats", v.juniorSeats.key) })
                     },
                 )
             },
@@ -116,7 +126,7 @@ class PlanOracleTest {
                 val a = ask(scale, v)
                 val want = a["outcome"]!!.jsonObject
                 val input = inputOf(a)
-                val cfg = PlanConfig(v.q13, v.q14, Faults.NONE, cycleMaxK = 2, repairRounds = 10, topK = 25)
+                val cfg = PlanConfig(v.q13, v.q14, Faults.NONE, cycleMaxK = 2, repairRounds = 10, topK = 25, juniorSeats = v.juniorSeats)
                 val got = Planner.solve(input, cfg)
 
                 fun w(k: String) = want[k]!!.jsonPrimitive.int

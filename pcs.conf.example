@@ -76,6 +76,21 @@ PCS_REVIEWS_REQUIRED=3
 # PCS_PATTERN_MIN=3
 # AR5: hours after a request's due date before "no reply" may be recorded (default 48).
 # PCS_ACC_GRACE_H=48
+# Q1 "fix window": hours the author has to cure an anonymity problem once the chair offers the fix (default 72).
+# PCS_REMEDY_WINDOW_H=72
+# Q13 "zero to two juniors": who takes the optional seats, a choice of the chair running the assignment (the Assignment tab can override it).
+# fill (default): juniors whenever load and what a nominee owes leave room, up to two a paper;
+# when-short: seniors first, a junior only to bring a paper to three reviewers (two seniors and one more);
+# reciprocal-only: reciprocal nominees take the optional seats, PC juniors only as in when-short.
+# PCS_JUNIOR_SEATS=fill
+
+# --- AC consistency band (prop:M1; owner's ruling 2026-11-15) -------------------
+# Tukey's fence on the ACs' referral and desk-reject rates, widened by this much (default 0.05).
+# PCS_CONSISTENCY_FENCE_PAD=0.05
+# ACs with fewer papers than this are listed but not compared (default 5).
+# PCS_CONSISTENCY_MIN_PAPERS=5
+# Fewer comparable ACs than this form no band (default 4).
+# PCS_CONSISTENCY_MIN_ACS=4
 
 # --- Rule thresholds and weights (defaults in core; override any) -----------
 # PCS_THRESH_SPLIT_RANGE=2

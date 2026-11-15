@@ -46,8 +46,18 @@ public fun Session.triage(f: Faults = Faults.NONE): TriageReport {
     val bundle = ScreeningBundles(store, imports, clock).latest()
     val refcheck = imports.latest(ImportKind.REFCHECK)?.rows.orEmpty()
     val now = clock.now()
-    return TriagePlan.compute(store, bundle, refcheck, answers().readings, stageAt(settings.phases, now), now.epochSecond / 3600, tiers(), f)
+    return TriagePlan.compute(
+        store,
+        bundle,
+        refcheck,
+        answers().readings,
+        stageAt(settings.phases, now),
+        now.epochSecond / 3600,
+        tiers(),
+        f,
+        settings.venue.remedyWindowH,
+    )
 }
 
 /** The per-AC consistency view and the `prop:M1` band alerts for a ready report. */
-public fun Session.consistency(report: TriageReport.Ready): ConsistencyView = Consistency.view(store, report.rows)
+public fun Session.consistency(report: TriageReport.Ready): ConsistencyView = Consistency.view(store, report.rows, settings.consistency)

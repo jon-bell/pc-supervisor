@@ -48,16 +48,26 @@ public data class ConsistencyView(
     val note: String?,
 )
 
+/**
+ * The consistency band's numbers (`prop:M1`; the owner's ruling, 2026-11-15: each is a setting): Tukey's fence widened by [fencePad] so that a
+ * tiny departure in a quiet population is not an alert (`PCS_CONSISTENCY_FENCE_PAD`), ACs with fewer than [minPapers] papers are shown but not
+ * compared (`PCS_CONSISTENCY_MIN_PAPERS`), and fewer than [minAcs] comparable ACs form no band (`PCS_CONSISTENCY_MIN_ACS`).
+ */
+public data class ConsistencyBand(
+    val fencePad: Double = DEFAULT_FENCE_PAD,
+    val minPapers: Int = DEFAULT_MIN_PAPERS,
+    val minAcs: Int = DEFAULT_MIN_ACS,
+) {
+    public companion object {
+        public const val DEFAULT_FENCE_PAD: Double = 0.05
+        public const val DEFAULT_MIN_PAPERS: Int = 5
+        public const val DEFAULT_MIN_ACS: Int = 4
+    }
+}
+
 public object Consistency {
-    /** The fence the band uses: Tukey's, widened by [minDelta] so that a tiny departure in a quiet population is not an alert. */
+    /** Tukey's multiplier. */
     public const val FENCE_K: Double = 1.5
-    public const val MIN_DELTA: Double = 0.05
-
-    /** ACs with fewer papers than this are shown but not compared. */
-    public const val MIN_PAPERS: Int = 5
-
-    /** Fewer ACs than this form no band. */
-    public const val MIN_ACS: Int = 4
 
     public fun rates(store: Store, rows: List<TriageRow>): List<AcRates> {
         val byPid = rows.associateBy { it.pid }
@@ -80,9 +90,9 @@ public object Consistency {
     }
 
     /** The out-of-band ACs for one metric. */
-    public fun bandAlerts(perAc: List<AcRates>, minPapers: Int = MIN_PAPERS, minAcs: Int = MIN_ACS): List<BandAlert> {
-        val eligible = perAc.filter { it.papers >= minPapers }
-        if (eligible.size < minAcs) return emptyList()
+    public fun bandAlerts(perAc: List<AcRates>, band: ConsistencyBand = ConsistencyBand()): List<BandAlert> {
+        val eligible = perAc.filter { it.papers >= band.minPapers }
+        if (eligible.size < band.minAcs) return emptyList()
         return listOf<
             Pair<
                 String,
@@ -92,15 +102,15 @@ public object Consistency {
             >,
         >("referral rate" to { it.referralRate }, "desk-reject rate" to { it.removalRate }).flatMap { (name, f) ->
             val s = Spread.of(eligible.map(f))!!
-            val lo = s.q1 - FENCE_K * s.iqr - MIN_DELTA
-            val hi = s.q3 + FENCE_K * s.iqr + MIN_DELTA
+            val lo = s.q1 - FENCE_K * s.iqr - band.fencePad
+            val hi = s.q3 + FENCE_K * s.iqr + band.fencePad
             eligible.filter { f(it) < lo || f(it) > hi }.map { BandAlert(it.ac, name, f(it), lo, hi) }
         }
     }
 
-    public fun view(store: Store, rows: List<TriageRow>): ConsistencyView {
+    public fun view(store: Store, rows: List<TriageRow>, band: ConsistencyBand = ConsistencyBand()): ConsistencyView {
         val per = rates(store, rows)
-        val eligible = per.filter { it.papers >= MIN_PAPERS }
+        val eligible = per.filter { it.papers >= band.minPapers }
 
         fun hist(f: (AcRates) -> Double) = IntArray(10).also { b -> eligible.forEach { b[minOf((f(it) * 10).toInt(), 9)]++ } }.toList()
         return ConsistencyView(
@@ -109,10 +119,10 @@ public object Consistency {
             referral = Spread.of(eligible.map { it.referralRate }),
             removal = Spread.of(eligible.map { it.removalRate }),
             histograms = mapOf("flag rate" to hist { it.flagRate }, "referral rate" to hist { it.referralRate }, "desk-reject rate" to hist { it.removalRate }),
-            alerts = bandAlerts(per),
+            alerts = bandAlerts(per, band),
             note =
                 "Topic areas are not in the mirror (HotCRP's topics are not synced), so rates are per AC only. " +
-                    "ACs with fewer than $MIN_PAPERS papers are listed but not compared.",
+                    "ACs with fewer than ${band.minPapers} papers are listed but not compared.",
         )
     }
 }

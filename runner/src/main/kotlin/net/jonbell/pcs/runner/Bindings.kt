@@ -239,6 +239,9 @@ class World(
             is AppointmentAndAssignmentAction -> appointment.perform(a, role)
         }
 
+    /** A second opinion's Triage value (spec §11, row 3): 1 is keep (the member disagrees), a ground's symbol is remove (the member agrees). */
+    private fun opinionSymbol(a: DeskRejectOpinion): Int = if (a.agrees) (hotcrp.referral()?.ordinal ?: Ground.FORMAT.ordinal) + 2 else 1
+
     private fun desk(a: DeskRejectAction, role: String?): Outcome =
         when (a) {
             is DeskRejectRefer -> {
@@ -259,9 +262,9 @@ class World(
                         if (askedAt == 0L) askedAt = clock.modelHours()
                         check(api.ok(api.assign("""{"pid":$pid,"action":"pcreview","user":"${who.email}","round":"screen"}""")))
                     }
-                    outcome(tryReview(who.email, """{"object":"review","ComPC":"$reviewText","status":"complete"}"""))
+                    outcome(tryReview(who.email, """{"object":"review","ComPC":"$reviewText","Tri":${opinionSymbol(a)},"status":"complete"}"""))
                 } else {
-                    outcome(tryReview(userOf(role!!), """{"object":"review","ComPC":"$reviewText","status":"complete"}"""))
+                    outcome(tryReview(userOf(role!!), """{"object":"review","ComPC":"$reviewText","Tri":${opinionSymbol(a)},"status":"complete"}"""))
                 }
             }
             is DeskRejectOfferRemedy -> chairActs { row -> TriageDrafts.offerRemedy(row, readings.q1!!, clock.now(), java.time.ZoneOffset.UTC).first }
@@ -474,9 +477,15 @@ class World(
                 DeskRejectHotcrpObs.OPINIONS ->
                     JsonArray(
                         reviews().filter {
-                            (it.str("rtype") != "5" && it.str("status") == "complete") ||
+                            (it.str("rtype") != "5" && it.str("status") == "complete" && it.str("Tri") != null) ||
                                 (it.str("rtype") == "5" && !it.str("ComPC").isNullOrBlank())
                         }
+                            .mapNotNull { r -> r.str("reviewer_email")?.let { Persons.byEmail(it) } }.map { it.who }.sorted().map { JsonPrimitive(it) },
+                    )
+                // a second opinion that says keep: Triage symbol 1 in a complete screen-round review
+                DeskRejectHotcrpObs.DISAGREEING ->
+                    JsonArray(
+                        reviews().filter { it.str("rtype") != "5" && it.str("status") == "complete" && it.str("Tri") == "1" }
                             .mapNotNull { r -> r.str("reviewer_email")?.let { Persons.byEmail(it) } }.map { it.who }.sorted().map { JsonPrimitive(it) },
                     )
                 DeskRejectHotcrpObs.CURED -> JsonPrimitive(cured())
@@ -496,8 +505,8 @@ class World(
             return Conventions.decode(pid, Json.parseToJsonElement(tags).jsonArray.map { it.jsonPrimitive.content })
         }
 
-        fun opinionPersons(): List<Giver> =
-            DeskFactsReader.read(store, ::tier).firstOrNull { it.pid == pid }?.opinions.orEmpty()
+        fun opinionPersons(onlyDisagreeing: Boolean = false): List<Giver> =
+            DeskFactsReader.read(store, ::tier).firstOrNull { it.pid == pid }?.opinions.orEmpty().filter { !onlyDisagreeing || !it.agrees }
                 .mapNotNull { o -> Persons.byEmail(o.email)?.let { Giver(it.who, it.isAc, it.tier) } }.sortedBy { it.who }
 
         fun lastSync(): Instant =
@@ -514,6 +523,7 @@ class World(
                 DeskRejectStateObs.REFERRED -> JsonPrimitive(ground != null)
                 DeskRejectStateObs.GROUND -> ground?.let { JsonPrimitive(it.key) } ?: JsonNull
                 DeskRejectStateObs.OPINIONS -> JsonArray(opinionPersons().map { JsonPrimitive(it.who) })
+                DeskRejectStateObs.DISAGREEING -> JsonArray(opinionPersons(onlyDisagreeing = true).map { JsonPrimitive(it.who) })
                 DeskRejectStateObs.STAGE -> JsonPrimitive(files.readStage(pid).key)
                 DeskRejectStateObs.REMEDY_DUE ->
                     tr.filterIsInstance<Trace.RemedyDue>().firstOrNull()?.let { JsonPrimitive((it.dueEpoch - clock.start.epochSecond) / 3600) } ?: JsonNull

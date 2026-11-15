@@ -27,8 +27,18 @@ import net.jonbell.pcs.core.writeback.ConventionAudit
 /** Where the AC's triage was read from. A review is the AC's own words; a tag is what a chair mirrored from it. */
 public enum class TriageSource { TAG, REVIEW }
 
-/** One person who gave a second opinion; [isAcNote] is the AC's own comment to the PC in her screening review, which is never an opinion. */
-public data class GivenOpinion(val email: String, val tier: Tier?, val conflicted: Boolean, val isAcNote: Boolean = false, val requestedAtH: Long? = null)
+/**
+ * One person who gave a second opinion. [agrees] is false when they said keep in the Triage field of their screen-round review (true for remove,
+ * the model's `Opinion.agrees`). [isAcNote] is the AC's own comment to the PC in her screening review, which is never an opinion.
+ */
+public data class GivenOpinion(
+    val email: String,
+    val tier: Tier?,
+    val conflicted: Boolean,
+    val isAcNote: Boolean = false,
+    val requestedAtH: Long? = null,
+    val agrees: Boolean = true,
+)
 
 public data class DeskFacts(
     val pid: Long,
@@ -66,7 +76,7 @@ public data class DeskFacts(
             ground = g,
             opinions =
                 opinions.map { o ->
-                    Opinion(if (o.email.equals(ac, true)) 1 else ids.getValue(o.email.lowercase()), o.email.equals(ac, true), o.tier, o.conflicted)
+                    Opinion(if (o.email.equals(ac, true)) 1 else ids.getValue(o.email.lowercase()), o.email.equals(ac, true), o.tier, o.conflicted, o.agrees)
                 },
             stage = stage,
             remedyOffered = remedyDueH != null,
@@ -92,17 +102,29 @@ public object DeskFactsReader {
         val modified: Long?,
     )
 
-    private data class Rv(val pid: Long, val email: String, val rtype: Int, val status: String, val round: String?, val firstSeen: Long, val note: Boolean)
+    private data class Rv(
+        val pid: Long,
+        val rid: Long,
+        val email: String,
+        val rtype: Int,
+        val status: String,
+        val round: String?,
+        val firstSeen: Long,
+        val note: Boolean,
+    )
 
     /** Facts for every paper that is referred, kept, has a screen-round review, or is in [also] (the papers the bundle flagged). */
     public fun read(store: Store, tier: (String) -> Tier?, remedyWindowH: Long = DeskFlow.REMEDY_WINDOW_H, also: Set<Long> = emptySet()): List<DeskFacts> {
         val triage = ConventionAudit.trustedTriage(store).associateBy { it.pid }
+        val unmirrored = ConventionAudit.trustedOpinions(store).groupBy { it.pid }
         val reviews =
             store.conn.query(
-                "SELECT r.pid, lower(r.email), r.rtype, r.status, r.round, r.first_seen_at, " +
+                "SELECT r.pid, r.rid, lower(r.email), r.rtype, r.status, r.round, r.first_seen_at, " +
                     "EXISTS(SELECT 1 FROM review_text t WHERE t.rid = r.rid AND t.vtag = r.vtag AND t.field_uid = 'ComPC' AND trim(t.text) <> '') " +
                     "FROM review r WHERE r.gone_at IS NULL AND r.email IS NOT NULL ORDER BY r.rid",
-            ) { Rv(it.getLong(1), it.getString(2), it.getInt(3), it.getString(4), it.getString(5), it.getLong(6), it.getInt(7) == 1) }.groupBy { it.pid }
+            ) {
+                Rv(it.getLong(1), it.getLong(2), it.getString(3), it.getInt(4), it.getString(5), it.getString(6), it.getLong(7), it.getInt(8) == 1)
+            }.groupBy { it.pid }
         val out = mutableListOf<DeskFacts>()
         store.conn.query("SELECT pid, coalesce(title,''), decision, tags, pc_conflicts, authors, modified_at FROM paper WHERE gone_at IS NULL ORDER BY pid") {
             Pr(
@@ -118,6 +140,16 @@ public object DeskFactsReader {
             val rvs = reviews[pid].orEmpty()
             val ac = rvs.firstOrNull { it.rtype == 5 }?.email
             val screen = rvs.filter { it.round == "screen" && it.rtype != 5 }
+            // second opinions: the hidden tag a chair mirrored (the review has since moved to the normal round), else the Triage value still in the review
+            val tagged = traces.filterIsInstance<Trace.Opinion>().mapNotNull { t -> rvs.firstOrNull { it.rid == t.rid }?.let { it to t.keep } }
+            val seen =
+                unmirrored[pid].orEmpty().filter { o -> tagged.none { it.first.rid == o.rid } }.mapNotNull { o ->
+                    rvs.firstOrNull { it.rid == o.rid }?.let {
+                        it to
+                            o.keep
+                    }
+                }
+            val recorded = tagged + seen
             val tagChoice =
                 when {
                     traces.any { it is Trace.Keep } -> TriageChoice.Keep
@@ -127,9 +159,7 @@ public object DeskFactsReader {
             val choice = tagChoice ?: read?.choice
             if (choice == null && screen.isEmpty() && pid !in also) return@forEach
             val given =
-                screen.filter {
-                    it.status == "complete"
-                }.map { GivenOpinion(it.email, tier(it.email), it.email in conflicts, requestedAtH = it.firstSeen / 3600) } +
+                recorded.map { (r, keep) -> GivenOpinion(r.email, tier(r.email), r.email in conflicts, requestedAtH = r.firstSeen / 3600, agrees = !keep) } +
                     rvs.filter { it.rtype == 5 && it.note }.map { GivenOpinion(it.email, tier(it.email), it.email in conflicts, isAcNote = true) }
             val dueH = traces.filterIsInstance<Trace.RemedyDue>().firstOrNull()?.dueEpoch?.let { it / 3600 }
             val cured = dueH != null && modified != null && modified > (dueH - remedyWindowH) * 3600 && modified <= dueH * 3600
@@ -149,13 +179,13 @@ public object DeskFactsReader {
                         },
                     mirrored = tagChoice != null,
                     opinions = given.distinctBy { it.email },
-                    requested = screen.filter { it.status != "complete" }.map { it.email },
+                    requested = screen.filter { s -> recorded.none { it.first.rid == s.rid } }.map { it.email },
                     remedyDueH = dueH,
                     warned = traces.any { it is Trace.Warned },
                     cured = cured,
                     removed = decision?.lowercase()?.startsWith("reject") == true && choice is TriageChoice.Refer,
                     authors = authors,
-                    askedAtH = screen.minOfOrNull { it.firstSeen }?.let { it / 3600 },
+                    askedAtH = (screen + recorded.map { it.first }).minOfOrNull { it.firstSeen }?.let { it / 3600 },
                 )
         }
         return out

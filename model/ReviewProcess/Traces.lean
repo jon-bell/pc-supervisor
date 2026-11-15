@@ -28,7 +28,7 @@ abbrev ActDesc := String × List (String × Json)
 
 def deskDesc : DeskAct → ActDesc
   | .refer g => ("refer", [("ground", groundKey g)])
-  | .opinion o => ("opinion", [("who", (o.who : Nat)), ("isAc", o.isAc), ("tier", tierKey o.tier)])
+  | .opinion o => ("opinion", [("who", (o.who : Nat)), ("isAc", o.isAc), ("tier", tierKey o.tier), ("agrees", o.agrees)])
   | .offerRemedy => ("offer-remedy", []) | .warn => ("warn", []) | .cure => ("cure", [])
   | .tick => ("tick", []) | .advance => ("advance", []) | .remove => ("remove", [])
 
@@ -52,7 +52,7 @@ def descJson (d : ActDesc) : Json := Json.mkObj [("key", d.1), ("params", Json.m
 /-- The observations of the desk-reject subsystem, with the readers that must each produce them. -/
 def deskObservations : List (String × String × List String) :=
   [("referred", "bool", ["hotcrp", "state"]), ("ground", "string?", ["hotcrp", "state"]),
-   ("opinions", "int-list", ["hotcrp", "state"]), ("stage", "string", ["state"]),
+   ("opinions", "int-list", ["hotcrp", "state"]), ("disagreeing", "int-list", ["hotcrp", "state"]), ("stage", "string", ["state"]),
    ("remedy-due", "int?", ["state"]), ("warned", "bool", ["state"]), ("cured", "bool", ["hotcrp"]),
    ("now", "int", ["clock", "state"]), ("disposition", "string", ["hotcrp", "state"]),
    ("role-sees-pc-member", "bool", ["role"]), ("role-sees-nominee", "bool", ["role"])]
@@ -62,6 +62,7 @@ def deskObserve (r : Reading) (s : DeskSt) : Json :=
   Json.mkObj
     [("referred", s.referred), ("ground", if s.referred then Json.str (groundKey s.ref.ground) else Json.null),
      ("opinions", Json.arr (s.ref.opinions.toArray.map fun o => Json.num (o.who : Nat))),
+     ("disagreeing", Json.arr ((s.ref.opinions.filter (!·.agrees)).toArray.map fun o => Json.num (o.who : Nat))),
      ("stage", stageKey s.ref.stage),
      ("remedy-due", if s.ref.remedyOffered then Json.num s.ref.remedyDue else Json.null),
      ("warned", s.ref.warned), ("cured", s.ref.cured), ("now", Json.num s.ref.now),
@@ -82,7 +83,8 @@ def deskActOfJson (j : Json) : Except String DeskAct := do
     let who : Nat ← ps.getObjValAs? Nat "who"
     let isAc ← ps.getObjValAs? Bool "isAc"
     let tier := parseTier? ((ps.getObjVal? "tier").toOption.getD Json.null)
-    .ok (.opinion { who, isAc, tier })
+    let agrees := ((ps.getObjValAs? Bool "agrees").toOption).getD true
+    .ok (.opinion { who, isAc, tier, agrees })
   | "offer-remedy" => .ok .offerRemedy | "warn" => .ok .warn | "cure" => .ok .cure
   | "tick" => .ok .tick | "advance" => .ok .advance | "remove" => .ok .remove
   | k => .error s!"unknown desk action {k}"
@@ -218,6 +220,11 @@ def deskTraces (tag : String) (r : Reading) : List Trace :=
       moves := [⟨some .ac, .refer .format⟩, ⟨some .pcMember, .opinion { who := 4, tier := some .junior }⟩,
                 ⟨some .pcChair, .remove⟩], verdict := .refused }
   -- the referring AC's own opinion never counts (S1, `validOpinions`); this is what the "second opinion from anyone" mutant breaks
+  -- a second opinion that says keep is recorded and counts for nothing: the paper stays, and silence-removes no longer applies
+  let disagree : Trace :=
+    { id := s!"desk/{tag}/disagreement-does-not-remove", family := "T5", claims := ["prop:S8", "rule:may-remove"], reading := r,
+      moves := [⟨some .ac, .refer .format⟩, ⟨some .pcMember, .opinion { who := 5, tier := some .senior, agrees := false }⟩,
+                ⟨none, .tick⟩, ⟨some .pcChair, .remove⟩], verdict := .refused }
   let acOwn : Trace :=
     { id := s!"desk/{tag}/ac-own-opinion-does-not-count", family := "T5", claims := ["prop:S1", "rule:may-remove"], reading := r,
       moves := [⟨some .ac, .refer .format⟩, ⟨some .pcMember, .opinion { who := 1, isAc := true, tier := some .senior }⟩,
@@ -229,7 +236,7 @@ def deskTraces (tag : String) (r : Reading) : List Trace :=
     { id := s!"desk/{tag}/ac-cannot-remove", family := "T6", claims := ["cell:ac/remove"], reading := r,
       moves := [⟨some .ac, .refer .format⟩, ⟨some .pcMember, .opinion { who := 2, isAc := true, tier := some .senior }⟩,
                 ⟨some .ac, .remove⟩], verdict := .denied }
-  goals ++ uses ++ [silence, junior, acOwn, authorRefer, acRemove]
+  goals ++ uses ++ [silence, junior, disagree, acOwn, authorRefer, acRemove]
 
 /-- A canonical string for an observation: keys sorted, values compressed. The report matches evidence by it. -/
 def obsKey (j : Json) : String :=

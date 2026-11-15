@@ -2,8 +2,10 @@ package net.jonbell.pcs.core.config
 
 import net.jonbell.pcs.core.imports.ImportKind
 import net.jonbell.pcs.core.phases.Phases
+import net.jonbell.pcs.core.rules.JuniorSeats
 import net.jonbell.pcs.core.rules.ScoreScale
 import net.jonbell.pcs.core.rules.Venue
+import net.jonbell.pcs.core.triage.ConsistencyBand
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -47,8 +49,10 @@ public data class Settings(
     val raw: Map<String, String>,
     /** The tag a chair puts on a set that needs the chairs' attention (`PCS_TAG_CHAIR_ATTENTION`, spec §6). */
     val tagChairAttention: String = "chair-attention",
-    /** The venue's numbers for the model (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`). */
+    /** The venue's numbers for the model (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`, `PCS_REMEDY_WINDOW_H`). */
     val venue: Venue = Venue(),
+    /** The AC consistency band (`PCS_CONSISTENCY_FENCE_PAD`, `_MIN_PAPERS`, `_MIN_ACS`; `prop:M1`). */
+    val consistency: ConsistencyBand = ConsistencyBand(),
 ) {
     public val isLocalHarness: Boolean get() = isLocalhost(hotcrpUrl)
 
@@ -87,6 +91,11 @@ public data class Settings(
                 "PCS_NOMINEES_MAX",
                 "PCS_PATTERN_MIN",
                 "PCS_ACC_GRACE_H",
+                "PCS_REMEDY_WINDOW_H",
+                "PCS_JUNIOR_SEATS",
+                "PCS_CONSISTENCY_FENCE_PAD",
+                "PCS_CONSISTENCY_MIN_PAPERS",
+                "PCS_CONSISTENCY_MIN_ACS",
                 "PCS_FIELD_WEAKNESS",
                 "PCS_FIELDS_REQUIRED",
                 "PCS_SOLVER_TOPK",
@@ -146,6 +155,11 @@ public data class Settings(
 
             fun int(key: String, default: Int, min: Int = 0): Int =
                 parse(key, default) { s -> s.toIntOrNull()?.takeIf { it >= min } ?: throw IllegalArgumentException("not an integer ≥ $min: $s") } ?: default
+
+            fun dbl(key: String, default: Double, min: Double = 0.0): Double =
+                parse(key, default) { s ->
+                    s.toDoubleOrNull()?.takeIf { it.isFinite() && it >= min } ?: throw IllegalArgumentException("not a number ≥ $min: $s")
+                } ?: default
 
             fun bool(key: String, default: Boolean): Boolean =
                 parse(key, default) { s -> s.toBooleanStrictOrNull() ?: throw IllegalArgumentException("not true or false: $s") } ?: default
@@ -250,6 +264,17 @@ public data class Settings(
                             nomineesMax = int("PCS_NOMINEES_MAX", Venue.DEFAULT_NOMINEES_MAX, min = 1),
                             patternMin = int("PCS_PATTERN_MIN", Venue.DEFAULT_PATTERN_MIN, min = 1),
                             accGraceH = int("PCS_ACC_GRACE_H", Venue.DEFAULT_GRACE_H.toInt(), min = 0).toLong(),
+                            remedyWindowH = int("PCS_REMEDY_WINDOW_H", Venue.DEFAULT_REMEDY_WINDOW_H.toInt(), min = 1).toLong(),
+                            juniorSeats =
+                                parse("PCS_JUNIOR_SEATS", JuniorSeats.FILL) { s ->
+                                    JuniorSeats.ofKey(s) ?: throw IllegalArgumentException("one of ${JuniorSeats.entries.joinToString { it.key }}: $s")
+                                } ?: JuniorSeats.FILL,
+                        ),
+                    consistency =
+                        ConsistencyBand(
+                            fencePad = dbl("PCS_CONSISTENCY_FENCE_PAD", ConsistencyBand.DEFAULT_FENCE_PAD),
+                            minPapers = int("PCS_CONSISTENCY_MIN_PAPERS", ConsistencyBand.DEFAULT_MIN_PAPERS, min = 1),
+                            minAcs = int("PCS_CONSISTENCY_MIN_ACS", ConsistencyBand.DEFAULT_MIN_ACS, min = 2),
                         ),
                     tagChairAttention =
                         (m["PCS_TAG_CHAIR_ATTENTION"] ?: "chair-attention").also {

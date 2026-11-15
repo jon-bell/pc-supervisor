@@ -268,7 +268,8 @@ structure Solved where
   objective : Int
   filled : Nat
 
-def solveOnce (c : Conf) (r : Reading) (cap : Array Nat) (cs : List Cand) : Solved := Id.run do
+/-- One min-cost max-flow solve on the §10.5 network; `senCap` and `thdCap` are each paper's senior and third seat capacities. -/
+def solveWith (c : Conf) (cap : Array Nat) (cs : List Cand) (senCap thdCap : Nat → Nat) : Solved := Id.run do
   let n := c.personArea.size
   let mut node : Array Nat := Array.replicate n 0       -- 0 = not in the network
   let mut nr := 0
@@ -289,12 +290,37 @@ def solveOnce (c : Conf) (r : Reading) (cap : Array Nat) (cs : List Cand) : Solv
   for e in csA do
     arcs := arcs.push (node[e.who]!, slotNode e.paper e.slot, 1, Int.ofNat ((100 - e.aff) / 5))
   for pp in [0:c.nPapers] do
-    arcs := arcs.push (slotNode pp .senior, 1, 2, 0)
-    arcs := arcs.push (slotNode pp .third, 1, Int.ofNat (thirdCap r), 0)
+    arcs := arcs.push (slotNode pp .senior, 1, Int.ofNat (senCap pp), 0)
+    arcs := arcs.push (slotNode pp .third, 1, Int.ofNat (thdCap pp), 0)
   let (f, flow, total) := minCostMaxFlow (Flow.build nNodes arcs) 0 1
   let usedArr := (List.range csA.size).map fun j => f.cap[2 * (first + j)]! == 0
   let plan := (csA.toList.zip usedArr).filterMap fun (e, b) => if b then some e else none
   return { plan, objective := total, filled := flow.toNat }
+
+/-- The plan's solve. Under "zero to two juniors" with a `JuniorSeats` other than `fill`, the seats are filled in stages, seniors
+    first: the senior seats, then the juniors the venue's choice allows (all of them, or the reciprocal nominees, then the PC juniors),
+    each stage's room read from what the earlier stages placed (`juniorRoom`). Reviewers and seats of different stages do not
+    overlap, so the stages together are one solve; with `fill`, and under every other reading of Q13, it is one network as before. -/
+def solveOnce (c : Conf) (r : Reading) (cap : Array Nat) (cs : List Cand) : Solved :=
+  let mode := r.venue.juniorSeats
+  if r.q13 != .zeroToTwoJuniors || mode == .fill then solveWith c cap cs (fun _ => 2) (fun _ => thirdCap r)
+  else
+    let isNominee (e : Cand) := (c.member e.who).nominee
+    let placedOn (plan : List Cand) (pp : Nat) (p : Cand → Bool) := (plan.filter fun e => e.paper == pp && p e).length
+    let s1 := solveWith c cap (cs.filter (·.slot == .senior)) (fun _ => 2) (fun _ => 0)
+    let seniors (pp : Nat) := placedOn s1.plan pp (fun _ => true)
+    let stage (nominee? : Option Bool) (seated : Nat → Nat) (isNom : Bool) : Solved :=
+      let cands := cs.filter fun e => e.slot == .third && (match nominee? with | some b => isNominee e == b | none => true)
+      solveWith c cap cands (fun _ => 0) (fun pp => juniorRoom mode isNom (thirdCap r) (seniors pp) (seated pp))
+    match mode with
+    | .reciprocalOnly =>
+      let s2 := stage (some true) (fun _ => 0) true
+      let s3 := stage (some false) (fun pp => placedOn s2.plan pp (fun _ => true)) false
+      { plan := s1.plan ++ s2.plan ++ s3.plan, objective := s1.objective + s2.objective + s3.objective,
+        filled := s1.filled + s2.filled + s3.filled }
+    | _ =>
+      let s2 := stage none (fun _ => 0) false
+      { plan := s1.plan ++ s2.plan, objective := s1.objective + s2.objective, filled := s1.filled + s2.filled }
 
 /-- Reciprocal 2-cycles in a plan: (u reviews b, u wrote a) and (v reviews a, v wrote b). -/
 def cyclesOf (c : Conf) (plan : List Cand) : List (Cand × Cand) := Id.run do

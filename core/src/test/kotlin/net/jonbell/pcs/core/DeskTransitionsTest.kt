@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import net.jonbell.pcs.core.readings.Q1
 import net.jonbell.pcs.core.readings.Q2
 import net.jonbell.pcs.core.readings.QId
@@ -32,7 +33,13 @@ import java.nio.file.Files
  */
 @Family("T3")
 class DeskTransitionsTest {
-    private val persons = mapOf(2L to Opinion(2, isAc = true, tier = Tier.SENIOR), 3L to Opinion(3, tier = Tier.SENIOR), 4L to Opinion(4, tier = Tier.JUNIOR))
+    private val persons =
+        mapOf(
+            2L to Opinion(2, isAc = true, tier = Tier.SENIOR),
+            3L to Opinion(3, tier = Tier.SENIOR),
+            4L to Opinion(4, tier = Tier.JUNIOR),
+            5L to Opinion(5, tier = Tier.SENIOR, agrees = false),
+        )
 
     /** `cured=false|disposition="in-review"|ground=null|now=0|opinions=[]|...` */
     private fun parse(obs: String): DeskSt {
@@ -108,7 +115,12 @@ class DeskTransitionsTest {
             Ground.entries.map { "refer" to mapOf("ground" to it.key) } +
                 persons.values.map {
                     "opinion" to
-                        mapOf("who" to "${it.who}", "isAc" to "${it.isAc}", "tier" to (if (it.tier == Tier.SENIOR) "senior" else "junior"))
+                        mapOf(
+                            "who" to "${it.who}",
+                            "isAc" to "${it.isAc}",
+                            "tier" to (if (it.tier == Tier.SENIOR) "senior" else "junior"),
+                            "agrees" to "${it.agrees}",
+                        )
                 } +
                 listOf("offer-remedy", "warn", "cure", "tick", "advance", "remove").map { it to emptyMap() }
         return acts.flatMap { (k, p) -> if (perm(k) == null) listOf(Triple(null, k, p)) else roles.map { Triple(it, k, p) } }
@@ -124,11 +136,14 @@ class DeskTransitionsTest {
         fun fail(prop: String, msg: String) {
             failures.getOrPut(prop) { mutableListOf() }.let { if (it.size < 3) it += msg }
         }
+        val windows = mutableSetOf<Long>()
         var steps = 0
         var refusals = 0
         var removals = 0
         for (reading in doc["readings"]!!.jsonArray.map { it.jsonObject }) {
             val r = readingOf(reading["reading"]!!.jsonPrimitive.content)
+            val window = reading["remedyWindowH"]!!.jsonPrimitive.long
+            windows += window
             val states = reading["states"]!!.jsonArray.map { parse(it.jsonPrimitive.content) }
             val effective =
                 reading["transitions"]!!.jsonArray.map { it.jsonArray }.groupBy { it[0].jsonPrimitive.content.toInt() }
@@ -139,7 +154,7 @@ class DeskTransitionsTest {
                     val p = perm(key)
                     val allowed = p == null || (role!! to p) in grants
                     val a = act(key, params)
-                    val got = if (allowed) DeskFlow.rule(Faults.NONE, r, s, role, a) else null
+                    val got = if (allowed) DeskFlow.rule(Faults.NONE, r, s, role, a, window) else null
                     val want = effective[i]?.get(moveKey(role, key, params))?.let { states[it] }
                     steps++
                     if (want == null) refusals++
@@ -172,10 +187,17 @@ class DeskTransitionsTest {
                 }
                 // S8 on the state itself: tick and advance never remove
                 for (k in listOf("tick", "advance")) {
-                    DeskFlow.rule(Faults.NONE, r, s, null, act(k, emptyMap()))?.let { if (it.removed != s.removed) fail("prop:S8", "$k removed in state $i") }
+                    DeskFlow.rule(Faults.NONE, r, s, null, act(k, emptyMap()), window)?.let {
+                        if (it.removed !=
+                            s.removed
+                        ) {
+                            fail("prop:S8", "$k removed in state $i")
+                        }
+                    }
                 }
             }
         }
+        assertTrue(windows.size >= 3 && 72L in windows, "the table is exported under several fix-window lengths: $windows")
         assertTrue(steps > 50_000 && refusals > 0 && removals > 0, "$steps steps checked, $removals removals")
         assertEquals(emptyMap<String, List<String>>(), failures)
     }

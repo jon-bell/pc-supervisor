@@ -32,13 +32,26 @@ public sealed interface DeskAct {
 }
 
 public object DeskFlow {
-    /** The hours a fix window lasts once offered (the model's `remedyDue := now + 72`). */
-    public const val REMEDY_WINDOW_H: Long = 72
+    /** The default length of a fix window (the venue's `PCS_REMEDY_WINDOW_H`, the model's `Venue.remedyWindowH`). */
+    public const val REMEDY_WINDOW_H: Long = Venue.DEFAULT_REMEDY_WINDOW_H
+
+    /** When a fix window offered at [now] ends (the model's `remedyDueAt`). */
+    public fun remedyDue(
+        now: Long,
+        windowH: Long = REMEDY_WINDOW_H,
+    ): Long = now + windowH
 
     private fun next(s: Stage): Stage? = Stage.entries.getOrNull(s.ordinal + 1)
 
     /** Who may do what is the policy's; `who` here is the role key, used only where the rule itself looks at it (refer, cure, remove). */
-    public fun rule(f: Faults, r: Readings, s: DeskSt, who: String?, a: DeskAct): DeskSt? =
+    public fun rule(
+        f: Faults,
+        r: Readings,
+        s: DeskSt,
+        who: String?,
+        a: DeskAct,
+        remedyWindowH: Long = REMEDY_WINDOW_H,
+    ): DeskSt? =
         when (a) {
             is DeskAct.Refer -> if (!s.referred && s.removed == null && who == "ac") s.copy(referred = true, ref = s.ref.copy(ground = a.g)) else null
             is DeskAct.Opine ->
@@ -49,7 +62,7 @@ public object DeskFlow {
                 }
             DeskAct.OfferRemedy ->
                 if (s.referred && s.ref.ground == Ground.ANONYMITY && r.q1 == Q1.FIX_WINDOW && !s.ref.remedyOffered) {
-                    s.copy(ref = s.ref.copy(remedyOffered = true, remedyDue = s.ref.now + REMEDY_WINDOW_H))
+                    s.copy(ref = s.ref.copy(remedyOffered = true, remedyDue = remedyDue(s.ref.now, remedyWindowH)))
                 } else {
                     null
                 }

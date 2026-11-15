@@ -23,7 +23,7 @@ def main (args : List String) : IO Unit := do
   for e in a.errors do IO.println s!"  ! {e}"
   IO.println s!"questions in the model: {QId.all.length}; readings of the whole text: {readingCount}"
   IO.println s!"answered: {a.given.length}; open: {QId.all.length - a.given.length}"
-  IO.println s!"venue parameters: nominees per paper at most {base.venue.nomineesMax} (Q8 \"up to n\"); pattern shown at {base.venue.patternMin} nominations (Q9); accountability grace period {base.venue.accGraceH} h (AR5)"
+  IO.println s!"venue parameters: nominees per paper at most {base.venue.nomineesMax} (Q8 \"up to n\"); pattern shown at {base.venue.patternMin} nominations (Q9); accountability grace period {base.venue.accGraceH} h (AR5); Q1 fix window {base.venue.remedyWindowH} h"
   IO.println "not in the model (no rule depends on them yet): Q9 (who may be nominated), Q12 (withholding reviews)"
 
   IO.println "\n## Legibility: does any card depend on a question it doesn't declare?"
@@ -119,6 +119,9 @@ def main (args : List String) : IO Unit := do
   let variants : List (String × Reading) := ("the answered reading", base) ::
     ([QId.q14, .q13, .q18].flatMap fun q => ((List.range q.count).filter (· != base.get q)).map fun v =>
       (s!"if {q.code} = {q.readingName v}", base.set q v))
+  let zeroToTwo := indexIn (QId.q13.labels.map (·.1)) "zero-to-two-juniors"
+  let variants := variants ++ JuniorSeats.all.map fun m =>
+    (s!"if Q13 = zero to two juniors and junior seats = {m.key}", { base.set .q13 zeroToTwo with venue := { base.venue with juniorSeats := m } })
   -- the solves are independent; run them in parallel
   let tasks := variants.map fun (name, r) => (name, Task.spawn fun _ => runConf r conf)
   for (name, t) in tasks do IO.println (showOutcome name t.get s.papers)

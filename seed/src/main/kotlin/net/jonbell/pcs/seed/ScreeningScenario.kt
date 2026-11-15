@@ -3,7 +3,7 @@ package net.jonbell.pcs.seed
 import java.time.ZoneId
 
 /**
- * The screening scenario (PLAN M13): papers 401-416 are the triage cases, 451-475 give five ACs five papers each so the per-AC band
+ * The screening scenario (PLAN M13): papers 401-417 are the triage cases, 451-475 give five ACs five papers each so the per-AC band
  * (spec §10.4 B, prop:M1) has something to compare. The AC's screening metareview is in the `screen` round; her Triage value is 1 keep,
  * then 2.. one per ground in the model's order. Readings it is written for: Q1 fix-window, Q2 ac-plus-senior, Q3 any-until-release,
  * Q6 grounds, Q10 warn-then-reject, Q4 after-own-review.
@@ -34,8 +34,19 @@ object ScreeningScenario {
 
     private val review = At("REVIEW_DUE", -5.0)
 
-    /** pid -> (AC, Triage symbol or null, the second opinion's giver or null) */
-    private data class Case(val pid: Int, val ac: String, val triage: Int?, val giver: String?, val asked: String? = null, val note: String? = null)
+    /**
+     * pid -> (AC, Triage symbol or null, the second opinion's giver or null). A giver records their opinion in the same Triage field: the
+     * referral's ground symbol (remove, they agree) or 1 (keep, [agrees] false).
+     */
+    private data class Case(
+        val pid: Int,
+        val ac: String,
+        val triage: Int?,
+        val giver: String?,
+        val asked: String? = null,
+        val note: String? = null,
+        val agrees: Boolean = true,
+    )
 
     private val cases =
         listOf(
@@ -55,6 +66,7 @@ object ScreeningScenario {
             Case(414, ac2, groundSymbol["format"], null, note = "My own note to the PC, not a second opinion."),
             Case(415, ac2, groundSymbol["fabricated-reference"], senior1),
             Case(416, ac2, groundSymbol["misused-citation"], senior1),
+            Case(417, ac1, groundSymbol["format"], senior1, agrees = false),
         )
 
     /** The ground each case paper's findings (and the AC's referral) name. */
@@ -76,6 +88,7 @@ object ScreeningScenario {
             414 to "format",
             415 to "fabricated-reference",
             416 to "misused-citation",
+            417 to "format",
         )
 
     private val m1Papers = m1Acs.flatMapIndexed { k, ac -> (0 until 5).map { Triple(451 + k * 5 + it, ac, k == 4 || (k % 2 == 1 && it == 0)) } }
@@ -101,7 +114,15 @@ object ScreeningScenario {
         cases.flatMap { c ->
             listOfNotNull(
                 c.triage?.let { ScreenReview(c.pid, c.ac, it, c.note, review) },
-                c.giver?.let { ScreenReview(c.pid, it, null, "Synthetic second opinion: I agree.", review) },
+                c.giver?.let {
+                    ScreenReview(
+                        c.pid,
+                        it,
+                        if (c.agrees) c.triage else 1,
+                        if (c.agrees) "Synthetic second opinion: I agree." else "Synthetic second opinion: I would keep it.",
+                        review,
+                    )
+                },
             )
         } + m1Papers.filter { it.third }.map { ScreenReview(it.first, it.second, groundSymbol["format"], null, review) } +
             listOf(
@@ -134,7 +155,19 @@ object ScreeningScenario {
     val scenario = Scenario("screening", pc, papers, assignments, events, settings)
 
     /** What the plan says of each case paper under the readings above, at the screening stage, written down here and not computed. */
-    enum class Expect { READY, NEEDS_SECOND_OPINION, OPINION_PENDING, NEEDS_REMEDY, REMEDY_OPEN, CURED, KEPT, NEEDS_WARNING, UNTRIAGED, REMOVED }
+    enum class Expect {
+        READY,
+        NEEDS_SECOND_OPINION,
+        OPINION_PENDING,
+        OPINION_DISAGREES,
+        NEEDS_REMEDY,
+        REMEDY_OPEN,
+        CURED,
+        KEPT,
+        NEEDS_WARNING,
+        UNTRIAGED,
+        REMOVED,
+    }
 
     /** [hoursFromDue]: the clock relative to 406's and 407's window closing. */
     fun expected(hoursFromDue: Int): Map<Long, Expect> =
@@ -155,5 +188,6 @@ object ScreeningScenario {
             414L to Expect.NEEDS_SECOND_OPINION, // the AC's own note is not a second opinion
             415L to Expect.READY,
             416L to Expect.READY,
+            417L to Expect.OPINION_DISAGREES, // a second opinion says keep: it stays in review, and says why
         )
 }

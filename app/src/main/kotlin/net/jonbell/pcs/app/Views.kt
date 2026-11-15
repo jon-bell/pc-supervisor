@@ -41,6 +41,11 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun <T> produceRows(version: Int, load: () -> List<T>): State<List<T>> = produceState(emptyList(), version) { value = withContext(Dispatchers.IO) { load() } }
 
+/** As [produceRows], reloaded also when [key] changes (a choice made on the screen the rows depend on). */
+@Composable
+fun <T> produceRows(version: Int, key: Any?, load: () -> List<T>): State<List<T>> =
+    produceState(emptyList(), version, key) { value = withContext(Dispatchers.IO) { load() } }
+
 fun summarize(c: SyncCounts): String =
     if (c.isNoop) "nothing changed" else "${c.newRows.values.sum()} new, ${c.changed.values.sum()} changed, ${c.gone.values.sum()} gone"
 
@@ -165,6 +170,8 @@ fun CardScreen(card: Card, readings: Readings, modifier: Modifier = Modifier, ve
                 when (n) {
                     "nominees-max" -> venue.nomineesMax.toString()
                     "pattern-min" -> venue.patternMin.toString()
+                    "remedy-window-h" -> "${venue.remedyWindowH} h"
+                    "junior-seats" -> venue.juniorSeats.key
                     else -> "${venue.accGraceH} h"
                 }
             Text("Venue $n: $v", Modifier.testTag("card-venue-$n"), style = MaterialTheme.typography.bodyMedium)

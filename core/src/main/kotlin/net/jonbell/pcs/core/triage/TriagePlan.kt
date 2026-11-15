@@ -6,6 +6,7 @@ import net.jonbell.pcs.core.imports.ImportRow
 import net.jonbell.pcs.core.readings.Q10
 import net.jonbell.pcs.core.readings.Q2
 import net.jonbell.pcs.core.readings.Readings
+import net.jonbell.pcs.core.rules.DeskFlow
 import net.jonbell.pcs.core.rules.DeskReject
 import net.jonbell.pcs.core.rules.Faults
 import net.jonbell.pcs.core.rules.Ground
@@ -29,6 +30,7 @@ public enum class TriageStatus(public val label: String, public val needsChair: 
     KEEP_REFUSED("keep not allowed: an anonymity violation (Q1)", true),
     NEEDS_SECOND_OPINION("referred; needs a second opinion", true),
     OPINION_PENDING("referred; second opinion requested"),
+    OPINION_DISAGREES("referred; the second opinion says keep", true),
     NOT_ADMISSIBLE("referred; not a ground under the readings", true),
     NEEDS_WARNING("referred; needs the warning first (Q10)", true),
     TOO_LATE("referred; too late for this ground (Q3)", true),
@@ -142,8 +144,26 @@ public object TriagePlan {
         if (DeskReject.mayRemove(f, r, ref)) return Triple(TriageStatus.READY, emptyList(), stage != Stage.SCREENING)
         val bl = blockers(r, ref)
         val first = bl.firstOrNull()?.first ?: TriageStatus.NEEDS_SECOND_OPINION
-        val status = if (first == TriageStatus.NEEDS_SECOND_OPINION && facts.requested.isNotEmpty()) TriageStatus.OPINION_PENDING else first
-        return Triple(status, bl.map { it.second }, false)
+        val disagree = facts.opinions.count { !it.isAcNote && !it.agrees }
+        val status =
+            when {
+                first != TriageStatus.NEEDS_SECOND_OPINION -> first
+                facts.requested.isNotEmpty() -> TriageStatus.OPINION_PENDING
+                disagree > 0 -> TriageStatus.OPINION_DISAGREES
+                else -> first
+            }
+        val words =
+            bl.map { it.second } +
+                if (disagree >
+                    0
+                ) {
+                    listOf(
+                        "$disagree second opinion(s) say keep (recorded in the Triage field of their screening review); a keep never counts toward removal",
+                    )
+                } else {
+                    emptyList()
+                }
+        return Triple(status, words, false)
     }
 
     public fun compute(
@@ -155,12 +175,13 @@ public object TriagePlan {
         nowH: Long,
         tier: (String) -> Tier?,
         f: Faults = Faults.NONE,
+        remedyWindowH: Long = DeskFlow.REMEDY_WINDOW_H,
     ): TriageReport {
         val blocked = unresolved(readings)
         if (blocked.isNotEmpty()) return TriageReport.Blocked(blocked)
         val findings = bundle?.visible?.filter { it.ground != null || it.kind.isNotEmpty() }?.groupBy { it.pid.toLongOrNull() }.orEmpty()
         val flagged = findings.keys.filterNotNull().toSet()
-        val facts = DeskFactsReader.read(store, tier, also = flagged).associateBy { it.pid }
+        val facts = DeskFactsReader.read(store, tier, remedyWindowH, also = flagged).associateBy { it.pid }
         val titles =
             store.conn.createStatement().use { s ->
                 s.executeQuery("SELECT pid, coalesce(title,'') FROM paper WHERE gone_at IS NULL").use { rs ->

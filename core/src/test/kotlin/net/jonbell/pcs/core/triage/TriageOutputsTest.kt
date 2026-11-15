@@ -18,6 +18,8 @@ import net.jonbell.pcs.core.triage.TriageFixture.Companion.readings
 import net.jonbell.pcs.core.writeback.AssignmentArtifact
 import net.jonbell.pcs.core.writeback.CommentArtifact
 import net.jonbell.pcs.core.writeback.DecisionArtifact
+import net.jonbell.pcs.core.writeback.ReviewMove
+import net.jonbell.pcs.core.writeback.ReviewMoveArtifact
 import net.jonbell.pcs.core.writeback.TagArtifact
 import net.jonbell.pcs.testing.Covers
 import net.jonbell.pcs.testing.Family
@@ -36,6 +38,41 @@ class TriageOutputsTest {
     private val now = Instant.ofEpochSecond(1_900_000_000L)
     private val nowH = now.epochSecond / 3600
     private val clock = Clock { now }
+
+    @Test
+    @Covers("conv:18", "conv:1")
+    fun `the mirror drafts each second opinion's hidden tag, then its unsubmit-and-move, once`() {
+        val store =
+            TriageFixture.store {
+                listOf(ac, "senior1@example.org", "senior2@example.org", "senior3@example.org").forEach { person(it) }
+                paper(5, tags = listOf("pcs-refer-format"))
+                meta(5, ac, round = null)
+                opinion(5, "senior1@example.org", triage = 1)
+                opinion(5, "senior2@example.org", triage = 3)
+                opinion(5, "senior3@example.org", complete = false)
+                paper(6, tags = listOf("pcs-refer-format"))
+                meta(6, ac, round = null)
+                val done = opinion(6, "senior1@example.org", triage = null, round = null)
+                addTag(6, Conventions.encode(Trace.Opinion(6, done, keep = false)))
+            }
+        val drafts = TriageDrafts.mirrorTriage(store)
+        val tags = (drafts[0] as TagArtifact).changes
+        assertEquals(listOf(5L, 5L), tags.map { it.pid })
+        assertEquals(
+            listOf(true, false),
+            tags.map {
+                (Conventions.decode(5, it.add).single() as Trace.Opinion).keep
+            },
+            "keep, then remove (any ground's symbol)",
+        )
+        assertEquals(
+            listOf(ReviewMove(5, "senior1@example.org", meta = false), ReviewMove(5, "senior2@example.org", meta = false)),
+            (drafts[1] as ReviewMoveArtifact).moves,
+            "a draft is not mirrored, and an opinion whose tag exists is not mirrored again",
+        )
+        assertEquals(2, drafts.size)
+        store.close()
+    }
 
     @Test
     @Covers("prop:C2")
@@ -102,6 +139,10 @@ class TriageOutputsTest {
         val due = now.epochSecond + 72 * 3600
         assertEquals(listOf(Conventions.encode(Trace.RemedyDue(5, due))), (tag as TagArtifact).changes.single().add)
         assertTrue(Notices.lint(offer.body).isEmpty() && "You may upload a corrected version until" in offer.body)
+        for (w in listOf(24L, 120L)) { // the venue's window (PCS_REMEDY_WINDOW_H), not a constant
+            val (t, _) = TriageDrafts.offerRemedy(row, Q1.FIX_WINDOW, now, ZoneId.of("UTC"), w)
+            assertEquals(listOf(Conventions.encode(Trace.RemedyDue(5, now.epochSecond + w * 3600))), (t as TagArtifact).changes.single().add)
+        }
         assertThrows(IllegalArgumentException::class.java) { TriageDrafts.offerRemedy(row, Q1.REJECT_AT_ONCE, now, ZoneId.of("UTC")) }
         assertThrows(IllegalArgumentException::class.java) { TriageDrafts.warn(row) }
         store.close()

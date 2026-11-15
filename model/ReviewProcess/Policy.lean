@@ -262,15 +262,18 @@ inductive DeskAct
   deriving Repr
 
 def DeskAct.show : DeskAct → String
-  | .refer g => s!"refer on {g.name}" | .opinion o => s!"agree (person {o.who}{if o.isAc then ", an AC" else ""}, {match o.tier with | some .senior => "senior" | some .junior => "junior" | none => "?"})"
+  | .refer g => s!"refer on {g.name}" | .opinion o => s!"{if o.agrees then "agree" else "disagree"} (person {o.who}{if o.isAc then ", an AC" else ""}, {match o.tier with | some .senior => "senior" | some .junior => "junior" | none => "?"})"
   | .offerRemedy => "offer the fix window" | .warn => "warn the authors" | .cure => "fix the violation"
   | .tick => "time passes" | .advance => "the process moves to the next stage" | .remove => "remove the paper"
 
 def Stage.next : Stage → Option Stage
   | .screening => some .assigned | .assigned => some .inReview | .inReview => some .released | .released => none
 
+/-- The second opinions the search tries. A second opinion records keep (disagrees) or remove (agrees) in the
+    Triage field of their screen-round review (the owner's ruling); person 5 is a senior who says keep. -/
 def searchOpinions : List Opinion :=
-  [{ who := 2, isAc := true, tier := some .senior }, { who := 3, tier := some .senior }, { who := 4, tier := some .junior }]
+  [{ who := 2, isAc := true, tier := some .senior }, { who := 3, tier := some .senior }, { who := 4, tier := some .junior },
+   { who := 5, tier := some .senior, agrees := false }]
 
 def insertOpinion (o : Opinion) : List Opinion → List Opinion
   | [] => [o]
@@ -282,7 +285,7 @@ def deskRule (p : Params) (r : Reading) (s : DeskSt) (who : Option Role) : DeskA
   | .opinion o => if s.referred && s.disp == .inReview && !(s.ref.opinions.any (·.who == o.who))
       then some { s with ref := { s.ref with opinions := insertOpinion o s.ref.opinions } } else none
   | .offerRemedy => if s.referred && s.ref.ground == .anonymity && r.q1 == .fixWindow && !s.ref.remedyOffered
-      then some { s with ref := { s.ref with remedyOffered := true, remedyDue := s.ref.now + 72 } } else none
+      then some { s with ref := { s.ref with remedyOffered := true, remedyDue := remedyDueAt r.venue.remedyWindowH s.ref.now } } else none
   | .warn => if s.referred && s.ref.ground == .nominationNoncompliance && !s.ref.warned
       then some { s with ref := { s.ref with warned := true } } else none
   | .cure => if who == some .author && s.ref.remedyOffered && !s.ref.cured && s.ref.now ≤ s.ref.remedyDue

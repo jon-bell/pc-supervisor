@@ -302,7 +302,7 @@ class DiscussionRulesTest {
     @Test
     @Covers("golden:pid13")
     fun `REVIEW_FLAGGED fires on disrespectful or wrong, in every phase and on a decided paper`() {
-        val p = paper(listOf(rev("a", 3, ratings = listOf("disrespectful")), rev("b", 3), rev("c", 4)))
+        val p = paper(listOf(rev("a", 3, ratings = listOf("disrespectful")), rev("b", 3), rev("c", 4)), listOf(com("c", -9.5)))
         assertEquals(setOf("REVIEW_FLAGGED"), Discussion.reasons(p, ph, day(-30.0)).map { it.rule }.toSet() - "MISSING_REVIEWS")
         assertEquals(setOf("REVIEW_FLAGGED"), fires(p, day(-5.0)).filter { it == "REVIEW_FLAGGED" }.toSet())
         assertEquals(listOf("REVIEW_FLAGGED"), Discussion.reasons(p.copy(decided = true), ph, day(14.0)).map { it.rule })
@@ -358,8 +358,33 @@ class DiscussionRulesTest {
     @Test
     fun `before the review deadline and before opening, only the rules that apply to that phase can fire`() {
         val p = paper(listOf(rev("a", 1), rev("b", 4), rev("c", 4)))
-        assertEquals(setOf("SPLIT"), fires(p, day(-12.0)), "reviewing: scores are in, discussion rules are silent")
-        assertEquals(setOf("SPLIT"), fires(p, day(-5.0)), "between review deadline and opening")
+        // CHAMPION_MISSING needs no phase (owner's ruling, 2026-11-15): the 4s have not commented
+        assertEquals(setOf("SPLIT", "CHAMPION_MISSING"), fires(p, day(-12.0)), "reviewing: scores are in, opening-the-discussion rules are silent")
+        assertEquals(setOf("SPLIT", "CHAMPION_MISSING"), fires(p, day(-5.0)), "between review deadline and opening")
+        assertEquals(setOf("SPLIT", "CHAMPION_MISSING", "GONE_QUIET"), fires(p, day(-4.9)), "GONE_QUIET once the reviews are older than the threshold")
+        val spoken = paper(listOf(rev("a", 1), rev("b", 4), rev("c", 4)), listOf(com("b", -9.5)))
+        assertEquals(setOf("SPLIT"), fires(spoken, day(-5.0)), "a champion's comment silences CHAMPION_MISSING before opening too")
+        val responded = paper(healthy, listOf(com("a", -9.5), com("b", -9.5), com("author", -8.0, response = true)))
+        assertEquals(
+            setOf("RESPONSE_UNADDRESSED"),
+            fires(responded, day(-7.0)).filter {
+                it == "RESPONSE_UNADDRESSED"
+            }.toSet(),
+            "reviewing is over, no reviewer answered",
+        )
+        assertEquals(emptySet<String>(), fires(responded, day(-7.0)).filter { it.startsWith("SILENT") || it == "AC_ABSENT" }.toSet())
+    }
+
+    @Test
+    fun `CHAMPION_MISSING, GONE_QUIET and RESPONSE_UNADDRESSED fire before discussion opens, each from the moment its condition holds`() {
+        val champ = paper(listOf(rev("a", 4), rev("b", 3), rev("c", 3)))
+        assertEquals("no comment from the reviewer(s) who scored 4", Discussion.championMissing(ctx(champ, day(-12.0))))
+        val quiet = paper(healthy, listOf(com("a", -8.0)))
+        assertNull(Discussion.goneQuiet(ctx(quiet, day(-4.0))), "exactly 4 days after the last comment, before opening")
+        assertNotNull(Discussion.goneQuiet(ctx(quiet, day(-3.9))))
+        val resp = paper(healthy, listOf(com("author", -3.0, response = true)))
+        assertNotNull(Discussion.responseUnaddressed(ctx(resp, day(-2.0))), "before opening")
+        assertNull(Discussion.responseUnaddressed(ctx(paper(healthy), day(-2.0))), "no response, nothing to address")
     }
 
     @Test

@@ -37,10 +37,11 @@ class TriagePlanTest {
         f: Faults = Faults.NONE,
         nowHours: Long = nowH,
         findings: List<net.jonbell.pcs.core.bundle.BundleFinding> = emptyList(),
+        remedyWindowH: Long = 72,
         build: TriageFixture.() -> Unit,
     ): TriageReport.Ready {
         val store = TriageFixture.store(build)
-        return TriagePlan.compute(store, bundle(findings), emptyList(), r, stage, nowHours, TriageFixture.tiers, f) as TriageReport.Ready
+        return TriagePlan.compute(store, bundle(findings), emptyList(), r, stage, nowHours, TriageFixture.tiers, f, remedyWindowH) as TriageReport.Ready
     }
 
     @Test
@@ -112,6 +113,51 @@ class TriagePlanTest {
         assertFalse(honest.rows.any { it.pid in setOf(3L, 6L, 7L) && it.status == TriageStatus.READY })
     }
 
+    @Test
+    @Covers("prop:S8", "rule:may-remove", "card:E8")
+    fun `a second opinion records keep or remove in the Triage field, and only remove counts`() {
+        val old = 3600 * (nowH - 100)
+        val rep =
+            plan(findings = (11L..17L).map { finding(it, "format") }) {
+                people()
+                for (pid in 11L..17L) {
+                    paper(pid, tags = listOf("pcs-refer-format"))
+                    meta(pid, ac, round = null)
+                }
+                opinion(11, "senior1@example.org", triage = 1, askedAt = old) // keep
+                opinion(12, "senior1@example.org", triage = 1) // keep, then another senior says remove (any ground's symbol)
+                opinion(12, "senior2@example.org", triage = 3)
+                opinion(13, "senior1@example.org", triage = null) // complete, no value: no opinion recorded
+                opinion(14, "senior1@example.org", complete = false, triage = 1) // a draft is not an opinion
+                addTag(15, Conventions.encode(Trace.Opinion(15, opinion(15, "senior1@example.org", triage = null, round = null), keep = true)))
+                addTag(16, Conventions.encode(Trace.Opinion(16, opinion(16, "senior1@example.org", triage = null, round = null), keep = false)))
+                opinion(17, "senior1@example.org", complete = false, askedAt = old) // asked long ago, never answered
+            }
+        assertEquals(TriageStatus.OPINION_DISAGREES, rep.status(11), "a keep is recorded and the paper stays in review")
+        assertEquals(TriageStatus.READY, rep.status(12), "one senior says keep, another says remove: the remove counts, the keep does not block it")
+        assertEquals(TriageStatus.OPINION_PENDING, rep.status(13), "a review with no Triage value is not an answer yet")
+        assertEquals(TriageStatus.OPINION_PENDING, rep.status(14))
+        assertEquals(TriageStatus.OPINION_DISAGREES, rep.status(15), "the mirrored tag carries the keep after the review moved to the normal round")
+        assertEquals(TriageStatus.READY, rep.status(16), "and a mirrored remove")
+        val row = rep.rows.single { it.pid == 11L }
+        assertEquals(listOf(false), row.facts!!.opinions.map { it.agrees })
+        assertTrue(row.blockers.any { "say keep" in it }, row.blockers.toString())
+        assertTrue(TriageStatus.OPINION_DISAGREES.needsChair, "the chair is told, so they can ask someone else")
+        // the silence mutant: a request unanswered for over 72 h removes, a keep is an answer and does not
+        val silent =
+            plan(f = Faults.MUTANTS[1], findings = listOf(finding(11, "format"), finding(17, "format"))) {
+                people()
+                for (pid in listOf(11L, 17L)) {
+                    paper(pid, tags = listOf("pcs-refer-format"))
+                    meta(pid, ac, round = null)
+                }
+                opinion(11, "senior1@example.org", triage = 1, askedAt = old)
+                opinion(17, "senior1@example.org", complete = false, askedAt = old)
+            }
+        assertEquals(TriageStatus.READY, silent.status(17))
+        assertEquals(TriageStatus.OPINION_DISAGREES, silent.status(11))
+    }
+
     private fun anonymity(
         r: Readings,
         tagsExtra: List<String> = emptyList(),
@@ -159,6 +205,34 @@ class TriagePlanTest {
         assertEquals(TriageStatus.KEEP_REFUSED, keep(readings(q1 = Q1.REJECT_AT_ONCE)))
         assertEquals(TriageStatus.KEPT, keep(fix))
         assertEquals(TriageStatus.KEPT, keep(readings(q1 = Q1.AC_DECIDES)))
+    }
+
+    @Test
+    @Covers("prop:S10")
+    fun `Q1 - the venue's fix window length decides what counts as a cure (PCS_REMEDY_WINDOW_H)`() {
+        val fix = readings(q1 = Q1.FIX_WINDOW)
+        val due = nowH + 40
+        val tag = Conventions.encode(Trace.RemedyDue(10, due * 3600))
+
+        fun status(window: Long, editedHoursBeforeDue: Long) =
+            plan(
+                fix,
+                nowHours = due + 1,
+                findings = listOf(finding(10, "anonymity")),
+                remedyWindowH = window,
+            ) {
+                people()
+                paper(10, tags = listOf("pcs-refer-anonymity", tag), modifiedAt = (due - editedHoursBeforeDue) * 3600)
+                meta(10, ac, round = null)
+                opinion(10, "senior1@example.org")
+            }.status(10)
+        // an edit 30 h before the due hour: inside a 72 h window (offered 72 h before due), before the offer of a 24 h one
+        assertEquals(TriageStatus.CURED, status(72, 30))
+        assertEquals(TriageStatus.READY, status(24, 30))
+        assertEquals(TriageStatus.CURED, status(24, 20))
+        // 100 h before the due hour is before the offer unless the window is longer than 100 h
+        assertEquals(TriageStatus.READY, status(72, 100))
+        assertEquals(TriageStatus.CURED, status(120, 100))
     }
 
     private fun ready(r: Readings, stage: Stage, ground: String = "format", tags: List<String> = emptyList()) =

@@ -28,8 +28,11 @@ public object TriageDrafts {
 
     private fun search(pids: List<Long>) = pids.sorted().joinToString(" ")
 
-    /** The triage mirror (hidden tags), then the unsubmit-and-move of the AC's screening metareviews (M3a's leftover, done by Writeback). */
-    public fun mirrorTriage(store: Store): List<Artifact> = ScreenRound.triageDrafts(store)
+    /**
+     * The triage mirror (hidden tags), then the unsubmit-and-move of the AC's screening metareviews (M3a's leftover, done by Writeback); and
+     * the same for each second opinion in (a screen-round review's `Triage` value, keep or remove).
+     */
+    public fun mirrorTriage(store: Store): List<Artifact> = ScreenRound.triageDrafts(store) + ScreenRound.opinionDrafts(store)
 
     /** Q5: once a paper is kept, its screen-round second opinions move to the normal round, text kept. */
     public fun moveSecondOpinions(store: Store): List<Artifact> = ScreenRound.secondOpinionDrafts(store)

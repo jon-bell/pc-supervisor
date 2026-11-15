@@ -160,7 +160,12 @@
   "id": "X3",
   "deps": [],
   "cases":
-  [{"venue": {"patternMin": 2, "nomineesMax": 3, "accGraceH": 48},
+  [{"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 2,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["shown to the PC chairs as a pattern; no consequence by itself",
      "shown to the PC chairs as a pattern; no consequence by itself",
@@ -174,7 +179,12 @@
      "shown to the PC chairs as a pattern; no consequence by itself"],
     "reading": {},
     "outcome": "shown to the PC chairs as a pattern; no consequence by itself"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["shown to the PC chairs as a pattern; no consequence by itself",
      "shown to the PC chairs as a pattern; no consequence by itself",
@@ -188,7 +198,12 @@
      "shown to the PC chairs as a pattern; no consequence by itself"],
     "reading": {},
     "outcome": "shown to the PC chairs as a pattern; no consequence by itself"},
-   {"venue": {"patternMin": 4, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 4,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["shown to the PC chairs as a pattern; no consequence by itself",
      "shown to the PC chairs as a pattern; no consequence by itself",
@@ -208,7 +223,12 @@
   "id": "X3b",
   "deps": [],
   "cases":
-  [{"venue": {"patternMin": 2, "nomineesMax": 3, "accGraceH": 48},
+  [{"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 2,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["shown to the PC chairs as a pattern: every nomination counts, repeats included; no consequence by itself",
      "shown to the PC chairs as a pattern: every nomination counts, repeats included; no consequence by itself",
@@ -223,7 +243,12 @@
     "reading": {},
     "outcome":
     "shown to the PC chairs as a pattern: every nomination counts, repeats included; no consequence by itself"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["shown to the PC chairs as a pattern: every nomination counts, repeats included; no consequence by itself",
      "shown to the PC chairs as a pattern: every nomination counts, repeats included; no consequence by itself",
@@ -238,7 +263,12 @@
     "reading": {},
     "outcome":
     "shown to the PC chairs as a pattern: every nomination counts, repeats included; no consequence by itself"},
-   {"venue": {"patternMin": 4, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 4,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["nothing to show; no consequence by itself",
      "nothing to show; no consequence by itself",
@@ -383,7 +413,12 @@
   "id": "X8",
   "deps": ["Q8", "Q19"],
   "cases":
-  [{"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+  [{"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -397,7 +432,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -411,7 +451,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -425,7 +470,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -439,7 +489,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -453,7 +508,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -467,7 +527,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -481,7 +546,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -495,7 +565,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -509,7 +584,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -523,7 +603,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -537,7 +622,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -551,7 +641,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -565,7 +660,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "up-to-n", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["1 3/6, 1 3/6 reviews",
      "1 3/6, 1 3/6 reviews",
@@ -579,7 +679,12 @@
      "1 3/6, 1 3/6 reviews"],
     "reading": {"Q8": "up-to-n", "Q19": "equal"},
     "outcome": "1 3/6, 1 3/6 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["1 3/6, 1 3/6 reviews",
      "1 3/6, 1 3/6 reviews",
@@ -593,7 +698,12 @@
      "1 3/6, 1 3/6 reviews"],
     "reading": {"Q8": "up-to-n", "Q19": "equal"},
     "outcome": "1 3/6, 1 3/6 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["1 3/6, 1 3/6 reviews",
      "1 3/6, 1 3/6 reviews",
@@ -607,7 +717,12 @@
      "1 3/6, 1 3/6 reviews"],
     "reading": {"Q8": "up-to-n", "Q19": "equal"},
     "outcome": "1 3/6, 1 3/6 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -621,7 +736,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "up-to-n", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["2, 1 reviews",
      "2, 1 reviews",
@@ -635,7 +755,12 @@
      "2, 1 reviews"],
     "reading": {"Q8": "up-to-n", "Q19": "authors-allocate"},
     "outcome": "2, 1 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["2, 1 reviews",
      "2, 1 reviews",
@@ -649,7 +774,12 @@
      "2, 1 reviews"],
     "reading": {"Q8": "up-to-n", "Q19": "authors-allocate"},
     "outcome": "2, 1 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["2, 1 reviews",
      "2, 1 reviews",
@@ -663,7 +793,12 @@
      "2, 1 reviews"],
     "reading": {"Q8": "up-to-n", "Q19": "authors-allocate"},
     "outcome": "2, 1 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -677,7 +812,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "up-to-n", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["pooled: the two together owe 3 reviews",
      "pooled: the two together owe 3 reviews",
@@ -691,7 +831,12 @@
      "pooled: the two together owe 3 reviews"],
     "reading": {"Q8": "up-to-n", "Q19": "solver"},
     "outcome": "pooled: the two together owe 3 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["pooled: the two together owe 3 reviews",
      "pooled: the two together owe 3 reviews",
@@ -705,7 +850,12 @@
      "pooled: the two together owe 3 reviews"],
     "reading": {"Q8": "up-to-n", "Q19": "solver"},
     "outcome": "pooled: the two together owe 3 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["pooled: the two together owe 3 reviews",
      "pooled: the two together owe 3 reviews",
@@ -719,7 +869,12 @@
      "pooled: the two together owe 3 reviews"],
     "reading": {"Q8": "up-to-n", "Q19": "solver"},
     "outcome": "pooled: the two together owe 3 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["1 3/6, 1 3/6 reviews",
      "1 3/6, 1 3/6 reviews",
@@ -733,7 +888,12 @@
      "1 3/6, 1 3/6 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "equal"},
     "outcome": "1 3/6, 1 3/6 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["1 3/6, 1 3/6 reviews",
      "1 3/6, 1 3/6 reviews",
@@ -747,7 +907,12 @@
      "1 3/6, 1 3/6 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "equal"},
     "outcome": "1 3/6, 1 3/6 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["1 3/6, 1 3/6 reviews",
      "1 3/6, 1 3/6 reviews",
@@ -761,7 +926,12 @@
      "1 3/6, 1 3/6 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "equal"},
     "outcome": "1 3/6, 1 3/6 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["1 3/6, 1 3/6 reviews",
      "1 3/6, 1 3/6 reviews",
@@ -775,7 +945,12 @@
      "1 3/6, 1 3/6 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "equal"},
     "outcome": "1 3/6, 1 3/6 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["2, 1 reviews",
      "2, 1 reviews",
@@ -789,7 +964,12 @@
      "2, 1 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "authors-allocate"},
     "outcome": "2, 1 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["2, 1 reviews",
      "2, 1 reviews",
@@ -803,7 +983,12 @@
      "2, 1 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "authors-allocate"},
     "outcome": "2, 1 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["2, 1 reviews",
      "2, 1 reviews",
@@ -817,7 +1002,12 @@
      "2, 1 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "authors-allocate"},
     "outcome": "2, 1 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["2, 1 reviews",
      "2, 1 reviews",
@@ -831,7 +1021,12 @@
      "2, 1 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "authors-allocate"},
     "outcome": "2, 1 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["pooled: the two together owe 3 reviews",
      "pooled: the two together owe 3 reviews",
@@ -845,7 +1040,12 @@
      "pooled: the two together owe 3 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "solver"},
     "outcome": "pooled: the two together owe 3 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["pooled: the two together owe 3 reviews",
      "pooled: the two together owe 3 reviews",
@@ -859,7 +1059,12 @@
      "pooled: the two together owe 3 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "solver"},
     "outcome": "pooled: the two together owe 3 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["pooled: the two together owe 3 reviews",
      "pooled: the two together owe 3 reviews",
@@ -873,7 +1078,12 @@
      "pooled: the two together owe 3 reviews"],
     "reading": {"Q8": "at-least-one", "Q19": "solver"},
     "outcome": "pooled: the two together owe 3 reviews"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["pooled: the two together owe 3 reviews",
      "pooled: the two together owe 3 reviews",
@@ -892,7 +1102,12 @@
   "id": "X9",
   "deps": ["Q8", "Q19", "Q19b"],
   "cases":
-  [{"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+  [{"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -906,7 +1121,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -920,7 +1140,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -934,7 +1159,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -948,7 +1178,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -962,7 +1197,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -976,7 +1216,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -990,7 +1235,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1004,7 +1254,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1019,7 +1274,12 @@
     "reading":
     {"Q8": "one", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1034,7 +1294,12 @@
     "reading":
     {"Q8": "one", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1049,7 +1314,12 @@
     "reading":
     {"Q8": "one", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1064,7 +1334,12 @@
     "reading":
     {"Q8": "one", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1078,7 +1353,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1092,7 +1372,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1106,7 +1391,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1120,7 +1410,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1134,7 +1429,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1148,7 +1448,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1162,7 +1467,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1176,7 +1486,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1190,7 +1505,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1204,7 +1524,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1218,7 +1543,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1232,7 +1562,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "one", "Q19b": "paper-short", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1246,7 +1581,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1260,7 +1600,12 @@
      "the remaining nominee owes 3; the paper is short by 0"],
     "reading": {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1274,7 +1619,12 @@
      "the remaining nominee owes 3; the paper is short by 0"],
     "reading": {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1288,7 +1638,12 @@
      "the remaining nominee owes 3; the paper is short by 0"],
     "reading": {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1302,7 +1657,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1316,7 +1676,12 @@
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"],
     "reading": {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1330,7 +1695,12 @@
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"],
     "reading": {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1344,7 +1714,12 @@
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"],
     "reading": {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1359,7 +1734,12 @@
     "reading":
     {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1374,7 +1754,12 @@
     "reading":
     {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1389,7 +1774,12 @@
     "reading":
     {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1404,7 +1794,12 @@
     "reading":
     {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1419,7 +1814,12 @@
     "reading":
     {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1434,7 +1834,12 @@
     "reading":
     {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1449,7 +1854,12 @@
     "reading":
     {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1464,7 +1874,12 @@
     "reading":
     {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1478,7 +1893,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1493,7 +1913,12 @@
     "reading": {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1508,7 +1933,12 @@
     "reading": {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1523,7 +1953,12 @@
     "reading": {"Q8": "up-to-n", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["not allowed: at most 1 nominee(s) per paper",
      "not allowed: at most 1 nominee(s) per paper",
@@ -1537,7 +1972,12 @@
      "not allowed: at most 1 nominee(s) per paper"],
     "reading": {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "solver"},
     "outcome": "not allowed: at most 1 nominee(s) per paper"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1552,7 +1992,12 @@
     "reading": {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1567,7 +2012,12 @@
     "reading": {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1582,7 +2032,12 @@
     "reading": {"Q8": "up-to-n", "Q19b": "paper-short", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1596,7 +2051,12 @@
      "the remaining nominee owes 3; the paper is short by 0"],
     "reading": {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1610,7 +2070,12 @@
      "the remaining nominee owes 3; the paper is short by 0"],
     "reading": {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1624,7 +2089,12 @@
      "the remaining nominee owes 3; the paper is short by 0"],
     "reading": {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1638,7 +2108,12 @@
      "the remaining nominee owes 3; the paper is short by 0"],
     "reading": {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "equal"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1652,7 +2127,12 @@
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"],
     "reading": {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1666,7 +2146,12 @@
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"],
     "reading": {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1680,7 +2165,12 @@
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"],
     "reading": {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1694,7 +2184,12 @@
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"],
     "reading": {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "equal"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1709,7 +2204,12 @@
     "reading":
     {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1724,7 +2224,12 @@
     "reading":
     {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1739,7 +2244,12 @@
     "reading":
     {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 3; the paper is short by 0",
      "the remaining nominee owes 3; the paper is short by 0",
@@ -1754,7 +2264,12 @@
     "reading":
     {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 3; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1769,7 +2284,12 @@
     "reading":
     {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1784,7 +2304,12 @@
     "reading":
     {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1799,7 +2324,12 @@
     "reading":
     {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
      "the remaining nominee owes 1 3/6; the paper is short by 1 3/6",
@@ -1814,7 +2344,12 @@
     "reading":
     {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "authors-allocate"},
     "outcome": "the remaining nominee owes 1 3/6; the paper is short by 1 3/6"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1829,7 +2364,12 @@
     "reading": {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1844,7 +2384,12 @@
     "reading": {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1859,7 +2404,12 @@
     "reading": {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1874,7 +2424,12 @@
     "reading": {"Q8": "at-least-one", "Q19b": "others-absorb", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1889,7 +2444,12 @@
     "reading": {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1904,7 +2464,12 @@
     "reading": {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1919,7 +2484,12 @@
     "reading": {"Q8": "at-least-one", "Q19b": "paper-short", "Q19": "solver"},
     "outcome":
     "the remaining nominee is pooled with the paper's obligation; the paper is short by 0"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
      "the remaining nominee is pooled with the paper's obligation; the paper is short by 0",
@@ -1939,7 +2509,12 @@
   "id": "X11",
   "deps": ["Q8"],
   "cases":
-  [{"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+  [{"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["too many nominees: reported, and Q10's consequence applies",
      "too many nominees: reported, and Q10's consequence applies",
@@ -1953,7 +2528,12 @@
      "too many nominees: reported, and Q10's consequence applies"],
     "reading": {"Q8": "one"},
     "outcome": "too many nominees: reported, and Q10's consequence applies"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["too many nominees: reported, and Q10's consequence applies",
      "too many nominees: reported, and Q10's consequence applies",
@@ -1967,7 +2547,12 @@
      "too many nominees: reported, and Q10's consequence applies"],
     "reading": {"Q8": "one"},
     "outcome": "too many nominees: reported, and Q10's consequence applies"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["too many nominees: reported, and Q10's consequence applies",
      "too many nominees: reported, and Q10's consequence applies",
@@ -1981,7 +2566,12 @@
      "too many nominees: reported, and Q10's consequence applies"],
     "reading": {"Q8": "one"},
     "outcome": "too many nominees: reported, and Q10's consequence applies"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["too many nominees: reported, and Q10's consequence applies",
      "too many nominees: reported, and Q10's consequence applies",
@@ -1995,7 +2585,12 @@
      "too many nominees: reported, and Q10's consequence applies"],
     "reading": {"Q8": "one"},
     "outcome": "too many nominees: reported, and Q10's consequence applies"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["too many nominees: reported, and Q10's consequence applies",
      "too many nominees: reported, and Q10's consequence applies",
@@ -2009,7 +2604,12 @@
      "too many nominees: reported, and Q10's consequence applies"],
     "reading": {"Q8": "up-to-n"},
     "outcome": "too many nominees: reported, and Q10's consequence applies"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["too many nominees: reported, and Q10's consequence applies",
      "too many nominees: reported, and Q10's consequence applies",
@@ -2023,7 +2623,12 @@
      "too many nominees: reported, and Q10's consequence applies"],
     "reading": {"Q8": "up-to-n"},
     "outcome": "too many nominees: reported, and Q10's consequence applies"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["too many nominees: reported, and Q10's consequence applies",
      "too many nominees: reported, and Q10's consequence applies",
@@ -2037,7 +2642,12 @@
      "too many nominees: reported, and Q10's consequence applies"],
     "reading": {"Q8": "up-to-n"},
     "outcome": "too many nominees: reported, and Q10's consequence applies"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["compliant",
      "compliant",
@@ -2051,7 +2661,12 @@
      "compliant"],
     "reading": {"Q8": "up-to-n"},
     "outcome": "compliant"},
-   {"venue": {"patternMin": 3, "nomineesMax": 1, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 1,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["compliant",
      "compliant",
@@ -2065,7 +2680,12 @@
      "compliant"],
     "reading": {"Q8": "at-least-one"},
     "outcome": "compliant"},
-   {"venue": {"patternMin": 3, "nomineesMax": 2, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 2,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["compliant",
      "compliant",
@@ -2079,7 +2699,12 @@
      "compliant"],
     "reading": {"Q8": "at-least-one"},
     "outcome": "compliant"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["compliant",
      "compliant",
@@ -2093,7 +2718,12 @@
      "compliant"],
     "reading": {"Q8": "at-least-one"},
     "outcome": "compliant"},
-   {"venue": {"patternMin": 3, "nomineesMax": 5, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 5,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["compliant",
      "compliant",
@@ -2415,6 +3045,243 @@
      "0 reciprocal 2-cycle(s) found and broken"],
     "reading": {},
     "outcome": "1 reciprocal 2-cycle(s) found and broken"}]},
+ {"venueDeps": ["junior-seats"],
+  "text":
+  "Two seniors, a reciprocal nominee junior who owes a review and a PC junior can sit on a paper under zero to two juniors; and the same with only one senior",
+  "id": "P6",
+  "deps": ["Q13"],
+  "cases":
+  [{"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper"],
+    "reading": {"Q13": "one-junior"},
+    "outcome": "the optional seats do not exist: 1 third seat a paper"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "when-short",
+     "accGraceH": 48},
+    "underMutant":
+    ["the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper"],
+    "reading": {"Q13": "one-junior"},
+    "outcome": "the optional seats do not exist: 1 third seat a paper"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "reciprocal-only",
+     "accGraceH": 48},
+    "underMutant":
+    ["the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper"],
+    "reading": {"Q13": "one-junior"},
+    "outcome": "the optional seats do not exist: 1 third seat a paper"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper"],
+    "reading": {"Q13": "one-or-two-juniors"},
+    "outcome": "the optional seats do not exist: 1 third seat a paper"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "when-short",
+     "accGraceH": 48},
+    "underMutant":
+    ["the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper"],
+    "reading": {"Q13": "one-or-two-juniors"},
+    "outcome": "the optional seats do not exist: 1 third seat a paper"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "reciprocal-only",
+     "accGraceH": 48},
+    "underMutant":
+    ["the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper"],
+    "reading": {"Q13": "one-or-two-juniors"},
+    "outcome": "the optional seats do not exist: 1 third seat a paper"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)"],
+    "reading": {"Q13": "zero-to-two-juniors"},
+    "outcome":
+    "two seniors: 2 junior seat(s) (1 reciprocal, 1 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "when-short",
+     "accGraceH": 48},
+    "underMutant":
+    ["two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)"],
+    "reading": {"Q13": "zero-to-two-juniors"},
+    "outcome":
+    "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "reciprocal-only",
+     "accGraceH": 48},
+    "underMutant":
+    ["two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)",
+     "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)"],
+    "reading": {"Q13": "zero-to-two-juniors"},
+    "outcome":
+    "two seniors: 1 junior seat(s) (1 reciprocal, 0 PC); one senior: 2 junior seat(s) (1 reciprocal, 1 PC)"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper"],
+    "reading": {"Q13": "one-junior-or-nominee"},
+    "outcome": "the optional seats do not exist: 1 third seat a paper"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "when-short",
+     "accGraceH": 48},
+    "underMutant":
+    ["the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper"],
+    "reading": {"Q13": "one-junior-or-nominee"},
+    "outcome": "the optional seats do not exist: 1 third seat a paper"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "reciprocal-only",
+     "accGraceH": 48},
+    "underMutant":
+    ["the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper",
+     "the optional seats do not exist: 1 third seat a paper"],
+    "reading": {"Q13": "one-junior-or-nominee"},
+    "outcome": "the optional seats do not exist: 1 third seat a paper"}]},
  {"venueDeps": [],
   "text": "A plan is confirmed, but its dry run failed",
   "id": "P5",
@@ -2478,6 +3345,190 @@
      "the AC may keep it; if referred, may be desk rejected"],
     "reading": {"Q1": "ac-decides"},
     "outcome": "the AC may keep it; if referred, may be desk rejected"}]},
+ {"venueDeps": ["remedy-window-h"],
+  "text":
+  "The chair offers the fix at hour 0 and the author does not cure it; asked at the last hour of the window and an hour later",
+  "id": "E3b",
+  "deps": ["Q1"],
+  "cases":
+  [{"venue":
+    {"remedyWindowH": 24,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected"],
+    "reading": {"Q1": "reject-at-once"},
+    "outcome":
+    "at hour 24: may be desk rejected; at hour 25: may be desk rejected"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected"],
+    "reading": {"Q1": "reject-at-once"},
+    "outcome":
+    "at hour 72: may be desk rejected; at hour 73: may be desk rejected"},
+   {"venue":
+    {"remedyWindowH": 120,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected"],
+    "reading": {"Q1": "reject-at-once"},
+    "outcome":
+    "at hour 120: may be desk rejected; at hour 121: may be desk rejected"},
+   {"venue":
+    {"remedyWindowH": 24,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["at hour 24: stays in review; at hour 25: may be desk rejected",
+     "at hour 24: stays in review; at hour 25: may be desk rejected",
+     "at hour 24: stays in review; at hour 25: may be desk rejected",
+     "at hour 24: stays in review; at hour 25: may be desk rejected",
+     "at hour 24: stays in review; at hour 25: may be desk rejected",
+     "at hour 24: stays in review; at hour 25: may be desk rejected",
+     "at hour 24: stays in review; at hour 25: may be desk rejected",
+     "at hour 24: stays in review; at hour 25: may be desk rejected",
+     "at hour 24: stays in review; at hour 25: may be desk rejected",
+     "at hour 24: stays in review; at hour 25: may be desk rejected"],
+    "reading": {"Q1": "fix-window"},
+    "outcome": "at hour 24: stays in review; at hour 25: may be desk rejected"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["at hour 72: stays in review; at hour 73: may be desk rejected",
+     "at hour 72: stays in review; at hour 73: may be desk rejected",
+     "at hour 72: stays in review; at hour 73: may be desk rejected",
+     "at hour 72: stays in review; at hour 73: may be desk rejected",
+     "at hour 72: stays in review; at hour 73: may be desk rejected",
+     "at hour 72: stays in review; at hour 73: may be desk rejected",
+     "at hour 72: stays in review; at hour 73: may be desk rejected",
+     "at hour 72: stays in review; at hour 73: may be desk rejected",
+     "at hour 72: stays in review; at hour 73: may be desk rejected",
+     "at hour 72: stays in review; at hour 73: may be desk rejected"],
+    "reading": {"Q1": "fix-window"},
+    "outcome": "at hour 72: stays in review; at hour 73: may be desk rejected"},
+   {"venue":
+    {"remedyWindowH": 120,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["at hour 120: stays in review; at hour 121: may be desk rejected",
+     "at hour 120: stays in review; at hour 121: may be desk rejected",
+     "at hour 120: stays in review; at hour 121: may be desk rejected",
+     "at hour 120: stays in review; at hour 121: may be desk rejected",
+     "at hour 120: stays in review; at hour 121: may be desk rejected",
+     "at hour 120: stays in review; at hour 121: may be desk rejected",
+     "at hour 120: stays in review; at hour 121: may be desk rejected",
+     "at hour 120: stays in review; at hour 121: may be desk rejected",
+     "at hour 120: stays in review; at hour 121: may be desk rejected",
+     "at hour 120: stays in review; at hour 121: may be desk rejected"],
+    "reading": {"Q1": "fix-window"},
+    "outcome":
+    "at hour 120: stays in review; at hour 121: may be desk rejected"},
+   {"venue":
+    {"remedyWindowH": 24,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected",
+     "at hour 24: may be desk rejected; at hour 25: may be desk rejected"],
+    "reading": {"Q1": "ac-decides"},
+    "outcome":
+    "at hour 24: may be desk rejected; at hour 25: may be desk rejected"},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected",
+     "at hour 72: may be desk rejected; at hour 73: may be desk rejected"],
+    "reading": {"Q1": "ac-decides"},
+    "outcome":
+    "at hour 72: may be desk rejected; at hour 73: may be desk rejected"},
+   {"venue":
+    {"remedyWindowH": 120,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
+    "underMutant":
+    ["at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected",
+     "at hour 120: may be desk rejected; at hour 121: may be desk rejected"],
+    "reading": {"Q1": "ac-decides"},
+    "outcome":
+    "at hour 120: may be desk rejected; at hour 121: may be desk rejected"}]},
  {"venueDeps": [],
   "text": "A self-reveal is found during review, before reviews are released",
   "id": "E4",
@@ -3363,7 +4414,12 @@
   "id": "C3",
   "deps": [],
   "cases":
-  [{"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 0},
+  [{"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 0},
     "underMutant":
     ["no-reply may be recorded at hour 42: false; at hour 49: true",
      "no-reply may be recorded at hour 42: false; at hour 49: true",
@@ -3377,7 +4433,12 @@
      "no-reply may be recorded at hour 42: false; at hour 49: true"],
     "reading": {},
     "outcome": "no-reply may be recorded at hour 42: false; at hour 49: true"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 24},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 24},
     "underMutant":
     ["no-reply may be recorded at hour 66: false; at hour 73: true",
      "no-reply may be recorded at hour 66: false; at hour 73: true",
@@ -3391,7 +4452,12 @@
      "no-reply may be recorded at hour 66: false; at hour 73: true"],
     "reading": {},
     "outcome": "no-reply may be recorded at hour 66: false; at hour 73: true"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 48},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 48},
     "underMutant":
     ["no-reply may be recorded at hour 90: false; at hour 97: true",
      "no-reply may be recorded at hour 90: false; at hour 97: true",
@@ -3405,7 +4471,12 @@
      "no-reply may be recorded at hour 90: false; at hour 97: true"],
     "reading": {},
     "outcome": "no-reply may be recorded at hour 90: false; at hour 97: true"},
-   {"venue": {"patternMin": 3, "nomineesMax": 3, "accGraceH": 72},
+   {"venue":
+    {"remedyWindowH": 72,
+     "patternMin": 3,
+     "nomineesMax": 3,
+     "juniorSeats": "fill",
+     "accGraceH": 72},
     "underMutant":
     ["no-reply may be recorded at hour 114: false; at hour 121: true",
      "no-reply may be recorded at hour 114: false; at hour 121: true",

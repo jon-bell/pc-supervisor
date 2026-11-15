@@ -2,7 +2,7 @@
 answers file: answers/synthetic.txt
 questions in the model: 20; readings of the whole text: 358318080
 answered: 8; open: 12
-venue parameters: nominees per paper at most 3 (Q8 "up to n"); pattern shown at 3 nominations (Q9); accountability grace period 48 h (AR5)
+venue parameters: nominees per paper at most 3 (Q8 "up to n"); pattern shown at 3 nominations (Q9); accountability grace period 48 h (AR5); Q1 fix window 72 h
 not in the model (no rule depends on them yet): Q9 (who may be nominated), Q12 (withholding reviews)
 
 ## Legibility: does any card depend on a question it doesn't declare?
@@ -55,6 +55,10 @@ answered questions pinned to one reading by cards: 6 of 8
       if reject at once: the AC may not keep it; if referred, may be desk rejected
       if fix window, then reject if uncured: the AC may keep it; if referred, stays in review
       if the AC decides: the AC may keep it; if referred, may be desk rejected
+  [E3b] The chair offers the fix at hour 0 and the author does not cure it; asked at the last hour of the window and an hour later
+      if reject at once: at hour 72: may be desk rejected; at hour 73: may be desk rejected
+      if fix window, then reject if uncured: at hour 72: stays in review; at hour 73: may be desk rejected
+      if the AC decides: at hour 72: may be desk rejected; at hour 73: may be desk rejected
 ### Q4: when reviewers see the screening record
   [S12] A PC member submits their review of a paper the AC referred and then kept
       if never: they never see the screening record
@@ -152,7 +156,7 @@ Cells marked † are set by a ruling; they show the question and the result at t
 
 ## L1 and L2: trace search over the policy and the rules (signed model, answered reading)
 Every step is taken by a role whose cell is granted (theorem gated_requires_policy); the rules decide whether it has an effect.
-### desk reject: 1524 states
+### desk reject: 3036 states
 - L2 desk reject on format: reachable: AC (own paper): refer on format → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
 - L2 desk reject on scope: reachable: AC (own paper): refer on scope → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
 - L2 desk reject on anonymity: reachable: AC (own paper): refer on anonymity → Senior / junior PC: agree (person 2, an AC, senior) → PC chair: remove the paper
@@ -230,6 +234,9 @@ scale: 4000 papers, 20 areas, 450 senior and 300 junior PC, nominees accepted 80
 - if Q18 = k per nominating paper: composed 3712/4000 (92%); senior slots unfilled 413; third slots unfilled 3; senior reviews needed 8000 vs capacity 10947; accepted nominees 2512, mean owed 3 4/6, reviews by nominees 8083, nominees at or above what they owe 83%, max nominee load 6; reviews outside the paper's area 0; reciprocal 2-cycles 249 before repair, 302 edges forbidden, 0 left; load-band violations 0; candidate edges 198208, objective 18294
 - if Q18 = their share of k, summed over papers: composed 3712/4000 (92%); senior slots unfilled 413; third slots unfilled 3; senior reviews needed 8000 vs capacity 10947; accepted nominees 2512, mean owed 3 4/6, reviews by nominees 8083, nominees at or above what they owe 83%, max nominee load 6; reviews outside the paper's area 0; reciprocal 2-cycles 249 before repair, 302 edges forbidden, 0 left; load-band violations 0; candidate edges 198208, objective 18294
 - if Q18 = their shares summed, capped at the tier's band: composed 3712/4000 (92%); senior slots unfilled 413; third slots unfilled 3; senior reviews needed 8000 vs capacity 10947; accepted nominees 2512, mean owed 3 4/6, reviews by nominees 8083, nominees at or above what they owe 83%, max nominee load 6; reviews outside the paper's area 0; reciprocal 2-cycles 249 before repair, 302 edges forbidden, 0 left; load-band violations 0; candidate edges 198208, objective 18294
+- if Q13 = zero to two juniors and junior seats = fill: composed 3611/4000 (90%); senior slots unfilled 550; third slots unfilled 0; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 7536, nominees at or above what they owe 100%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 213 before repair, 251 edges forbidden, 0 left; load-band violations 0; candidate edges 198259, objective 32924
+- if Q13 = zero to two juniors and junior seats = when-short: composed 3608/4000 (90%); senior slots unfilled 550; third slots unfilled 0; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 7079, nominees at or above what they owe 91%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 181 before repair, 221 edges forbidden, 0 left; load-band violations 0; candidate edges 198289, objective 24653
+- if Q13 = zero to two juniors and junior seats = reciprocal-only: composed 3611/4000 (90%); senior slots unfilled 550; third slots unfilled 0; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 7536, nominees at or above what they owe 100%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 218 before repair, 264 edges forbidden, 0 left; load-band violations 0; candidate edges 198246, objective 28111
 early reject, share of papers whose initial reviews are all negative:
 - reject or strong reject: 0%
 - weak reject or below: 11%

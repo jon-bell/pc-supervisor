@@ -6,6 +6,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import net.jonbell.pcs.core.readings.Q1
+import net.jonbell.pcs.core.readings.Q13
 import net.jonbell.pcs.core.readings.Q21
 import net.jonbell.pcs.core.readings.Q4
 import net.jonbell.pcs.core.readings.Q5
@@ -16,6 +17,7 @@ import net.jonbell.pcs.core.readings.Readings
 import net.jonbell.pcs.core.rules.Accountability
 import net.jonbell.pcs.core.rules.Change
 import net.jonbell.pcs.core.rules.Compliance
+import net.jonbell.pcs.core.rules.DeskFlow
 import net.jonbell.pcs.core.rules.DeskReject
 import net.jonbell.pcs.core.rules.ERCase
 import net.jonbell.pcs.core.rules.EarlyReject
@@ -112,6 +114,21 @@ class CardsTest {
                     )
                 "${counts(9, true)}; a PC member who is neither the paper's AC nor a chair: ${counts(9, false)}; an AC of another paper: ${counts(3, false)}"
             },
+            "P6" to { r ->
+                if (r.q13 == Q13.ZERO_TO_TWO_JUNIORS) {
+                    val m = venue.juniorSeats
+                    val cap = Pc.thirdCap(Q13.ZERO_TO_TWO_JUNIORS)
+
+                    fun sit(seniors: Int): String {
+                        val nom = minOf(Pc.juniorRoom(m, true, cap, seniors, 0), 1)
+                        val pc = minOf(Pc.juniorRoom(m, false, cap, seniors, nom), 1)
+                        return "${nom + pc} junior seat(s) ($nom reciprocal, $pc PC)"
+                    }
+                    "two seniors: ${sit(2)}; one senior: ${sit(1)}"
+                } else {
+                    "the optional seats do not exist: ${Pc.thirdSlots(r.q13!!)} third seat a paper"
+                }
+            },
             "E3" to { r ->
                 val ref = refAt(Ground.ANONYMITY, Stage.SCREENING).copy(remedyOffered = false)
                 "${yesNo(
@@ -119,6 +136,11 @@ class CardsTest {
                     "the AC may keep it",
                     "the AC may not keep it",
                 )}; if referred, ${removable(r, ref)}"
+            },
+            "E3b" to { r ->
+                val w = venue.remedyWindowH
+                val ref = refAt(Ground.ANONYMITY, Stage.SCREENING).copy(remedyOffered = true, remedyDue = DeskFlow.remedyDue(0, w))
+                "at hour $w: ${removable(r, ref.copy(now = w))}; at hour ${w + 1}: ${removable(r, ref.copy(now = w + 1))}"
             },
             "E4" to { r -> removable(r, refAt(Ground.ANONYMITY, Stage.IN_REVIEW)) },
             "E4b" to { r -> removable(r, refAt(Ground.ANONYMITY, Stage.RELEASED)) },
