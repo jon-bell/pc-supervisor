@@ -101,7 +101,7 @@ fun AssignmentView(session: Session, opener: UrlOpener, version: Int, onDrafted:
     // the chair running the assignment chooses who takes the optional seats under Q13's "zero to two juniors"; the setting is the starting point
     var seats by remember { mutableStateOf(session.settings.venue.juniorSeats) }
     var target by remember { mutableStateOf(session.settings.venue.reviewerTarget) }
-    val state by produceRows(version, seats, target) { listOf(session.assignment(seats, target)) }
+    val state by produceRows(version, seats to target) { listOf(session.assignment(seats, target)) }
     Column(Modifier.fillMaxSize().testTag(AssignmentTags.SCREEN), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Junior seats (zero to two juniors):", Modifier.testTag(AssignmentTags.SEATS), style = MaterialTheme.typography.labelLarge)
