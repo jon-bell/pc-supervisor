@@ -444,6 +444,7 @@ The PDF ZIP comes from HotCRP's own download.
 - Junior vs. senior vs. nominee depth, timeliness, **rating-flag distributions** (flags received per review, by tier), and score agreement.
 - Nominee acceptance and dropout rates, early-reject yield, desk-reject counts, and TriageFeedback results.
 - **Pseudonymous IDs** (a keyed HMAC of the email, with a chair-held key, `PCS_PSEUDONYM_KEY`) on every exported row, so the data could join a future cross-conference baseline without exposing identities.
+- **What exists (M20).** The *Process report* tab (and `ProcessReports`, rendered as Markdown and HTML) has one section per module (overview, nominations and appointments, screening and desk reject, assignment, reviewing progress, accountability, early reject, discussion), each a few small tables of counts, timings and rule outcomes: no name, title or review or comment text. A module that cannot be computed yet says why. The export is four CSV tables (`reviews`, `comments`, `nominations`, `requests`) where every person and every paper is a pseudonym: HMAC-SHA256 under the key, over `person:<lower-cased email>` or `paper:<number>`, cut to 128 bits, so the same key gives the same pseudonyms and another key gives unrelated ones. The key is `PCS_PSEUDONYM_KEY` or the first line of the file `PCS_PSEUDONYM_KEY_FILE` (at least 16 characters); with neither, nothing is written. Other fields are numbers, epoch-second timestamps and enumerated labels (tier group, status, rating-flag names, dispositions).
 
 ### 10.5 Assignment solver (port of HotCRP's autoassigner)
 
