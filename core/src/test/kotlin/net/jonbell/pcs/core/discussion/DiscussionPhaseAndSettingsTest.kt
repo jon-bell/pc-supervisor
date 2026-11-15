@@ -43,6 +43,13 @@ class DiscussionPhaseAndSettingsTest {
             now(at),
         ).map { it.rule }.toSet()
 
+    /** What the mirror would hold at [at]: the golden view with the comments that did not exist yet removed (reviews are as seeded). */
+    private fun firedAsOf(pid: Long, at: String): Set<String> {
+        val t = now(at)
+        val p = GoldenViews.papers.first { it.pid == pid }
+        return Discussion.reasons(p.copy(comments = p.comments.filter { it.at <= t }), phases(), t).map { it.rule }.toSet()
+    }
+
     private fun stage(pid: Long, at: String) = Discussion.stage(GoldenViews.papers.first { it.pid == pid }, phases(), now(at))
 
     @Test
@@ -69,7 +76,7 @@ class DiscussionPhaseAndSettingsTest {
     fun `during reviewing only the review-reading rules can fire`() {
         // pid 2's third review is empty, but the deadline has not passed
         assertEquals(emptySet<String>(), fired(2, "2030-01-25T12:00"))
-        assertEquals(emptySet<String>(), fired(5, "2030-01-25T12:00"), "nobody is expected to comment yet")
+        assertEquals(emptySet<String>(), firedAsOf(5, "2030-01-25T12:00"), "nobody is expected to comment yet")
         assertEquals(setOf("SPLIT"), fired(3, "2030-01-25T12:00"))
         assertEquals(setOf("LOW_EXPERTISE"), fired(9, "2030-01-25T12:00"))
         assertEquals(setOf("THIN_REVIEWS"), fired(10, "2030-01-25T12:00"))
@@ -80,8 +87,34 @@ class DiscussionPhaseAndSettingsTest {
     @Covers("golden:pid2")
     fun `between the review deadline and opening, MISSING_REVIEWS appears and the discussion rules stay quiet`() {
         assertEquals(setOf("MISSING_REVIEWS"), fired(2, "2030-02-05T12:00"))
-        assertEquals(emptySet<String>(), fired(5, "2030-02-05T12:00"))
-        assertEquals(emptySet<String>(), fired(11, "2030-02-05T12:00"), "the response is not yet owed an answer before discussion")
+        // the talk rules about opening the discussion stay quiet before it opens: nothing here is SILENT_DISCUSSION or AC_ABSENT
+        assertEquals(setOf("GONE_QUIET"), fired(5, "2030-02-05T12:00"), "no activity since the reviews: only GONE_QUIET, which needs no phase")
+        assertTrue("RESPONSE_UNADDRESSED" !in firedAsOf(11, "2030-02-05T12:00"), "no response yet, so nothing to address")
+    }
+
+    @Test
+    @Covers("golden:pid5", "golden:pid8", "golden:pid11")
+    fun `CHAMPION_MISSING, GONE_QUIET and RESPONSE_UNADDRESSED fire as soon as their conditions hold, before discussion opens (owner's ruling, 2026-11-15)`() {
+        // CHAMPION_MISSING (pid 8: merit 4/3/3, the 4 never comments): from the first instant a complete review holds an accept-side top score
+        for (at in listOf("2030-01-25T12:00", "2030-02-01T23:59", "2030-02-05T12:00", "2030-02-11T23:59", "2030-02-12T00:00")) {
+            assertTrue("CHAMPION_MISSING" in firedAsOf(8, at), at)
+        }
+        // not for a paper whose top score is below the accept line (pid 5: 2/2/2)
+        assertTrue("CHAMPION_MISSING" !in firedAsOf(5, "2030-01-25T12:00"))
+        // RESPONSE_UNADDRESSED (pid 11, response on 02-09): cannot fire before there is a response, fires from the response on, in reviewing or in between
+        assertTrue("RESPONSE_UNADDRESSED" !in firedAsOf(11, "2030-02-08T12:00"))
+        assertTrue("RESPONSE_UNADDRESSED" in firedAsOf(11, "2030-02-10T12:00"), "the response window is still open, discussion is not")
+        assertTrue("RESPONSE_UNADDRESSED" in firedAsOf(11, "2030-02-11T23:59"))
+        assertTrue("RESPONSE_UNADDRESSED" in firedAsOf(11, "2030-02-12T00:00"), "and it stays on once discussion opens")
+        // GONE_QUIET (pid 5, nothing since the reviews): in no phase before its threshold, from the threshold on in every phase
+        assertEquals(emptySet<String>(), firedAsOf(5, "2030-01-25T12:00"))
+        assertEquals(setOf("GONE_QUIET"), firedAsOf(5, "2030-02-05T12:00"))
+        assertEquals(setOf("GONE_QUIET"), firedAsOf(5, "2030-02-11T23:59"))
+        // and the rules that need the discussion to have opened still do
+        for (at in listOf("2030-01-25T12:00", "2030-02-05T12:00", "2030-02-11T23:59")) {
+            val f = firedAsOf(5, at) + firedAsOf(7, at) + firedAsOf(4, at)
+            assertTrue(f.none { it == "SILENT_DISCUSSION" || it == "AC_ABSENT" || it == "UNRESOLVED_SPLIT" }, "$at: $f")
+        }
     }
 
     @Test

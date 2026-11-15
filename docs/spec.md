@@ -223,14 +223,16 @@ Each rule fires with a reason string. Rating-based reasons quote the counts, e.g
 | `SPLIT` | merit range ≥ `PCS_THRESH_SPLIT_RANGE` (2), or there are scores on both sides of `MERIT_ACCEPT_MIN` | 3 |
 | `UNRESOLVED_SPLIT` | split, no movement since `DISCUSSION_OPEN`, discussion older than `PCS_THRESH_UNRESOLVED_DAYS` | +2 |
 | `SILENT_DISCUSSION` | in discussion, 0 comments since `DISCUSSION_OPEN` | 3 |
-| `GONE_QUIET` | last activity older than `PCS_THRESH_STALE_DAYS`, no decision | 2 |
+| `GONE_QUIET` | last activity older than `PCS_THRESH_STALE_DAYS`, no decision; fires in any phase | 2 |
 | `AC_ABSENT` | no AC comment since `DISCUSSION_OPEN` | 2 |
-| `CHAMPION_MISSING` | the top merit is ≥ `MERIT_ACCEPT_MIN`, and that reviewer hasn't commented | 1 |
+| `CHAMPION_MISSING` | the top merit is ≥ `MERIT_ACCEPT_MIN`, and that reviewer hasn't commented; fires in any phase | 1 |
 | `LOW_EXPERTISE` | no review with expertise ≥ `EXPERTISE_OK_MIN` | 2 |
 | `THIN_REVIEWS` | a review under `PCS_THRESH_MIN_WORDS`, or flagged short/vague by ≥ `PCS_THRESH_RATING_RATERS` (2) raters | 1 |
-| `RESPONSE_UNADDRESSED` | an author response exists, with no reviewer comment after it | 2 |
+| `RESPONSE_UNADDRESSED` | an author response exists, with no reviewer comment after it; fires in any phase (so not before a response exists) | 2 |
 | `REVIEW_FLAGGED` | any review on the paper carries a `disrespectful` or `wrong` rating. **Phase-independent**, because a disrespectful review needs chair action before authors see it | 4 |
 | `DEADLINE_NO_CONSENSUS` | < `PCS_THRESH_DEADLINE_DAYS` (3) to `DECISIONS_DUE`, no decision, and split or silent | +3 |
+
+Phases: `MISSING_REVIEWS` waits for `REVIEW_DUE`; `UNRESOLVED_SPLIT`, `SILENT_DISCUSSION`, `AC_ABSENT` and the silent branch of `DEADLINE_NO_CONSENSUS` wait for `DISCUSSION_OPEN`, because nobody is expected to comment before it. `CHAMPION_MISSING`, `GONE_QUIET` and `RESPONSE_UNADDRESSED` fire as soon as their conditions hold, including while reviewing (the owner's ruling, 2026-11-15). An unanswered ping is an `@mention` with no later comment from the person mentioned; that stays as is (no change from the owner's ruling).
 
 Views:
 

@@ -149,10 +149,11 @@ public enum class PaperStage(public val label: String) {
 }
 
 /*
- * Phases: MISSING_REVIEWS needs REVIEW_DUE to have passed; the rules about what people say (UNRESOLVED_SPLIT, SILENT_DISCUSSION,
- * GONE_QUIET, AC_ABSENT, CHAMPION_MISSING, RESPONSE_UNADDRESSED, and the silent branch of DEADLINE_NO_CONSENSUS) need DISCUSSION_OPEN,
- * because nobody is expected to comment before it. SPLIT, LOW_EXPERTISE, THIN_REVIEWS and REVIEW_FLAGGED read the reviews and fire
- * in any phase; REVIEW_FLAGGED also on a decided paper.
+ * Phases: MISSING_REVIEWS needs REVIEW_DUE to have passed; the rules about what people say to open the discussion (UNRESOLVED_SPLIT,
+ * SILENT_DISCUSSION, AC_ABSENT, and the silent branch of DEADLINE_NO_CONSENSUS) need DISCUSSION_OPEN, because nobody is expected to
+ * comment before it. CHAMPION_MISSING, GONE_QUIET and RESPONSE_UNADDRESSED fire as soon as their conditions hold, in any phase (the owner's
+ * ruling, 2026-11-15; RESPONSE_UNADDRESSED cannot fire before a response exists). SPLIT, LOW_EXPERTISE, THIN_REVIEWS and REVIEW_FLAGGED read
+ * the reviews and fire in any phase; REVIEW_FLAGGED also on a decided paper.
  */
 
 /** The facts every rule reads, computed once per paper. */
@@ -210,7 +211,6 @@ public object Discussion {
         if (c.inDiscussion && c.discussion.isEmpty()) "no comments since discussion opened ${c.discussionDays} days ago" else null
 
     public fun goneQuiet(c: DiscussionContext): String? {
-        if (!c.inDiscussion) return null
         val last = c.lastActivity ?: return null
         return if (c.olderThan(last, c.t.staleDays)) "no activity for ${Duration.between(last, c.now).toDays()} days (threshold ${c.t.staleDays})" else null
     }
@@ -219,7 +219,6 @@ public object Discussion {
         if (c.inDiscussion && c.discussion.none { it.byAc }) "no AC comment since discussion opened ${c.discussionDays} days ago" else null
 
     public fun championMissing(c: DiscussionContext): String? {
-        if (!c.inDiscussion) return null
         val top = c.merits.maxOrNull() ?: return null
         if (top < c.t.meritAcceptMin) return null
         val champions = c.complete.filter { it.merit == top }.mapNotNull { it.email?.lowercase() }.toSet()
@@ -246,7 +245,6 @@ public object Discussion {
     }
 
     public fun responseUnaddressed(c: DiscussionContext): String? {
-        if (!c.inDiscussion) return null
         val response = c.p.comments.filter { it.isResponse }.maxOfOrNull { it.at } ?: return null
         val emails = c.reviewers.mapNotNull { it.email?.lowercase() }.toSet()
         return if (c.p.comments.none { !it.isResponse && it.email?.lowercase() in emails && it.at > response }) {
