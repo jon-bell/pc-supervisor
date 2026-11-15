@@ -9,8 +9,12 @@ object Persons {
 
     data class Person(val who: Long, val email: String, val isAc: Boolean, val tier: Tier?)
 
+    /** The referring AC is the model's person 1: her own note in the screening review is an opinion that never counts. */
+    val AC_PERSON = Person(1, AC_REFERRING, true, Tier.SENIOR)
+
     val opinionGivers =
         listOf(
+            AC_PERSON,
             Person(2, "ac-idle@example.org", true, Tier.SENIOR),
             Person(3, "r1@example.org", false, Tier.SENIOR),
             Person(4, "r-silent@example.org", false, Tier.JUNIOR),

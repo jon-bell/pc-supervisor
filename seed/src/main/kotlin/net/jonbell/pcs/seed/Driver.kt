@@ -102,6 +102,7 @@ class Driver(
             """{"review_open":true,"review":[{"id":1,"name":"","soft":"2099-01-01","done":"2099-01-02"}],"comment_allow_always":true,""" +
                 """"response_active":true,"response":[{"id":1,"name":"","open":"2000-01-01","done":"2099-01-01"}]}""",
         )
+        s.settings?.let { php("batch/settings.php", "save", "-e", it) }
         val users =
             buildJsonArray {
                 s.pc.forEach { u ->
@@ -150,7 +151,10 @@ class Driver(
         dc("cp", tmp.toString(), "hotcrp:/tmp/seed.json")
         Files.delete(tmp)
         php("batch/savepapers.php", "/tmp/seed.json")
-        php("batch/assign.php", stdin = "paper,action,user\n" + s.assignments.joinToString("\n") { "${it.pid},${it.action},${it.email}" } + "\n")
+        php(
+            "batch/assign.php",
+            stdin = "paper,action,user,round\n" + s.assignments.joinToString("\n") { "${it.pid},${it.action},${it.email},${it.round.orEmpty()}" } + "\n",
+        )
 
         // rid and ordinal of each assigned review
         // all review ids at once; a rating re-reads its paper, because HotCRP assigns ordinals on submission
@@ -169,6 +173,7 @@ class Driver(
 
         val reviewTimes = mutableMapOf<Pair<Int, String>, Pair<Long, Long>>()
         val commentTimes = mutableMapOf<Long, Long>()
+        val paperTimes = mutableMapOf<Int, Long>()
         val ordered = s.events.sortedBy { epoch(it.at) }
         // reviews go in batches of 50 per request (HotCRP's rate limit, spec §1); their times are set by the time-warp
         for (batch in ordered.filterIsInstance<SubmitReview>().chunked(50)) {
@@ -232,6 +237,32 @@ class Driver(
                         form = true,
                     )
                 }
+                is ScreenReview -> {
+                    val body =
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("pid", ev.pid)
+                                    put("rid", ridOf.getValue(ev.pid to ev.reviewer))
+                                    ev.triage?.let { put("Tri", it) }
+                                    ev.note?.let { put("ComPC", it) }
+                                    put("submitted", true)
+                                },
+                            )
+                        }
+                    val r = api("POST", "reviews", body = body.toString())
+                    check(r["status_list"]!!.jsonArray.all { it.jsonObject["valid"] == JsonPrimitive(true) }) { "screen review not valid: $r" }
+                }
+                is EditPaper -> {
+                    val b =
+                        buildJsonObject {
+                            put("object", "paper")
+                            put("pid", ev.pid)
+                            put("abstract", ev.abstract)
+                        }
+                    api("POST", "paper", mapOf("p" to "${ev.pid}", "actas" to ev.author), body = b.toString())
+                    paperTimes[ev.pid] = epoch(ev.at)
+                }
                 is SetDecision -> api("POST", "${ev.pid}/decision", mapOf("decision" to ev.decision))
                 is AddTag -> api("POST", "${ev.pid}/tags", body = "addtags=" + URLEncoder.encode(ev.tag, Charsets.UTF_8), form = true)
             }
@@ -264,6 +295,7 @@ class Driver(
         for ((cid, t) in commentTimes) {
             stmts.append("update PaperComment set timeModified = $t, timeDisplayed = $t, timeNotified = $t where commentId = $cid;\n")
         }
+        for ((pid, t) in paperTimes) stmts.append("update Paper set timeModified = $t where paperId = $pid;\n")
         sql(stmts.toString())
         return Seeded(reviewTimes, commentTimes)
     }
@@ -278,6 +310,7 @@ class Driver(
                 "DISCUSSION_OPEN" to "2030-02-12T00:00",
                 "DISCUSSION_CLOSE" to "2030-03-01T23:59",
                 "DECISIONS_DUE" to "2030-03-03T23:59",
+                "DESKREJECT_DUE" to "2030-01-20T00:00",
                 // the early-reject window (concepts EarlyReject): after review-due, 48 hours
                 "EARLYREJECT_OPEN" to "2030-02-02T00:00",
                 "EARLYREJECT_CLOSE" to "2030-02-04T00:00",

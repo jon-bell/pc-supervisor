@@ -18,8 +18,10 @@ import org.junit.jupiter.api.Test
 class RunnerTest {
     @Test
     fun `the desk-reject witness traces run against the harness and agree with the model`() {
-        val specs = Session.traces()
-        assertTrue(specs.size >= 30, "expected the desk-reject traces, found ${specs.size}")
+        val all = Session.traces()
+        assertTrue(all.size >= 30, "expected the desk-reject traces, found ${all.size}")
+        // PCS_TRACE_ONLY=<substring of a trace id> runs just those traces while developing a binding
+        val specs = System.getenv("PCS_TRACE_ONLY")?.let { only -> all.filter { only in it.id } } ?: all
         val runner = Session.runner
         val pids = runner.createPapers(specs.size)
         val failures = mutableListOf<String>()

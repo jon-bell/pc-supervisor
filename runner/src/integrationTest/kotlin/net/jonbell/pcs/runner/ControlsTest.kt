@@ -29,7 +29,7 @@ class ControlsTest {
         val runner = Session.runner
         val second = specs.getValue("desk/signed/cell-pc-member-second-opinion")
         val silence = specs.getValue("desk/signed/silence-does-not-remove")
-        val needed = 16
+        val needed = 17
         val pids = runner.createPapers(needed).iterator()
         val controls = mutableListOf<JsonObject>()
 
@@ -63,6 +63,15 @@ class ControlsTest {
         negative("a state reader that never refreshes", "state-reader", "state-reader-stale", second, BindingFaults.of("state-reader-stale"))
         // a specification mutant switched on in core: silence removes (model mutant 1); the model refuses, the mutant core removes
         negative("core with the 'silence removes' mutant", "core", "spec:silence-removes", silence, impl = Faults.MUTANTS[1])
+
+        // model mutant 0: a second opinion from anyone, here the referring AC's own note; the model keeps the paper, the mutant core removes it
+        negative(
+            "core with the 'second opinion from anyone' mutant",
+            "core",
+            "spec:second-opinion-from-anyone",
+            specs.getValue("desk/signed/ac-own-opinion-does-not-count"),
+            impl = Faults.MUTANTS[0],
+        )
 
         // the early-reject mutant: a chair's removal before the window closes (model mutant 5); the model refuses, the mutant core confirms
         negative(
@@ -112,6 +121,7 @@ class ControlsTest {
                     JsonArray(
                         listOf(
                             JsonPrimitive("spec:silence-removes"),
+                            JsonPrimitive("spec:second-opinion-from-anyone"),
                             JsonPrimitive("spec:early-reject-before-close"),
                             JsonPrimitive("spec:dismissed-suggestion-counts"),
                             JsonPrimitive("spec:heuristic-sends-itself"),
