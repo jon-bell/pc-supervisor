@@ -6,6 +6,7 @@ import net.jonbell.pcs.agent.checks.AuthorInfo
 import net.jonbell.pcs.agent.checks.FormatPolicy
 import net.jonbell.pcs.agent.engines.DataClass
 import net.jonbell.pcs.agent.engines.EngineConfigException
+import net.jonbell.pcs.agent.llm.CfpSource
 import net.jonbell.pcs.agent.llm.Decisions
 import net.jonbell.pcs.agent.llm.Screener
 import net.jonbell.pcs.core.config.Settings
@@ -163,6 +164,7 @@ class EvalCommand(
                 val desk = input.papers.filter { EvalMetrics.deskRejected(it, o.deskMatch) }.map { it.pid }.toSet()
                 val engine = o.engine?.let { CheckRunner.engine(it, env, gate) }
                 val checksDir = Path.of(env["PCS_AGENT_CHECKS"] ?: "agent/checks")
+                val cfp = CfpSource.resolve(env, o.cfp?.toString())
                 val json = kotlinx.serialization.json.Json
                 val opts =
                     CheckRunner.Options(
@@ -175,7 +177,7 @@ class EvalCommand(
                                     Files.readString(it),
                                 )
                             }.orEmpty(),
-                        cfp = o.cfp?.let(Files::readString),
+                        cfp = cfp.textOrNull,
                         abstracts =
                             o.abstracts?.let {
                                 json.decodeFromString(
@@ -183,7 +185,7 @@ class EvalCommand(
                                     Files.readString(it),
                                 )
                             }.orEmpty(),
-                        decisions = env["PCS_AGENT_DECISIONS"]?.let { Decisions.load(Path.of(it)) } ?: Decisions.EMPTY,
+                        decisions = CfpSource.overlay(env["PCS_AGENT_DECISIONS"]?.let { Decisions.load(Path.of(it)) } ?: Decisions.EMPTY, cfp),
                         effect = o.effect,
                     )
                 val deps = if (engine != null && Files.isDirectory(checksDir)) Screener.deterministicDeps(checksDir) else emptyMap()

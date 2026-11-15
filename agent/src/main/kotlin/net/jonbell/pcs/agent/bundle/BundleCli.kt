@@ -17,6 +17,7 @@ import net.jonbell.pcs.agent.engines.PaperInput
 import net.jonbell.pcs.agent.engines.RequestRejected
 import net.jonbell.pcs.agent.engines.ResultStore
 import net.jonbell.pcs.agent.llm.AbstractSource
+import net.jonbell.pcs.agent.llm.CfpSource
 import net.jonbell.pcs.agent.llm.CheckEnv
 import net.jonbell.pcs.agent.llm.Decisions
 import net.jonbell.pcs.agent.llm.Manifest
@@ -49,7 +50,7 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
         var outDir: String? = null
         var keyFile: String? = null
         var dc = DataClass.SYNTHETIC
-        var cfp = env["PCS_AGENT_CFP"]
+        var cfp: String? = null
         var abstracts: String? = null
         var abstractsByPaper: String? = null
         var authors: String? = null
@@ -97,8 +98,11 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
             val quals = QualificationFile.load(qualPath)
             val store = store(dc)
             val dispatcher = Dispatcher(registered, store, gate = QualificationGate(quals))
-            val decisions = env["PCS_AGENT_DECISIONS"]?.let { Decisions.load(Path.of(it)) } ?: Decisions.EMPTY
             val routing = EngineConfigs.routing(env)
+            val cfpState = CfpSource.resolve(env, cfp)
+            CfpSource.warning(routing, cfpState)?.let { out.appendLine(it) }
+            // A missing CFP file reopens scope.cfp, so the bundle's manifest lists the scope check as unresolved.
+            val decisions = CfpSource.overlay(env["PCS_AGENT_DECISIONS"]?.let { Decisions.load(Path.of(it)) } ?: Decisions.EMPTY, cfpState)
             val checksDir = Path.of(env["PCS_AGENT_CHECKS"] ?: "agent/checks")
             val all = Screener.checks(checksDir)
             val routed = all.filter { it.id in routing }
@@ -114,7 +118,7 @@ class BundleCli(private val env: Map<String, String>, private val out: Appendabl
                     )
                 }.orEmpty()
             val deps = Screener.deterministicDeps(checksDir)
-            val cfpText = cfp?.let { Files.readString(Path.of(it)) }
+            val cfpText = cfpState.textOrNull
             val papers =
                 pdfs.map { f ->
                     val id = f.fileName.toString().removeSuffix(".pdf")

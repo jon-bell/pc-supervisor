@@ -118,7 +118,14 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
             i++
         }
         return try {
-            val d = dec?.let { net.jonbell.pcs.agent.llm.Decisions.load(it) } ?: net.jonbell.pcs.agent.llm.Decisions.EMPTY
+            val loaded = dec?.let { net.jonbell.pcs.agent.llm.Decisions.load(it) } ?: net.jonbell.pcs.agent.llm.Decisions.EMPTY
+            // Where the scope check is routed, a missing CFP file shows as scope.cfp unresolved.
+            val d =
+                if ("scope" in EngineConfigs.routing(env)) {
+                    net.jonbell.pcs.agent.llm.CfpSource.overlay(loaded, net.jonbell.pcs.agent.llm.CfpSource.resolve(env))
+                } else {
+                    loaded
+                }
             out.append(
                 net.jonbell.pcs.agent.llm.Manifest.render(
                     net.jonbell.pcs.agent.llm.Manifest.rows(checks, d, net.jonbell.pcs.agent.llm.Manifest.loadQualifications(qual)),
@@ -140,7 +147,7 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
     fun screen(args: List<String>): Int {
         val pdfs = mutableListOf<String>()
         var dc = DataClass.SYNTHETIC
-        var cfp = env["PCS_AGENT_CFP"]
+        var cfp: String? = null
         var abstracts: String? = null
         var effect = true
         var i = 0
@@ -159,8 +166,8 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
             val registered = cs.map { EngineFactory.create(it, env) }
             EgressPolicy.assertDisjoint(cs.mapNotNull { it.egressHost() }, EgressPolicy.forResolver(env["PCS_AGENT_EGRESS"]))
             val dispatcher = Dispatcher(registered, store(), gate = gate())
-            val decisions = decisions()
             val routing = EngineConfigs.routing(env)
+            val decisions = net.jonbell.pcs.agent.llm.CfpSource.overlay(decisions(), net.jonbell.pcs.agent.llm.CfpSource.resolve(env, cfp))
             val dir = checksDir()
             val all = net.jonbell.pcs.agent.llm.Screener.checks(dir)
             val routed = all.filter { it.id in routing }
@@ -174,7 +181,9 @@ class AgentCli(private val env: Map<String, String>, private val out: Appendable
                     val m = kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(Files.readString(Path.of(f)))
                     net.jonbell.pcs.agent.llm.AbstractSource.fixed(m)
                 } ?: net.jonbell.pcs.agent.llm.AbstractSource.NONE
-            val checkEnv = net.jonbell.pcs.agent.llm.CheckEnv(cfp?.let { Files.readString(Path.of(it)) }, abs)
+            val cfpState = net.jonbell.pcs.agent.llm.CfpSource.resolve(env, cfp)
+            net.jonbell.pcs.agent.llm.CfpSource.warning(routing, cfpState)?.let { out.appendLine(it) }
+            val checkEnv = net.jonbell.pcs.agent.llm.CheckEnv(cfpState.textOrNull, abs)
             val screener =
                 net.jonbell.pcs.agent.llm.Screener(
                     dispatcher,
