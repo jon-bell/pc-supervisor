@@ -208,6 +208,9 @@ public class Session private constructor(
         return writeback().draft(state.report.csv.toArtifact())
     }
 
+    /** The discussion dashboard at the clock's now (spec §5): paper risk, AC and reviewer metrics, the overview. Reads the mirror; writes nothing. */
+    public fun discussion(): pcs.core.discussion.DiscussionState = pcs.core.discussion.DiscussionLoader.state(this)
+
     /** Writeback (spec §6) for this conference: the only way the app changes HotCRP. */
     public fun writeback(): pcs.core.writeback.Writeback = pcs.core.writeback.Writeback(store, clock, settings.hotcrpUrl, token())
 
