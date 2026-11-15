@@ -176,7 +176,19 @@ instance : Enum Q21 where
   key | .thisConference => "this-conference" | .handedOn => "handed-on"
   desc | .thisConference => "kept for this conference only" | .handedOn => "summarized for the next chairs"
 
+/-- Venue parameters: numbers a venue sets, not questions with readings. Each is a setting in the app
+    (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`) and a `venue.*` line in an answers file. -/
+structure Venue where
+  /-- Q8 "up to n": the most nominees a paper may name (the owner's ruling: a venue parameter, default 3). -/
+  nomineesMax : Nat := 3
+  /-- Q9: a pattern shows once a senior has made this many nominations, repeats of one junior included. -/
+  patternMin : Nat := 3
+  /-- AR5: hours after a request's due date before "no reply" may be recorded. -/
+  accGraceH : Nat := 48
+  deriving DecidableEq, Repr, Inhabited
+
 structure Reading where
+  venue : Venue := {}
   q1 : Q1 := default
   q2 : Q2 := default
   q3 : Q3 := default

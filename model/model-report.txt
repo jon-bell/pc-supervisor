@@ -2,6 +2,7 @@
 answers file: answers/synthetic.txt
 questions in the model: 20; readings of the whole text: 358318080
 answered: 8; open: 12
+venue parameters: nominees per paper at most 3 (Q8 "up to n"); pattern shown at 3 nominations (Q9); accountability grace period 48 h (AR5)
 not in the model (no rule depends on them yet): Q9 (who may be nominated), Q12 (withholding reviews)
 
 ## Legibility: does any card depend on a question it doesn't declare?
@@ -11,38 +12,41 @@ none
 1. [X4] The AC accepts a nominee and classifies them senior
     outcomes the readings then in play give: 2; the chairs' answer: fills a senior slot
     readings left: Q14 1
-2. [P1] Two seniors and two juniors
+2. [X11] A paper names four nominees
+    outcomes the readings then in play give: 2; the chairs' answer: too many nominees: reported, and Q10's consequence applies
+    readings left: Q8 2
+3. [P1] Two seniors and two juniors
     outcomes the readings then in play give: 2; the chairs' answer: meets composition
     readings left: Q13 2
-3. [P3] Two seniors and nobody else
+4. [P3] Two seniors and nobody else
     outcomes the readings then in play give: 2; the chairs' answer: fails composition
     readings left: Q13 1
-4. [E4] A self-reveal is found during review, before reviews are released
+5. [E4] A self-reveal is found during review, before reviews are released
     outcomes the readings then in play give: 2; the chairs' answer: may be desk rejected
     readings left: Q3 4
-5. [E4b] A self-reveal is found after reviews are released
+6. [E4b] A self-reveal is found after reviews are released
     outcomes the readings then in play give: 2; the chairs' answer: stays in review
     readings left: Q3 2
-6. [E4c] A scope problem is found during review
+7. [E4c] A scope problem is found during review
     outcomes the readings then in play give: 2; the chairs' answer: may be desk rejected
     readings left: Q3 1
-7. [E7] The AC refers a format violation; one senior PC member agrees
+8. [E7] The AC refers a format violation; one senior PC member agrees
     outcomes the readings then in play give: 2; the chairs' answer: may be desk rejected
     readings left: Q2 2
-8. [E7b] The AC refers a format violation; another AC agrees
+9. [E7b] The AC refers a format violation; another AC agrees
     outcomes the readings then in play give: 2; the chairs' answer: stays in review
     readings left: Q2 1
-9. [R1] Three rejects; one reviewer bumps within the window
+10. [R1] Three rejects; one reviewer bumps within the window
     outcomes the readings then in play give: 2; the chairs' answer: early rejected
     readings left: Q16 1
-10. [R3] Reject, reject, weak reject
+11. [R3] Reject, reject, weak reject
     outcomes the readings then in play give: 2; the chairs' answer: early rejected
     readings left: Q15 2
-11. [R4] Reject, weak reject, borderline
+12. [R4] Reject, weak reject, borderline
     outcomes the readings then in play give: 2; the chairs' answer: continues to author response
     readings left: Q15 1
 answered questions pinned to one reading by cards: 6 of 8
-- Q8 answered "exactly one nominee" is not yet confirmed by a card; it is still indistinguishable from [up to n nominees, chosen by the authors, at least one, no upper limit]. Cards that would separate it but depend on open questions: [X8 (also needs [Q19]), X9 (also needs [Q19, Q19b])]
+- Q8 answered "exactly one nominee" is not yet confirmed by a card; it is still indistinguishable from [up to n nominees, chosen by the authors]. Cards that would separate it but depend on open questions: [X8 (also needs [Q19]), X9 (also needs [Q19, Q19b])]
 - Q18 answered "k once, however many papers" is not yet confirmed by a card; it is still indistinguishable from [k per nominating paper, their share of k, summed over papers, their shares summed, capped at the tier's band]. Cards that would separate it but depend on open questions: [X2 (also needs [Q7])]
 
 ## Open questions: cards to bring, with the outcome under each reading
@@ -129,7 +133,7 @@ Cells marked † are set by a ruling; they show the question and the result at t
 | Keep or refer (triage) | . | . | Y | N | N | N | N | N | N |
 | Give a second opinion | . | . | N | N | Y (requested) | N | N | N | N |
 | Remove a paper (desk or early reject) | . | Y | N | N | N | N | N | N | N |
-| Accept a PC candidate and classify their tier | . | . | Y (in the sheet, own area) | N | N | N | N | N | N |
+| Accept a PC candidate and classify their tier | . | Y (in the sheet, any candidate) | Y (in the sheet, own area) | N | N | N | N | N | N |
 | See nomination patterns across an author's papers | Y | Y | N | N | N | N | N | Y | N |
 | Solve and export a Plan | Y | . | N | N | N | N | N | N | N |
 | See affinity scores and plan reports | Y | Y | Y (own papers) | N | N | N | N | Y | N |
@@ -185,14 +189,15 @@ Every step is taken by a role whose cell is granted (theorem gated_requires_poli
 - L1 PCS / Open or uphold an Accountability case: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (declined) → PCS: open a quality case
 - L1 PC chair / Open or uphold an Accountability case: PC chair: set the review criteria → AC (own paper): send a request citing the criteria → Senior / junior PC: the reviewer replies → AC (own paper): record the disposition (declined) → Process chair: open a quality case → PC chair: uphold the case
 ### appointment and assignment: 44 states
-- L2 a nominee appointed and assigned in HotCRP: reachable: AC (own paper): accept the nominee and classify them senior → the nominee consents → Process chair: sync HotCRP → Process chair: solve the plan → Process chair: dry-run the assignment upload → Process chair: confirm the upload → Process chair: apply the upload
+- L2 a nominee appointed and assigned in HotCRP: reachable: PC chair: accept the nominee and classify them senior → the nominee consents → Process chair: sync HotCRP → Process chair: solve the plan → Process chair: dry-run the assignment upload → Process chair: confirm the upload → Process chair: apply the upload
+- L1 PC chair / Accept a PC candidate and classify their tier: PC chair: accept the nominee and classify them senior
 - L1 AC (own paper) / Accept a PC candidate and classify their tier: AC (own paper): accept the nominee and classify them senior
 - L1 Process chair / Read HotCRP via the chair token: Process chair: sync HotCRP
 - L1 PCS / Read HotCRP via the chair token: PCS: sync HotCRP
 - L1 Process chair / Solve and export a Plan: Process chair: sync HotCRP → Process chair: solve the plan
 - L1 Process chair / Confirm and apply a Writeback: Process chair: sync HotCRP → Process chair: solve the plan → Process chair: dry-run the assignment upload → Process chair: confirm the upload
 - L1 PC chair / Confirm and apply a Writeback: Process chair: sync HotCRP → Process chair: solve the plan → Process chair: dry-run the assignment upload → PC chair: confirm the upload
-granted cells: 60; exercised by a trace: 22; L2 failures: 0
+granted cells: 61; exercised by a trace: 23; L2 failures: 0
 granted cells on a modeled action that no trace exercises (each is a gap in the model or a cell to deny):
 - PC chair / Write to HotCRP directly: Y (in HotCRP)
 - AC (own paper) / Write to HotCRP directly: Y (in HotCRP, own papers)
@@ -220,7 +225,7 @@ scale: 4000 papers, 20 areas, 450 senior and 300 junior PC, nominees accepted 80
 - the answered reading: composed 3599/4000 (89%); senior slots unfilled 550; third slots unfilled 44; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 7051, nominees at or above what they owe 91%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 178 before repair, 220 edges forbidden, 1 left; load-band violations 0; candidate edges 198290, objective 24624
 - if Q14 = a nominee never fills a senior slot: composed 2160/4000 (54%); senior slots unfilled 1250; third slots unfilled 1600; senior reviews needed 8000 vs capacity 6750; accepted nominees 2512, mean owed 3, reviews by nominees 0, nominees at or above what they owe 0%, max nominee load 0; reviews outside the paper's area 759; reciprocal 2-cycles 10 before repair, 10 edges forbidden, 0 left; load-band violations 0; candidate edges 199919, objective 74098
 - if Q13 = exactly one junior: composed 3599/4000 (89%); senior slots unfilled 550; third slots unfilled 44; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 7051, nominees at or above what they owe 91%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 178 before repair, 220 edges forbidden, 1 left; load-band violations 0; candidate edges 198290, objective 24624
-- if Q13 = zero to two juniors: composed 3610/4000 (90%); senior slots unfilled 550; third slots unfilled 0; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 3300, nominees at or above what they owe 43%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 38 before repair, 45 edges forbidden, 0 left; load-band violations 0; candidate edges 198465, objective 24045
+- if Q13 = zero to two juniors: composed 3611/4000 (90%); senior slots unfilled 550; third slots unfilled 0; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 7536, nominees at or above what they owe 100%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 213 before repair, 250 edges forbidden, 1 left; load-band violations 0; candidate edges 198260, objective 32924
 - if Q13 = exactly one, a junior or a nominee: composed 3599/4000 (89%); senior slots unfilled 550; third slots unfilled 44; senior reviews needed 8000 vs capacity 10050; accepted nominees 2512, mean owed 3, reviews by nominees 7051, nominees at or above what they owe 91%, max nominee load 3; reviews outside the paper's area 0; reciprocal 2-cycles 178 before repair, 220 edges forbidden, 1 left; load-band violations 0; candidate edges 198290, objective 24624
 - if Q18 = k per nominating paper: composed 3712/4000 (92%); senior slots unfilled 413; third slots unfilled 3; senior reviews needed 8000 vs capacity 10947; accepted nominees 2512, mean owed 3 4/6, reviews by nominees 8083, nominees at or above what they owe 83%, max nominee load 6; reviews outside the paper's area 0; reciprocal 2-cycles 249 before repair, 300 edges forbidden, 1 left; load-band violations 0; candidate edges 198210, objective 18294
 - if Q18 = their share of k, summed over papers: composed 3712/4000 (92%); senior slots unfilled 413; third slots unfilled 3; senior reviews needed 8000 vs capacity 10947; accepted nominees 2512, mean owed 3 4/6, reviews by nominees 8083, nominees at or above what they owe 83%, max nominee load 6; reviews outside the paper's area 0; reciprocal 2-cycles 249 before repair, 300 edges forbidden, 1 left; load-band violations 0; candidate edges 198210, objective 18294

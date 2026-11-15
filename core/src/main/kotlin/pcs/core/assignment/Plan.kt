@@ -127,6 +127,7 @@ public object Planner {
         val by = input.reviewers.associateBy { it.who }
         val paper = input.papers.associateBy { it.pid }
         val third = Pc.thirdSlots(cfg.q13)
+        val thirdCap = Pc.thirdCap(cfg.q13)
         val pinned = input.pinned.filter { it.who in by && it.pid in paper }.distinct()
         val pinLoad = pinned.groupingBy { it.who }.eachCount()
         val pinSlot = pinned.groupBy { it.pid }.mapValues { (_, ps) -> ps.mapNotNull { slotOf(cfg, by.getValue(it.who).member) } }
@@ -168,10 +169,12 @@ public object Planner {
             for (p in input.papers) {
                 val ps = pinSlot[p.pid].orEmpty()
                 val sen = maxOf(0, SENIOR_SEATS - ps.count { it == Slot.SENIOR })
+                // the seats the solve may fill (pinned juniors, reciprocal ones included, count toward the cap) and the ones it must
+                val thdCap = maxOf(0, thirdCap - ps.count { it == Slot.THIRD })
                 val thd = maxOf(0, third - ps.count { it == Slot.THIRD })
                 // hard: the seat is a lower bound; a paper with no candidate for it makes the whole solve infeasible
                 net.addArc(slotNode(p.pid, Slot.SENIOR), 1, sen.toLong(), 0, if (cfg.hard) sen.toLong() else 0)
-                if (third > 0) net.addArc(slotNode(p.pid, Slot.THIRD), 1, thd.toLong(), 0, if (cfg.hard) thd.toLong() else 0)
+                net.addArc(slotNode(p.pid, Slot.THIRD), 1, thdCap.toLong(), 0, if (cfg.hard) thd.toLong() else 0)
             }
             val res = net.solve(0, 1)
             val used = live.filterIndexed { j, _ -> res.flow[first + j] > 0 }

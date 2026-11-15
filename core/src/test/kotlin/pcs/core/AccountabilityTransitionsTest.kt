@@ -114,6 +114,7 @@ class AccountabilityTransitionsTest {
         var steps = 0
         var refusals = 0
         for (reading in doc["readings"]!!.jsonArray.map { it.jsonObject }) {
+            val grace = reading["graceH"]!!.jsonPrimitive.content.toLong()
             val q20 = if (reading["q20"]!!.jsonPrimitive.content == "yes") Q20.YES else Q20.NO
             val table = reading["table"]!!.jsonObject
             val states = table["states"]!!.jsonArray.map { s -> state((s as JsonArray).map { it.jsonPrimitive.content.toInt() }) }
@@ -133,7 +134,7 @@ class AccountabilityTransitionsTest {
                     val a = acts[mi]
                     val p = perm(a)
                     val allowed = p == null || (role != null && (role to p) in granted)
-                    val got = if (allowed) AccFlow.rule(Faults.NONE, q20, s, role, a) else null
+                    val got = if (allowed) AccFlow.rule(Faults.NONE, q20, s, role, a, grace) else null
                     val want = effective[i]?.get(mi)?.let { states[it] }
                     steps++
                     if (want == null) refusals++
@@ -155,7 +156,7 @@ class AccountabilityTransitionsTest {
                     // AR5: "no reply" only after a reminder and the due date plus the grace period
                     if (got.req?.disp == ReqDisposition.NO_REPLY && s.req?.disp == null) {
                         val q = s.req!!
-                        if (q.remindedAt == null || s.now <= q.due + Accountability.GRACE) fail("prop:AR5", "no reply in state $i")
+                        if (q.remindedAt == null || s.now <= q.due + grace) fail("prop:AR5", "no reply in state $i")
                     }
                     // AR6 (under Q20 = yes): a quality case follows a request disposed declined or no reply
                     if (q20 == Q20.YES && !s.caseOpen && got.caseOpen && s.req?.disp?.notEngaged != true) fail("prop:AR6", "case in state $i")

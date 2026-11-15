@@ -104,7 +104,12 @@ class AppointmentBinding(private val w: World) {
                 val before = sheetRow()?.decision == Decision.ACCEPT
                 decision = "accept"
                 tier = a.tier
-                acEmail = if (role == "ac") Persons.AC_REFERRING else Persons.PC_MEMBER_OUTSIDER
+                acEmail =
+                    when (role) {
+                        "ac" -> Persons.AC_REFERRING
+                        "pc-chair" -> Persons.PC_CHAIR
+                        else -> Persons.PC_MEMBER_OUTSIDER
+                    }
                 writeSheet()
                 outcome(!before && sheetRow()?.decision == Decision.ACCEPT)
             }

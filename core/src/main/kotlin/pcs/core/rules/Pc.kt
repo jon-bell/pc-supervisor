@@ -27,16 +27,25 @@ public object Pc {
         !fillsSenior(q14, m) &&
             when (q13) {
                 Q13.ONE_JUNIOR_OR_NOMINEE -> m.nominee || m.tier == Tier.JUNIOR
+                // a reciprocal nominee is a junior like any other (the owner's ruling on Q13)
+                Q13.ZERO_TO_TWO_JUNIORS -> m.tier == Tier.JUNIOR
                 else -> m.tier == Tier.JUNIOR && (q14 == Q14.TIER_DECIDES || !m.nominee)
             }
 
+    /** Slots beyond the senior ones that the solver must fill; "zero to two" requires none. */
     public fun thirdSlots(q13: Q13): Int = if (q13 == Q13.ZERO_TO_TWO_JUNIORS) 0 else 1
+
+    /**
+     * Slots beyond the senior ones that the solver may fill. Under "zero to two juniors" juniors may sit in the first pass
+     * beside the seniors or arrive as reciprocal reviewers; both count toward the cap of two (the owner's ruling).
+     */
+    public fun thirdCap(q13: Q13): Int = if (q13 == Q13.ZERO_TO_TWO_JUNIORS) 2 else 1
 
     /** Rule `composition`: do these reviewers meet Q13 and Q14? */
     public fun compositionOk(q13: Q13, q14: Q14, seats: List<Member>): Boolean {
         val seniors = seats.filter { fillsSenior(q14, it) }
         val others = seats.filterNot { fillsSenior(q14, it) }
-        val juniors = others.filter { it.tier == Tier.JUNIOR && (q14 == Q14.TIER_DECIDES || !it.nominee) }
+        val juniors = others.filter { it.tier == Tier.JUNIOR && (q14 == Q14.TIER_DECIDES || !it.nominee || q13 == Q13.ZERO_TO_TWO_JUNIORS) }
         val nomineeOrJunior = others.filter { it.nominee || it.tier == Tier.JUNIOR }
         return seniors.size >= 2 &&
             when (q13) {

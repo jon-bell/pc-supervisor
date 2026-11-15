@@ -36,12 +36,10 @@ public data class Request(
 public data class Suggestion(val reviewer: Long, val dismissed: Boolean = false)
 
 public object Accountability {
-    public const val GRACE: Long = 48
-
-    /** Rule for `dispose` (AR5). */
-    public fun mayDispose(req: Request, d: ReqDisposition, now: Long): Boolean =
+    /** Rule for `dispose` (AR5); [grace] is the venue's grace period in hours (`Venue.accGraceH`). */
+    public fun mayDispose(req: Request, d: ReqDisposition, now: Long, grace: Long = Venue.DEFAULT_GRACE_H): Boolean =
         when (d) {
-            ReqDisposition.NO_REPLY -> !req.replied && req.remindedAt != null && now > req.due + GRACE
+            ReqDisposition.NO_REPLY -> !req.replied && req.remindedAt != null && now > req.due + grace
             else -> req.replied
         }
 
@@ -132,7 +130,7 @@ public object AccFlow {
 
     public fun maySend(s: AccSt): Boolean = s.criteria && s.req == null
 
-    public fun rule(f: Faults, q20: Q20, s: AccSt, who: String?, a: AccAct): AccSt? =
+    public fun rule(f: Faults, q20: Q20, s: AccSt, who: String?, a: AccAct, grace: Long = Venue.DEFAULT_GRACE_H): AccSt? =
         when (a) {
             AccAct.SetCriteria -> if (!s.criteria) s.copy(criteria = true) else null
             AccAct.Suggest -> if (!s.suggested) s.copy(suggested = true) else null
@@ -142,7 +140,16 @@ public object AccFlow {
             AccAct.Remind -> s.req?.let { q -> if (mayRemind(q, s.now)) s.copy(req = q.copy(remindedAt = s.now)) else null }
             AccAct.Reply ->
                 s.req?.let { q -> if ((who == "nominee" || who == "pc-member") && !q.replied && q.disp == null) s.copy(req = q.copy(replied = true)) else null }
-            is AccAct.Dispose -> s.req?.let { q -> if (q.disp == null && Accountability.mayDispose(q, a.d, s.now)) s.copy(req = q.copy(disp = a.d)) else null }
+            is AccAct.Dispose ->
+                s.req?.let { q ->
+                    if (q.disp == null &&
+                        Accountability.mayDispose(q, a.d, s.now, grace)
+                    ) {
+                        s.copy(req = q.copy(disp = a.d))
+                    } else {
+                        null
+                    }
+                }
             AccAct.Tick -> if (s.now < 200) s.copy(now = s.now + 50) else null
             AccAct.OpenCase ->
                 if ((who == "pcs" || who == "process-chair") && !s.caseOpen && Accountability.caseMayOpen(f, q20, false, listOfNotNull(s.req))) {

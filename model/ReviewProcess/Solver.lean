@@ -6,7 +6,7 @@ import Std.Data.HashMap
     source ─(one arc per unit of load; convex cost for PC members, 0 for a nominee
              up to what they owe)─► reviewer
     reviewer ─(cap 1, cost from affinity; only eligible, unforbidden candidates)─► paper slot
-    paper.senior ─(cap 2)─► sink        paper.third ─(cap thirdSlots)─► sink
+    paper.senior ─(cap 2)─► sink        paper.third ─(cap thirdCap)─► sink
 
   Each reviewer feeds at most one slot kind of a paper (`fillsSenior` or
   `fillsThird`), so one integral solve is exact. Max flow fills as many slots as
@@ -290,7 +290,7 @@ def solveOnce (c : Conf) (r : Reading) (cap : Array Nat) (cs : List Cand) : Solv
     arcs := arcs.push (node[e.who]!, slotNode e.paper e.slot, 1, Int.ofNat ((100 - e.aff) / 5))
   for pp in [0:c.nPapers] do
     arcs := arcs.push (slotNode pp .senior, 1, 2, 0)
-    if thirdSlots r > 0 then arcs := arcs.push (slotNode pp .third, 1, Int.ofNat (thirdSlots r), 0)
+    arcs := arcs.push (slotNode pp .third, 1, Int.ofNat (thirdCap r), 0)
   let (f, flow, total) := minCostMaxFlow (Flow.build nNodes arcs) 0 1
   let usedArr := (List.range csA.size).map fun j => f.cap[2 * (first + j)]! == 0
   let plan := (csA.toList.zip usedArr).filterMap fun (e, b) => if b then some e else none

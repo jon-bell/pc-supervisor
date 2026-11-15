@@ -248,12 +248,6 @@ nomination patterns (Q9), and the cap on submissions (Q17). Q9 is not a question
 the model: the signal is shown to the PC chairs under every reading and is never a
 ground (`Ground` has no such case, V3). -/
 
-/-- Q8 "up to n": the venue's bound on nominees per paper (`PCS_NOMINEES_MAX`). -/
-def nomineeMax : Nat := 3
-
-/-- A nominee needs at least this many of an author's papers before a pattern shows. -/
-def patternMinPapers : Nat := 3
-
 inductive Compliance | ok | missingNominee | tooManyNominees | unregistered
   deriving DecidableEq, Repr, Inhabited
 
@@ -267,17 +261,18 @@ def compliance (r : Reading) (pn : PaperNoms) (registered : List PersonId) : Com
   let n := pn.nominees.length
   let tooMany := match r.q8 with
     | .one => decide (n > 1)
-    | .upToN => decide (n > nomineeMax)
+    | .upToN => decide (n > r.venue.nomineesMax)
     | .atLeastOne => false
   if n == 0 then .missingNominee
   else if tooMany then .tooManyNominees
   else if pn.nominees.any (fun x => !registered.contains x.who) then .unregistered
   else .ok
 
-/-- The Q9 signal for one author: a senior with at least `patternMinPapers` papers whose
-    nominee is always someone else, always a junior. `noms` is one (nominee, tier) per paper. -/
-def nominationPattern (author : PersonId) (authorTier : Option Tier) (noms : List (PersonId × Option Tier)) : Bool :=
-  authorTier == some .senior && decide (noms.length ≥ patternMinPapers) &&
+/-- The Q9 signal for one author: a senior with at least `v.patternMin` nominations whose
+    nominee is always someone else, always a junior. `noms` is one (nominee, tier) per nomination, so the
+    same junior nominated from several papers counts once for each (the owner's ruling). -/
+def nominationPattern (v : Venue) (author : PersonId) (authorTier : Option Tier) (noms : List (PersonId × Option Tier)) : Bool :=
+  authorTier == some .senior && decide (noms.length ≥ v.patternMin) &&
     noms.all fun (w, t) => w != author && t == some .junior
 
 /-- What a pattern does by itself: nothing (V3). -/
@@ -294,6 +289,17 @@ def papersOverCap (r : Reading) (n : Nat) : Nat :=
   match submissionCap r with
   | none => 0
   | some c => n - c
+
+/-! ### Appointment authority (policy cell `classify`)
+
+A decision in the appointments sheet counts if its author may make it: an AC (a metareviewer) of a
+paper that nominated the candidate, or any AC for a candidate nobody nominated, or (the owner's ruling)
+a PC chair. Any other decision is reported and treated as pending, never acted on. -/
+
+/-- `nominating`: the ACs of each paper that nominated the candidate (empty: nobody nominated them);
+    `acs`: every AC; `decider`: who the row names; `isChair`: whether they are a PC chair. -/
+def decisionCounts (nominating : List (List PersonId)) (acs : List PersonId) (decider : PersonId) (isChair : Bool) : Bool :=
+  isChair || (if nominating.isEmpty then acs.contains decider else nominating.any (·.contains decider))
 
 /-! ### Eligibility and composition -/
 
@@ -324,17 +330,24 @@ def fillsThird (r : Reading) (m : Member) : Bool :=
   !fillsSenior r m &&
   match r.q13 with
   | .oneJuniorOrNominee => m.nominee || m.tier == some .junior
+  | .zeroToTwoJuniors => m.tier == some .junior   -- a reciprocal nominee is a junior like any other
   | _ => m.tier == some .junior && (r.q14 == .tierDecides || !m.nominee)
 
 /-- How many slots beyond the senior ones the solver must fill (the optional
-    second junior of "one or two juniors" is not required). -/
+    second junior of "one or two juniors" is not required). "Zero to two" requires none. -/
 def thirdSlots (r : Reading) : Nat := if r.q13 == .zeroToTwoJuniors then 0 else 1
+
+/-- How many slots beyond the senior ones the solver may fill. Under "zero to two juniors" the owner's
+    ruling is that juniors may sit in the first pass beside the seniors, or arrive as reciprocal
+    reviewers; both count toward the cap of two. -/
+def thirdCap (r : Reading) : Nat := if r.q13 == .zeroToTwoJuniors then 2 else 1
 
 /-- Rule `composition`: does this set of reviewers meet Q13 and Q14? -/
 def compositionOk (r : Reading) (seats : List Member) : Bool :=
   let seniors := seats.filter (fillsSenior r)
   let others := seats.filter (!fillsSenior r ·)
-  let juniors := others.filter fun m => m.tier == some .junior && (r.q14 == .tierDecides || !m.nominee)
+  let juniors := others.filter fun m =>
+    m.tier == some .junior && (r.q14 == .tierDecides || !m.nominee || r.q13 == .zeroToTwoJuniors)
   let nomineeOrJunior := others.filter fun m => m.nominee || m.tier == some .junior
   seniors.length ≥ 2 &&
   match r.q13 with
@@ -386,10 +399,8 @@ def ReqDisposition.name : ReqDisposition → String
   | .revised => "revised" | .explained => "explained" | .declined => "declined" | .noReply => "no reply"
   | .disputed => "disputed"
 
-def grace : Time := 48
-
-/-- Rule for `dispose` (AR5). -/
-def mayDispose (req : Request) (d : ReqDisposition) (now : Time) : Bool :=
+/-- Rule for `dispose` (AR5); `grace` is the venue's grace period in hours (`Venue.accGraceH`). -/
+def mayDispose (grace : Nat) (req : Request) (d : ReqDisposition) (now : Time) : Bool :=
   match d with
   | .noReply => !req.replied && req.remindedAt.isSome && now > req.due + grace
   | _ => req.replied

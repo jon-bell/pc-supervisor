@@ -81,7 +81,7 @@ def row (r : Reading) : Perm → List Cell
   | .triage => [.dot, .dot, .y, .n, .n, .n, .n, .n, .n]
   | .secondOpinion => [.dot, .dot, .n, .n, .y "requested", .n, .n, .n, .n]
   | .remove => [.dot, .y, .n, .n, .n, .n, .n, .n, .n]
-  | .classify => [.dot, .dot, .y "in the sheet, own area", .n, .n, .n, .n, .n, .n]
+  | .classify => [.dot, .y "in the sheet, any candidate", .y "in the sheet, own area", .n, .n, .n, .n, .n, .n]
   | .seeNominationPatterns => [.y, .y, .n, .n, .n, .n, .n, .y, .n]
   | .solvePlan => [.y, .dot, .n, .n, .n, .n, .n, .n, .n]
   | .seeAffinity => [.y, .y, .y "own papers", .n, .n, .n, .n, .y, .n]
@@ -122,6 +122,11 @@ theorem only_people_send_requests (r : Reading) (role : Role) (h : (policy r rol
 /-- H2: only a chair confirms and applies a Writeback; PCS never writes HotCRP. -/
 theorem only_chairs_apply (r : Reading) (role : Role) (h : (policy r role .applyWriteback).granted = true) :
     role = .processChair ∨ role = .pcChair := by
+  cases role <;> simp_all [policy, row, Role.idx, Cell.granted]
+
+/-- Who may classify: only a PC chair or an AC holds the policy cell. -/
+theorem only_chair_or_ac_classify (r : Reading) (role : Role) (h : (policy r role .classify).granted = true) :
+    role = .pcChair ∨ role = .ac := by
   cases role <;> simp_all [policy, row, Role.idx, Cell.granted]
 
 theorem pcs_never_writes (r : Reading) : (policy r .pcs .writeHotcrp).granted = false ∧
@@ -380,7 +385,7 @@ def accRule (p : Params) (r : Reading) (s : AccSt) (who : Option Role) : AccAct 
         then some { s with req := some { q with replied := true } } else none
     | none => none
   | .dispose d => match s.req with
-    | some q => if q.disp.isNone && mayDispose q d s.now then some { s with req := some { q with disp := some d } } else none
+    | some q => if q.disp.isNone && mayDispose r.venue.accGraceH q d s.now then some { s with req := some { q with disp := some d } } else none
     | none => none
   | .tick => if s.now < 200 then some { s with now := s.now + 50 } else none
   | .openCase => if (who == some .pcs || who == some .processChair) && !s.caseOpen &&

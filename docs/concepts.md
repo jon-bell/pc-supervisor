@@ -39,12 +39,12 @@ Each sentence leaves questions open. Q1–Q6 concern screening. Q7–Q12 and Q18
 | Q5  | screening    | The second-opinion member reviews the paper if it stays in                                            | yes; no                                                                                                                                                                                   |
 | Q6  | screening    | A fabricated reference is grounds on its own                                                          | yes; no, it's evidence for the AC                                                                                                                                                         |
 | Q7  | reciprocal   | What an accepted nominee commits to                                                                   | may be assigned, up to a stated maximum; a stated expected load of *k* reviews                                                                                                            |
-| Q8  | reciprocal   | Nominees per paper                                                                                    | one; up to *n*, chosen by the authors; at least one, no upper limit; several slots, at least one senior (juniors fill the rest) |
-| Q9  | reciprocal   | Who may be nominated, and what "equitable" nomination means                                           | any co-author the AC finds qualified, with patterns (senior authors always nominating juniors) flagged to the PC chairs; a senior author must nominate themself; no constraint            |
+| Q8  | reciprocal   | Nominees per paper                                                                                    | one; up to *n*, chosen by the authors; at least one, no upper limit; several slots, at least one senior (juniors fill the rest) *Ruling (2026-11-15): "up to *n*" takes *n* from the venue (`PCS_NOMINEES_MAX`, default 3).* |
+| Q9  | reciprocal   | Who may be nominated, and what "equitable" nomination means                                           | any co-author the AC finds qualified, with patterns (senior authors always nominating juniors) flagged to the PC chairs; a senior author must nominate themself; no constraint *Ruling (2026-11-15): repeats count: each nomination counts toward the pattern threshold, even when it names the same junior again; the threshold is the venue's (`PCS_PATTERN_MIN`, default 3).* |
 | Q10 | reciprocal   | Consequence of non-compliance (no nominee, or a nominee who never registers with the matching system) | desk reject; warning, then desk reject; warning only                                                                                                                                      |
 | Q11 | reciprocal   | Consequence of a failed review by an accepted nominee (absent, or grossly inadequate)                 | desk reject the nominee's own submissions; recorded for the PC chairs only; none                                                                                                                       |
 | Q12 | reciprocal   | Withhold an author's own reviews until their reviews as a nominee are in                              | yes; no (revisit in a later year)                                                                                                                                                         |
-| Q13 | assignment   | The slots beyond the two senior ones                                                                  | exactly one junior; one or two juniors; zero to two juniors ("when appropriate"); exactly one, filled by a junior or a nominee                                                            |
+| Q13 | assignment   | The slots beyond the two senior ones                                                                  | exactly one junior; one or two juniors; zero to two juniors ("when appropriate"); exactly one, filled by a junior or a nominee *Ruling (2026-11-15): under "zero to two juniors", juniors may fill seats in the first pass beside the seniors, or come in as reciprocal reviewers; both count toward the cap of two.* |
 | Q14 | assignment   | Does a nominee the AC classifies as senior count toward the two senior slots                          | yes, tier alone decides; no, nominees fill only the non-senior slot, and their tier is kept for evaluation and expectations only                                                          |
 | Q15 | early reject | What counts as a negative initial review                                                              | reject only; reject or weak reject; anything below the accept side of the scale                                                                                                           |
 | Q16 | early reject | Do reviewers get a last word before an automatic early reject                                         | no, scores decide (reviewers are told up front to lean positive when borderline); a bump window of 24–72 h                                                                                |
@@ -218,7 +218,7 @@ purpose    make each submission put forward qualified reviewers from among its a
            so that the reviewing a paper consumes is paid back, and watch the pattern
            of who gets nominated
 principle  at submission, the authors of each paper name its nominees: one co-author,
-           or as many as Q8 allows, chosen by the authors, optionally with each one's
+           or as many as Q8 allows (up to the venue's n, default 3), chosen by the authors, optionally with each one's
            share of the paper's obligation (Q19). Each paper owes an obligation of k
            reviews (Q7). A person nominated by several papers owes what Q18 says:
            once, or the sum of their shares, capped or not. When the AC declines a
@@ -226,7 +226,9 @@ principle  at submission, the authors of each paper name its nominees: one co-au
            it never moves to someone the authors didn't name. Where Q9 asks for
            equitable nomination, the pattern across an author's papers (who is
            nominated, who never is) is shown to the PC chairs as a signal, never as a
-           sanction
+           sanction. Every nomination counts toward the signal's threshold (the
+           venue's, default 3), so one junior nominated from several papers counts
+           once for each
 state
   nominees: Paper -> set Person          -- size 1 under Q8's "one" reading; at most n otherwise
   share:    (Paper, Person) -> lone Fraction   -- set by authors under Q19's "authors allocate";
@@ -392,6 +394,7 @@ actions
   remind   (ac | jpc, r)                  requires now > due, no reply
   dispose  (ac | jpc, r, d, note)         requires a reply was observed, or (d = no-reply
                                           and reminded_at and now > due + grace)
+                                          -- grace is the venue's (PCS_ACC_GRACE_H, default 48 h)
   escalate (ac, r)                        => junior PC chair for junior reviewers,
                                              otherwise the PC chairs; they dispose
 ```
@@ -446,7 +449,7 @@ rule tier (u) -> senior | junior
   the tier the AC assigned in Appointment, as carried by u's HotCRP tier tag
 
 rule compliance (p) -> ok | missing-nominee | unregistered | flagged-pattern
-  ok if p names the nominee(s) Q8 requires, each registered with the matching system under
+  ok if p names the nominee(s) Q8 requires (under "up to n", at most the venue's n, default 3), each registered with the matching system under
   their HotCRP account; flagged-pattern is a signal for the PC chairs (Q9), not
   non-compliance
 
@@ -455,7 +458,10 @@ rule eligible (u, p) -> Bool
   and not conflicted with p
 
 rule composition (p) -> Requirement
-  two senior slots, plus Q13's remaining slots. Who may fill which slot is Q14:
+  two senior slots, plus Q13's remaining slots. Under "zero to two juniors" the
+  remaining slots are optional: up to two juniors may sit beside the seniors in the
+  first pass, or arrive as reciprocal reviewers working off owes(u), and both kinds
+  count toward the two. Who may fill which slot is Q14:
   under "tier alone decides", a nominee fills the slot of their tier; under
   "nominees fill only the non-senior slot", a senior slot needs a senior who is
   not there as a nominee, and the nominee's tier is recorded but not used here
@@ -494,7 +500,7 @@ Y means granted. N means denied, and confirmed on a forbidden example. A dot mea
 | Keep or refer (triage) | . | . | Y | N | N | N | N | N | N |
 | Give a second opinion | . | . | N | N | Y (requested) | N | N | N | N |
 | Remove a paper (desk or early reject) | . | Y | N | N | N | N | N | N | N |
-| Accept a PC candidate and classify their tier | . | . | Y (in the sheet, own area) | N | N | N | N | N | N |
+| Accept a PC candidate and classify their tier | . | Y (in the sheet, any candidate) | Y (in the sheet, own area) | N | N | N | N | N | N |
 | See nomination patterns across an author's papers | Y | Y | N | N | N | N | N | Y | N |
 | Solve and export a Plan | Y | . | N | N | N | N | N | N | N |
 | See affinity scores and plan reports | Y | Y | Y (own papers) | N | N | N | N | Y | N |
@@ -580,23 +586,26 @@ These are synthetic cases with the outcome a signer confirms. Each card shows th
 | X1 | A paper names no nominee | Non-compliant; per Q10 | **Q10**; compliance |
 | X2 | One person is nominated by 9 papers; k = 3 | Owes 3 (once), 27 (cumulative), or their tier's band maximum (capped). One PC appointment in every case | **Q18**; V2 |
 | X3 | A senior author with 6 papers always nominates a different student co-author | Shown to the PC chairs as a pattern; no consequence by itself | **Q9**; V3, M4 |
+| X3b | A senior author nominates the same student from 3 papers | Shown to the PC chairs as a pattern: every nomination counts, repeats included | **Q9** (threshold: venue); V3, M4 |
 | X4 | The AC accepts a nominee and classifies them senior | Eligible for a senior slot, or only the non-senior slot (tier recorded for evaluation) | **Q14** |
 | X5 | The AC declines a nominee who is otherwise the best match | Never assigned | V1 |
 | X6 | An accepted nominee never submits; escalation exhausted | An Accountability case. Consequence only through two people | **Q11**; V4 |
 | X7 | An author is on 11 submissions | Reported to the PC chairs | **Q17**; M4 |
 | X8 | A paper names two nominees and allocates two-thirds and one-third of k = 3 | Owes 2 and 1 respectively under "authors allocate"; 1.5 each (rounded by the solver) under "equally" | **Q8**, **Q19** |
 | X9 | A paper names two nominees; the AC declines one | The other owes the paper's whole obligation, or the paper is short and appears in the plan report | **Q19**; V2 |
+| X11 | A paper names four nominees | Too many under "one" and, with the venue's n at its default of 3, under "up to n"; reported, and Q10's consequence applies | **Q8** (n: venue) |
+| X12 | A PC chair records an accept for a candidate whom no AC of a nominating paper has decided on; a PC member who is neither the paper's AC nor a chair does the same | The chair's decision counts; the other is never acted on | policy cell `classify` |
 | X10 | An author is the sole nominee on 4 papers and misses all their reviews | One Accountability case, listing the 4 papers whose obligation went unmet | **Q11**, **Q18**; V4 |
 | **Accountability requests** ||||
 | C1 | A junior's review gives weak reject with no weakness listed | Suggested: criteria "backs each weakness with evidence" and "tells the authors what would change their mind". The AC sends it; the reviewer revises: disposition revised, counted as engaged | AR1, AR2, AR4 |
 | C2 | The reviewer replies that the review stands, with reasons the AC accepts | Disposition explained; counted as engaged | AR4 |
-| C3 | No reply by the due date; a reminder; still nothing after the grace period | Disposition no-reply; the junior PC chair sees it | AR5 |
+| C3 | No reply by the due date; a reminder; still nothing after the grace period (the venue's, default 48 h) | Disposition no-reply; the junior PC chair sees it | AR5 |
 | C4 | The AC dismisses a heuristic suggestion | Nothing on the reviewer's record | AR4 |
 | C5 | The reviewer contests the criteria themselves | Escalated to the junior PC chair (junior) or the PC chairs; they dispose | escalate |
 | C6 | An accepted nominee has two no-reply requests on thin reviews | An Accountability case may be opened under Q20's "yes"; never under it without them | **Q20**; AR6, V4 |
 | C7 | The conference ends | Engagement records kept for this conference only, or summarized for the next chairs | **Q21** |
 | **Assignment** ||||
-| P1 | The solver's first pass gives a paper three juniors | Repaired to two seniors plus Q13's remaining slot(s), or reported | A1; **Q13** |
+| P1 | The solver's first pass gives a paper three juniors | Repaired to two seniors plus Q13's remaining slot(s), or reported. Under "zero to two juniors", two juniors are fine and a third is not, reciprocal nominees counting | A1; **Q13** |
 | P2 | A senior would get 17 papers with a band of 10–15 | Load spread, or reported | A4 |
 | P3 | The authors of A and B are each the best match for the other's paper | The cycle is broken at its weakest edge; reported | A3 |
 | P4 | A junior with no TPMS profile | Local affinity used and labeled; weak-match report if needed | Affinity |

@@ -28,11 +28,19 @@ def getD {α : Type} [FromJson α] (j : Json) (k : String) (d : α) : Except Str
   | .ok v => fromJson? v
   | .error _ => .ok d
 
+def parseVenue (j : Json) : Except String Venue := do
+  let d : Venue := {}
+  pure { nomineesMax := ← getD j "nomineesMax" d.nomineesMax, patternMin := ← getD j "patternMin" d.patternMin,
+         accGraceH := ← getD j "accGraceH" d.accGraceH }
+
 def parseReading (j : Json) : Except String Reading := do
   let mut r : Reading := {}
   match j with
   | .obj kvs =>
     for (k, v) in kvs.toList do
+      if k == "venue" then
+        r := { r with venue := ← parseVenue v }
+        continue
       let q ← match QId.all.find? (·.code == k) with
         | some q => pure q
         | none => throw s!"unknown question {k}"
@@ -261,7 +269,32 @@ def answer (j : Json) : Except String Json := do
     let noms ← match j.getObjVal? "noms" with
       | .ok (.arr xs) => xs.toList.mapM fun x => do pure (← getD x "who" 0, ← parseTier x "tier")
       | _ => pure []
-    pure (Json.mkObj [("result", nominationPattern author tier noms)])
+    let v ← match j.getObjVal? "venue" with
+      | .ok o => parseVenue o
+      | _ => pure {}
+    pure (Json.mkObj [("result", nominationPattern v author tier noms)])
+  | "mayDispose" =>
+    let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
+    let reqJ ← j.getObjVal? "request"
+    let disp ← match j.getObjVal? "disp" with
+      | .ok (.str k) => lookupKey dispKeys k
+      | _ => pure .noReply
+    let remindedAt : Option Nat ← match reqJ.getObjVal? "remindedAt" with
+      | .ok .null => pure none
+      | .ok v => some <$> fromJson? v
+      | .error _ => pure none
+    let q : Request := { reviewer := 5, sentBy := some 1, due := ← getD reqJ "due" 48, remindedAt, replied := ← getD reqJ "replied" false }
+    pure (Json.mkObj [("result", mayDispose r.venue.accGraceH q disp (← getD j "now" 0))])
+  | "appointmentAuthority" =>
+    let nominating : List (List Nat) ← match j.getObjVal? "nominating" with
+      | .ok (.arr xs) => xs.toList.mapM fun x => match x with
+          | .arr ys => ys.toList.mapM fromJson?
+          | _ => throw "nominating must be a list of lists"
+      | _ => pure []
+    let acs : List Nat ← match j.getObjVal? "acs" with
+      | .ok (.arr xs) => xs.toList.mapM fromJson?
+      | _ => pure []
+    pure (Json.mkObj [("result", decisionCounts nominating acs (← getD j "decider" 0) (← getD j "isChair" false))])
   | "overCap" =>
     let r ← parseReading ((j.getObjVal? "reading").toOption.getD .null)
     pure (Json.mkObj [("result", Json.num (papersOverCap r (← getD j "papers" 0)))])

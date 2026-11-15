@@ -127,7 +127,7 @@ public object AccountabilityPlan {
                 val replied = revised || (t.disposition != null && t.disposition != ReqDisposition.NO_REPLY)
                 val q = Request(0, sentBy = 1, due = hours(sentAt) + cfg.dueH, remindedAt = remindedAt?.let(::hours), replied = replied, disp = t.disposition)
                 val nowH = hours(now)
-                val noReplyFrom = remindedAt?.let { maxOf(it, dueAt.plus(Duration.ofHours(Accountability.GRACE))) }
+                val noReplyFrom = remindedAt?.let { maxOf(it, dueAt.plus(Duration.ofHours(cfg.graceH))) }
                 AccRequest(
                     t.pid,
                     t.ordinal,
@@ -147,7 +147,7 @@ public object AccountabilityPlan {
                         else -> ReqStatus.SENT
                     },
                     AccFlow.mayRemind(q, nowH),
-                    Accountability.mayDispose(q, ReqDisposition.NO_REPLY, nowH),
+                    Accountability.mayDispose(q, ReqDisposition.NO_REPLY, nowH, cfg.graceH),
                     noReplyFrom,
                 )
             }.sortedWith(compareBy({ it.pid }, { it.ordinal }, { it.n }))

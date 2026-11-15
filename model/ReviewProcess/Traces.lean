@@ -447,6 +447,8 @@ def pcTraces (tag : String) (r : Reading) : List PTrace :=
   let chair (a : PcAct) : PMove := ⟨some .processChair, a⟩
   let env (a : PcAct) : PMove := ⟨none, a⟩
   let mem (a : PcAct) : PMove := ⟨some .pcMember, a⟩
+  let pcc (a : PcAct) : PMove := ⟨some .pcChair, a⟩
+  let other (ro : Role) (a : PcAct) : PMove := ⟨some ro, a⟩
   let mk (id : String) (fam : String) (claims : List String) (moves : List PMove) (v : Verdict) : PTrace :=
     { id := s!"appt/{tag}/{id}", family := fam, claims := claims, reading := r, moves := moves, verdict := v }
   let upload : List PMove := [chair .dryRun, chair .confirm, chair .apply]
@@ -461,7 +463,12 @@ def pcTraces (tag : String) (r : Reading) : List PTrace :=
     mk "confirm-needs-dry-run" "T5" ["prop:H1"] (ready .junior ++ [chair .confirm]) .refused,
     mk "apply-needs-dry-run" "T5" ["prop:H1", "prop:H2"] (ready .junior ++ [chair .apply]) .refused,
     mk "apply-needs-confirm" "T5" ["prop:H1", "prop:H2"] (ready .junior ++ [chair .dryRun, chair .apply]) .refused,
+    mk "pc-chair-classifies" "T6" ["cell:pc-chair/classify", "prop:L2"]
+      ([pcc (.classify .junior), env .consent, chair .sync, chair .solve] ++ upload) .appointed,
     mk "pc-member-cannot-classify" "T6" ["cell:pc-member/classify"] [mem (.classify .junior)] .denied,
+    mk "author-cannot-classify" "T6" ["cell:author/classify"] [other .author (.classify .junior)] .denied,
+    mk "nominee-cannot-classify" "T6" ["cell:nominee/classify"] [other .nominee (.classify .junior)] .denied,
+    mk "junior-pc-chair-cannot-classify" "T6" ["cell:junior-pc-chair/classify"] [other .juniorPcChair (.classify .junior)] .denied,
     mk "pc-member-cannot-apply" "T6" ["cell:pc-member/apply-writeback"] (ready .junior ++ [chair .dryRun, chair .confirm, mem .apply]) .denied ]
 
 /-! ### Accountability requests -/
@@ -488,7 +495,7 @@ def accObserve (r : Reading) (s : AccSt) : Json :=
      ("replied", s.req.any fun q => q.replied),
      ("disposition", match s.req.bind (·.disp) with | some d => dispKey d | none => "none"),
      ("now", Json.num (s.now : Nat)),
-     ("may-no-reply", match s.req with | some q => mayDispose q .noReply s.now | none => false),
+     ("may-no-reply", match s.req with | some q => mayDispose r.venue.accGraceH q .noReply s.now | none => false),
      ("engaged", Json.num (e : Nat)), ("not-engaged", Json.num (n : Nat)),
      ("case-may-open", caseMayOpen {} r false reqs), ("case-open", s.caseOpen), ("case-upheld", s.upheld)]
 

@@ -13,6 +13,8 @@ The executable model behind [docs/concepts.md](../docs/concepts.md). It follows 
 | `Report.lean` | Prints the report. |
 | `answers/synthetic.txt` | Answers for a synthetic venue. A real venue keeps its answers file outside this repo. |
 
+Venue numbers (`Venue` in `Readings.lean`: nominees per paper under Q8 "up to n", the Q9 pattern threshold, the accountability grace period) are not questions. An answers file sets them with `venue.nominees-max`, `venue.pattern-min` and `venue.acc-grace-h` (defaults 3, 3, 48); the app takes the same three from `PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN` and `PCS_ACC_GRACE_H`. The cards that depend on one export a case per sampled value.
+
 ## Run
 
 ```sh

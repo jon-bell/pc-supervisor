@@ -230,7 +230,7 @@ fun nominationsCmd() {
         val data = pcs.core.nominations.NominationData(store, pcs.core.imports.Imports(store, clock))
         val answers = pcs.core.readings.Answers.read(settings.answersPath)
         val input = data.input()
-        val r = pcs.core.nominations.NominationRules.build(input, answers.readings)
+        val r = pcs.core.nominations.NominationRules.build(input, answers.readings, venue = settings.venue)
 
         fun <T> show(x: Resolved<T>, f: (T) -> String): String =
             when (x) {
