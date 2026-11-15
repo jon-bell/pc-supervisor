@@ -148,8 +148,8 @@ class RulesDifferentialTest {
     @Covers("rule:composition", "card:P6")
     fun `the optional seats a junior may take, by the chair's choice of who takes them (Q13 zero to two juniors)`() =
         check("juniorRoom", { it.jsonPrimitive.intOrNull }) { q ->
-            val mode = OracleJson.venue(q["reading"]!!.jsonObject["venue"]).juniorSeats
-            Pc.juniorRoom(mode, q.b("nominee"), q.l("cap").toInt(), q.l("seniors").toInt(), q.l("seated").toInt())
+            val venue = OracleJson.venue(q["reading"]!!.jsonObject["venue"])
+            Pc.juniorRoom(venue.juniorSeats, venue.reviewerTarget, q.b("nominee"), q.l("cap").toInt(), q.l("seniors").toInt(), q.l("seated").toInt())
         }
 
     @Test

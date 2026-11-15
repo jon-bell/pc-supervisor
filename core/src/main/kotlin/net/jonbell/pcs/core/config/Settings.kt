@@ -49,7 +49,7 @@ public data class Settings(
     val raw: Map<String, String>,
     /** The tag a chair puts on a set that needs the chairs' attention (`PCS_TAG_CHAIR_ATTENTION`, spec §6). */
     val tagChairAttention: String = "chair-attention",
-    /** The venue's numbers for the model (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`, `PCS_REMEDY_WINDOW_H`). */
+    /** The venue's numbers for the model (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`, `PCS_REMEDY_WINDOW_H`, `PCS_JUNIOR_SEATS`, `PCS_REVIEWER_TARGET`). */
     val venue: Venue = Venue(),
     /** The AC consistency band (`PCS_CONSISTENCY_FENCE_PAD`, `_MIN_PAPERS`, `_MIN_ACS`; `prop:M1`). */
     val consistency: ConsistencyBand = ConsistencyBand(),
@@ -94,6 +94,7 @@ public data class Settings(
                 "PCS_ACC_GRACE_H",
                 "PCS_REMEDY_WINDOW_H",
                 "PCS_JUNIOR_SEATS",
+                "PCS_REVIEWER_TARGET",
                 "PCS_CONSISTENCY_FENCE_PAD",
                 "PCS_CONSISTENCY_MIN_PAPERS",
                 "PCS_CONSISTENCY_MIN_ACS",
@@ -272,6 +273,7 @@ public data class Settings(
                                 parse("PCS_JUNIOR_SEATS", JuniorSeats.FILL) { s ->
                                     JuniorSeats.ofKey(s) ?: throw IllegalArgumentException("one of ${JuniorSeats.entries.joinToString { it.key }}: $s")
                                 } ?: JuniorSeats.FILL,
+                            reviewerTarget = int("PCS_REVIEWER_TARGET", Venue.DEFAULT_REVIEWER_TARGET, min = 1),
                         ),
                     consistency =
                         ConsistencyBand(

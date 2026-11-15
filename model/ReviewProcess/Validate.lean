@@ -17,7 +17,7 @@ structure Card where
   id : String
   text : String
   deps : List QId
-  /-- Venue parameters the outcome depends on (`nominees-max`, `pattern-min`, `acc-grace-h`, `remedy-window-h`, `junior-seats`). -/
+  /-- Venue parameters the outcome depends on (`nominees-max`, `pattern-min`, `acc-grace-h`, `remedy-window-h`, `junior-seats`, `reviewer-target`). -/
   venueDeps : List String := []
   outcome : Params → Reading → String
 
@@ -129,13 +129,13 @@ def cards : List Card :=
         let authorOf : Nat → List PersonId := fun x => if x == 1 then [10] else if x == 2 then [20] else []
         s!"{twoCycles p [(10, 2), (20, 1)] authorOf} reciprocal 2-cycle(s) found and broken" },
     { id := "P6", text := "Two seniors, a reciprocal nominee junior who owes a review and a PC junior can sit on a paper under zero to two juniors; and the same with only one senior",
-      deps := [.q13], venueDeps := ["junior-seats"],
+      deps := [.q13], venueDeps := ["junior-seats", "reviewer-target"],
       outcome := fun _ r =>
         let m := r.venue.juniorSeats
         let cap := thirdCap r
         let sit (seniors : Nat) :=
-          let nom := juniorRoom m true cap seniors 0 |>.min 1
-          let pc := juniorRoom m false cap seniors nom |>.min 1
+          let nom := juniorRoom m r.venue.reviewerTarget true cap seniors 0 |>.min 1
+          let pc := juniorRoom m r.venue.reviewerTarget false cap seniors nom |>.min 1
           s!"{nom + pc} junior seat(s) ({nom} reciprocal, {pc} PC)"
         if r.q13 == .zeroToTwoJuniors then s!"two seniors: {sit 2}; one senior: {sit 1}" else s!"the optional seats do not exist: {thirdSlots r} third seat a paper" },
     { id := "P5", text := "A plan is confirmed, but its dry run failed", deps := [],
@@ -269,6 +269,7 @@ def parseAnswers (text : String) : Answers := Id.run do
           | "venue.nominees-max" => a := { a with venue := { a.venue with nomineesMax := n } }
           | "venue.pattern-min" => a := { a with venue := { a.venue with patternMin := n } }
           | "venue.acc-grace-h" => a := { a with venue := { a.venue with accGraceH := n } }
+          | "venue.reviewer-target" => a := { a with venue := { a.venue with reviewerTarget := n } }
           | "venue.remedy-window-h" => a := { a with venue := { a.venue with remedyWindowH := n } }
           | _ => a := { a with errors := a.errors ++ [s!"unknown venue parameter {k}"] }
       else if k.startsWith "scale." then

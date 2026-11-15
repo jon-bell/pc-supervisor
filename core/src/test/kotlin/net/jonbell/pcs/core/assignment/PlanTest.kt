@@ -58,10 +58,11 @@ class PlanTest {
         owed: Int = 18,
         pinned: List<Pin> = emptyList(),
         papers: Int = 3,
+        target: Int = 3,
     ): Pair<PlanResult, List<PlanPaper>> {
         val rs = (1L..seniors).map { sen(it) } + (11L..13).map { jun(it) } + nominee(21, Tier.JUNIOR, (owed + 5) / 6, owed)
         val ps = (101L..100 + papers).map { paper(it) }
-        val c = cfg(q13 = Q13.ZERO_TO_TWO_JUNIORS).copy(juniorSeats = mode)
+        val c = cfg(q13 = Q13.ZERO_TO_TWO_JUNIORS).copy(juniorSeats = mode, reviewerTarget = target)
         return solve(PlanInput(rs, ps, everyone(rs, ps), pinned), c) to ps
     }
 
@@ -101,6 +102,37 @@ class PlanTest {
         val alone = solve(PlanInput(rs, ps1, everyone(rs, ps1)), cfg(q13 = Q13.ZERO_TO_TWO_JUNIORS).copy(juniorSeats = JuniorSeats.WHEN_SHORT))
         assertEquals(0, alone.thirdShort)
         assertEquals(1, alone.composed, "zero juniors meets the model's composition")
+    }
+
+    @Test
+    @Covers("rule:composition", "rule:load", "q:Q13=zero-to-two-juniors", "card:P6")
+    fun `the reviewer target moves what when-short and reciprocal-only fill toward, never past two juniors (PCS_REVIEWER_TARGET)`() {
+        for (m in listOf(JuniorSeats.WHEN_SHORT, JuniorSeats.RECIPROCAL_ONLY)) {
+            // target 2: two seniors already make it, so no PC junior sits (a reciprocal nominee still may under reciprocal-only)
+            val (two, ps) = seats(m, target = 2)
+            for (p in ps) {
+                assertEquals(2, two.seniors(p.pid).size)
+                assertTrue(two.juniors(p.pid).all { it == 21L }, "target 2 under $m: no PC junior on ${p.pid}: ${two.juniors(p.pid)}")
+            }
+            // target 4: two seniors and two juniors, the cap
+            val (four, _) = seats(m, target = 4)
+            for (p in ps) {
+                assertEquals(2, four.seniors(p.pid).size)
+                assertEquals(2, four.juniors(p.pid).size, "target 4 under $m: two juniors on ${p.pid}")
+            }
+            // a target of 9 still never seats more than two
+            val (nine, _) = seats(m, target = 9)
+            for (p in ps) assertEquals(2, nine.juniors(p.pid).size, "the cap of two holds at target 9 under $m")
+            // short of a senior at target 2: one junior makes up the paper
+            val (short, _) = seats(m, seniors = 1, papers = 1, target = 2)
+            assertEquals(1, short.juniors(101).size, "one senior, target 2 under $m")
+        }
+        val (when2, _) = seats(JuniorSeats.WHEN_SHORT, target = 2)
+        assertEquals(emptyList<Long>(), (101L..103).flatMap { when2.juniors(it) }, "when-short at target 2 seats no junior beside two seniors")
+        // fill ignores the target
+        val (f2, _) = seats(JuniorSeats.FILL, target = 2)
+        val (f4, _) = seats(JuniorSeats.FILL, target = 4)
+        assertEquals(f2.edges, f4.edges)
     }
 
     @Test

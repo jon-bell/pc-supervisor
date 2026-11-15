@@ -8,6 +8,7 @@ import net.jonbell.pcs.core.rules.Member
 import net.jonbell.pcs.core.rules.PaperFacts
 import net.jonbell.pcs.core.rules.Pc
 import net.jonbell.pcs.core.rules.Tier
+import net.jonbell.pcs.core.rules.Venue
 import net.jonbell.pcs.core.solver.FlowNetwork
 
 /*
@@ -76,6 +77,8 @@ public data class PlanConfig(
     val weakAffinity: Int = 40,
     /** `PCS_JUNIOR_SEATS`, or the chair's choice in the Assignment tab: who takes the optional seats under Q13's "zero to two juniors". */
     val juniorSeats: JuniorSeats = JuniorSeats.FILL,
+    /** `PCS_REVIEWER_TARGET`: the reviewers `when-short` and `reciprocal-only` bring a paper to. */
+    val reviewerTarget: Int = Venue.DEFAULT_REVIEWER_TARGET,
 )
 
 /** One repair: an edge forbidden, and why. */
@@ -219,7 +222,17 @@ public object Planner {
             fun stage(pick: (Raw) -> Boolean, nominee: Boolean, placed: Map<Long, Int>): List<Raw> {
                 val (u, m) =
                     network(usable.filter { it.slot == Slot.THIRD && pick(it) }) { p ->
-                        none to Seat(Pc.juniorRoom(cfg.juniorSeats, nominee, thirdCap, seniorsOn(p), pinnedThirds(p) + (placed[p.pid] ?: 0)).toLong())
+                        none to
+                            Seat(
+                                Pc.juniorRoom(
+                                    cfg.juniorSeats,
+                                    cfg.reviewerTarget,
+                                    nominee,
+                                    thirdCap,
+                                    seniorsOn(p),
+                                    pinnedThirds(p) + (placed[p.pid] ?: 0),
+                                ).toLong(),
+                            )
                     }
                 used += u
                 cost += m.first
@@ -513,13 +526,20 @@ public object Planner {
                 val pc = added.size - nominees
                 val before = pp.thirds.size - added.size
                 val seniors = pp.seniors.size
-                val roomN = if (cfg.juniorSeats == JuniorSeats.RECIPROCAL_ONLY) Pc.juniorRoom(cfg.juniorSeats, true, cap, seniors, before) else Int.MAX_VALUE
-                val roomAll = Pc.juniorRoom(cfg.juniorSeats, false, cap, seniors, before)
+                val roomN =
+                    if (cfg.juniorSeats ==
+                        JuniorSeats.RECIPROCAL_ONLY
+                    ) {
+                        Pc.juniorRoom(cfg.juniorSeats, cfg.reviewerTarget, true, cap, seniors, before)
+                    } else {
+                        Int.MAX_VALUE
+                    }
+                val roomAll = Pc.juniorRoom(cfg.juniorSeats, cfg.reviewerTarget, false, cap, seniors, before)
                 val roomPc =
                     if (cfg.juniorSeats ==
                         JuniorSeats.RECIPROCAL_ONLY
                     ) {
-                        Pc.juniorRoom(cfg.juniorSeats, false, cap, seniors, before + nominees)
+                        Pc.juniorRoom(cfg.juniorSeats, cfg.reviewerTarget, false, cap, seniors, before + nominees)
                     } else {
                         roomAll
                     }

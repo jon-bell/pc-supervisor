@@ -3,7 +3,7 @@ package net.jonbell.pcs.core.rules
 /**
  * Who takes the optional seats under Q13's "zero to two juniors" (the owner's ruling, 2026-11-15: the chair running the assignment chooses,
  * as `PCS_JUNIOR_SEATS` and in the Assignment tab; the model's `JuniorSeats`). [FILL]: whenever load and `owes(u)` leave room, up to two a
- * paper. [WHEN_SHORT]: seniors first, and a junior sits only to bring a paper to three reviewers (two seniors and one more). [RECIPROCAL_ONLY]:
+ * paper. [WHEN_SHORT]: seniors first, and a junior sits only to bring a paper to the venue's [Venue.reviewerTarget] reviewers (default three: two seniors and one more), never more than two juniors. [RECIPROCAL_ONLY]:
  * reciprocal nominee juniors take the optional seats, PC juniors only as in [WHEN_SHORT].
  */
 public enum class JuniorSeats(public val key: String) {
@@ -19,7 +19,7 @@ public enum class JuniorSeats(public val key: String) {
 
 /**
  * Venue parameters (model `Venue`, Readings.lean): numbers a venue sets, not questions with readings. Each is an app
- * setting (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`, `PCS_REMEDY_WINDOW_H`, `PCS_JUNIOR_SEATS`) and a `venue.*` line in the model's answers file.
+ * setting (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`, `PCS_REMEDY_WINDOW_H`, `PCS_JUNIOR_SEATS`, `PCS_REVIEWER_TARGET`) and a `venue.*` line in the model's answers file.
  */
 public data class Venue(
     /** Q8 "up to n": the most nominees a paper may name. */
@@ -32,6 +32,8 @@ public data class Venue(
     val remedyWindowH: Long = DEFAULT_REMEDY_WINDOW_H,
     /** Q13 "zero to two juniors": who takes the optional seats (the chair running the assignment chooses). */
     val juniorSeats: JuniorSeats = JuniorSeats.FILL,
+    /** Reviewers a paper should have: the target the `when-short` and `reciprocal-only` junior-seat modes fill toward (still at most two juniors). */
+    val reviewerTarget: Int = DEFAULT_REVIEWER_TARGET,
 ) {
     /** This venue with the parameters not named in [names] at their defaults, so cases compare on what a card depends on. */
     public fun restrictedTo(names: List<String>): Venue =
@@ -41,6 +43,7 @@ public data class Venue(
             if ("acc-grace-h" in names) accGraceH else DEFAULT_GRACE_H,
             if ("remedy-window-h" in names) remedyWindowH else DEFAULT_REMEDY_WINDOW_H,
             if ("junior-seats" in names) juniorSeats else JuniorSeats.FILL,
+            if ("reviewer-target" in names) reviewerTarget else DEFAULT_REVIEWER_TARGET,
         )
 
     public companion object {
@@ -48,5 +51,6 @@ public data class Venue(
         public const val DEFAULT_PATTERN_MIN: Int = 3
         public const val DEFAULT_GRACE_H: Long = 48
         public const val DEFAULT_REMEDY_WINDOW_H: Long = 72
+        public const val DEFAULT_REVIEWER_TARGET: Int = 3
     }
 }

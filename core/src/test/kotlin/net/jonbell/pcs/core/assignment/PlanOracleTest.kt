@@ -57,7 +57,14 @@ class PlanOracleTest {
             }
         }
 
-    private data class Variant(val name: String, val q13: Q13, val q14: Q14, val q18: String, val juniorSeats: JuniorSeats = JuniorSeats.FILL)
+    private data class Variant(
+        val name: String,
+        val q13: Q13,
+        val q14: Q14,
+        val q18: String,
+        val juniorSeats: JuniorSeats = JuniorSeats.FILL,
+        val target: Int = 3,
+    )
 
     private val variants =
         listOf(
@@ -70,6 +77,11 @@ class PlanOracleTest {
             Variant("zero to two, junior seats reciprocal only", Q13.ZERO_TO_TWO_JUNIORS, Q14.TIER_DECIDES, "once", JuniorSeats.RECIPROCAL_ONLY),
             Variant("zero to two, nominee not senior, when short", Q13.ZERO_TO_TWO_JUNIORS, Q14.NOMINEE_NOT_SENIOR, "once", JuniorSeats.WHEN_SHORT),
             Variant("zero to two, nominee not senior, reciprocal only", Q13.ZERO_TO_TWO_JUNIORS, Q14.NOMINEE_NOT_SENIOR, "once", JuniorSeats.RECIPROCAL_ONLY),
+            // the venue's reviewer target (PCS_REVIEWER_TARGET) moves what when-short and reciprocal-only fill toward
+            Variant("zero to two, when short, target 2", Q13.ZERO_TO_TWO_JUNIORS, Q14.TIER_DECIDES, "once", JuniorSeats.WHEN_SHORT, 2),
+            Variant("zero to two, when short, target 4", Q13.ZERO_TO_TWO_JUNIORS, Q14.TIER_DECIDES, "once", JuniorSeats.WHEN_SHORT, 4),
+            Variant("zero to two, reciprocal only, target 2", Q13.ZERO_TO_TWO_JUNIORS, Q14.TIER_DECIDES, "once", JuniorSeats.RECIPROCAL_ONLY, 2),
+            Variant("zero to two, reciprocal only, target 4", Q13.ZERO_TO_TWO_JUNIORS, Q14.TIER_DECIDES, "once", JuniorSeats.RECIPROCAL_ONLY, 4),
             Variant("zero to two, nominee not senior, fill", Q13.ZERO_TO_TWO_JUNIORS, Q14.NOMINEE_NOT_SENIOR, "once", JuniorSeats.FILL),
             Variant("one or two juniors ignores the choice", Q13.ONE_OR_TWO_JUNIORS, Q14.TIER_DECIDES, "once", JuniorSeats.RECIPROCAL_ONLY),
             Variant("junior or nominee", Q13.ONE_JUNIOR_OR_NOMINEE, Q14.TIER_DECIDES, "once"),
@@ -88,7 +100,13 @@ class PlanOracleTest {
                         put("Q13", v.q13.key)
                         put("Q14", v.q14.key)
                         put("Q18", v.q18)
-                        put("venue", buildJsonObject { put("juniorSeats", v.juniorSeats.key) })
+                        put(
+                            "venue",
+                            buildJsonObject {
+                                put("juniorSeats", v.juniorSeats.key)
+                                put("reviewerTarget", v.target)
+                            },
+                        )
                     },
                 )
             },
@@ -126,7 +144,8 @@ class PlanOracleTest {
                 val a = ask(scale, v)
                 val want = a["outcome"]!!.jsonObject
                 val input = inputOf(a)
-                val cfg = PlanConfig(v.q13, v.q14, Faults.NONE, cycleMaxK = 2, repairRounds = 10, topK = 25, juniorSeats = v.juniorSeats)
+                val cfg =
+                    PlanConfig(v.q13, v.q14, Faults.NONE, cycleMaxK = 2, repairRounds = 10, topK = 25, juniorSeats = v.juniorSeats, reviewerTarget = v.target)
                 val got = Planner.solve(input, cfg)
 
                 fun w(k: String) = want[k]!!.jsonPrimitive.int

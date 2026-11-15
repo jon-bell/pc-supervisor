@@ -886,6 +886,10 @@ Applied 2026-11-15, one commit per ruling. Live calls: 2 of the 13 allowed (`cla
 8. **Scale.** `PCS_SCALE_RUNS: "59"` in the nightly job and `runs: 59` in `docs/scale-budgets.json`, which is the `requiredRuns` `check-evidence` reads; summary and record text follow the run count. Validated by parsing the workflow and the JSON; no scale harness was run (seeding takes about 20 minutes). A `PCS_SCALE_RUNS=3` smoke deliberately fails the minimum.
 9. **No change:** the dev model stays Haiku, and the export keeps pseudonymised paper numbers; neither is an open question any more.
 
+### Branch `rulings-9` (two small rulings, one commit each)
+
+1. **Reviewer target per venue.** `Venue.reviewerTarget` (default 3) replaces the hard-coded 3 of `when-short` (`compositionReviewers` is gone; `shortRoom` and `juniorRoom` take the target). Answers file `venue.reviewer-target`, app setting `PCS_REVIEWER_TARGET` (`Settings.venue`, `pcs.conf.example`, spec table), and a stepper beside the junior-seat selector in the Assignment tab (`Session.assignment(juniorSeats, reviewerTarget)`, `draftAssignment` likewise; the setting is the starting value). Juniors fill optional seats only toward the target and never past two; `reciprocal-only` uses the target for its PC-junior fallback; `fill` ignores it. At the default, nothing changes (target 3); target 2 seats no PC junior beside two seniors, target 4 seats two. Lean: `juniorRoom` / `solveOnce`, card P6 (cases per target 2, 3, 4), the `juniorRoom` oracle query and corpus (random target 0..5), `Query`/`Validate` parsing; `PlanOracleTest` (when-short and reciprocal-only at targets 2 and 4 against the Lean solver), `PlanTest` (targets 2, 4, 9; fill ignores it), `SettingsTest`, `AssignmentUiTest`. Model report, exports and corpora regenerated.
+
 ## Open items (maintainer)
 
 - Shadow PC phase dates. These are only needed for real use; CI uses synthetic dates. If the shadow PC's discussion phase comes before the target conference's submissions open, M18 moves ahead of Phase B (it depends only on M1–M5).

@@ -311,7 +311,7 @@ def solveOnce (c : Conf) (r : Reading) (cap : Array Nat) (cs : List Cand) : Solv
     let seniors (pp : Nat) := placedOn s1.plan pp (fun _ => true)
     let stage (nominee? : Option Bool) (seated : Nat → Nat) (isNom : Bool) : Solved :=
       let cands := cs.filter fun e => e.slot == .third && (match nominee? with | some b => isNominee e == b | none => true)
-      solveWith c cap cands (fun _ => 0) (fun pp => juniorRoom mode isNom (thirdCap r) (seniors pp) (seated pp))
+      solveWith c cap cands (fun _ => 0) (fun pp => juniorRoom mode r.venue.reviewerTarget isNom (thirdCap r) (seniors pp) (seated pp))
     match mode with
     | .reciprocalOnly =>
       let s2 := stage (some true) (fun _ => 0) true

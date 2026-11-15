@@ -179,8 +179,8 @@ instance : Enum Q21 where
 /-- Who takes the optional seats under Q13's "zero to two juniors" (the owner's ruling, 2026-11-15: the chair running the
     assignment chooses, as setting `PCS_JUNIOR_SEATS` and in the Assignment tab).
     `fill`: juniors take the optional seats whenever load and `owes(u)` leave room (up to two a paper).
-    `whenShort`: seniors first; a junior takes an optional seat only to bring a paper to three reviewers, two seniors and one more
-    (the composition every other reading of Q13 builds), so with both senior seats filled at most one junior sits.
+    `whenShort`: seniors first; a junior takes an optional seat only to bring a paper to the venue's reviewer target (`Venue.reviewerTarget`, default 3: two seniors
+    and one more), never more than two juniors in all.
     `reciprocalOnly`: the optional seats go to reciprocal nominee juniors working off what they owe; PC juniors sit only as in `whenShort`. -/
 inductive JuniorSeats | fill | whenShort | reciprocalOnly
   deriving DecidableEq, Repr, Inhabited
@@ -191,7 +191,7 @@ def JuniorSeats.key : JuniorSeats → String
 def JuniorSeats.ofKey? (k : String) : Option JuniorSeats := JuniorSeats.all.find? (·.key == k)
 
 /-- Venue parameters: numbers a venue sets, not questions with readings. Each is a setting in the app
-    (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`, `PCS_REMEDY_WINDOW_H`, `PCS_JUNIOR_SEATS`) and a `venue.*` line in an answers file. -/
+    (`PCS_NOMINEES_MAX`, `PCS_PATTERN_MIN`, `PCS_ACC_GRACE_H`, `PCS_REMEDY_WINDOW_H`, `PCS_JUNIOR_SEATS`, `PCS_REVIEWER_TARGET`) and a `venue.*` line in an answers file. -/
 structure Venue where
   /-- Q8 "up to n": the most nominees a paper may name (the owner's ruling: a venue parameter, default 3). -/
   nomineesMax : Nat := 3
@@ -203,6 +203,9 @@ structure Venue where
   remedyWindowH : Nat := 72
   /-- Q13 "zero to two juniors": who takes the optional seats (a choice of the chair running the assignment, default `fill`). -/
   juniorSeats : JuniorSeats := .fill
+  /-- Reviewers a paper should have, the target the junior-seat modes `whenShort` and `reciprocalOnly` fill toward
+      (the owner's ruling: a venue parameter, default 3: two seniors and one more). -/
+  reviewerTarget : Nat := 3
   deriving DecidableEq, Repr, Inhabited
 
 structure Reading where

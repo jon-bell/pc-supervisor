@@ -2,7 +2,7 @@
 answers file: answers/synthetic.txt
 questions in the model: 20; readings of the whole text: 358318080
 answered: 8; open: 12
-venue parameters: nominees per paper at most 3 (Q8 "up to n"); pattern shown at 3 nominations (Q9); accountability grace period 48 h (AR5); Q1 fix window 72 h
+venue parameters: nominees per paper at most 3 (Q8 "up to n"); pattern shown at 3 nominations (Q9); accountability grace period 48 h (AR5); Q1 fix window 72 h; reviewer target 3 (junior-seat modes)
 not in the model (no rule depends on them yet): Q9 (who may be nominated), Q12 (withholding reviews)
 
 ## Legibility: does any card depend on a question it doesn't declare?

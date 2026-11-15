@@ -23,7 +23,7 @@ def main (args : List String) : IO Unit := do
   for e in a.errors do IO.println s!"  ! {e}"
   IO.println s!"questions in the model: {QId.all.length}; readings of the whole text: {readingCount}"
   IO.println s!"answered: {a.given.length}; open: {QId.all.length - a.given.length}"
-  IO.println s!"venue parameters: nominees per paper at most {base.venue.nomineesMax} (Q8 \"up to n\"); pattern shown at {base.venue.patternMin} nominations (Q9); accountability grace period {base.venue.accGraceH} h (AR5); Q1 fix window {base.venue.remedyWindowH} h"
+  IO.println s!"venue parameters: nominees per paper at most {base.venue.nomineesMax} (Q8 \"up to n\"); pattern shown at {base.venue.patternMin} nominations (Q9); accountability grace period {base.venue.accGraceH} h (AR5); Q1 fix window {base.venue.remedyWindowH} h; reviewer target {base.venue.reviewerTarget} (junior-seat modes)"
   IO.println "not in the model (no rule depends on them yet): Q9 (who may be nominated), Q12 (withholding reviews)"
 
   IO.println "\n## Legibility: does any card depend on a question it doesn't declare?"

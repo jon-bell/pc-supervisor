@@ -52,6 +52,7 @@ object OracleJson {
             accGraceH = v["accGraceH"]?.jsonPrimitive?.long ?: d.accGraceH,
             remedyWindowH = v["remedyWindowH"]?.jsonPrimitive?.long ?: d.remedyWindowH,
             juniorSeats = v["juniorSeats"]?.jsonPrimitive?.content?.let { net.jonbell.pcs.core.rules.JuniorSeats.ofKey(it) } ?: d.juniorSeats,
+            reviewerTarget = v["reviewerTarget"]?.jsonPrimitive?.int ?: d.reviewerTarget,
         )
     }
 

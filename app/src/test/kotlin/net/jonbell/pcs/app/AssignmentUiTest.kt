@@ -152,6 +152,47 @@ class AssignmentUiTest {
     }
 
     @Test
+    @Covers("view:assignment", "rule:composition", "q:Q13=zero-to-two-juniors")
+    fun `the reviewer target sits beside the junior-seat selector and the plan follows it (PCS_REVIEWER_TARGET)`(
+        @TempDir dir: Path,
+    ) {
+        // when-short, seniors s1 to s3 (paper 2 has only s3), two PC juniors: target 2 gives 2 + 2 + 2 CSV rows, 3 gives 3 + 3 + 3, 4 gives 4 + 3 + 4
+        val shell =
+            conference(
+                dir,
+                "Q13 = zero-to-two-juniors\nQ14 = tier-decides\n",
+                juniors = listOf("j1", "j2"),
+                extraConf = "PCS_JUNIOR_SEATS=when-short\nPCS_REVIEWER_TARGET=2\n",
+            )
+        runUi {
+            setContent { PcsApp(shell) }
+            val driver = AppDriver(this)
+            val view = ViewReader(this)
+            driver.waitFor(Tags.PICKER)
+            driver.openConference("asg")
+            driver.tab(TabName.Assignment)
+            driver.waitFor(AssignmentTags.SUMMARY)
+
+            fun rows() = Regex("(\\d+) CSV rows").find(view.text(AssignmentTags.SUMMARY))!!.groupValues[1].toInt()
+
+            fun expect(target: Int, expectRows: Int) {
+                waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) {
+                    view.exists(AssignmentTags.SUMMARY) && view.text(AssignmentTags.TARGET) == target.toString() && rows() == expectRows
+                }
+                assertEquals(expectRows, rows(), "target $target")
+            }
+            expect(2, 6)
+            driver.click(AssignmentTags.TARGET_UP)
+            expect(3, 9)
+            driver.click(AssignmentTags.TARGET_UP)
+            expect(4, 11)
+            driver.click(AssignmentTags.TARGET_DOWN)
+            expect(3, 9)
+            assertTrue("3 reviewers" in view.text(AssignmentTags.SEATS_NOTE), view.text(AssignmentTags.SEATS_NOTE))
+        }
+    }
+
+    @Test
     @Covers("view:assignment")
     fun `the setting is the starting mode of the Assignment tab`(
         @TempDir dir: Path,
