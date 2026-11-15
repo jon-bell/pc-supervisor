@@ -10,6 +10,13 @@ This is the work breakdown for building PC Supervisor. Read [docs/concepts.md](d
 
 **Stack (decided 2026-11-13):** a desktop app on the JVM, in Kotlin with Compose Multiplatform. HotCRP is the shared record (spec §2, §11). The earlier TypeScript plan is retired; nothing of it was built.
 
+**Status (2026-11-15):** every milestone, M0 through M21, is merged on `main`, and CI is green (jobs `ci`, `model`, `report`, `linux-package`; the nightly `scale` job has not run yet). Each was validated before merge on fresh harnesses: lint, unit, property and generated tests, all integration suites, UI tests, `check-evidence`, and the assurance report with 0 failing claims. What remains is listed under each milestone's "Deferred" and "Decisions needed". The largest items:
+- A real shootout over three or more engines, one self-hosted (M11), and the qualification records that depend on it (M12).
+- Signed macOS and Windows installers for the app and for `pcs` (M4, M21).
+- Argos baselines, which need a token.
+- A live-instance latency probe for the scale budgets (M19).
+- Chair-step buttons on the Triage tab (M13).
+
 **Progress (2026-11-13, branch `m1-foundations`, all checked on the local harness; CI not yet run):**
 - **M0** done: `pcs probe`, with the settings spec §11 depends on.
 - **M1** done: Gradle scaffold, generated readings, the answers reader (agrees with Lean), settings, Clock, the HotCRP client with strict decoding, contract tests, the claim inventory, `@Covers`, the assurance report, ktlint. The Lean-in-core spike works on Linux (decision provisional, below).
