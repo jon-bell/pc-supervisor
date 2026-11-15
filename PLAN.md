@@ -482,7 +482,7 @@ Changing this table means changing the M3 and M18 tests in the same PR.
     - The pattern signal: senior author (sheet tier, or a PC member with no row), at least `PCS_PATTERN_MIN` nominations (default 3; every nomination counts, repeats included), all of juniors by the sheet's tier, never themself. A pending nominee has no tier, so it breaks the pattern until classified.
     - Authors are matched across papers by HotCRP account email (concepts SubmissionLimit); the cap is reported with every paper of the author.
   - **Findings about HotCRP:** `batch/deletepapers.php -y` removes papers but not the contacts created for their authors, so the scenario's test removes the `nom-*` contacts in SQL; paper `authors[].email` is the only identity link between papers, so an author with two accounts splits the cap count.
-  - **Decisions needed:** who allocates shares, and the cap's other numbers. (The pattern's threshold, the value of n and where "decided by" authority comes from were ruled on 2026-11-15; see "Rulings applied" below.)
+  - **Decisions needed:** the cap's other numbers. (Authors' shares under Q19 "authors allocate" were ruled on 2026-11-15: equal split only, no sheet column or HotCRP field. The pattern's threshold, the value of n and where "decided by" authority comes from were ruled on 2026-11-15; see "Rulings applied" below.)
 
 ## M8: Extraction and deterministic checks (agent.md)
 
