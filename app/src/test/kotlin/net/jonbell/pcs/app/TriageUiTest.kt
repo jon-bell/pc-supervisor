@@ -60,7 +60,7 @@ class TriageUiTest {
         }
         sql(
             store,
-            "INSERT INTO review(rid,pid,email,rtype,status,round,scores,word_count,ratings,first_seen_at,last_seen_at) VALUES(200,1,'s@example.org',2,'complete','screen','{}',0,'[]',0,0)",
+            "INSERT INTO review(rid,pid,email,rtype,status,round,scores,word_count,ratings,first_seen_at,last_seen_at) VALUES(200,1,'s@example.org',2,'complete','screen','{\"Tri\":2}',0,'[]',0,0)",
         )
         extra(store)
         val finding = { pid: Int ->
@@ -179,23 +179,23 @@ class TriageUiTest {
             waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.exists(TableTags.COUNT) }
             driver.click(TriageTags.MIRROR)
             driver.waitFor(TriageTags.MESSAGE)
-            assertTrue(view.text(TriageTags.MESSAGE).startsWith("Drafted into Writeback: #1, #2"), view.text(TriageTags.MESSAGE))
+            assertTrue(view.text(TriageTags.MESSAGE).startsWith("Drafted into Writeback: #1, #2, #3, #4"), view.text(TriageTags.MESSAGE))
             driver.click(TriageTags.FINDINGS)
-            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.text(TriageTags.MESSAGE).contains("#3") }
+            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.text(TriageTags.MESSAGE).contains("#5") }
             driver.click(TriageTags.DECISION)
-            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.text(TriageTags.MESSAGE).contains("#6") }
+            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.text(TriageTags.MESSAGE).contains("#8") }
             driver.clickRow("2")
             driver.waitFor(TriageTags.SELECTED)
             driver.click(TriageTags.ask("senior@example.org"))
-            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.text(TriageTags.MESSAGE).contains("#7") }
+            waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.text(TriageTags.MESSAGE).contains("#9") }
             assertTrue(view.text("${TriageTags.MAIL}-0").contains("Second opinion on paper #2"))
             driver.tab(TabName.Writeback)
             waitUntil(timeoutMillis = AppDriver.TIMEOUT_MS) { view.exists(TableTags.COUNT) }
             val t = view.table()
             assertEquals(
-                listOf("tags", "review-move", "comment", "comment", "comment", "decision", "assignments").sorted(),
+                listOf("tags", "review-move", "tags", "review-move", "comment", "comment", "comment", "decision", "assignments").sorted(),
                 t.keys.map { t.cell(it, "kind")!! }.sorted(),
-                "one of each step, as drafts",
+                "one of each step, as drafts: the mirror is two (the AC's triage, a second opinion) tag-and-move pairs",
             )
             assertEquals(setOf("drafted"), t.keys.map { t.cell(it, "status")!! }.toSet(), "nothing is applied or dry-run")
             screenshot("triage/drafted")
