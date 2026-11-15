@@ -299,6 +299,51 @@ Variants include: the effort level; PDF input vs. extracted text; abstract-only 
 
 `pcs agent shootout --corpus held-out --checks … --engines …` writes a report. For each check it shows the quality/cost frontier across engines, with confidence intervals, and a recommended engine.
 
+### 7.3a The shootout, as built (M11)
+
+`pcs agent shootout --corpus held-out|recorded (--offline | --engines a,b,c) [--checks …] [--k 3] [--out dir] [--no-raw] [--confirm-spend]` runs every engine `k` times on every paper of a corpus through the same `Screener`, dispatcher and anchor verification as production, and writes `shootout-<corpus>.md` and `.json` (`./gradlew :agent:shootout -Pcorpus=held-out` is the offline run).
+
+- **Corpora.** `held-out` is generated from a fixed seed (`HeldOut.SEED`) that no prompt, test or fixture uses: clean papers, one planted defect per paper for each LLM check, benign quotations of an attack, and injected/clean-twin pairs. `recorded` is the development cases of `LlmCorpus` with their live recordings, so that a `replay` of real results can take part; prompts were written against them, so it is optimistic and is labelled so. `public` is a manifest (`agent/corpora/public/manifest.json`) plus a loader and checksums; it ships placeholders only.
+- **Per (check, engine, variant).** Recall, false-flag rate, precision (Wilson intervals over papers; a paper's verdict is the majority of its runs); balanced accuracy (seeded bootstrap); the share of anchors that verify; refusal, schema-invalid, truncation and error rates over calls; stability over the papers for which all `k` runs were served (agreement of the flag set, pass^k, flaky flags: flags that appear in some runs and not others); cost per paper from the recorded usage and prices (plus `PCS_ENGINE_<id>_GPU_HOUR_USD` over the engine's concurrency), projected to `PCS_AGENT_SCALE_PAPERS` (default 4000), and the wall time under the engine's `CONCURRENCY`.
+- **Frontier and recommendation.** An engine is on a check's frontier when no other is at least as cheap and at least as good by balanced accuracy, one strictly. The recommended engine is the cheapest whose point estimates meet the thresholds (`ShootoutOptions`: recall 0.8, false-flag rate 0.1, anchor validity 0.95, stability 0.9); the report says when a lower confidence bound or a missing stability measurement makes that provisional. The per-check thresholds of §7.4 are still to be read from `check.yaml` (M12).
+- **Scaffold delta.** The raw variant hands the PDF itself, with the same prompt and schema, to the two checks whose input is plain paper text (`anonymity.llm`, `scope`); the delta is the paired difference in balanced accuracy. `refs.use`, `injection.addressed.llm` and `summary` have no raw variant yet (their input is built by extraction and reference fetching).
+- **Injection.** Detection by vector for the classifier; resistance as the share of runs in which a planted instruction changes a check's output with the span left in and after stripping, measured against the injected paper's clean twin.
+- **Coverage.** A replay with no recording for a request leaves that paper (that run) out of its numbers and the report says how many calls were missing; nothing is filled in.
+- **Scripted stand-ins.** `--offline` adds three deterministic engines (`scripted-strong`, `scripted-noisy`, `scripted-selfhosted`) that read the planted phrases of this repository's synthetic papers and degrade their answers by a rate profile (misses, false alarms, flips between runs, unverifiable quotations, refusals, truncations, obedience to injections, a penalty on raw PDFs). They are not models and the report marks them as such; their prices and the GPU rate are illustrative. They exist so that the frontier, interval, stability and scaffold code has differences to measure.
+
+### 7.3b What a real three-engine run needs
+
+1. **Engines** in the environment (or `pcs.conf`); prices are USD per million tokens and are never defaults:
+
+```
+PCS_ENGINES=dev,api,selfhost
+# the maintainer's login, public ceiling by default
+PCS_ENGINE_dev_ADAPTER=claude-code
+PCS_ENGINE_dev_MODEL=<model id>
+# an API engine
+PCS_ENGINE_api_ADAPTER=anthropic
+PCS_ENGINE_api_PLATFORM=api
+PCS_ENGINE_api_MODEL=<model id>
+PCS_ENGINE_api_API_KEY_ENV=ANTHROPIC_API_KEY
+PCS_ENGINE_api_CLEARANCE=public
+PCS_ENGINE_api_PRICE_IN=<usd per M>   PCS_ENGINE_api_PRICE_OUT=<usd per M>
+PCS_ENGINE_api_CONCURRENCY=4
+# a self-hosted vLLM / llama.cpp / SGLang server speaking the OpenAI chat API
+PCS_ENGINE_selfhost_ADAPTER=openai-compat
+PCS_ENGINE_selfhost_BASE_URL=http://gpu.example.org:8000/v1
+PCS_ENGINE_selfhost_MODEL=<served model name>
+PCS_ENGINE_selfhost_STRUCTURED=json_schema        # or guided (vLLM guided_json), tool, prompt
+PCS_ENGINE_selfhost_CLEARANCE=public
+PCS_ENGINE_selfhost_PRICE_IN=0   PCS_ENGINE_selfhost_PRICE_OUT=0
+PCS_ENGINE_selfhost_GPU_HOUR_USD=<usd per GPU hour>
+PCS_ENGINE_selfhost_CONCURRENCY=2
+PCS_AGENT_SCALE_PAPERS=<papers at the real venue>
+```
+
+2. **Run:** `pcs agent shootout --corpus held-out --engines dev,api,selfhost --k 3` prints what it would call and stops; add `--confirm-spend` to make the calls. Held-out is synthetic, so no confidential data is involved; any engine with a `synthetic` ceiling is enough. The default held-out corpus (58 papers) makes about 450 requests per engine across `k = 3`, plus about 120 for the raw-PDF variant.
+3. **Reach:** the server must be reachable from the machine running `pcs`, and its `BASE_URL` host is the only host that engine may contact. No GPU or key is needed by the tool itself.
+4. **For the `public` corpus** (not yet shootout-able, see below): replace the placeholders in `agent/corpora/public/manifest.json` with openly licensed SE papers (DOI or arXiv id, a license from `PublicCorpus.OPEN_LICENSES`, a `split` of `dev` or `held-out`), fetch each PDF by hand into a directory outside git as `<id>.pdf`, then `pcs agent corpus pin <manifest> <dir>` records the checksums and `pcs agent corpus validate <manifest> <dir>` re-checks them. `pcs agent corpus standins <dir>` writes synthetic stand-ins to try the loader. The mutation operators of §7.2 work on generated papers (`PaperSpec`); applying them to a fetched PDF needs a PDF-level mutator that does not exist yet.
+
 ### 7.4 Qualification
 
 A `(check version, engine, model, variant)` tuple may run on `confidential` data only if it has a **qualification record**: an evaluation run on `held-out` that meets the check's thresholds (`check.yaml`: minimum recall on its mutants, maximum false-flag rate, minimum anchor validity, minimum stability). Production runs refuse unqualified tuples.

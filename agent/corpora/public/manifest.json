@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "note": "Placeholders only. To populate: replace each placeholder with an openly licensed software-engineering paper (by DOI or arXiv id, license recorded), fetch the PDFs by hand into a directory outside git, then run `pcs agent corpus pin <manifest> <dir>`. Entries marked held-out are never looked at while writing prompts.",
+  "entries": [
+    { "id": "pub-001", "source": { "doi": "10.9999/placeholder.1" }, "title": "(placeholder: dev paper 1)", "license": "CC-BY-4.0", "split": "dev", "placeholder": true },
+    { "id": "pub-002", "source": { "arxiv": "0000.00001" }, "title": "(placeholder: dev paper 2)", "license": "CC-BY-4.0", "split": "dev", "placeholder": true },
+    { "id": "pub-003", "source": { "doi": "10.9999/placeholder.3" }, "title": "(placeholder: held-out paper 1)", "license": "CC-BY-4.0", "split": "held-out", "placeholder": true },
+    { "id": "pub-004", "source": { "arxiv": "0000.00002" }, "title": "(placeholder: held-out paper 2)", "license": "CC0-1.0", "split": "held-out", "placeholder": true }
+  ]
+}

@@ -130,6 +130,18 @@ val liveSample by tasks.registering(JavaExec::class) {
     mainClass.set("net.jonbell.pcs.agent.llm.LiveSample")
     workingDir = layout.projectDirectory.asFile
     args(layout.projectDirectory.asFile.absolutePath, (findProperty("cap") ?: "0").toString())
-    findProperty("case")?.let { args(it.toString()) }
+    // -Pcase=<id> limits the run to one case; -Prun=r2 records a repeat under its own keys (stability).
+    args((findProperty("case") ?: "*").toString())
+    findProperty("run")?.let { args(it.toString()) }
     environment("PCS_LIVE_OK", System.getenv("PCS_LIVE_OK") ?: "")
+}
+
+// The model comparison (agent.md 7.3). Offline by default: the replay of the recorded results plus scripted stand-ins.
+// ./gradlew :agent:shootout -Pcorpus=held-out|recorded [-Pk=3]. Real engines: `pcs agent shootout --engines ...` (see docs/agent.md 7.5).
+val shootout by tasks.registering(JavaExec::class) {
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("net.jonbell.pcs.agent.eval.ShootoutCliKt")
+    workingDir = layout.projectDirectory.asFile
+    args("--offline", "--corpus", (findProperty("corpus") ?: "held-out").toString(), "--k", (findProperty("k") ?: "3").toString())
+    environment("PCS_AGENT_DIR", layout.projectDirectory.asFile.absolutePath)
 }

@@ -347,10 +347,12 @@ fun agent(args: List<String>) {
         "run" -> exitProcess(cli.run(args.drop(1)))
         "manifest" -> exitProcess(cli.manifest(args.drop(1)))
         "screen" -> exitProcess(cli.screen(args.drop(1)))
+        "shootout" -> exitProcess(cli.shootout(args.drop(1)))
+        "corpus" -> exitProcess(cli.corpus(args.drop(1)))
     }
     if (args.firstOrNull() != "check" || args.size < 2) {
         System.err.println(
-            "usage: pcs agent check <pdf> [--authors authors.json] [--ocr [image]] [--grobid url] | probe [engine] | plan <pdf>... [--llm-check dir]... | run <pdf>... [--llm-check dir]... | manifest [--decisions file] | screen <pdf>... [--cfp file]",
+            "usage: pcs agent check <pdf> [--authors authors.json] [--ocr [image]] [--grobid url] | probe [engine] | plan <pdf>... [--llm-check dir]... | run <pdf>... [--llm-check dir]... | manifest [--decisions file] | screen <pdf>... [--cfp file] | shootout --corpus held-out|recorded (--offline | --engines ids) | corpus validate|pin|standins",
         )
         exitProcess(2)
     }
