@@ -35,6 +35,12 @@ public sealed interface Trace {
     /** The AC's triage in a screen-round metareview (the `Triage` review field, spec §11). */
     public data class Triage(val pid: Long, val reviewer: String, val choice: TriageChoice) : Trace
 
+    /**
+     * A second opinion the chair mirrored (spec §11, row 18): review [rid] (a PC member's screen-round review of the paper) said keep
+     * ([keep], tag value 1) or remove (value 2) in its `Triage` field. The tag outlives the review's move to the normal round.
+     */
+    public data class Opinion(val pid: Long, val rid: Long, val keep: Boolean) : Trace
+
     /** A screening-findings comment posted through Writeback (spec §11): [cid], authored by [author]. */
     public data class Findings(val pid: Long, val cid: Long, val author: String?) : Trace
 
@@ -100,6 +106,7 @@ public object Conventions {
     private val req = Regex("""pcs-req-([A-Z]+)([0-9]+)""")
     private val remind = Regex("""pcs-remind-([A-Z]+)([0-9]+)""")
     private val case = Regex("""~~pcs-case-([0-9]+)""")
+    private val opinion = Regex("""pcs-opinion-([0-9]+)""")
 
     /** Decode one paper's tags (`name#value`). Tags not starting with `pcs-` or `~~pcs-` are someone else's and ignored. */
     public fun decode(pid: Long, tags: List<String>): List<Trace> =
@@ -123,6 +130,7 @@ public object Conventions {
                     }
                 }
                 remind.matches(name) -> remind.matchEntire(name)!!.let { Trace.Reminder(pid, it.groupValues[1], it.groupValues[2].toInt()) }
+                opinion.matches(name) && value in setOf(1, 2) -> Trace.Opinion(pid, opinion.matchEntire(name)!!.groupValues[1].toLong(), value == 1)
                 case.matches(name) && value != null -> Trace.Case(pid, case.matchEntire(name)!!.groupValues[1].toInt(), value)
                 else -> Trace.Unparsed(pid, t)
             }
@@ -138,6 +146,7 @@ public object Conventions {
             is Trace.Case -> "~~pcs-case-${t.n}#${t.outcome}"
             is Trace.RemedyDue -> "pcs-remedy-due#${REMEDY_HOURS(t.dueEpoch)}"
             is Trace.Warned -> "pcs-warned"
+            is Trace.Opinion -> "pcs-opinion-${t.rid}#${if (t.keep) 1 else 2}"
             is Trace.EarlyObjection -> "pcs-er-object"
             is Trace.Unparsed -> t.tag
             is Trace.Triage, is Trace.Findings -> throw IllegalArgumentException("a review field or comment, not a tag: $t")

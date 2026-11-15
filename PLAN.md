@@ -637,14 +637,14 @@ Changing this table means changing the M3 and M18 tests in the same PR.
     - T12: `TriageUiTest`. `ControlsTest`: both named mutants caught.
   - **Not done / deviations:**
     - **Topic areas** are not in the mirror, so the consistency view is per AC only (it says so).
-    - **Disagreement** has no trace: a second opinion agrees by completing its screen-round review; a member who disagrees leaves it and says so in a PC comment. A disagreement is therefore "no agreement yet", which is what the model needs (the model's `agrees` is always true in traces).
+    - **Disagreement** (decided 2026-11-15, below): a second opinion records keep or remove in the `Triage` field of their own screen-round review, and a chair mirrors it as the AC's is mirrored. The earlier convention (complete means agree, disagree by a PC comment) is retired.
     - **Conflicted opinions** cannot be reached end to end (HotCRP gives a conflicted member no review), only by T2/T3. The AC's own note is the end-to-end case.
     - The **feedback form** is a drafted mail the chair sends, with answers entered by the chair; there is no reviewer-facing form. The app has no buttons for the chair's steps yet (the artifacts are in `TriageDrafts`, tested through Writeback); the tab shows the queue.
     - A "late" removal is judged by the stage at the clock's now: HotCRP records no decision time.
     - The fix window is a constant 72 hours (the model's), not a setting.
     - M1's notification is the tab's banner; no mail goes out.
     - Mail for notices is drafted, never sent (the Mail page takes no token).
-  - **Decisions needed:** (1) the disagreement convention above; (2) whether the fix window length should be `PCS_REMEDY_WINDOW_H`; (3) the M1 band (Tukey fence, 5 papers, 4 ACs) is mine, not the spec's; (4) migration 007 may collide with another branch's.
+  - **Decided 2026-11-15:** the disagreement convention (second opinion in the Triage field), the fix window length (`PCS_REMEDY_WINDOW_H`) and the M1 band's numbers (settings). **Decisions needed:** (1) migration 007 may collide with another branch's.
 - **Follow-up (2026-11-15, branch `polish-1`):** the Triage tab has the chair's steps as buttons that only draft into the Writeback tab (no dry run, confirm or apply happens there): the triage mirror with the unsubmit-and-move of the AC's metareview, the findings comments, the decision for every ready paper, and, for the paper chosen by clicking its row, one second-opinion request per eligible candidate under Q2. The mail text for a request or removal is shown under the buttons for the chair to send from HotCRP. `TriageUiTest` drafts one of each and sees the seven artifacts in the Writeback tab, all `drafted`. Clicking a row now selects it (with an "Open in HotCRP" button) instead of opening HotCRP. Not added: buttons for the fix window (Q1), the warning (Q10), and moving second opinions of kept papers (Q5); their drafts stay in `TriageDrafts`.
 
 ---

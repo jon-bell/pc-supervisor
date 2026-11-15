@@ -164,20 +164,43 @@ class ConventionsTest {
     }
 
     @Test
-    @Covers("conv:3", "conv:1")
-    fun `second opinion under Q5 - the chair unsubmits the screen review and moves it to the normal round`() {
+    @Covers("conv:3", "conv:1", "conv:18")
+    fun `second opinion - a PC member records keep or remove in the Triage field, the chair mirrors it, then unsubmits and moves the review`() {
         val member = outsider(pid)
         assertTrue(ok(assign("""{"pid":$pid,"action":"pcreview","user":"$member","round":"screen"}""")))
         val rid = reviewsSeenBy(null, pid).single { it.str("reviewer_email") == member }.str("rid")!!
+        // a draft with a value is not an opinion yet; completing it is
         val saved =
             api(
                 "POST",
                 "$pid/review",
                 mapOf("r" to rid, "actas" to member),
-                json = """{"object":"review","ComPC":"Synthetic second opinion.","status":"complete"}""",
+                json = """{"object":"review","ComPC":"Synthetic second opinion.","Tri":1,"status":"complete"}""",
             )
         assertTrue(ok(saved), saved.toString())
-        assertEquals("complete", reviewsSeenBy(null, pid).single { it.str("reviewer_email") == member }.str("status"))
+        val chairView = reviewsSeenBy(null, pid).single { it.str("reviewer_email") == member }
+        assertEquals("complete", chairView.str("status"))
+        assertEquals("1", chairView.str("Tri"), "the chair reads the member's keep (symbol 1); a ground's symbol would be remove")
+        for (who in reviewersOf(pid).mapNotNull { it.str("reviewer_email") }.filter { it != member } + ac + "ac-busy@example.org") {
+            assertFalse(reviewsSeenBy(who, pid).any { it.str("reviewer_email") == member && it.containsKey("Tri") }, "$who must not read the opinion")
+        }
+        // the chair mirrors it into a hidden tag that nobody else sets or sees, and core decodes it
+        val tag = "pcs-opinion-$rid"
+        assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("$tag#1", Charsets.UTF_8))))
+        assertTrue("$tag#1" in tagsSeenBy(null, pid))
+        for (who in listOf(ac, member, "r1@example.org", "author13@example.org")) {
+            assertFalse(
+                tagsSeenBy(who, pid).any {
+                    it.startsWith(tag)
+                },
+                "$who must not see $tag",
+            )
+        }
+        assertFalse(ok(setTags(member, pid, "$tag#2")), "a member cannot rewrite their own opinion's trace")
+        assertEquals(
+            listOf(net.jonbell.pcs.core.rules.Trace.Opinion(pid.toLong(), rid.toLong(), keep = true)),
+            net.jonbell.pcs.core.rules.Conventions.decode(pid.toLong(), listOf("$tag#1")),
+        )
         val moved =
             assign(
                 """{"pid":$pid,"action":"unsubmitreview","user":"$member"}""",
@@ -188,6 +211,7 @@ class ConventionsTest {
         assertEquals("draft", after.str("status"))
         assertEquals(null, after.str("round"), "back in the unnamed round, so the member now writes their full review")
         assertEquals("Synthetic second opinion.", after.str("ComPC")?.trim(), "the screen text is kept")
+        assertTrue("$tag#1" in tagsSeenBy(null, pid), "the tag, not the review, is what survives the move")
     }
 
     @Test
@@ -254,10 +278,17 @@ class ConventionsTest {
     }
 
     @Test
-    @Covers("conv:1", "conv:9", "conv:10", "conv:15", "conv:16", "conv:17")
+    @Covers("conv:1", "conv:9", "conv:10", "conv:15", "conv:16", "conv:17", "conv:18")
     fun `round trip - traces the chairs write in HotCRP are decoded by core after a sync`() {
         assertTrue(
-            ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("pcs-refer-scope pcs-req-B1#3 pcs-remind-B1 pcs-er-object", Charsets.UTF_8))),
+            ok(
+                api(
+                    "POST",
+                    "$pid/tags",
+                    form =
+                        "addtags=" + URLEncoder.encode("pcs-refer-scope pcs-req-B1#3 pcs-remind-B1 pcs-er-object pcs-opinion-4242#2", Charsets.UTF_8),
+                ),
+            ),
         )
         assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("~~pcs-case-2#4", Charsets.UTF_8))))
         val db = java.nio.file.Files.createTempFile("pcs-conv", ".db").also { java.nio.file.Files.delete(it) }
@@ -279,6 +310,7 @@ class ConventionsTest {
             assertTrue(net.jonbell.pcs.core.rules.Trace.Case(pid.toLong(), 2, 4) in traces, traces.toString())
             assertTrue(net.jonbell.pcs.core.rules.Trace.Reminder(pid.toLong(), "B", 1) in traces, traces.toString())
             assertTrue(net.jonbell.pcs.core.rules.Trace.EarlyObjection(pid.toLong()) in traces, traces.toString())
+            assertTrue(net.jonbell.pcs.core.rules.Trace.Opinion(pid.toLong(), 4242, keep = false) in traces, traces.toString())
             assertTrue(traces.none { it is net.jonbell.pcs.core.rules.Trace.Unparsed }, traces.toString())
         }
     }

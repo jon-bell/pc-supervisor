@@ -46,6 +46,9 @@ class TriageFixture(val store: Store) {
         )
     }
 
+    /** Adds a tag to a paper already inserted (a chair's mirror of a second opinion, say). */
+    fun addTag(pid: Long, tag: String) = sql("UPDATE paper SET tags = json_insert(tags, '$[#]', '${q(tag)}') WHERE pid = $pid")
+
     /** The AC's metareview: in the screen round with a Triage value (null: assigned, not written), or in the normal round. */
     fun meta(pid: Long, ac: String, triage: Int? = null, status: String = "complete", round: String? = "screen", note: String? = null) {
         val id = rid++
@@ -59,13 +62,25 @@ class TriageFixture(val store: Store) {
         if (note != null) sql("INSERT INTO review_text(rid,vtag,field_uid,text) VALUES($id,'v0','ComPC','${q(note)}')")
     }
 
-    /** A second opinion: a screen-round review, complete (agrees) or not (asked, not answered). */
-    fun opinion(pid: Long, who: String, complete: Boolean = true, askedAt: Long = 0) {
+    /**
+     * A second opinion: a screen-round review, complete with a Triage value (the symbol: 2 is "refer: format", i.e. remove, which agrees; 1 is keep,
+     * which disagrees; null is a complete review that records no opinion) or not (asked, not answered). Returns the review's id.
+     */
+    fun opinion(
+        pid: Long,
+        who: String,
+        complete: Boolean = true,
+        askedAt: Long = 0,
+        triage: Int? = 2,
+        round: String? = "screen",
+    ): Long {
         val id = rid++
+        val scores = if (complete && triage != null) """{"Tri":$triage}""" else "{}"
         sql(
             "INSERT INTO review(rid,pid,email,rtype,status,round,vtag,scores,word_count,ratings,first_seen_at,last_seen_at) VALUES($id,$pid,'${q(who)}',2," +
-                "'${if (complete) "complete" else "empty"}','screen','v0','{}',0,'[]',$askedAt,$askedAt)",
+                "'${if (complete) "complete" else "empty"}',${round?.let { "'$it'" } ?: "NULL"},'v0','$scores',0,'[]',$askedAt,$askedAt)",
         )
+        return id
     }
 
     /** A normal-round review (what a reviewer of the paper writes). */

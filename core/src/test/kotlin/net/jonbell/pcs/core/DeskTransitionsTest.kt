@@ -33,7 +33,13 @@ import java.nio.file.Files
  */
 @Family("T3")
 class DeskTransitionsTest {
-    private val persons = mapOf(2L to Opinion(2, isAc = true, tier = Tier.SENIOR), 3L to Opinion(3, tier = Tier.SENIOR), 4L to Opinion(4, tier = Tier.JUNIOR))
+    private val persons =
+        mapOf(
+            2L to Opinion(2, isAc = true, tier = Tier.SENIOR),
+            3L to Opinion(3, tier = Tier.SENIOR),
+            4L to Opinion(4, tier = Tier.JUNIOR),
+            5L to Opinion(5, tier = Tier.SENIOR, agrees = false),
+        )
 
     /** `cured=false|disposition="in-review"|ground=null|now=0|opinions=[]|...` */
     private fun parse(obs: String): DeskSt {
@@ -109,7 +115,12 @@ class DeskTransitionsTest {
             Ground.entries.map { "refer" to mapOf("ground" to it.key) } +
                 persons.values.map {
                     "opinion" to
-                        mapOf("who" to "${it.who}", "isAc" to "${it.isAc}", "tier" to (if (it.tier == Tier.SENIOR) "senior" else "junior"))
+                        mapOf(
+                            "who" to "${it.who}",
+                            "isAc" to "${it.isAc}",
+                            "tier" to (if (it.tier == Tier.SENIOR) "senior" else "junior"),
+                            "agrees" to "${it.agrees}",
+                        )
                 } +
                 listOf("offer-remedy", "warn", "cure", "tick", "advance", "remove").map { it to emptyMap() }
         return acts.flatMap { (k, p) -> if (perm(k) == null) listOf(Triple(null, k, p)) else roles.map { Triple(it, k, p) } }

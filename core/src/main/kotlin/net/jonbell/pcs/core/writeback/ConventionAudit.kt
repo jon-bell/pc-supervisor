@@ -14,7 +14,7 @@ import net.jonbell.pcs.core.store.query
 
 public enum class IssueKind(public val label: String) {
     UNPARSED("a trace that doesn't parse"),
-    FORGED_TRIAGE("triage written by someone who isn't the paper's AC"),
+    FORGED_TRIAGE("triage written by an external reviewer"),
     FORGED_FINDINGS("a findings comment by someone who isn't a chair"),
     CONFLICTING("traces that contradict each other"),
     TAGS_NOT_HIDDEN("PC Supervisor's tags aren't hidden on this HotCRP"),
@@ -22,6 +22,9 @@ public enum class IssueKind(public val label: String) {
 
 /** One thing the sync screen reports about the spec §11 traces. It is reported, never acted on (T6). */
 public data class TraceIssue(val kind: IssueKind, val pid: Long?, val detail: String)
+
+/** A second opinion the convention allows PC Supervisor to act on: [keep] is the member's "keep", else "remove" (any ground symbol). */
+public data class OpinionRead(val pid: Long, val reviewer: String, val rid: Long, val keep: Boolean)
 
 /** A triage the convention allows PC Supervisor to act on. */
 public data class TriageRead(val pid: Long, val reviewer: String, val rid: Long, val choice: TriageChoice)
@@ -39,12 +42,19 @@ public object ConventionAudit {
     /** Triage that came from a screen-round metareview by the paper's AC: the only kind PC Supervisor acts on. */
     public fun trustedTriage(store: Store): List<TriageRead> = triageReads(store).first
 
+    /**
+     * Second opinions: complete screen-round reviews by someone who is not the paper's AC (and not an external reviewer) whose `Triage` field
+     * says keep (symbol 1) or remove (a ground's symbol). A draft is not an opinion yet, and a complete review with no value is not one either.
+     */
+    public fun trustedOpinions(store: Store): List<OpinionRead> = triageReads(store).third
+
     private data class TriageRow(val rid: Long, val pid: Long, val email: String, val rtype: Int, val status: String, val round: String?, val raw: String?)
 
     private data class CommentRow(val cid: Long, val pid: Long, val email: String?, val text: String)
 
-    private fun triageReads(store: Store): Pair<List<TriageRead>, List<TraceIssue>> {
+    private fun triageReads(store: Store): Triple<List<TriageRead>, List<TraceIssue>, List<OpinionRead>> {
         val ok = mutableListOf<TriageRead>()
+        val opinions = mutableListOf<OpinionRead>()
         val bad = mutableListOf<TraceIssue>()
         store.conn.query(
             "SELECT rid, pid, email, rtype, status, round, json_extract(scores, '$.Tri') FROM review WHERE gone_at IS NULL AND json_extract(scores, '$.Tri') IS NOT NULL ORDER BY rid",
@@ -55,17 +65,23 @@ public object ConventionAudit {
             val choice = code?.let { Conventions.decodeTriage(it) }
             when {
                 round != "screen" -> Unit // the field only exists in the screen round
-                rtype != 5 ->
+                rtype == 1 ->
                     bad +=
-                        TraceIssue(IssueKind.FORGED_TRIAGE, pid, "review $pid/$rid by $email (not the paper's metareviewer) has a Triage value; ignored")
-                status != "complete" -> Unit // a draft is not a triage yet
+                        TraceIssue(IssueKind.FORGED_TRIAGE, pid, "review $pid/$rid by $email (an external reviewer) has a Triage value; ignored")
+                status != "complete" -> Unit // a draft is not a triage or an opinion yet
                 choice == null ->
                     bad +=
-                        TraceIssue(IssueKind.UNPARSED, pid, "the Triage field of $email's metareview on paper $pid holds $raw, which is not keep or a ground")
+                        TraceIssue(
+                            IssueKind.UNPARSED,
+                            pid,
+                            "the Triage field of $email's screen-round review on paper $pid holds $raw, which is not keep or a ground",
+                        )
+                // a PC member's screen-round review is a second opinion: keep, or remove (spec §11, row 3)
+                rtype != 5 -> opinions += OpinionRead(pid, email, rid, choice is TriageChoice.Keep)
                 else -> ok += TriageRead(pid, email, rid, choice)
             }
         }
-        return ok to bad
+        return Triple(ok, bad, opinions)
     }
 
     public fun run(store: Store): List<TraceIssue> {

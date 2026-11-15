@@ -10,7 +10,7 @@ import net.jonbell.pcs.core.store.Store
 import net.jonbell.pcs.core.store.query
 
 /**
- * The §11 review moves, drafted from the mirror (spec §11, rows 1 and 3). Nothing here writes:
+ * The §11 review moves, drafted from the mirror (spec §11, rows 1, 3 and 18). Nothing here writes:
  * the drafts go through [Writeback] like any other artifact. Only a triage that
  * [ConventionAudit.trustedTriage] accepts is acted on; a forged one is reported, not used.
  */
@@ -41,6 +41,27 @@ public object ScreenRound {
         return listOf(
             TagArtifact(tags, "Mirror the AC's triage into hidden tags"),
             ReviewMoveArtifact(todo.map { ReviewMove(it.pid, it.reviewer, meta = true) }, "Move triage metareviews to the normal round"),
+        )
+    }
+
+    /**
+     * The hidden tag for each second opinion that is in (a complete screen-round review with a Triage value) and not yet mirrored, then the
+     * unsubmit-and-move of those reviews to the normal round (spec §11, row 18): the same two steps as the AC's triage. The text is kept.
+     */
+    public fun opinionDrafts(store: Store): List<Artifact> {
+        val todo =
+            ConventionAudit.trustedOpinions(store).filter { o ->
+                pcsTags(store, o.pid).none { it is Trace.Opinion && it.rid == o.rid }
+            }
+        if (todo.isEmpty()) return emptyList()
+        return listOf(
+            TagArtifact(
+                todo.map {
+                    TagChange(it.pid, add = listOf(Conventions.encode(Trace.Opinion(it.pid, it.rid, it.keep))))
+                },
+                "Mirror second opinions into hidden tags",
+            ),
+            ReviewMoveArtifact(todo.map { ReviewMove(it.pid, it.reviewer, meta = false) }, "Move second-opinion reviews to the normal round"),
         )
     }
 

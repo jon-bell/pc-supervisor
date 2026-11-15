@@ -98,7 +98,9 @@ class ProcessReportTest {
                 val rid = f.review(pid, people.getValue("eve"), null, rtype = 5, words = 10, merit = null, round = "screen")
                 s.store.conn.createStatement().use { it.executeUpdate("UPDATE review SET scores='{\"Tri\":$code}' WHERE rid=$rid") }
             }
-            f.review(4, people.getValue("bob"), null, rtype = 2, words = 10, merit = null, round = "screen")
+            // a second opinion is a screen-round review with a Triage value: remove (a ground's symbol) agrees
+            val opinion = f.review(4, people.getValue("bob"), null, rtype = 2, words = 10, merit = null, round = "screen")
+            s.store.conn.createStatement().use { it.executeUpdate("UPDATE review SET scores='{\"Tri\":2}' WHERE rid=$opinion") }
             s.store.conn.createStatement().use {
                 it.executeUpdate("UPDATE paper SET decision='Reject', title='CANARY-TITLE-6' WHERE pid=6")
                 it.executeUpdate("UPDATE paper SET tags='[\"pcs-keep\"]' WHERE pid=5")

@@ -183,7 +183,7 @@ class WritebackTest {
                 Hotcrp.api("POST", "$pid/review", mapOf("r" to mine.str("rid")!!), actas = ac, json = """{"object":"review","Tri":1,"status":"complete"}"""),
             ),
         )
-        // a member's second opinion, in the screen round, with a triage value they may not give
+        // a member's second opinion, in the screen round: remove (a ground's symbol) in the same Triage field
         val member = Hotcrp.outsider(pid)
         assertTrue(Hotcrp.ok(Hotcrp.assign("""{"pid":$pid,"action":"pcreview","user":"$member","round":"screen"}""")))
         val rid = Hotcrp.reviews(pid).single { it.str("reviewer_email") == member }.str("rid")!!
@@ -199,10 +199,11 @@ class WritebackTest {
             ),
         )
         sync()
-        // the member's Triage is reported and ignored; the AC's is the only one acted on
+        // the member's Triage value is a second opinion, not a triage: the AC's is the only triage acted on
         val trusted = ConventionAudit.trustedTriage(store).filter { it.pid == pid }
         assertEquals(listOf(ac), trusted.map { it.reviewer })
-        assertTrue(ConventionAudit.run(store).any { it.kind == net.jonbell.pcs.core.writeback.IssueKind.FORGED_TRIAGE && it.pid == pid })
+        assertEquals(listOf(member), ConventionAudit.trustedOpinions(store).filter { it.pid == pid }.map { it.reviewer })
+        assertTrue(ConventionAudit.run(store).none { it.kind == net.jonbell.pcs.core.writeback.IssueKind.FORGED_TRIAGE && it.pid == pid })
         val drafts =
             ScreenRound.triageDrafts(store).filter {
                 it is TagArtifact &&
@@ -217,13 +218,21 @@ class WritebackTest {
         assertEquals("draft", acReview.str("status"), "the AC writes the real metareview later")
         assertEquals(WritebackStatus.OBSERVED, status(tagId))
         assertEquals(WritebackStatus.OBSERVED, status(moveId))
-        // Q5: the paper is kept, so the second opinion moves to the normal round with its text
-        val second = ScreenRound.secondOpinionDrafts(store).filterIsInstance<ReviewMoveArtifact>().single { a -> a.moves.any { it.pid == pid } }
-        assertEquals(listOf(ReviewMove(pid, member, meta = false)), second.moves.filter { it.pid == pid })
-        lifecycle(second, { Hotcrp.reviews(pid).single { it.str("reviewer_email") == member }.str("round") == null })
+        // the second opinion is mirrored the same way (a hidden tag, then unsubmit and move), and the review keeps its text
+        val opinion =
+            ScreenRound.opinionDrafts(store).filter { a ->
+                (a as? TagArtifact)?.changes?.any { it.pid == pid } == true ||
+                    (a as? ReviewMoveArtifact)?.moves?.any { it.pid == pid } == true
+            }
+        assertEquals(2, opinion.size, opinion.toString())
+        assertEquals(listOf(ReviewMove(pid, member, meta = false)), (opinion[1] as ReviewMoveArtifact).moves.filter { it.pid == pid })
+        lifecycle(opinion[0], { Hotcrp.tags(pid).any { it.startsWith("pcs-opinion-$rid") } })
+        lifecycle(opinion[1], { Hotcrp.reviews(pid).single { it.str("reviewer_email") == member }.str("round") == null })
         val moved = Hotcrp.reviews(pid).single { it.str("reviewer_email") == member }
         assertEquals("draft", moved.str("status"))
         assertEquals("Synthetic second opinion.", moved.str("ComPC")?.trim())
+        sync()
+        assertTrue(ScreenRound.opinionDrafts(store).none { a -> (a as? ReviewMoveArtifact)?.moves?.any { it.pid == pid } == true }, "nothing left to mirror")
         assertTrue(ScreenRound.secondOpinionDrafts(store).none { it is ReviewMoveArtifact && it.moves.any { m -> m.pid == pid } }, "nothing left to move")
     }
 

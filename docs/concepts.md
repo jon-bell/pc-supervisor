@@ -284,7 +284,7 @@ state  Ground = format | scope | anonymity | fabricated-reference | misused-cita
 - **Finding:** `{ check@version, kind: Ground, anchors, depends: set Ruling, engine, status: unverified | verified }`. The agent's only action is to propose one. The harness verifies it.
 - **Triage:** the AC keeps or refers. Keeping needs nobody else. A referral names grounds, each backed by an upheld, usable finding.
 - **TriageFeedback:** under Q4's "after their own review" reading, each reviewer gets the paper's screening record once their review is submitted, with a short form: was the flag right, was anything missed, would you have referred it. The answers are the field evaluation of the screening (agent.md §8), and they never feed back into that paper's outcome.
-- **SecondOpinion:** one unconflicted PC member who isn't the AC agrees or disagrees. The answer never changes that member's review load. Load is capped.
+- **SecondOpinion:** one unconflicted PC member who isn't the AC agrees or disagrees: keep or remove, recorded in the `Triage` field of their own screen-round review (the same field as the AC's) and mirrored by a chair like the AC's. The answer never changes that member's review load. Load is capped.
 - **Remedy:** `{ ground, notified, due, cured }`, for curable grounds where a ruling grants it.
 - **Disposition:** `in-review | removed { grounds, path: desk-reject | early-reject, by: chair, at }`, initially in-review. The outcome is written to HotCRP through Writeback.
 - **Notice:** a template rendered from grounds and upheld findings. It never names an engine or asserts how a paper was written.

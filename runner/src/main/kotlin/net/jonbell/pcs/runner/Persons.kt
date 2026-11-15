@@ -18,6 +18,8 @@ object Persons {
             Person(2, "ac-idle@example.org", true, Tier.SENIOR),
             Person(3, "r1@example.org", false, Tier.SENIOR),
             Person(4, "r-silent@example.org", false, Tier.JUNIOR),
+            // a senior who says keep in the Triage field of their screen-round review (a disagreement)
+            Person(5, "r5@example.org", false, Tier.SENIOR),
         )
 
     fun byWho(who: Long): Person = opinionGivers.firstOrNull { it.who == who } ?: error("the model's person $who has no harness user")
