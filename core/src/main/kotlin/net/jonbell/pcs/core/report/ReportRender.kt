@@ -23,7 +23,7 @@ public object ReportRender {
                     appendLine("**${md(t.title)}**")
                     appendLine()
                     appendLine(t.header.joinToString(" | ", "| ", " |") { md(it) })
-                    appendLine(t.header.joinToString(" | ", "|", "|") { "---" })
+                    appendLine(t.header.joinToString(" | ", "| ", " |") { "---" })
                     if (t.rows.isEmpty()) appendLine("| " + (listOf("none") + List(t.header.size - 1) { "" }).joinToString(" | ") + " |")
                     for (row in t.rows) appendLine(row.joinToString(" | ", "| ", " |") { md(it) })
                 }
@@ -61,11 +61,13 @@ public object ReportRender {
 
 /** Writes the report and the export into a conference's export directory (spec §10.4 G). The app and the tests use the same calls. */
 public object ReportFiles {
-    /** `<app data>/exports/<conference id>`: outside the repo and any synced folder by default. */
+    /** `<app data>/exports/<conference id>`: outside the repo and any synced folder by default; the system property `pcs.exportDir` moves it (tests). */
     public fun dir(
         s: Session,
         env: Map<String, String>,
-    ): java.nio.file.Path = net.jonbell.pcs.core.session.AppDirs.data(env).resolve("exports").resolve(s.conference.id)
+    ): java.nio.file.Path =
+        (System.getProperty("pcs.exportDir")?.let(java.nio.file.Path::of) ?: net.jonbell.pcs.core.session.AppDirs.data(env).resolve("exports"))
+            .resolve(s.conference.id)
 
     /** `process-report.md` and `process-report.html` in [dir]. */
     public fun saveReport(s: Session, dir: java.nio.file.Path): List<java.nio.file.Path> {

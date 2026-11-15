@@ -263,3 +263,40 @@ tasks.register<Exec>("checkEvidence") {
     workingDir = rootProject.layout.projectDirectory.dir("model").asFile
     commandLine("lake", "exe", "check-evidence", evidenceDir.get().asFile.absolutePath)
 }
+
+// ---- The process report on a seeded scenario (PLAN M20): `shadow` in CI, `scale` once by hand. `./gradlew :runner:reportTest` needs a harness
+// seeded with the scenario (`:seed:run --args=shadow`); PCS_REPORT_MIN_PAPERS says how many papers the scenario must hold (default 140).
+val reportDir = rootProject.layout.buildDirectory.dir("report")
+
+testing {
+    suites {
+        register<JvmTestSuite>("reportTest") {
+            useJUnitJupiter(libs.versions.junit.get())
+            dependencies {
+                implementation(project())
+                implementation(project(":core"))
+                implementation(project(":seed"))
+                implementation(testFixtures(project(":core")))
+                implementation(libs.serialization.json)
+                implementation(libs.coroutines.core)
+            }
+            targets.all {
+                testTask.configure {
+                    dependsOn(claimsInventory)
+                    maxHeapSize = "4g"
+                    jvmArgs("--enable-native-access=ALL-UNNAMED")
+                    systemProperty("pcs.repoRoot", rootProject.projectDir.absolutePath)
+                    systemProperty("pcs.claimsFile", claimsFile.get().asFile.absolutePath)
+                    systemProperty("pcs.coversDir", layout.buildDirectory.dir("covers-report").get().asFile.absolutePath)
+                    systemProperty("pcs.reportDir", reportDir.get().asFile.absolutePath)
+                    listOf("PCS_HOTCRP_URL", "PCS_HOTCRP_TOKEN", "PCS_REPORT_MIN_PAPERS", "PCS_REPORT_NAME").forEach { k ->
+                        System.getenv(k)?.let { environment(k, it) }
+                    }
+                    outputs.upToDateWhen { false }
+                    testLogging { showStandardStreams = true }
+                    doFirst { reportDir.get().asFile.deleteRecursively() }
+                }
+            }
+        }
+    }
+}
