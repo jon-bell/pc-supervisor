@@ -143,6 +143,14 @@ tasks.test {
     inputs.dir(modelExport)
 }
 
+// ---- T9 scale summary (PLAN M19): the markdown the nightly job writes to its summary, from the records of a scale run
+val scaleSummary by tasks.registering(JavaExec::class) {
+    description = "Renders build/scale/summary.md from the scale run's measurement records"
+    classpath = sourceSets["testFixtures"].runtimeClasspath
+    mainClass.set("net.jonbell.pcs.testing.ScaleSummary")
+    args(rootProject.layout.buildDirectory.dir("scale").get().asFile.absolutePath)
+}
+
 // ---- Claim inventory (PLAN §A2) ---------------------------------------------------------
 
 val claimsFile = layout.buildDirectory.file("claims/claims.json")
@@ -258,8 +266,8 @@ val assuranceReport by tasks.registering {
     mustRunAfter(tasks.test, tasks.named("integrationTest"), ":agent:test")
     val coversFiles =
         listOf("covers", "covers-integration", "covers-agent").map { layout.buildDirectory.file("$it/covers.tsv") } +
-            listOf("covers", "covers-ui").map { project(":app").layout.buildDirectory.file("$it/covers.tsv") } +
-            listOf("covers", "covers-integration").map { project(":runner").layout.buildDirectory.file("$it/covers.tsv") }
+            listOf("covers", "covers-ui", "covers-scale").map { project(":app").layout.buildDirectory.file("$it/covers.tsv") } +
+            listOf("covers", "covers-integration", "covers-scale").map { project(":runner").layout.buildDirectory.file("$it/covers.tsv") }
     val evidenceTraces = project(":runner").layout.buildDirectory.dir("evidence/traces")
     val transitionsFile = rootProject.layout.projectDirectory.file("model/export/transitions-desk.json")
     val policyFile = rootProject.layout.projectDirectory.file("model/export/policy.json")
@@ -391,6 +399,16 @@ val assuranceReport by tasks.registering {
             }
             sb.appendLine()
             sb.appendLine("Only witness traces run in M3a. Bounded-exhaustive traces (every transition of each subsystem below 10^4 states) arrive with T3.")
+        }
+        // ---- residual risk (PLAN §A9), written by ResidualRiskTest in :core:test ----
+        sb.appendLine()
+        sb.appendLine("## Residual risk (PLAN §A9)")
+        sb.appendLine()
+        val rr = layout.buildDirectory.file("residual-risk/residual-risk.md").get().asFile
+        if (rr.exists()) {
+            sb.appendLine(rr.readText().lines().drop(1).joinToString("\n").replace(Regex("(?m)^## "), "### "))
+        } else {
+            sb.appendLine("Not computed in this run (`:core:test` writes it).")
         }
         sb.appendLine()
         sb.appendLine("## Claims with evidence")

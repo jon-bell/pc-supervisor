@@ -262,6 +262,64 @@ def checkControls (rec : Json) : Except String (List String) := do
     if !caught.contains k then bad := bad ++ [s!"specification mutant {k} was not caught end to end"]
   return bad
 
+/-! ### T9 measurements (PLAN M19)
+
+A measurement record carries the raw samples (integer milliseconds), the budget and a claimed verdict. The checker recomputes the
+nearest-rank 95th percentile and its percentile-bootstrap 95% interval from the samples, with the same SplitMix64 stream the Kotlin
+side uses, and fails a record whose numbers disagree, that has fewer runs than it requires, or whose budget is not met. -/
+
+def smNext (s : UInt64) : UInt64 × UInt64 :=
+  let s := s + 0x9E3779B97F4A7C15
+  let z := (s ^^^ (s >>> 30)) * 0xBF58476D1CE4E5B9
+  let z := (z ^^^ (z >>> 27)) * 0x94D049BB133111EB
+  (s, z ^^^ (z >>> 31))
+
+/-- The ceil(pct n / 100)-th smallest. -/
+def nearestRank (xs : Array Nat) (pct : Nat) : Nat :=
+  let s := xs.qsort (· < ·)
+  s[(pct * s.size + 99) / 100 - 1]!
+
+def bootstrapCi95 (runs : Array Nat) : Nat × Nat := Id.run do
+  let xs := runs.qsort (· < ·)
+  let n := xs.size
+  let mut st : UInt64 := 0x5EED0019
+  let mut stats : Array Nat := #[]
+  for _ in [0:10000] do
+    let mut r : Array Nat := #[]
+    for _ in [0:n] do
+      let (s', z) := smNext st
+      st := s'
+      r := r.push xs[(z % n.toUInt64).toNat]!
+    stats := stats.push (nearestRank r 95)
+  let sorted := stats.qsort (· < ·)
+  return (sorted[250]!, sorted[(10000 * 975 + 999) / 1000 - 1]!)
+
+def checkMeasurement (rec : Json) : Except String (List String) := do
+  let raw := getArr rec "samplesMs"
+  let samples := raw.filterMap fun j => j.getNat?.toOption
+  let stat := getObj rec "statistic"
+  let natOf (j : Json) (k : String) : Nat := ((j.getObjValAs? Nat k).toOption).getD 0
+  let budget := natOf rec "budgetMs"
+  let required := natOf rec "requiredRuns"
+  let mut bad : List String := []
+  if samples.size != raw.size then bad := bad ++ ["a sample is not a whole number of milliseconds"]
+  if samples.isEmpty then return bad ++ ["the record has no samples"]
+  if samples.size < required then bad := bad ++ [s!"{samples.size} runs, the budget requires {required}"]
+  if (getArr rec "claims").isEmpty then bad := bad ++ ["the record names no claim"]
+  for k in ["workload", "environment", "provenance"] do
+    if getObj rec k == Json.null then bad := bad ++ [s!"the record has no {k}"]
+  let p := nearestRank samples 95
+  let (lo, hi) := bootstrapCi95 samples
+  let ci := getArr stat "ciMs"
+  let recCi := (ci.filterMap fun j => j.getNat?.toOption).toList
+  if natOf stat "p95Ms" != p then bad := bad ++ [s!"recorded p95 {natOf stat "p95Ms"} ms, re-derived {p} ms"]
+  if recCi != [lo, hi] then bad := bad ++ [s!"recorded interval {recCi}, re-derived [{lo}, {hi}]"]
+  let within := p <= budget && hi <= budget
+  let claimed := (getObj (getObj rec "verdict") "withinBudget").getBool?.toOption.getD false
+  if claimed != within then bad := bad ++ [s!"recorded withinBudget={claimed}, re-derived {within}"]
+  if !within then bad := bad ++ [s!"{getStr rec "metric"} over budget: p95 {p} ms, interval [{lo}, {hi}] ms, budget {budget} ms"]
+  return bad
+
 partial def collect (path : System.FilePath) : IO (Array System.FilePath) := do
   if ← path.isDir then
     let mut out := #[]
@@ -284,6 +342,7 @@ def main (args : List String) : IO UInt32 := do
       let res := match getStr rec "kind" with
         | "trace" => checkTraceRecord rec
         | "controls" => checkControls rec
+        | "measurement" => checkMeasurement rec
         | k => .error s!"unknown record kind {k}"
       checked := checked + 1
       match res with
