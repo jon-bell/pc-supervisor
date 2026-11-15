@@ -193,6 +193,8 @@ val claimsInventory by tasks.registering {
             "settings" to "the settings screen: readings, unresolved questions, what they block",
             "assignment" to
                 "the assignment screen: composition per paper with reasons, loads, repairs, nominees, the conflict-engineering signal, the TPMS round trip, the bulk-assign CSV (PLAN M15)",
+            "triage" to
+                "the triage screen: the queue, where each paper stands and which rule holds it, the per-AC distribution (PLAN M13)",
             "early-reject" to "the early-reject screen: candidates, bump status, AC objections, the mail search, the decision artifact",
             "accountability" to
                 "the reviewing and accountability screen: progress by tier, the coaching queue, suggestions, requests, the engagement record, cases (PLAN M16)",

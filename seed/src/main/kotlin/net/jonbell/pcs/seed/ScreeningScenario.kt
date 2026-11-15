@@ -112,7 +112,9 @@ object ScreeningScenario {
                 SetDecision(413, "reject", review),
             )
 
-    private const val GROUND_VALUES = "Keep, format, scope, anonymity, fabricated-reference, misused-citation, no-contribution, nomination-noncompliance, prompt-injection"
+    private const val GROUND_VALUES =
+        "Keep, format, scope, anonymity, fabricated-reference, misused-citation, " +
+            "no-contribution, nomination-noncompliance, prompt-injection"
 
     private val settings =
         run {
