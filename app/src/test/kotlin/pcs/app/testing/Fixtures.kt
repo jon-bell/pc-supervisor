@@ -35,6 +35,9 @@ object Fixtures {
     val repo: Path = Path.of(System.getProperty("pcs.repoRoot"))
     val syntheticAnswers: Path = repo.resolve("model/answers/synthetic.txt")
 
+    /** Every question answered with a reading (`model/answers/complete.txt`): nothing is open, so nothing is blocked. */
+    val completeAnswers: Path = repo.resolve("model/answers/complete.txt")
+
     /** The harness URL and chair token from the environment; refuses anything but localhost (AGENTS.md non-negotiable 2). */
     fun harness(): Pair<URI, String> {
         val url = System.getenv("PCS_HOTCRP_URL") ?: error("PCS_HOTCRP_URL is not set: start the harness and load .env.test (see AGENTS.md)")

@@ -52,6 +52,7 @@ import java.time.format.DateTimeFormatter
 object AccTags {
     const val SCREEN = "accountability"
     const val NOTES = "acc-notes"
+    const val DATING = "acc-dating"
     const val STATUS = "acc-status"
     const val DRAFT_SUBJECT = "acc-draft-subject"
     const val DRAFT_BODY = "acc-draft-body"
@@ -126,6 +127,9 @@ fun AccountabilityView(session: Session, opener: UrlOpener, version: Int, onChan
             }
         }
         report.notes.forEach { Text(it, Modifier.testTag(AccTags.NOTES), color = MaterialTheme.colorScheme.error) }
+        report.dating.forEach {
+            Text(it, Modifier.testTag(AccTags.DATING), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+        }
         status?.let { Text(it, Modifier.testTag(AccTags.STATUS), style = MaterialTheme.typography.labelLarge) }
 
         fun drafted(a: Artifact, what: String) {

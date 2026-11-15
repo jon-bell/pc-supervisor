@@ -28,9 +28,11 @@ public data class AssignmentSettings(
     val cycleMaxK: Int = 3,
     val topK: Int = 25,
     val hard: Boolean = false,
-    val repairRounds: Int = 3,
+    val repairRounds: Int = DEFAULT_REPAIR_ROUNDS,
     val round: String? = null,
     val weights: Map<String, Double> = emptyMap(),
+    /** The conflict-engineering monitor's numbers (M3): `PCS_M3_AFFINITY_MIN`, `PCS_M3_MIN_EXCLUDED`, `PCS_M3_MIN_SHARE`, `PCS_M3_SIGMA`. */
+    val monitor: MonitorConfig = MonitorConfig(),
 ) {
     public companion object {
         public fun of(s: Settings): AssignmentSettings =
@@ -39,7 +41,14 @@ public data class AssignmentSettings(
                 cycleMaxK = s.raw["PCS_CYCLE_MAX_K"]?.toIntOrNull()?.takeIf { it >= 1 } ?: 3,
                 topK = s.raw["PCS_SOLVER_TOPK"]?.toIntOrNull()?.takeIf { it >= 1 } ?: 25,
                 hard = s.raw["PCS_SOLVER_HARD"] == "1",
-                repairRounds = s.raw["PCS_REPAIR_ROUNDS"]?.toIntOrNull()?.takeIf { it >= 0 } ?: 3,
+                repairRounds = s.raw["PCS_CYCLE_REPAIR_MAX_ROUNDS"]?.toIntOrNull()?.takeIf { it >= 0 } ?: DEFAULT_REPAIR_ROUNDS,
+                monitor =
+                    MonitorConfig(
+                        qualifiedAffinity = s.raw["PCS_M3_AFFINITY_MIN"]?.toIntOrNull()?.takeIf { it in 0..100 } ?: MonitorConfig().qualifiedAffinity,
+                        minShare = s.raw["PCS_M3_MIN_SHARE"]?.toDoubleOrNull()?.takeIf { it in 0.0..1.0 } ?: MonitorConfig().minShare,
+                        minExcluded = s.raw["PCS_M3_MIN_EXCLUDED"]?.toIntOrNull()?.takeIf { it >= 1 } ?: MonitorConfig().minExcluded,
+                        sigma = s.raw["PCS_M3_SIGMA"]?.toDoubleOrNull()?.takeIf { it >= 0.0 } ?: MonitorConfig().sigma,
+                    ),
                 round = s.raw["PCS_ASSIGN_ROUND"]?.takeIf { it.isNotBlank() },
                 weights =
                     s.raw.filterKeys { it.startsWith("PCS_AFFINITY_WEIGHT_") }.mapNotNull { (k, v) ->

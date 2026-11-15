@@ -73,5 +73,6 @@ Don't do either until build time actually hurts.
 | Job | Trigger | Runs |
 |---|---|---|
 | `ci` | push, PR | harness up → API smoke → (once `settings.gradle.kts` exists) `check`, contract and integration, UI tests, Argos upload → artifacts on failure → teardown |
+| `linux-package` | push, PR | `scripts/package-linux.sh`: the .deb from the uber jar and a jlink'd runtime, started headless with `--smoke`; uploaded as an artifact. (Not `:app:packageDeb`: Temurin 25 has no jmods, and Compose's launcher crashes on its classpath.) |
 | `model` | push, PR | `lake build` (checks every proof) and a diff of `model/model-report.txt` against a fresh run |
 | `nightly` | schedule + manual | the same suite against `HOTCRP_REF=master` (an early warning when upstream changes the API), plus the `scale` scenario on `ripley-cloud-large` |

@@ -104,8 +104,9 @@ class ShellUiTest {
     fun `a complete answers file blocks nothing`(
         @TempDir dir: Path,
     ) {
-        val file = Files.write(dir.resolve("answers.txt"), allAnswered())
-        Fixtures.conference(dir, "complete", "https://conf-a.example.org", answers = file)
+        val parsed = Answers.read(Fixtures.completeAnswers)
+        assertEquals(emptyList<QId>(), parsed.unresolved, "model/answers/complete.txt answers every question")
+        Fixtures.conference(dir, "complete", "https://conf-a.example.org", answers = Fixtures.completeAnswers)
         val shell = Shell(mapOf("PCS_CONFERENCES" to dir.toString()), { MapKeychain() }, screenshotMode = true)
         runUi {
             setContent { PcsApp(shell) }

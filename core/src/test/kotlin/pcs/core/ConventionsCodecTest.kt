@@ -16,7 +16,7 @@ class ConventionsCodecTest {
     private fun asHotcrp(tag: String) = if ('#' in tag) tag else "$tag#0"
 
     @Test
-    @Covers("conv:1", "conv:9", "conv:10")
+    @Covers("conv:1", "conv:9", "conv:10", "conv:15", "conv:16", "conv:17")
     fun `every trace round-trips`() {
         val traces =
             listOf(Trace.Keep(1)) + Ground.entries.map { Trace.Refer(1, it) } +

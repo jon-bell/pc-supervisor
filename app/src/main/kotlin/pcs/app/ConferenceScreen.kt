@@ -116,7 +116,7 @@ fun ConferenceScreen(shell: Shell, session: Session, onSwitch: () -> Unit) {
                     version++
                     tab = TabName.Writeback
                 }
-            TabName.EarlyReject -> EarlyRejectView(session, shell.opener, version)
+            TabName.EarlyReject -> EarlyRejectView(session, shell.opener, version) { version++ }
             TabName.Accountability -> AccountabilityView(session, shell.opener, version) { version++ }
             TabName.Writeback -> WritebackScreen(session, shell.opener, version, selectedArtifact, { selectedArtifact = it }, { version++ })
             TabName.Report -> ReportScreen(session, version)

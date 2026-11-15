@@ -49,15 +49,19 @@ public class AccFixture(public val store: Store) {
         round: String? = null,
         texts: Map<String, String> = emptyMap(),
         versionSeenAt: List<Long> = listOf(0),
+        /** HotCRP's time of the current version; the default is the unrevised review, last modified when first seen complete. */
+        modifiedAt: Long? = firstCompleteAt,
+        /** HotCRP's time of the first complete version, when the review's `/reviewhistory` was read (adds a backfill row). */
+        historyCompleteAt: Long? = null,
     ): Long {
         val rid = nextRid++
         val scores = if (merit == null) "{}" else "{\"OveMer\":$merit}"
-        val cols = "rid,pid,email,rtype,status,ordinal,vtag,scores,word_count,ratings,first_seen_at,first_complete_seen_at,last_seen_at,round"
+        val cols = "rid,pid,email,rtype,status,ordinal,vtag,scores,word_count,ratings,first_seen_at,first_complete_seen_at,last_seen_at,round,modified_at"
         val ratingJson = ratings.joinToString(",", "[", "]") { "\"$it\"" }
         val ord = ordinal?.let { "'$it'" } ?: "NULL"
         val rnd = round?.let { "'$it'" } ?: "NULL"
         val who2 = esc(who)
-        val vals = "$rid,$pid,'$who2',$rtype,'$status',$ord,'v0','$scores',$words,'$ratingJson',0,${firstCompleteAt ?: "NULL"},0,$rnd"
+        val vals = "$rid,$pid,'$who2',$rtype,'$status',$ord,'v0','$scores',$words,'$ratingJson',0,${firstCompleteAt ?: "NULL"},0,$rnd,${modifiedAt ?: "NULL"}"
         sql("INSERT INTO review($cols) VALUES($vals)")
         versionSeenAt.forEachIndexed {
             i,
@@ -66,6 +70,10 @@ public class AccFixture(public val store: Store) {
             sql(
                 "INSERT INTO review_version(rid,vtag,seen_at,source,scores,status) VALUES($rid,'v${if (i == versionSeenAt.lastIndex) "0" else "old$i"}',$at,'snapshot','$scores','$status')",
             )
+        }
+        if (historyCompleteAt != null) {
+            sql("INSERT INTO review_version(rid,vtag,seen_at,source,scores,status) VALUES($rid,'h0',$historyCompleteAt,'history','$scores','complete')")
+            sql("INSERT INTO backfill(rid,done_at) VALUES($rid,0)")
         }
         for ((f, t) in texts) sql("INSERT INTO review_text(rid,vtag,field_uid,text) VALUES($rid,'v0','$f','${esc(t)}')")
         return rid

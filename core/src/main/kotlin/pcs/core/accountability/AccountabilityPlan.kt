@@ -73,6 +73,35 @@ public object AccountabilityPlan {
                 )
             }.sortedWith(compareByDescending<OutstandingReview> { it.lateDays ?: -1 }.thenBy { it.group }.thenBy { it.pid })
 
+        // ---- how each complete review was dated (the owner's ruling, 2026-11-15): by HotCRP's timestamps; first-seen is a cross-check
+        val dating = mutableListOf<String>()
+        val intervalS = cfg.syncIntervalMin * 60
+        val unknown = reviews.filter { it.submitted(due) == Submitted.Unknown }
+        if (unknown.isNotEmpty()) {
+            dating +=
+                "${unknown.size} complete review(s) were revised after the review deadline, so HotCRP's original submission time is not in the mirror " +
+                "and they are not flagged late: read the review history (Backfill) to date them (" +
+                unknown.take(5).joinToString { "#${it.pid} ${it.ordinal ?: it.rid}" } + (if (unknown.size > 5) ", ..." else "") + ")."
+        }
+        val apart =
+            reviews.mapNotNull { r ->
+                val d = r.submitted(due) as? Submitted.At ?: return@mapNotNull null
+                val seen = r.firstCompleteAt ?: return@mapNotNull null
+                val diff = seen.epochSecond - d.at.epochSecond
+                // the mirror saw it later than HotCRP says it was submitted; or, with the history read, earlier (a clock or sync problem)
+                if (diff > intervalS || (d.exact && -diff > intervalS)) Triple(r, d.at, diff) else null
+            }
+        if (apart.isNotEmpty()) {
+            dating +=
+                "${apart.size} review(s) were first seen complete more than ${cfg.syncIntervalMin} minutes from HotCRP's own submission time; " +
+                "HotCRP's time is used for lateness (" +
+                apart.take(5).joinToString { (r, at, diff) ->
+                    "#${r.pid} ${r.ordinal ?: r.rid}: HotCRP $at, first seen ${Duration.ofSeconds(
+                        diff,
+                    ).abs().toHours()} h ${if (diff > 0) "later" else "earlier"}"
+                } + (if (apart.size > 5) ", ..." else "") + ")."
+        }
+
         // ---- metadata for the heuristics (AR3: nothing in it holds review text)
         val completeByPaper = reviews.filter { it.status == "complete" }.groupBy { it.pid }
         val metas =
@@ -89,7 +118,7 @@ public object AccountabilityPlan {
                     completeByPaper[r.pid].orEmpty().filter { it.rid != r.rid }.mapNotNull { it.merit },
                     r.filled,
                     r.ratings,
-                    r.firstCompleteAt,
+                    (r.submitted(due) as? Submitted.At)?.at,
                 )
             }
 
@@ -291,7 +320,20 @@ public object AccountabilityPlan {
                     caseNotes,
                 )
             }
-        return AccountabilityReport(progress, outstanding, coaching, suggestions, requests, engagement, cases, cfg.criteria, notes, input.acsByPaper, modelReqs)
+        return AccountabilityReport(
+            progress,
+            outstanding,
+            coaching,
+            suggestions,
+            requests,
+            engagement,
+            cases,
+            cfg.criteria,
+            notes,
+            input.acsByPaper,
+            modelReqs,
+            dating,
+        )
     }
 
     /** Which readings the report's cases turn on: Q11 (consequence), Q20 (quality needs a request), Q21 (the record's life). */

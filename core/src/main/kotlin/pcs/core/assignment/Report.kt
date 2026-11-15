@@ -182,7 +182,7 @@ public object Assignment {
         val plan = Planner.solve(b.input, b.config)
         val audit = Planner.audit(b.input, b.config, plan)
         val tpms = if (withTpms && b.tpmsAssignment.isNotEmpty()) TpmsRoundTrip.validate(b.tpmsAssignment, b.input, b.config) else null
-        return SolveReport(plan, b, ConflictMonitor.scan(b.input), audit, tpms, AssignmentOutput.csv(plan, b))
+        return SolveReport(plan, b, ConflictMonitor.scan(b.input, b.settings.monitor), audit, tpms, AssignmentOutput.csv(plan, b))
     }
 
     public fun tierName(t: Tier?): String = t?.name?.lowercase() ?: "unclassified"

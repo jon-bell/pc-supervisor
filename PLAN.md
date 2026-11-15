@@ -38,8 +38,8 @@ This is the work breakdown for building PC Supervisor. Read [docs/concepts.md](d
     - macOS signing, notarization, and Windows MSIX never ran. The Store logo assets under `packaging/windows/Assets` don't exist yet, and the identity variables come from the Store account.
     - The Lean FFI library on macOS and Windows: one `continue-on-error` step for macOS only; Windows has none. The provisional model-in-core decision stays provisional.
   - **Deviations:**
-    - This machine's JDK 25 has no `jmods`, so Compose's jlink step (`:app:packageDeb`) can't run here. `scripts/package-linux-local.sh` runs the same jpackage step with the whole JDK as runtime image. CI's Temurin 25 has jmods, and `release.yml` uses the Gradle task, unrun.
-    - `uiTest` includes tests that need no harness (gallery, shell, settings); only `GoldenUiTest` needs it, so `check` stays harness-free and doesn't run the UI tests.
+    - This machine's JDK 25 has no `jmods`, so Compose's jlink step (`:app:packageDeb`) can't run here. Superseded 2026-11-15: Temurin 25 has no jmods anywhere, so the assumption that CI's has was wrong; see "Rulings applied" (`scripts/package-linux.sh`).
+    - `uiTest` includes tests that need no harness (gallery, shell, settings); only `GoldenUiTest` needs it, so `check` stayed harness-free; since 2026-11-15 `check` includes `:app:uiTest` when a harness and a display exist.
     - "What an unresolved question blocks" is derived from `model/export/cards.json` and `policy.json` (shipped as `core` resources) because no feature-level map exists. The screen says so. Questions that no card or ruling cell depends on say "nothing in the model's cards or policy table yet".
     - Window size is fixed (1280x1400) and density is the test default of 1.0; the test API in this Compose version has no density parameter.
     - The `synthetic.txt` answers file leaves 12 questions unresolved, so the gallery shows blocked cards too.
@@ -167,7 +167,7 @@ Every claim has a stable, namespaced ID, and every test names the claims it is e
 | `card:` | concepts §3.11 example cards (`card:X9`, `card:C3`), one claim per card and reading | 41 cards |
 | `rule:` | concepts §3.8 rules (`rule:may-remove`, `rule:owes`, `rule:composition`) | ~10 |
 | `cell:` | concepts §3.9 policy cells (`cell:ac/triage`), one per role and permission | 207 (9 roles × 23) |
-| `conv:` | spec §11 HotCRP conventions, one per row | 12 |
+| `conv:` | spec §11 HotCRP conventions, one per row | 17 |
 | `golden:` | the golden table rows (PLAN M2) | 13 |
 | `assume:` | concepts §3.12 assumptions (`assume:A2`) | 8 |
 | `q:` | open questions and their readings (`q:Q13=one-junior-or-nominee`) | 20 questions |
@@ -599,8 +599,8 @@ Changing this table means changing the M3 and M18 tests in the same PR.
     - A nominee's cap is `owes(u)` in whole reviews, rounded up and never above the band (the model's `loadCaps`); a nominee who is not accepted gets the band, so V1 is the only thing that excludes them.
     - A PC member with no sheet row is senior (M7); an accepted nominee not yet on the HotCRP PC is planned but not in the CSV until the membership artifact is applied.
     - Q13 "zero to two juniors": ruled on 2026-11-15 (juniors may take first-pass seats beside the seniors, or come in as reciprocal reviewers, two at most); see "Rulings applied" below.
-    - M3's thresholds (qualified = affinity of at least 50; at least 3 excluded, at least half of the qualified, and 2 standard deviations over the mean) are ours; the spec says only "unusual share".
-    - Cycle repair covers rings of up to `PCS_CYCLE_MAX_K` (default 3) in 3 rounds; what is left is reported (A3), as the model's repair does.
+    - M3's thresholds (qualified = affinity of at least 50; at least 3 excluded, at least half of the qualified, and 2 standard deviations over the mean) are ours, kept by ruling and now settings `PCS_M3_*`; the spec says only "unusual share".
+    - Cycle repair covers rings of up to `PCS_CYCLE_MAX_K` (default 3), repeating until none remain (cap `PCS_CYCLE_REPAIR_MAX_ROUNDS`, default 10, ruled 2026-11-15); what is left is reported (A3).
   - **Findings about HotCRP:** `primary` and `secondary` rows through `/api/assign` pass the dry run, apply, and sync back as review types 4 and 3; the `conflict` action in `batch/assign.php` records a declared conflict that the sync reads from `pc_conflicts`; both are confirmed by the scenario test (the next sync observed the reviews with their types, and #210's seven conflicts reached the plan). Nothing in M15 needs a HotCRP change.
 
 ---
@@ -703,6 +703,17 @@ Branch `rulings-model`. The owner's rulings on the Lean model, each with its Lea
 - **Q9 repeats.** The model's signal already counted nominations rather than distinct nominees; it is now explicit (card X3b, repeated nominees in the `pattern` corpus, `NominationReportTest`), and the threshold is `Venue.patternMin`.
 - **Appointment authority.** Model rule `decisionCounts`, oracle query `appointmentAuthority` and corpus, `RulesDifferentialTest`; policy cell `pc-chair/classify` granted ("in the sheet, any candidate"; `only_chair_or_ac_classify` proves nobody else holds it); T6 traces: a PC chair's classification is effective and the nominee is appointed, and a PC member, an author, a nominee and the junior PC chair are denied. No new sheet column: `ac_email` names who decided and the mirror's `person.roles` says who is a chair. Card X12.
 - **Interpreted:** "a PC chair" is the model's `pcChair` role. The process chair's `classify` cell stays unexamined (denied); HotCRP has one chair role, so `core` cannot tell them apart and treats any chair as a PC chair. The card gallery shows the venue's values only where the model sampled them (nominees max 1, 2, 3, 5; pattern 2, 3, 4; grace 0, 24, 48, 72), else the defaults' outcome.
+
+### Branch `rulings-infra` (owner's rulings on behaviour and infrastructure)
+
+- **Cycle repair.** `PlanConfig.repairRounds` defaults to 10 (`PCS_CYCLE_REPAIR_MAX_ROUNDS`, replacing `PCS_REPAIR_ROUNDS`); the loop already repeated until no ring remained, only the cap was 3. The model's `maxRepairRounds` is 10 too, so the report (`model-report.txt`: 0 rings left, was 1) and oracle test agree. `PlanTest`: a hub paper needing more than 3 rounds (the 3-round cap leaves a ring, reported; 10 clears it).
+- **M3 monitor.** `PCS_M3_AFFINITY_MIN`, `_MIN_EXCLUDED`, `_MIN_SHARE`, `_SIGMA` in `AssignmentSettings.monitor`, `pcs.conf.example`, tested at non-default values (`PlanTest`).
+- **Spec §11.** Rows 15 `pcs-er-object`, 16 `pcs-remind-…`, 17 `~~pcs-case-<n>` appended; the text left rows 8 and 10 (row 10 is now the chair's decision, pointing at row 17). `ConventionsTest` has harness tests for 15 and 16 and covers 17 with the chair-only-tag test; the round trip and `ConventionsCodecTest` cover all three. Assurance: 17 convention claims, 17 covered, 0 failing.
+- **Early-reject backfill.** `SnapshotGap` (`EarlyRejectPlan.snapshotGap`), `Session.backfillReviewHistory()`, a "Backfill review history" button on the tab, never automatic. `EarlyRejectUiTest` (stub `/reviewhistory`): gap shown, no request until the click, one request per review, candidates appear.
+- **Lateness dating.** `AccReview.submitted(due)`: first complete version from `/reviewhistory` if read, else `modified_at` when not after the deadline, else unknown (not flagged late, reported). First-seen is the cross-check (`AccountabilityReport.dating`, shown on the tab). `AccountabilityPlanTest`: first sync after the deadline, reviews on time: not late.
+- **M4 follow-ups.** (a) `check` depends on `:app:uiTest` when `PCS_HOTCRP_URL`/token (or `.env.test`) exist, the URL is localhost and answers, and there is a display (or Xvfb, which the task starts and stops itself); else it prints why and passes. CI's check step uses `-x :app:uiTest`. (b) `scripts/package-linux.sh` and a `linux-package` CI job (also used by `release.yml`): Temurin 25 has no jmods, so Compose's jlink step fails on `jdk.jlink` with includeAllModules (now an explicit module list, also needed for macOS and Windows, untested there), and ProGuard stops on unresolved members (release build now has it off). Even with a jlink'd runtime, the Compose-built launcher segfaults in `setenv` before the JVM starts with its ~80-entry classpath; the uber jar (one entry) works, so the script runs jpackage on it with a jlink'd runtime. Result: an 88 MB .deb that passes `--smoke` locally. (c) `HotcrpClientRateLimitTest` against a JDK stub server; the client got an injectable sleeper, attempt count and clock, reads `x-ratelimit-*` (`rateLimit`; a 429 without `Retry-After` waits for a future reset), and gives up with a clear message. (d) `model/answers/complete.txt`; `CardGalleryUiTest` and `ShellUiTest` use it.
+- **Evidence (fresh harness):** `check` 0 failures with `:app:uiTest` inside it; seed 5, core 56, runner 11 integration tests green; `check-evidence`: 144 records, 0 failing; assurance report 0 failing claims.
+- **Interpreted:** the early-reject gap is mirror-wide (no review version at or before the opening); the cycle-repair setting name replaced the old one.
 
 ## Open items (maintainer)
 

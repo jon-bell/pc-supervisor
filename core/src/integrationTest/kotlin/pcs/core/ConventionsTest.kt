@@ -199,12 +199,39 @@ class ConventionsTest {
     }
 
     @Test
-    @Covers("conv:10")
+    @Covers("conv:10", "conv:17")
     fun `chair-only tags - only chairs set or see them`() {
         assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("~~pcs-case-1#1", Charsets.UTF_8))))
         assertFalse(ok(setTags(ac, pid, "~~pcs-case-2#1")))
         assertFalse(tagsSeenBy(ac, pid).any { it.startsWith("~~") })
         assertTrue("~~pcs-case-1#1" in tagsSeenBy(null, pid))
+    }
+
+    @Test
+    @Covers("conv:15")
+    fun `early-reject objection - a chair records pcs-er-object, which ACs and reviewers neither set nor see`() {
+        assertFalse(ok(setTags(ac, pid, "pcs-er-object")), "an AC isn't an administrator, so can't object by tag")
+        assertTrue(ok(api("POST", "$pid/tags", form = "addtags=pcs-er-object")))
+        assertTrue("pcs-er-object#0" in tagsSeenBy(null, pid))
+        for (who in listOf(ac, "r1@example.org", "author13@example.org")) {
+            assertFalse(tagsSeenBy(who, pid).any { it.startsWith("pcs-er-object") }, "$who must not see the objection")
+        }
+        assertEquals(listOf(pcs.core.rules.Trace.EarlyObjection(pid.toLong())), pcs.core.rules.Conventions.decode(pid.toLong(), listOf("pcs-er-object#0")))
+    }
+
+    @Test
+    @Covers("conv:16")
+    fun `accountability reminder - the chair records pcs-remind with no value, and others neither set nor see it`() {
+        assertFalse(ok(setTags(ac, pid, "pcs-remind-C1")), "an AC can't record a reminder")
+        assertTrue(ok(api("POST", "$pid/tags", form = "addtags=pcs-remind-C1")))
+        assertTrue("pcs-remind-C1#0" in tagsSeenBy(null, pid))
+        for (who in listOf(ac, "r1@example.org", "author13@example.org")) {
+            assertFalse(tagsSeenBy(who, pid).any { it.startsWith("pcs-remind") }, "$who must not see the reminder")
+        }
+        assertEquals(
+            listOf(pcs.core.rules.Trace.Reminder(pid.toLong(), "C", 1)),
+            pcs.core.rules.Conventions.decode(pid.toLong(), listOf("pcs-remind-C1#0")),
+        )
     }
 
     @Test
@@ -224,9 +251,11 @@ class ConventionsTest {
     }
 
     @Test
-    @Covers("conv:1", "conv:9", "conv:10")
+    @Covers("conv:1", "conv:9", "conv:10", "conv:15", "conv:16", "conv:17")
     fun `round trip - traces the chairs write in HotCRP are decoded by core after a sync`() {
-        assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("pcs-refer-scope pcs-req-B1#3", Charsets.UTF_8))))
+        assertTrue(
+            ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("pcs-refer-scope pcs-req-B1#3 pcs-remind-B1 pcs-er-object", Charsets.UTF_8))),
+        )
         assertTrue(ok(api("POST", "$pid/tags", form = "addtags=" + URLEncoder.encode("~~pcs-case-2#4", Charsets.UTF_8))))
         val db = java.nio.file.Files.createTempFile("pcs-conv", ".db").also { java.nio.file.Files.delete(it) }
         pcs.core.store.Store.open(db, "test-only-key").use { store ->
@@ -242,6 +271,8 @@ class ConventionsTest {
             assertTrue(pcs.core.rules.Trace.Refer(pid.toLong(), pcs.core.rules.Ground.SCOPE) in traces, traces.toString())
             assertTrue(pcs.core.rules.Trace.RequestSent(pid.toLong(), "B", 1, pcs.core.rules.ReqDisposition.DECLINED) in traces, traces.toString())
             assertTrue(pcs.core.rules.Trace.Case(pid.toLong(), 2, 4) in traces, traces.toString())
+            assertTrue(pcs.core.rules.Trace.Reminder(pid.toLong(), "B", 1) in traces, traces.toString())
+            assertTrue(pcs.core.rules.Trace.EarlyObjection(pid.toLong()) in traces, traces.toString())
             assertTrue(traces.none { it is pcs.core.rules.Trace.Unparsed }, traces.toString())
         }
     }

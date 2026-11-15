@@ -196,6 +196,44 @@ class PlanTest {
     }
 
     @Test
+    @Covers("prop:A3", "rule:cycle-free")
+    fun `repair repeats until no ring remains, needing more than three rounds, and reports what the cap leaves`() {
+        // author 1 (cap 1) wants #102, #103, #104, #105 in that order, and each of those authors is a hot first-pass
+        // reviewer of #101: every repair of 1's edge moves 1 on to the next paper whose author reviews #101, so each round
+        // makes a new ring and a single hub paper needs four rounds before the fifth solve is clean
+        val rs =
+            listOf(Reviewer(Member(1, Tier.SENIOR), 1)) + (2L..8).map { sen(it) } + (12L..15).map { jun(it) }
+        val ps =
+            listOf(
+                paper(101, authors = listOf(1)),
+                paper(102, authors = listOf(2)),
+                paper(103, authors = listOf(3)),
+                paper(104, authors = listOf(12)),
+                paper(105, authors = listOf(13)),
+                paper(106),
+            )
+        val hotFor1 = mapOf(102L to 95, 103L to 90, 104L to 85, 105L to 80)
+        val hubReviewers = setOf(2L, 3L, 12L, 13L)
+        val aff: (Reviewer, PlanPaper) -> Int = { r, p ->
+            when {
+                r.who == 1L -> hotFor1[p.pid] ?: 50
+                r.who in hubReviewers && p.pid == 101L -> 99
+                else -> 50
+            }
+        }
+        val input = PlanInput(rs, ps, everyone(rs, ps, aff))
+        val c = cfg(q13 = Q13.ZERO_TO_TWO_JUNIORS, k = 2, rounds = 10)
+        val full = solve(input, c)
+        assertTrue(full.cyclesFirst > 0)
+        assertEquals(emptyList<PaperCycle>(), full.cyclesLeft, "repeated until no ring is left")
+        assertTrue(full.repairs.maxOf { it.round } > 3, "needed more than 3 rounds: ${full.repairs.map { it.round }}")
+        val capped = Planner.solve(input, c.copy(repairRounds = 3))
+        assertTrue(capped.cyclesLeft.isNotEmpty(), "the old three-round cap leaves a ring")
+        assertEquals(emptyList<String>(), Planner.audit(input, c.copy(repairRounds = 3), capped), "and it is reported, never silent")
+        assertEquals(10, PlanConfig(Q13.ONE_JUNIOR, Q14.TIER_DECIDES).repairRounds, "the default safety cap")
+    }
+
+    @Test
     @Covers("prop:A3")
     fun `a second partition, one reviewer per institution, is repaired the same way`() {
         val base = (1L..6).map { sen(it) } + (11L..12).map { jun(it) }
@@ -296,6 +334,47 @@ class PlanTest {
         // a conflict with someone unqualified for the paper doesn't count
         val low = ConflictMonitor.scan(PlanInput(rs, ps, everyone(rs, ps) { r, p -> if (p.pid == 111L && r.who <= 9) 10 else 80 }))
         assertEquals(emptyList<ConflictSignal>(), low)
+    }
+
+    @Test
+    @Covers("prop:M3")
+    fun `each number of the conflict monitor is a setting, tested away from its default`() {
+        fun monitor(vararg kv: Pair<String, String>) =
+            AssignmentSettings.of(
+                pcs.core.config.Settings.load(
+                    mapOf("PCS_HOTCRP_URL" to "https://conf.example.org", "PCS_ANSWERS" to "/tmp/answers.txt") + kv,
+                ).getOrThrow(),
+            ).monitor
+        assertEquals(MonitorConfig(), monitor())
+
+        fun rounds(vararg kv: Pair<String, String>) =
+            AssignmentSettings.of(
+                pcs.core.config.Settings.load(
+                    mapOf("PCS_HOTCRP_URL" to "https://conf.example.org", "PCS_ANSWERS" to "/tmp/answers.txt") + kv,
+                ).getOrThrow(),
+            ).repairRounds
+        assertEquals(10, rounds())
+        assertEquals(25, rounds("PCS_CYCLE_REPAIR_MAX_ROUNDS" to "25"))
+        assertEquals(
+            MonitorConfig(qualifiedAffinity = 70, minShare = 0.2, minExcluded = 2, sigma = 4.0),
+            monitor("PCS_M3_AFFINITY_MIN" to "70", "PCS_M3_MIN_SHARE" to "0.2", "PCS_M3_MIN_EXCLUDED" to "2", "PCS_M3_SIGMA" to "4"),
+        )
+        assertEquals(MonitorConfig(), monitor("PCS_M3_SIGMA" to "-1", "PCS_M3_MIN_SHARE" to "7"), "nonsense falls back to the default")
+
+        val rs = (1L..12).map { sen(it) } + (21L..22).map { jun(it) }
+        // ten papers each exclude 4 of the 12 seniors, and #111 excludes 5: a share of 0.33 against 0.42
+        val ps = (101L..110).map { paper(it, conflicts = (1L..4).toList()) } + paper(111, conflicts = (1L..5).toList())
+
+        fun scan(m: MonitorConfig, aff: Int = 80) = ConflictMonitor.scan(PlanInput(rs, ps, everyone(rs, ps) { _, _ -> aff }), m).map { it.pid }
+        // the default share of one half flags nothing here; a lower share flags the outlier only when the sigma is small enough
+        assertEquals(emptyList<Long>(), scan(MonitorConfig()))
+        assertEquals(listOf(111L), scan(MonitorConfig(minShare = 0.2, sigma = 2.0)))
+        assertEquals(emptyList<Long>(), scan(MonitorConfig(minShare = 0.2, sigma = 4.0)))
+        // the minimum count of excluded reviewers
+        assertEquals(emptyList<Long>(), scan(MonitorConfig(minShare = 0.2, sigma = 2.0, minExcluded = 6)))
+        // the affinity that makes a reviewer qualified: at 80 nobody is qualified when the bar is 90
+        assertEquals(emptyList<Long>(), scan(MonitorConfig(minShare = 0.2, sigma = 2.0, qualifiedAffinity = 90)))
+        assertEquals(listOf(111L), scan(MonitorConfig(minShare = 0.2, sigma = 2.0, qualifiedAffinity = 80)), "the bar is inclusive")
     }
 
     @Test

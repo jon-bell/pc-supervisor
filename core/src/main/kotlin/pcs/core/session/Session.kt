@@ -89,7 +89,13 @@ public class MissingSecretException(message: String) : IllegalStateException(mes
 public sealed interface EarlyRejectState {
     public data class Blocked(val reasons: List<String>) : EarlyRejectState
 
-    public data class Ready(val report: ErReport, val mail: MailDraft, val decisions: DecisionArtifact) : EarlyRejectState
+    public data class Ready(
+        val report: ErReport,
+        val mail: MailDraft,
+        val decisions: DecisionArtifact,
+        /** Set when the opening has passed and the mirror has no review snapshot at or before it (the chair may backfill the history). */
+        val gap: pcs.core.earlyreject.SnapshotGap? = null,
+    ) : EarlyRejectState
 }
 
 /** What the assignment screen can show: the solve report, or what blocks it. */
@@ -152,8 +158,26 @@ public class Session private constructor(
         val window = ErWindow.of(settings.phases, q16, settings.earlyRejectWindowH)!!
         val cfg = ErConfig(readings.q15!!, q16, settings.scoreScale, settings.fieldMerit, settings.reviewsRequired)
         val report = EarlyRejectPlan.compute(store, cfg, window, clock.now())
-        return EarlyRejectState.Ready(report, EarlyRejectArtifacts.mailDraft(report, zoneName = settings.zone.id), EarlyRejectArtifacts.decisions(report))
+        return EarlyRejectState.Ready(
+            report,
+            EarlyRejectArtifacts.mailDraft(report, zoneName = settings.zone.id),
+            EarlyRejectArtifacts.decisions(report),
+            EarlyRejectPlan.snapshotGap(store, window, clock.now()),
+        )
     }
+
+    /**
+     * The chair's "Backfill review history" (spec §10.4 E): the throttled `/reviewhistory` backfill at `PCS_HISTORY_RPS`, one request
+     * per review not yet read. It never runs by itself; the early-reject screen calls it on the chair's click, then recomputes.
+     * Returns the review versions added. Waits for a running sync rather than overlap it.
+     */
+    public suspend fun backfillReviewHistory(): Int =
+        syncing.withLock {
+            val token = token()
+            HotcrpClient(settings.hotcrpUrl, token, chunk = settings.syncChunk, concurrency = settings.syncConcurrency, strict = false).use { c ->
+                pcs.core.store.Backfill(store, clock).run(c, settings.historyRps)
+            }
+        }
 
     /** Drafts the early-reject decisions the chair confirmed (default: every ready paper) as a Writeback artifact; nothing reaches HotCRP until it is confirmed and applied. Returns the artifact's id. */
     public fun draftEarlyRejectDecisions(confirmed: Set<Long>? = null): Long {

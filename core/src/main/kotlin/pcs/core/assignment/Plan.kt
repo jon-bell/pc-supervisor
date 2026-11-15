@@ -51,14 +51,20 @@ public data class PlanInput(
     val pinned: List<Pin> = emptyList(),
 )
 
+/** The owner's ruling (2026-11-15): repair until no ring remains, with a safety cap of 10 rounds. */
+public const val DEFAULT_REPAIR_ROUNDS: Int = 10
+
 public data class PlanConfig(
     val q13: Q13,
     val q14: Q14,
     val faults: Faults = Faults.NONE,
     /** `PCS_CYCLE_MAX_K`: cycles of up to this many papers are repaired. */
     val cycleMaxK: Int = 3,
-    /** Repair rounds before the rest is reported. */
-    val repairRounds: Int = 3,
+    /**
+     * `PCS_CYCLE_REPAIR_MAX_ROUNDS`: repair repeats until no ring of up to [cycleMaxK] papers remains (and no
+     * institution group is over its limit); this is the safety cap. What is left after it is reported (A3).
+     */
+    val repairRounds: Int = DEFAULT_REPAIR_ROUNDS,
     /** `PCS_SOLVER_TOPK`. */
     val topK: Int = 25,
     /** `PCS_SOLVER_HARD`: slots are true lower bounds, so one unstaffable paper makes the solve infeasible. */

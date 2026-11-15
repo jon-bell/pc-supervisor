@@ -42,7 +42,7 @@ scripts/hotcrp-up.sh             # disposable HotCRP at 127.0.0.1:8080, writes .
 scripts/harness-smoke.sh         # canary: seeds 1 paper, checks the API paths we use
 docker compose -p pcs -f hotcrp/compose.yaml down -v   # reset
 
-./gradlew check                  # lint, unit, property, model-generated tests
+./gradlew check                  # lint, unit, property, model-generated tests; also :app:uiTest when a harness (.env.test) and a display or Xvfb exist, else it says why not
 set -a; . ./.env.test; set +a
 ./gradlew integrationTest
 ./gradlew uiTest

@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.unit.dp
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import pcs.app.testing.AppDriver
@@ -20,6 +21,7 @@ import pcs.app.testing.screenshot
 import pcs.core.readings.Answers
 import pcs.core.readings.CardOutcome
 import pcs.core.readings.ModelExport
+import pcs.core.readings.QId
 import pcs.testing.CoversLog
 import pcs.testing.Family
 import java.io.File
@@ -65,6 +67,35 @@ class CardGalleryUiTest {
         }
         val shots = File(System.getProperty("pcs.screenshots"), "cards").listFiles { f -> f.extension == "png" }!!
         assertEquals(cards.map { "card-${it.id}.png" }.toSet(), shots.map { it.name }.toSet(), "one screenshot per card, and no others")
+    }
+
+    @Test
+    fun `under a fully answered file every card shows its resolved outcome and nothing is blocked`() {
+        val answers = Answers.read(Fixtures.completeAnswers)
+        assertEquals(emptyList<QId>(), answers.unresolved, "the file answers every question")
+        assertEquals(emptyList<String>(), answers.errors, "and has no errors")
+        assertEquals(QId.entries.size, answers.given.size, "every question is answered once")
+        val cards = ModelExport.cards
+        val complete = answers.readings
+        runUi {
+            var current by mutableStateOf(cards.first())
+            setContent {
+                PcsTheme(screenshotMode = true) {
+                    Surface { Box(Modifier.padding(24.dp)) { CardScreen(current, complete) } }
+                }
+            }
+            val view = ViewReader(this)
+            for (card in cards) {
+                current = card
+                waitForIdle()
+                val v = view.card()
+                val o = card.under(complete)
+                assertTrue(o is CardOutcome.Decided, "card ${card.id} is blocked under the complete file: $o")
+                assertEquals((o as CardOutcome.Decided).outcome, v.outcome, "card ${card.id}: the resolved outcome")
+                assertEquals(null, v.blockedBy, "card ${card.id}: nothing blocks it")
+                assertTrue(v.outcome!!.isNotBlank(), "card ${card.id} shows an outcome")
+            }
+        }
     }
 
     @Test

@@ -28,7 +28,9 @@ env:
   # The runner suite replays every witness trace through the API. At HotCRP's
   # default 5,000 requests per hour it runs for over an hour and then gets 429s;
   # with these limits it takes about two minutes. CI therefore no longer
-  # exercises the client's 429 back-off; that needs its own test (PLAN to-do).
+  # exercises the client's 429 back-off against HotCRP; HotcrpClientRateLimitTest
+  # covers it against a local stub server (Retry-After, exponential back-off,
+  # x-ratelimit-* headers, giving up), and runs in `check`.
   HOTCRP_API_PER_HOUR: "100000"
   HOTCRP_API_PER_MINUTE: "5000"
   # Phase dates for the synthetic conference. Seed scenarios are written
@@ -78,9 +80,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         if: hashFiles('settings.gradle.kts') != ''
 
+      # The UI tests have their own step below, on a fresh harness; `check` would otherwise run them here too
+      # (it includes :app:uiTest whenever a harness and a display exist), against a harness the later steps reseed.
       - name: Lint, unit, property, and model-generated tests
         if: hashFiles('settings.gradle.kts') != ''
-        run: ./gradlew check
+        run: ./gradlew check -x :app:uiTest
 
       - name: Fresh harness, seeded with golden
         if: hashFiles('settings.gradle.kts') != ''
@@ -172,6 +176,32 @@ jobs:
       - name: Tear down harness
         if: always()
         run: docker compose -f hotcrp/compose.yaml down -v --remove-orphans || true
+
+  # The Linux package: jpackage from the uber jar with a jlink'd runtime (scripts/package-linux.sh says why not :app:packageDeb: Temurin 25 has
+  # no jmods, and Compose's launcher crashes on its long classpath). The script starts the installed app headless (--smoke).
+  linux-package:
+    runs-on: ripley-cloud
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: jpackage needs fakeroot and dpkg-deb
+        run: |
+          if ! command -v fakeroot >/dev/null 2>&1 || ! command -v dpkg-deb >/dev/null 2>&1; then
+            sudo -n apt-get update -q
+            sudo -n apt-get install -y -q --no-install-recommends fakeroot dpkg
+          fi
+      - name: Build the .deb and start it headless
+        run: scripts/package-linux.sh "$JAVA_HOME"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-supervisor-linux-deb
+          path: app/build/linux-package/*.deb
+          if-no-files-found: error
 
   model:
     runs-on: ripley-cloud

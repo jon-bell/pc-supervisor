@@ -116,7 +116,7 @@ class PlanOracleTest {
                 val a = ask(scale, v)
                 val want = a["outcome"]!!.jsonObject
                 val input = inputOf(a)
-                val cfg = PlanConfig(v.q13, v.q14, Faults.NONE, cycleMaxK = 2, repairRounds = 3, topK = 25)
+                val cfg = PlanConfig(v.q13, v.q14, Faults.NONE, cycleMaxK = 2, repairRounds = 10, topK = 25)
                 val got = Planner.solve(input, cfg)
 
                 fun w(k: String) = want[k]!!.jsonPrimitive.int
