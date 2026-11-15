@@ -39,8 +39,22 @@ public class HotcrpClient(
     // the default form, plus the screen round's triage field (spec §11)
     private val formFields: Set<String> = setOf("OveMer", "RevExp", "PapSum", "ComAut", "ComPC", "Tri"),
     public val strict: Boolean = true,
+    /** Attempts per request before a 429 or 5xx becomes an error. */
+    private val maxAttempts: Int = 8,
+    /** How the client waits between attempts; tests replace it so they don't sleep. */
+    private val sleeper: suspend (Long) -> Unit = { delay(it) },
+    /** The clock for `x-ratelimit-reset` (epoch seconds), replaceable in tests. */
+    private val epochSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
 ) : AutoCloseable {
     private val http = HttpClient(CIO) { expectSuccess = false }
+
+    /** What HotCRP's `x-ratelimit-*` headers last said: the limit, what remains, and when the window resets (epoch seconds). */
+    public data class RateLimit(val limit: Long?, val remaining: Long?, val resetAt: Long?)
+
+    /** The `x-ratelimit-*` headers of the latest response that carried any. */
+    @Volatile
+    public var rateLimit: RateLimit? = null
+        private set
     private val json = Json { isLenient = false }
 
     /** Problems found in lenient mode, for the sync's error record. */
@@ -94,24 +108,41 @@ public class HotcrpClient(
                 params.forEach { (k, v) -> parameters.append(k, v) }
             }.buildString()
         var wait = 1000L
-        val attempts = 8
-        repeat(attempts) { attempt ->
+        repeat(maxAttempts) { attempt ->
             val resp =
                 http.request(url) {
                     this.method = method
                     header("Authorization", "Bearer $token")
                 }
             val code = resp.status.value
+            readRateLimit(resp.headers)
             if (resp.status.isSuccess()) return resp.bodyAsText()
-            if (code != 429 && code < 500 || attempt == attempts - 1) {
-                throw IllegalStateException("HotCRP $path: HTTP $code") // never include the URL's auth or the token
+            if (code != 429 && code < 500) throw IllegalStateException("HotCRP $path: HTTP $code") // never include the URL's auth or the token
+            if (attempt == maxAttempts - 1) {
+                throw IllegalStateException(
+                    if (code == 429) {
+                        "HotCRP $path: still rate-limited (HTTP 429) after $maxAttempts attempts; lower PCS_SYNC_CONCURRENCY or PCS_HISTORY_RPS, or ask for a higher API limit"
+                    } else {
+                        "HotCRP $path: HTTP $code after $maxAttempts attempts"
+                    },
+                )
             }
-            // HotCRP rate-limits the API: honor Retry-After when given, else back off exponentially (capped)
-            val retryAfter = resp.headers["Retry-After"]?.toLongOrNull()?.times(1000)
-            delay(minOf(retryAfter ?: wait, 60_000L))
+            // HotCRP rate-limits the API: honor Retry-After (seconds) when given; else wait for x-ratelimit-reset if a 429 gives it;
+            // else back off exponentially. Never more than a minute.
+            val retryAfter = resp.headers["Retry-After"]?.trim()?.toLongOrNull()?.coerceAtLeast(0)?.times(1000)
+            val untilReset = if (code == 429) rateLimit?.resetAt?.takeIf { it > epochSeconds() }?.let { (it - epochSeconds()) * 1000 } else null
+            sleeper(minOf(retryAfter ?: untilReset ?: wait, 60_000L))
             wait = minOf(wait * 2, 60_000L)
         }
         error("unreachable")
+    }
+
+    private fun readRateLimit(h: io.ktor.http.Headers) {
+        fun n(k: String) = h[k]?.trim()?.toLongOrNull()
+        val limit = n("x-ratelimit-limit")
+        val remaining = n("x-ratelimit-remaining")
+        val reset = n("x-ratelimit-reset")
+        if (limit != null || remaining != null || reset != null) rateLimit = RateLimit(limit, remaining, reset)
     }
 
     private fun check(problems: List<String>) {
