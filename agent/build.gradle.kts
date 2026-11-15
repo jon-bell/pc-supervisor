@@ -52,7 +52,7 @@ val checkVersions by tasks.registering {
         val lines = mutableListOf<String>()
         root.listFiles()!!.filter { it.isDirectory }.sortedBy { it.name }.forEach { dir ->
             val md = MessageDigest.getInstance("SHA-256")
-            dir.walkTopDown().filter { it.isFile }.sortedBy { it.relativeTo(dir).invariantSeparatorsPath }.forEach { f ->
+            dir.walkTopDown().filter { it.isFile && !(it.parentFile == dir && it.name == "qualification.yaml") }.sortedBy { it.relativeTo(dir).invariantSeparatorsPath }.forEach { f ->
                 md.update(f.relativeTo(dir).invariantSeparatorsPath.toByteArray())
                 md.update(0)
                 md.update(f.readBytes())
