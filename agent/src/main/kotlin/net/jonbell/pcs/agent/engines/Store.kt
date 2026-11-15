@@ -72,3 +72,43 @@ class FileResultStore(private val dir: Path) : ResultStore {
         Files.list(dir).use { s -> s.filter { it.fileName.toString().endsWith(".json") }.toList() }
             .map { json.decodeFromString(StoredResult.serializer(), Files.readString(it)) }
 }
+
+/**
+ * The encrypted content-addressed store (agent.md §5.4): one file per key, each sealed with AES-256-GCM under the
+ * store key (the same 32-byte key format as a bundle's, from `PCS_AGENT_STORE_KEY_FILE`), the file's content address
+ * authenticated as associated data so a result cannot be moved to another key. Unlike [FileResultStore] it takes
+ * `confidential` results: extracted-text-derived findings, raw model output and all.
+ */
+class EncryptedFileResultStore(private val dir: Path, private val key: net.jonbell.pcs.core.bundle.BundleKey) : ResultStore {
+    private val json = Json { encodeDefaults = true }
+
+    init {
+        Files.createDirectories(dir)
+    }
+
+    private fun aad(k: String) = ("pcs-agent-store-v1 $k").toByteArray()
+
+    override fun get(key: String): StoredResult? {
+        require(key.matches(Regex("[0-9a-f]{64}"))) { "not a content address: $key" }
+        val f = dir.resolve("$key.enc")
+        if (!Files.isRegularFile(f)) return null
+        val plain =
+            try {
+                this.key.open(Files.readAllBytes(f), aad(key))
+            } catch (e: java.security.GeneralSecurityException) {
+                throw IllegalStateException("the store entry $key did not decrypt: wrong store key, or the file was changed")
+            }
+        return json.decodeFromString(StoredResult.serializer(), plain.toString(Charsets.UTF_8))
+    }
+
+    override fun put(r: StoredResult) {
+        require(r.key.matches(Regex("[0-9a-f]{64}"))) { "not a content address: ${r.key}" }
+        val tmp = Files.createTempFile(dir, "put-", ".tmp")
+        Files.write(tmp, key.seal(json.encodeToString(StoredResult.serializer(), r).toByteArray(), aad(r.key)))
+        Files.move(tmp, dir.resolve("${r.key}.enc"), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+    }
+
+    override fun all(): List<StoredResult> =
+        Files.list(dir).use { s -> s.filter { it.fileName.toString().endsWith(".enc") }.toList() }
+            .mapNotNull { get(it.fileName.toString().removeSuffix(".enc")) }
+}

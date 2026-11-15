@@ -18,7 +18,26 @@ public class BundleKey private constructor(internal val bytes: ByteArray) {
 
     override fun toString(): String = "BundleKey(***)"
 
+    /** AES-256-GCM with a fresh 12-byte nonce, [aad] authenticated: `nonce || ciphertext+tag`. */
+    public fun seal(plain: ByteArray, aad: ByteArray): ByteArray {
+        val nonce = ByteArray(NONCE).also { SecureRandom().nextBytes(it) }
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(bytes, "AES"), GCMParameterSpec(128, nonce))
+        c.updateAAD(aad)
+        return nonce + c.doFinal(plain)
+    }
+
+    /** The inverse of [seal], starting at [offset]; throws [GeneralSecurityException] for a wrong key, a changed byte or other [aad]. */
+    public fun open(sealed: ByteArray, aad: ByteArray, offset: Int = 0): ByteArray {
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.DECRYPT_MODE, SecretKeySpec(bytes, "AES"), GCMParameterSpec(128, sealed.copyOfRange(offset, offset + NONCE)))
+        c.updateAAD(aad)
+        return c.doFinal(sealed, offset + NONCE, sealed.size - offset - NONCE)
+    }
+
     public companion object {
+        private const val NONCE = 12
+
         public fun generate(): BundleKey = BundleKey(ByteArray(32).also { SecureRandom().nextBytes(it) })
 
         public fun parse(text: String): BundleKey {
@@ -44,11 +63,7 @@ public object BundleCodec {
     public fun encrypt(payload: BundlePayload, key: BundleKey): ByteArray {
         val plain = payload.bytes()
         val header = (MAGIC + sha256Hex(plain) + "\n").toByteArray(Charsets.US_ASCII)
-        val nonce = ByteArray(NONCE).also { SecureRandom().nextBytes(it) }
-        val c = Cipher.getInstance("AES/GCM/NoPadding")
-        c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key.bytes, "AES"), GCMParameterSpec(128, nonce))
-        c.updateAAD(header)
-        return header + nonce + c.doFinal(plain)
+        return header + key.seal(plain, header)
     }
 
     /** The content address in the header, without decrypting. Null if this is not a bundle. */
@@ -62,10 +77,7 @@ public object BundleCodec {
         if (file.size < headerLen + NONCE + 16) throw BundleException(BundleException.Reason.NOT_A_BUNDLE, "the bundle is truncated")
         val plain =
             try {
-                val c = Cipher.getInstance("AES/GCM/NoPadding")
-                c.init(Cipher.DECRYPT_MODE, SecretKeySpec(key.bytes, "AES"), GCMParameterSpec(128, file.copyOfRange(headerLen, headerLen + NONCE)))
-                c.updateAAD(file, 0, headerLen)
-                c.doFinal(file, headerLen + NONCE, file.size - headerLen - NONCE)
+                key.open(file, file.copyOfRange(0, headerLen), headerLen)
             } catch (e: GeneralSecurityException) {
                 throw BundleException(BundleException.Reason.WRONG_KEY_OR_TAMPERED, "the bundle did not decrypt: wrong key, or the file was changed")
             }

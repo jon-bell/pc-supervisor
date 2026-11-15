@@ -255,11 +255,12 @@ tasks.test {
 
 val assuranceReport by tasks.registering {
     dependsOn(claimsInventory)
-    mustRunAfter(tasks.test, tasks.named("integrationTest"), ":agent:test")
+    mustRunAfter(tasks.test, tasks.named("integrationTest"), ":agent:test", ":agent:integrationTest")
     val coversFiles =
         listOf("covers", "covers-integration", "covers-agent").map { layout.buildDirectory.file("$it/covers.tsv") } +
             listOf("covers", "covers-ui").map { project(":app").layout.buildDirectory.file("$it/covers.tsv") } +
-            listOf("covers", "covers-integration").map { project(":runner").layout.buildDirectory.file("$it/covers.tsv") }
+            listOf("covers", "covers-integration").map { project(":runner").layout.buildDirectory.file("$it/covers.tsv") } +
+            project(":agent").layout.buildDirectory.file("covers-integration/covers.tsv")
     val evidenceTraces = project(":runner").layout.buildDirectory.dir("evidence/traces")
     val transitionsFile = rootProject.layout.projectDirectory.file("model/export/transitions-desk.json")
     val policyFile = rootProject.layout.projectDirectory.file("model/export/policy.json")
