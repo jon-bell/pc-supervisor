@@ -179,10 +179,24 @@ theorem ar4_dispositions_only (reqs : List Request) (sugs : List Suggestion) (u 
   simp [engagement]
 
 /-- AR5: "no reply" is recorded only after a reminder, the due date, and the grace period. -/
-theorem ar5_no_reply (req : Request) (now : Time) (h : mayDispose req .noReply now = true) :
+theorem ar5_no_reply (grace : Nat) (req : Request) (now : Time) (h : mayDispose grace req .noReply now = true) :
     req.replied = false ∧ req.remindedAt.isSome = true ∧ now > req.due + grace := by
   simp only [mayDispose, Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq] at h
   exact ⟨h.1.1, h.1.2, h.2⟩
+
+/-- Appointment authority: a PC chair's decision counts, whatever the candidate's nominations. -/
+theorem appointment_chair_counts (nominating : List (List PersonId)) (acs : List PersonId) (d : PersonId) :
+    decisionCounts nominating acs d true = true := by
+  simp [decisionCounts]
+
+/-- Appointment authority: a decision by someone who is neither a chair nor an AC of a nominating paper
+    (or any AC, when nobody nominated the candidate) never counts. -/
+theorem appointment_outsider_denied (nominating : List (List PersonId)) (acs : List PersonId) (d : PersonId)
+    (h : decisionCounts nominating acs d false = true) :
+    (nominating = [] ∧ d ∈ acs) ∨ ∃ l ∈ nominating, d ∈ l := by
+  cases nominating with
+  | nil => simpa [decisionCounts] using h
+  | cons l ls => simpa [decisionCounts] using h
 
 /-- AR6 ◆: under Q20's "yes", a quality case on a nominee needs an earlier request
     that a person sent and the reviewer declined or left unanswered. -/

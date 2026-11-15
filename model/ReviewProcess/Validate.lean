@@ -17,6 +17,8 @@ structure Card where
   id : String
   text : String
   deps : List QId
+  /-- Venue parameters the outcome depends on (`nominees-max`, `pattern-min`, `acc-grace-h`). -/
+  venueDeps : List String := []
   outcome : Params → Reading → String
 
 def yesNo (b : Bool) (y n : String) : String := if b then y else n
@@ -56,9 +58,15 @@ def cards : List Card :=
         let ns := (List.range 9).map fun i => noms i [{ who := 7 }]
         s!"the nominee {showOwes r (owes p r .junior ns 7)} reviews" },
     { id := "X3", text := "A senior author with 6 papers always nominates a different student co-author", deps := [],
-      outcome := fun _ _ =>
+      venueDeps := ["pattern-min"],
+      outcome := fun _ r =>
         let noms6 := (List.range 6).map fun i => (20 + i, some Tier.junior)
-        s!"{yesNo (nominationPattern 1 (some .senior) noms6) "shown to the PC chairs as a pattern" "nothing to show"}; {patternConsequence}" },
+        s!"{yesNo (nominationPattern r.venue 1 (some .senior) noms6) "shown to the PC chairs as a pattern" "nothing to show"}; {patternConsequence}" },
+    { id := "X3b", text := "A senior author nominates the same student from 3 papers", deps := [],
+      venueDeps := ["pattern-min"],
+      outcome := fun _ r =>
+        let noms3 := (List.range 3).map fun _ => (20, some Tier.junior)
+        s!"{yesNo (nominationPattern r.venue 1 (some .senior) noms3) "shown to the PC chairs as a pattern: every nomination counts, repeats included" "nothing to show"}; {patternConsequence}" },
     { id := "X4", text := "The AC accepts a nominee and classifies them senior", deps := [.q14],
       outcome := fun _ r =>
         yesNo (fillsSenior r { who := 7, tier := some .senior, nominee := true })
@@ -74,20 +82,34 @@ def cards : List Card :=
         let n := papersOverCap r 11
         if n > 0 then s!"{n} papers over the cap, reported to the PC chairs" else "nothing to report" },
     { id := "X8", text := "A paper names two nominees and allocates two-thirds and one-third", deps := [.q8, .q19],
+      venueDeps := ["nominees-max"],
       outcome := fun p r =>
-        if r.q8 == .one then "not allowed: one nominee per paper" else
+        if compliance r (noms 1 [{ who := 7, share := 4 }, { who := 8, share := 2 }]) [7, 8] == .tooManyNominees
+        then s!"not allowed: at most {if r.q8 == .one then 1 else r.venue.nomineesMax} nominee(s) per paper" else
         match paperShares p r (noms 1 [{ who := 7, share := 4 }, { who := 8, share := 2 }]) with
         | none => "pooled: the two together owe 3 reviews"
         | some ss => ", ".intercalate (ss.map fun (_, n) => showSixths n) ++ " reviews" },
     { id := "X9", text := "A paper names two nominees (split equally); the AC declines one", deps := [.q8, .q19, .q19b],
+      venueDeps := ["nominees-max"],
       outcome := fun p r =>
-        if r.q8 == .one then "not allowed: one nominee per paper" else
+        if compliance r (noms 1 [{ who := 7, share := 3 }, { who := 8, share := 3 }]) [7, 8] == .tooManyNominees
+        then s!"not allowed: at most {if r.q8 == .one then 1 else r.venue.nomineesMax} nominee(s) per paper" else
         let pn := noms 1 [{ who := 7, share := 3 }, { who := 8, share := 3, accepted := false }]
         let mine := match paperShares p r pn with
           | none => "the remaining nominee is pooled with the paper's obligation"
           | some ss => s!"the remaining nominee owes {showSixths ((ss.filter (fun (x : PersonId × Nat) => x.1 == 7)).foldl (fun (a : Nat) (x : PersonId × Nat) => a + x.2) 0)}"
         let moved := yesNo (movedToUnnamed p r pn) "; the declined share moves to an unnamed reviewer" ""
         s!"{mine}; the paper is short by {showSixths (paperShortfall p r pn)}{moved}" },
+    { id := "X11", text := "A paper names four nominees", deps := [.q8], venueDeps := ["nominees-max"],
+      outcome := fun _ r =>
+        let pn := noms 1 ((List.range 4).map fun i => { who := 7 + i })
+        s!"{match compliance r pn [7, 8, 9, 10] with
+          | .ok => "compliant" | .tooManyNominees => "too many nominees: reported, and Q10's consequence applies"
+          | c => c.key}" },
+    { id := "X12", text := "A PC chair records an accept for a candidate whom no AC of the nominating paper has decided on", deps := [],
+      outcome := fun _ _ =>
+        let acsOfPaper := [[1, 2]]
+        s!"{yesNo (decisionCounts acsOfPaper [1, 2, 3] 9 true) "the decision counts" "never acted on"}; a PC member who is neither the paper's AC nor a chair: {yesNo (decisionCounts acsOfPaper [1, 2, 3] 9 false) "the decision counts" "never acted on"}; an AC of another paper: {yesNo (decisionCounts acsOfPaper [1, 2, 3] 3 false) "the decision counts" "never acted on"}" },
     { id := "X10", text := "An author is the sole nominee of 4 papers and misses every review", deps := [.q11],
       outcome := fun _ r =>
         let ss := (List.range 4).map fun i => ({ paper := 10 + i, owed := 1, done := 0 } : Share)
@@ -160,9 +182,13 @@ def cards : List Card :=
         let (e, n) := engagement p [{ reviewer := 5, sentBy := some 1, replied := true, disp := some .explained }] [] 5
         s!"engaged {e}, not engaged {n}" },
     { id := "C3", text := "A request gets no reply; a reminder; the grace period passes", deps := [],
-      outcome := fun _ _ =>
+      venueDeps := ["acc-grace-h"],
+      outcome := fun _ r =>
         let q : Request := { reviewer := 5, sentBy := some 1, remindedAt := some 50 }
-        s!"no-reply may be recorded at hour 90: {mayDispose q .noReply 90}; at hour 97: {mayDispose q .noReply 97}" },
+        let g := r.venue.accGraceH
+        let end_ := q.due + g   -- the last hour inside the grace period
+        let before := end_ - 6
+        s!"no-reply may be recorded at hour {before}: {mayDispose g q .noReply before}; at hour {end_ + 1}: {mayDispose g q .noReply (end_ + 1)}" },
     { id := "C4", text := "The AC dismisses a heuristic suggestion", deps := [],
       outcome := fun p _ =>
         let (e, n) := engagement p [] [{ reviewer := 5, dismissed := true }] 5
@@ -201,6 +227,7 @@ structure Scale where
 structure Answers where
   given : List (QId × Nat) := []
   scale : Scale := {}
+  venue : Venue := {}
   errors : List String := []
 
 def Answers.get? (a : Answers) (q : QId) : Option Nat := (a.given.find? (·.1 == q)).map (·.2)
@@ -214,7 +241,16 @@ def parseAnswers (text : String) : Answers := Id.run do
     | [k, v] =>
       let k := k.trimAscii.toString
       let v := v.trimAscii.toString
-      if k.startsWith "scale." then
+      if k.startsWith "venue." then
+        match v.toNat? with
+        | none => a := { a with errors := a.errors ++ [s!"{k}: not a number: {v}"] }
+        | some n =>
+          match k with
+          | "venue.nominees-max" => a := { a with venue := { a.venue with nomineesMax := n } }
+          | "venue.pattern-min" => a := { a with venue := { a.venue with patternMin := n } }
+          | "venue.acc-grace-h" => a := { a with venue := { a.venue with accGraceH := n } }
+          | _ => a := { a with errors := a.errors ++ [s!"unknown venue parameter {k}"] }
+      else if k.startsWith "scale." then
         let n := v.toNat!
         let s := a.scale
         a := { a with scale := match k with
@@ -236,7 +272,7 @@ def parseAnswers (text : String) : Answers := Id.run do
 
 /-- The reading the model uses: answered questions as answered, open ones at their first reading. -/
 def Answers.base (a : Answers) : Reading :=
-  a.given.foldl (fun r (q, i) => r.set q i) {}
+  a.given.foldl (fun r (q, i) => r.set q i) { venue := a.venue }
 
 /-! ### Narrowing -/
 

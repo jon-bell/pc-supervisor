@@ -18,13 +18,34 @@ def readingsJson : Json :=
 def readingObj (xs : List (QId × Nat)) : Json :=
   Json.mkObj <| xs.map fun (q, i) => (q.code, Json.str ((q.labels.getD i ("?", "?")).1))
 
+/-- The values tried for each venue parameter: the default and others on either side. -/
+def venueValues : String → List Nat
+  | "nominees-max" => [1, 2, 3, 5] | "pattern-min" => [2, 3, 4] | "acc-grace-h" => [0, 24, 48, 72] | _ => []
+
+def setVenue (v : Venue) : String → Nat → Venue
+  | "nominees-max", n => { v with nomineesMax := n } | "pattern-min", n => { v with patternMin := n }
+  | "acc-grace-h", n => { v with accGraceH := n } | _, _ => v
+
+def venueJson (v : Venue) : Json :=
+  Json.mkObj [("nomineesMax", Json.num v.nomineesMax), ("patternMin", Json.num v.patternMin), ("accGraceH", Json.num v.accGraceH)]
+
+/-- A card's cases: every combination of the readings it depends on, and, for a card that declares
+    venue parameters, of the values tried for each (the card then says which venue it ran under). -/
 def cardsJson : Json :=
   Json.arr <| cards.toArray.map fun c =>
     let cases := combos (c.deps.map fun q => (q, List.range q.count))
+    let venues : List (Option Venue) :=
+      if c.venueDeps.isEmpty then [none]
+      else (c.venueDeps.foldl (fun (acc : List Venue) n => acc.flatMap fun v => (venueValues n).map (setVenue v n)) [{}]).map some
     Json.mkObj [("id", c.id), ("text", c.text), ("deps", Json.arr (c.deps.toArray.map (Json.str ·.code))),
-      ("cases", Json.arr <| cases.toArray.map fun xs =>
-        Json.mkObj [("reading", readingObj xs), ("outcome", c.outcome {} (withAll {} xs)),
-          ("underMutant", Json.arr (mutants.toArray.map fun m => Json.str (c.outcome m.params (withAll {} xs))))])]
+      ("venueDeps", Json.arr (c.venueDeps.toArray.map Json.str)),
+      ("cases", Json.arr <| (cases.flatMap fun xs => venues.map fun v => (xs, v)).toArray.map fun (xs, v) =>
+        let r : Reading := match v with | some v => { withAll {} xs with venue := v } | none => withAll {} xs
+        let venueField : List (String × Json) := match v with | some v => [("venue", venueJson v)] | none => []
+        let rest : List (String × Json) :=
+          [("outcome", Json.str (c.outcome {} r)),
+           ("underMutant", Json.arr (mutants.toArray.map fun m => Json.str (c.outcome m.params r)))]
+        Json.mkObj ([("reading", readingObj xs)] ++ venueField ++ rest))]
 
 def cellJson : Cell → Json
   | .y s => Json.mkObj [("kind", "granted"), ("scope", s)]
@@ -96,7 +117,7 @@ def accTracesJson (a : Answers) : Json :=
 
 def accTransitionsJson (a : Answers) : Json :=
   Json.mkObj [("subsystem", accSys.name), ("readings", Json.arr ((accReadings a).toArray.map fun (tag, r, _) =>
-    Json.mkObj [("reading", tag), ("q20", (QId.q20.labels.getD (r.get .q20) ("?", "?")).1), ("table", accTransitions r)]))]
+    Json.mkObj [("reading", tag), ("q20", (QId.q20.labels.getD (r.get .q20) ("?", "?")).1), ("graceH", Json.num r.venue.accGraceH), ("table", accTransitions r)]))]
 
 def mutantsJson : Json :=
   Json.arr <| mutants.toArray.map fun m => Json.str m.name

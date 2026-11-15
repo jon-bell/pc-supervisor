@@ -23,6 +23,12 @@ def randomReading (seed : Nat) : Json :=
   Json.mkObj <| QId.all.map fun q =>
     (q.code, Json.str ((q.labels.getD (hash2 seed (q.code.length * 31 + q.count + q.text.length) % q.count) ("?", "?")).1))
 
+/-- A random venue, for the queries whose answer depends on one. -/
+def randomVenue (seed : Nat) : Json :=
+  let h (k : Nat) := hash2 seed (7000 + k)
+  Json.mkObj [("nomineesMax", Json.num (1 + h 1 % 5 : Nat)), ("patternMin", Json.num (1 + h 2 % 5 : Nat)),
+    ("accGraceH", Json.num (h 3 % 100 : Nat))]
+
 def randomReferral (seed : Nat) : Json :=
   let h (k : Nat) := hash2 seed (1000 + k)
   let nOps := h 1 % 5
@@ -64,6 +70,11 @@ def randomFlow (s : Nat) : Json := Id.run do
     Json.arr #[Json.num a, Json.num b, Json.num lo, Json.num cap, Json.num ((h (800 + i) % costScale : Nat))]
   return Json.mkObj [("q", "minCostMaxFlow"), ("n", Json.num n), ("s", Json.num (0 : Nat)), ("t", Json.num ((n - 1 : Nat))), ("arcs", Json.arr arcs)]
 
+def withVenue (reading venue : Json) : Json :=
+  match reading with
+  | .obj kvs => Json.mkObj (kvs.toList ++ [("venue", venue)])
+  | j => j
+
 def randomQuery (rule : String) (s : Nat) : Json :=
   let h (k : Nat) := hash2 s (5000 + k)
   let mutant : Json := if hash2 s 7 % 4 == 0 then Json.num (hash2 s 8 % mutants.length : Nat) else Json.null
@@ -93,16 +104,28 @@ def randomQuery (rule : String) (s : Nat) : Json :=
   | "compliance" =>
     let nn := h 1 % 5
     let who (i : Nat) : Nat := h (10 + i) % 6
-    Json.mkObj [("q", "compliance"), ("reading", randomReading s),
+    Json.mkObj [("q", "compliance"), ("reading", withVenue (randomReading s) (randomVenue s)),
       ("paper", Json.mkObj [("paper", Json.num (1 : Nat)), ("nominees", Json.arr ((List.range nn).toArray.map fun i =>
         Json.mkObj [("who", Json.num (who i)), ("share", Json.num (h (30 + i) % 7 : Nat)), ("accepted", h (40 + i) % 4 != 0)]))]),
       ("registered", Json.arr ((List.range 6).toArray.filterMap fun i => if h (50 + i) % 4 != 0 then some (Json.num (i : Nat)) else none))]
   | "pattern" =>
     let n := h 1 % 7
-    Json.mkObj [("q", "pattern"), ("author", Json.num (1 : Nat)), ("tier", if h 2 % 4 == 0 then tierJ 3 else Json.str "senior"),
+    Json.mkObj [("q", "pattern"), ("venue", randomVenue s), ("author", Json.num (1 : Nat)), ("tier", if h 2 % 4 == 0 then tierJ 3 else Json.str "senior"),
       ("noms", Json.arr ((List.range n).toArray.map fun i =>
-        Json.mkObj [("who", Json.num (if h (10 + i) % 25 == 0 then 1 else 20 + i : Nat)),
+        -- the same junior is often nominated from several papers: every nomination counts
+        Json.mkObj [("who", Json.num (if h (10 + i) % 25 == 0 then 1 else 20 + h (60 + i) % 3 : Nat)),
           ("tier", if h (20 + i) % 8 == 0 then tierJ (30 + i) else Json.str "junior")]))]
+  | "mayDispose" =>
+    let reminded : Json := if h 1 % 4 == 0 then Json.null else Json.num (h 2 % 120 : Nat)
+    Json.mkObj [("q", "mayDispose"), ("reading", withVenue (randomReading s) (randomVenue s)),
+      ("request", Json.mkObj [("due", Json.num (h 3 % 100 : Nat)), ("remindedAt", reminded), ("replied", h 4 % 5 == 0)]),
+      ("disp", (pick dispKeys (h 5)).1), ("now", Json.num (h 6 % 300 : Nat))]
+  | "appointmentAuthority" =>
+    let nPapers := h 1 % 3
+    let pids (k : Nat) : Json := Json.arr ((List.range (h k % 3)).toArray.map fun i => Json.num (h (k + 1 + i) % 5 : Nat))
+    Json.mkObj [("q", "appointmentAuthority"),
+      ("nominating", Json.arr ((List.range nPapers).toArray.map fun i => pids (10 + 5 * i))),
+      ("acs", pids 40), ("decider", Json.num (h 2 % 5 : Nat)), ("isChair", h 3 % 4 == 0)]
   | "overCap" =>
     Json.mkObj [("q", "overCap"), ("reading", randomReading s), ("papers", Json.num (h 1 % 20 : Nat))]
   | "earlyReject" =>
