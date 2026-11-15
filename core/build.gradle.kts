@@ -188,6 +188,8 @@ val claimsInventory by tasks.registering {
             "early-reject" to "the early-reject screen: candidates, bump status, AC objections, the mail search, the decision artifact",
             "accountability" to
                 "the reviewing and accountability screen: progress by tier, the coaching queue, suggestions, requests, the engagement record, cases (PLAN M16)",
+            "discussion" to
+                "the discussion dashboard: the triage list with reason chips and filters, the paper drawer, the AC table, reviewer outliers by tier, the person page, the overview with the burndown (PLAN M18)",
             "writeback" to "the Writeback review screen: HotCRP's dry-run diff and the confirmation (PLAN M5)",
             "report" to "the sync report: Writeback mismatches and traces that don't parse or were forged (PLAN M5)",
         ).forEach { (k, v) -> add("view:$k", "view", v) }

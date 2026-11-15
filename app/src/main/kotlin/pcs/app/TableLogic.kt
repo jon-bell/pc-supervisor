@@ -13,6 +13,8 @@ data class Col<T>(
     val sort: ((T) -> Comparable<*>?)? = null,
     val visibleByDefault: Boolean = true,
     val masked: Boolean = false,
+    /** Draws the cell (a sparkline) behind its text, which stays in the semantics tree for the view reader. */
+    val chart: (@androidx.compose.runtime.Composable (T) -> Unit)? = null,
 )
 
 /** The sort a header click sets: none, then ascending, then descending, then ascending again. */

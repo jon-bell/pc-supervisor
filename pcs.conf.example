@@ -83,6 +83,7 @@ PCS_REVIEWS_REQUIRED=3
 # PCS_THRESH_UNRESOLVED_DAYS=5
 # PCS_THRESH_PING_DAYS=3
 # PCS_THRESH_MIN_WORDS=150
+# PCS_THRESH_COACH_PAPERS=2   (negative rating flags on this many papers make a coaching case)
 # PCS_THRESH_DEADLINE_DAYS=3
 # PCS_RULE_SPLIT_WEIGHT=3   (etc. for every rule NAME in docs/spec.md §5c)
 

@@ -142,6 +142,17 @@ fun <T> LazyTable(
                             val m = Modifier.width(c.widthDp.dp).padding(horizontal = 8.dp)
                             if (c.masked) {
                                 MaskedText(c.text(r), TableTags.cell(k, c.id), m, widthDp = c.widthDp - 16)
+                            } else if (c.chart != null) {
+                                Box(m) {
+                                    c.chart.invoke(r)
+                                    Text(
+                                        c.text(r),
+                                        Modifier.testTag(TableTags.cell(k, c.id)),
+                                        color = Color.Transparent,
+                                        maxLines = 1,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                }
                             } else {
                                 Text(c.text(r), m.testTag(TableTags.cell(k, c.id)), maxLines = 1, style = MaterialTheme.typography.bodyMedium)
                             }
