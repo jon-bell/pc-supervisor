@@ -20,6 +20,7 @@ class WordingTest {
     private val forbidden = Regex("disengaged|absent|lazy", RegexOption.IGNORE_CASE)
     private val literal = Regex("\"(?:[^\"\\\\\\n]|\\\\.)*\"")
     private val identifier = Regex("\"[A-Z][A-Z0-9_]*\"")
+    private val comments = Regex("(?s)/\\*.*?\\*/|(?m)^\\s*//.*$")
 
     private fun roots(): List<Path> {
         val repo = Path.of(System.getProperty("pcs.repoRoot"))
@@ -28,7 +29,7 @@ class WordingTest {
 
     /** The offending literals in [source], as "text". */
     internal fun offenders(source: String): List<String> =
-        literal.findAll(source).map { it.value }.filter { !identifier.matches(it) && forbidden.containsMatchIn(it) }.toList()
+        literal.findAll(comments.replace(source, "")).map { it.value }.filter { !identifier.matches(it) && forbidden.containsMatchIn(it) }.toList()
 
     @Test
     @Covers("view:discussion")
@@ -51,6 +52,7 @@ class WordingTest {
         assertEquals(listOf("\"disengaged\""), offenders("\"disengaged\""))
         assertEquals(emptyList<String>(), offenders("Rule(\"AC_ABSENT\", ::acNoComment)"))
         assertEquals(emptyList<String>(), offenders("\"no comments yet\""))
+        assertEquals(emptyList<String>(), offenders("/** never who is \"disengaged\" */\n// nor \"lazy\"\nval a = 1"), "comments are not UI strings")
     }
 
     @Test
