@@ -173,6 +173,48 @@ jobs:
         if: always()
         run: docker compose -f hotcrp/compose.yaml down -v --remove-orphans || true
 
+  # T7 and `prop:C3` (PLAN M20): the process report renders from the `shadow` scenario (150 papers) on a harness of its own, and the
+  # pseudonymous export is scanned for every email, name and title of the mirror. The golden harness of the `ci` job can't hold `shadow`.
+  report:
+    runs-on: ripley-cloud
+    timeout-minutes: 30
+    env:
+      COMPOSE_PROJECT_NAME: pcs-report-${{ github.run_id }}-${{ github.run_attempt }}
+      HOTCRP_PORT: "18098"
+      PCS_ENV_OUT: ${{ github.workspace }}/.env.report
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install docker compose plugin
+        run: |
+          if ! docker compose version >/dev/null 2>&1; then
+            mkdir -p ~/.docker/cli-plugins
+            curl -fsSL -o ~/.docker/cli-plugins/docker-compose \
+              https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-x86_64
+            chmod +x ~/.docker/cli-plugins/docker-compose
+          fi
+          docker compose version
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Start the harness
+        run: scripts/hotcrp-up.sh
+      - name: Seed the shadow scenario
+        run: set -a && . ./.env.report && set +a && ./gradlew :seed:run --args=shadow
+      - name: Render the report and scan the export
+        run: set -a && . ./.env.report && set +a && ./gradlew :runner:reportTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: process-report-shadow
+          path: |
+            build/report/shadow/process-report.md
+            build/report/shadow/process-report.html
+      - name: Tear down
+        if: always()
+        run: docker compose -f hotcrp/compose.yaml down -v --remove-orphans || true
+
   # T9 (PLAN M19), nightly only: the `scale` scenario (4,000 papers) on a harness of its own with raised API limits (the golden harness of
   # the `ci` job keeps HotCRP's defaults). Seeding takes about 35 minutes, then ten full syncs, ten re-syncs, ten solves and ten
   # table runs. The job summary carries the budgets, the 95th percentiles with their intervals, and the store's size; the measurement

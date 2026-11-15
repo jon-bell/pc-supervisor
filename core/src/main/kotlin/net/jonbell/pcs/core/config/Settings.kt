@@ -79,6 +79,7 @@ public data class Settings(
                 "PCS_SYNC_CONCURRENCY",
                 "PCS_HISTORY_RPS",
                 "PCS_PSEUDONYM_KEY",
+                "PCS_PSEUDONYM_KEY_FILE",
                 "PCS_CYCLE_MAX_K",
                 "PCS_EARLYREJECT_WINDOW_H",
                 "PCS_SCORE_MAP",
