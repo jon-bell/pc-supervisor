@@ -92,6 +92,23 @@ PCS_REVIEWS_REQUIRED=3
 # repo and out of any synced folder. The SQLCipher key lives in the OS keychain.
 PCS_DB_PATH=
 
+# --- Assignment (spec §10.5) ----------------------------------------------------
+# Reciprocal rings of up to this many papers are repaired (default 3).
+# PCS_CYCLE_MAX_K=3
+# Repair repeats until no such ring remains; this is the safety cap on the rounds (default 10).
+# What is left after the cap is reported, never silent (A3).
+# PCS_CYCLE_REPAIR_MAX_ROUNDS=10
+# Conflict-engineering monitor (M3). A reviewer is "qualified" for a paper at this affinity or above (default 50) ...
+# PCS_M3_AFFINITY_MIN=50
+# ... and an author is flagged when they excluded at least this many qualified reviewers (default 3),
+# PCS_M3_MIN_EXCLUDED=3
+# at least this share of the qualified (default 0.5),
+# PCS_M3_MIN_SHARE=0.5
+# and more than the mean plus this many standard deviations across authors (default 2).
+# PCS_M3_SIGMA=2
+# PCS_SOLVER_TOPK=25
+# PCS_SOLVER_HARD=0
+
 # --- Load bands (reviews per person, per tier) ----------------------------------
 # PCS_LOAD_SENIOR_MAX=15
 # PCS_LOAD_JUNIOR_MAX=8

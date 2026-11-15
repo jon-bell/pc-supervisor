@@ -335,7 +335,7 @@ structure Outcome where
   earlyRejects : Nat := 0
   deriving Repr, Inhabited
 
-def maxRepairRounds : Nat := 3
+def maxRepairRounds : Nat := 10
 
 /-- Solve, repair reciprocal 2-cycles (up to `maxRepairRounds` rounds), and assess the plan. -/
 def runConf (r : Reading) (c : Conf) : Outcome := Id.run do

@@ -91,8 +91,12 @@ public data class Settings(
                 "PCS_SOLVER_TOPK",
                 "PCS_SOLVER_HARD",
                 "PCS_SOLVER_SLOT_BONUS",
-                "PCS_REPAIR_ROUNDS",
+                "PCS_CYCLE_REPAIR_MAX_ROUNDS",
                 "PCS_ASSIGN_ROUND",
+                "PCS_M3_AFFINITY_MIN",
+                "PCS_M3_MIN_EXCLUDED",
+                "PCS_M3_MIN_SHARE",
+                "PCS_M3_SIGMA",
                 "PCS_CONFERENCES",
             )
         public val PATTERNS: List<Regex> =
