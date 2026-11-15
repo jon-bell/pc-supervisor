@@ -53,6 +53,9 @@ object AssignmentTags {
     const val AUDIT = "asg-audit"
     const val SEATS = "asg-seats"
     const val SEATS_NOTE = "asg-seats-note"
+    const val TARGET = "asg-target"
+    const val TARGET_DOWN = "asg-target-down"
+    const val TARGET_UP = "asg-target-up"
 
     /** The button that chooses a mode of `PCS_JUNIOR_SEATS` for the plan shown. */
     fun seatsButton(key: String) = "asg-seats-$key"
@@ -97,7 +100,8 @@ internal fun assignmentSummary(r: SolveReport): String =
 fun AssignmentView(session: Session, opener: UrlOpener, version: Int, onDrafted: (Long) -> Unit) {
     // the chair running the assignment chooses who takes the optional seats under Q13's "zero to two juniors"; the setting is the starting point
     var seats by remember { mutableStateOf(session.settings.venue.juniorSeats) }
-    val state by produceRows(version, seats) { listOf(session.assignment(seats)) }
+    var target by remember { mutableStateOf(session.settings.venue.reviewerTarget) }
+    val state by produceRows(version, seats to target) { listOf(session.assignment(seats, target)) }
     Column(Modifier.fillMaxSize().testTag(AssignmentTags.SCREEN), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Junior seats (zero to two juniors):", Modifier.testTag(AssignmentTags.SEATS), style = MaterialTheme.typography.labelLarge)
@@ -108,9 +112,13 @@ fun AssignmentView(session: Session, opener: UrlOpener, version: Int, onDrafted:
                     OutlinedButton({ seats = m }, Modifier.testTag(AssignmentTags.seatsButton(m.key))) { Text(m.key) }
                 }
             }
+            Text("Reviewer target:", style = MaterialTheme.typography.labelLarge)
+            OutlinedButton({ if (target > 1) target-- }, Modifier.testTag(AssignmentTags.TARGET_DOWN)) { Text("-") }
+            Text(target.toString(), Modifier.testTag(AssignmentTags.TARGET), style = MaterialTheme.typography.labelLarge)
+            OutlinedButton({ target++ }, Modifier.testTag(AssignmentTags.TARGET_UP)) { Text("+") }
         }
         Text(
-            "Selected: ${seats.key}. ${seatsNote(seats)}",
+            "Selected: ${seats.key}. ${seatsNote(seats, target)}",
             Modifier.testTag(AssignmentTags.SEATS_NOTE),
             style = MaterialTheme.typography.bodySmall,
         )
@@ -118,21 +126,21 @@ fun AssignmentView(session: Session, opener: UrlOpener, version: Int, onDrafted:
             null -> Text("Computing…", style = MaterialTheme.typography.bodyMedium)
             is AssignmentState.Blocked ->
                 Text(s.reasons.joinToString("\n") { "Blocked: $it" }, Modifier.testTag(AssignmentTags.BLOCKED), color = MaterialTheme.colorScheme.error)
-            is AssignmentState.Ready -> Ready(session, opener, s.report, seats, onDrafted)
+            is AssignmentState.Ready -> Ready(session, opener, s.report, seats, target, onDrafted)
         }
     }
 }
 
-internal fun seatsNote(m: JuniorSeats): String =
+internal fun seatsNote(m: JuniorSeats, target: Int = 3): String =
     when (m) {
         JuniorSeats.FILL -> "Juniors take the optional seats whenever load and what a nominee owes leave room, up to two a paper."
-        JuniorSeats.WHEN_SHORT -> "Seniors first; a junior sits only to bring a paper to three reviewers (two seniors and one more)."
+        JuniorSeats.WHEN_SHORT -> "Seniors first; a junior sits only to bring a paper to $target reviewers, two juniors at most."
         JuniorSeats.RECIPROCAL_ONLY -> "The optional seats go to reciprocal nominees working off what they owe; PC juniors sit only as in when-short."
     } + " It matters only under Q13's zero to two juniors."
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun Ready(session: Session, opener: UrlOpener, r: SolveReport, seats: JuniorSeats, onDrafted: (Long) -> Unit) {
+private fun Ready(session: Session, opener: UrlOpener, r: SolveReport, seats: JuniorSeats, target: Int, onDrafted: (Long) -> Unit) {
     val clip = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var error by remember { mutableStateOf<String?>(null) }
@@ -210,7 +218,7 @@ private fun Ready(session: Session, opener: UrlOpener, r: SolveReport, seats: Ju
                 OutlinedButton({
                     scope.launch {
                         try {
-                            val id = withContext(Dispatchers.IO) { session.draftAssignment(seats) }
+                            val id = withContext(Dispatchers.IO) { session.draftAssignment(seats, target) }
                             error = null
                             onDrafted(id)
                         } catch (e: Exception) {

@@ -120,8 +120,8 @@ class CardsTest {
                     val cap = Pc.thirdCap(Q13.ZERO_TO_TWO_JUNIORS)
 
                     fun sit(seniors: Int): String {
-                        val nom = minOf(Pc.juniorRoom(m, true, cap, seniors, 0), 1)
-                        val pc = minOf(Pc.juniorRoom(m, false, cap, seniors, nom), 1)
+                        val nom = minOf(Pc.juniorRoom(m, venue.reviewerTarget, true, cap, seniors, 0), 1)
+                        val pc = minOf(Pc.juniorRoom(m, venue.reviewerTarget, false, cap, seniors, nom), 1)
                         return "${nom + pc} junior seat(s) ($nom reciprocal, $pc PC)"
                     }
                     "two seniors: ${sit(2)}; one senior: ${sit(1)}"

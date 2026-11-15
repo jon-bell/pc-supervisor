@@ -464,9 +464,9 @@ rule composition (p) -> Requirement
   count toward the two. The chair running the assignment chooses who takes them
   (a venue parameter, `Venue.juniorSeats`): `fill` (the default), juniors whenever load
   and owes(u) leave room; `when-short`, seniors first, and a junior only to bring a
-  paper to three reviewers, two seniors and one more (so with both senior seats filled,
-  at most one junior); `reciprocal-only`, reciprocal nominees take the optional seats
-  and PC juniors sit only as in `when-short`. Who may fill which slot is Q14:
+  paper to the venue's reviewer target (`Venue.reviewerTarget`, default three: two seniors
+  and one more, so by default with both senior seats filled at most one junior; never more than two); `reciprocal-only`, reciprocal nominees take the optional seats
+  and PC juniors sit only as in `when-short` (the same target). Who may fill which slot is Q14:
   under "tier alone decides", a nominee fills the slot of their tier; under
   "nominees fill only the non-senior slot", a senior slot needs a senior who is
   not there as a nominee, and the nominee's tier is recorded but not used here

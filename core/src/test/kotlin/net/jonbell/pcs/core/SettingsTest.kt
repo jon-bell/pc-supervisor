@@ -59,12 +59,16 @@ class SettingsTest {
         assertEquals(48, d.accGraceH)
         assertEquals(72, d.remedyWindowH)
         assertEquals(net.jonbell.pcs.core.rules.JuniorSeats.FILL, d.juniorSeats)
+        assertEquals(3, d.reviewerTarget)
         val v =
             Settings.load(
                 ok + ("PCS_NOMINEES_MAX" to "5") + ("PCS_PATTERN_MIN" to "4") + ("PCS_ACC_GRACE_H" to "24") + ("PCS_REMEDY_WINDOW_H" to "120") +
-                    ("PCS_JUNIOR_SEATS" to "reciprocal-only"),
+                    ("PCS_JUNIOR_SEATS" to "reciprocal-only") + ("PCS_REVIEWER_TARGET" to "4"),
             ).getOrThrow().venue
-        assertEquals(net.jonbell.pcs.core.rules.Venue(5, 4, 24, 120, net.jonbell.pcs.core.rules.JuniorSeats.RECIPROCAL_ONLY), v)
+        assertEquals(net.jonbell.pcs.core.rules.Venue(5, 4, 24, 120, net.jonbell.pcs.core.rules.JuniorSeats.RECIPROCAL_ONLY, 4), v)
+        assertTrue(
+            (Settings.load(ok + ("PCS_REVIEWER_TARGET" to "0")).exceptionOrNull() as SettingsException).problems.single().startsWith("PCS_REVIEWER_TARGET"),
+        )
         for (m in net.jonbell.pcs.core.rules.JuniorSeats.entries) {
             assertEquals(m, Settings.load(ok + ("PCS_JUNIOR_SEATS" to m.key)).getOrThrow().venue.juniorSeats)
         }

@@ -173,6 +173,7 @@ fun CardScreen(card: Card, readings: Readings, modifier: Modifier = Modifier, ve
                     "pattern-min" -> venue.patternMin.toString()
                     "remedy-window-h" -> "${venue.remedyWindowH} h"
                     "junior-seats" -> venue.juniorSeats.key
+                    "reviewer-target" -> venue.reviewerTarget.toString()
                     else -> "${venue.accGraceH} h"
                 }
             Text("Venue $n: $v", Modifier.testTag("card-venue-$n"), style = MaterialTheme.typography.bodyMedium)

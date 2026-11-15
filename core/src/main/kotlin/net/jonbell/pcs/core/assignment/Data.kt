@@ -14,6 +14,7 @@ import net.jonbell.pcs.core.rules.Faults
 import net.jonbell.pcs.core.rules.JuniorSeats
 import net.jonbell.pcs.core.rules.Member
 import net.jonbell.pcs.core.rules.Tier
+import net.jonbell.pcs.core.rules.Venue
 import net.jonbell.pcs.core.store.Store
 import net.jonbell.pcs.core.store.query
 
@@ -36,6 +37,8 @@ public data class AssignmentSettings(
     val monitor: MonitorConfig = MonitorConfig(),
     /** Who takes the optional seats under Q13's "zero to two juniors" (`PCS_JUNIOR_SEATS`; the chair may choose another when running the plan). */
     val juniorSeats: JuniorSeats = JuniorSeats.FILL,
+    /** `PCS_REVIEWER_TARGET`: reviewers a paper should have, the target `when-short` and `reciprocal-only` fill toward. */
+    val reviewerTarget: Int = Venue.DEFAULT_REVIEWER_TARGET,
 ) {
     public companion object {
         public fun of(s: Settings): AssignmentSettings =
@@ -45,6 +48,7 @@ public data class AssignmentSettings(
                 topK = s.raw["PCS_SOLVER_TOPK"]?.toIntOrNull()?.takeIf { it >= 1 } ?: 25,
                 hard = s.raw["PCS_SOLVER_HARD"] == "1",
                 juniorSeats = s.venue.juniorSeats,
+                reviewerTarget = s.venue.reviewerTarget,
                 repairRounds = s.raw["PCS_CYCLE_REPAIR_MAX_ROUNDS"]?.toIntOrNull()?.takeIf { it >= 0 } ?: DEFAULT_REPAIR_ROUNDS,
                 monitor =
                     MonitorConfig(
@@ -206,6 +210,7 @@ public class AssignmentData(private val store: Store, private val imports: Impor
                 topK = s.topK,
                 hard = s.hard,
                 juniorSeats = s.juniorSeats,
+                reviewerTarget = s.reviewerTarget,
             )
         return AssignmentInput.Ready(
             AssignmentBuild(
