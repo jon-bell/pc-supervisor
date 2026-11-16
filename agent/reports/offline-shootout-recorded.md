@@ -26,7 +26,7 @@ Coverage (an engine with no recording for a request leaves that paper out of its
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `claude-code-haiku-replay` | 1.00 [0.34, 1.00] (2) | 0.00 [0.00, 0.79] (1) | 1.00 [0.34, 1.00] | 1.00 [1.00, 1.00] | 1.00 [0.57, 1.00] | 0.00 [0.00, 0.43] / 0.00 [0.00, 0.43] / 0.00 [0.00, 0.43] / 0.00 [0.00, 0.43] | 1.00 [0.21, 1.00] (1), 1.00 [0.21, 1.00], 0/1 | $0.0008 [$0.0007, $0.0009] | $3.29 [$2.67, $3.75] | 2.6 h | yes | yes |
 | `scripted-strong` | 1.00 [0.34, 1.00] (2) | 0.00 [0.00, 0.79] (1) | 1.00 [0.34, 1.00] | 1.00 [1.00, 1.00] | 1.00 [0.61, 1.00] | 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] | 1.00 [0.44, 1.00] (3), 1.00 [0.44, 1.00], 0/2 | $0.0040 [$0.0037, $0.0042] | $15.86 [$14.87, $16.86] | 1.3 h | no | yes |
-| `scripted-noisy` | 0.50 [0.09, 0.91] (2) | 0.00 [0.00, 0.79] (1) | 1.00 [0.21, 1.00] | 0.75 [0.50, 1.00] | 1.00 [0.51, 1.00] | 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] | 0.00 [0.00, 0.56] (3), 0.00 [0.00, 0.56], 3/3 | $0.0013 [$0.0012, $0.0014] | $5.10 [$4.80, $5.42] | 0.3 h | no | no: recall below 0.8; stability below 0.9 |
+| `scripted-noisy` | 0.50 [0.09, 0.91] (2) | 0.00 [0.00, 0.79] (1) | 1.00 [0.21, 1.00] | 0.75 [0.50, 1.00] | 1.00 [0.51, 1.00] | 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] | 0.00 [0.00, 0.56] (3), 0.00 [0.00, 0.56], 3/3 | $0.0013 [$0.0012, $0.0014] | $5.10 [$4.80, $5.42] | 0.3 h | no | no: recall below 0.7; stability below 0.9 |
 | `scripted-selfhosted` | 1.00 [0.34, 1.00] (2) | 0.00 [0.00, 0.79] (1) | 1.00 [0.34, 1.00] | 1.00 [1.00, 1.00] | 0.86 [0.49, 0.97] | 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] / 0.00 [0.00, 0.30] | 0.33 [0.06, 0.79] (3), 0.33 [0.06, 0.79], 2/3 | $0.0026 [$0.0026, $0.0026] | $10.36 [$10.21, $10.53] | 5.2 h | no | no: anchor validity below 0.95; stability below 0.9; recall lower bound 0.34 under the threshold |
 
 Frontier, cheapest to dearest (quality = balanced accuracy; `*` is on the frontier):
@@ -68,10 +68,10 @@ Quality differences outside the intervals: none between neighbours on the cost a
 
 | Engine | Recall | False-flag rate | Precision | Balanced accuracy | Anchors verify | Refusal / schema / truncated / error | Stability: agree (papers), pass^k, flaky flags | Cost per paper | At 4000 papers | Wall time | On frontier | Meets thresholds |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `claude-code-haiku-replay` | 1.00 [0.21, 1.00] (1) | 0.00 [0.00, 0.79] (1) | 1.00 [0.21, 1.00] | 1.00 [1.00, 1.00] | 1.00 [0.21, 1.00] | 0.00 [0.00, 0.66] / 0.00 [0.00, 0.66] / 0.00 [0.00, 0.66] / 0.00 [0.00, 0.66] | not measured | $0.0017 [$0.0016, $0.0017] | $6.70 [$6.46, $6.94] | 7.3 h | yes | yes |
+| `claude-code-haiku-replay` | 1.00 [0.21, 1.00] (1) | 0.00 [0.00, 0.79] (1) | 1.00 [0.21, 1.00] | 1.00 [1.00, 1.00] | 1.00 [0.21, 1.00] | 0.00 [0.00, 0.66] / 0.00 [0.00, 0.66] / 0.00 [0.00, 0.66] / 0.00 [0.00, 0.66] | not measured | $0.0017 [$0.0017, $0.0018] | $6.87 [$6.61, $7.14] | 7.7 h | yes | yes |
 | `scripted-strong` | 1.00 [0.21, 1.00] (1) | 0.00 [0.00, 0.79] (1) | 1.00 [0.21, 1.00] | 1.00 [1.00, 1.00] | 1.00 [0.44, 1.00] | 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] | 1.00 [0.34, 1.00] (2), 1.00 [0.34, 1.00], 0/1 | $0.0106 [$0.0106, $0.0107] | $42.56 [$42.43, $42.68] | 1.2 h | no | yes |
 | `scripted-noisy` | 1.00 [0.21, 1.00] (1) | 0.00 [0.00, 0.79] (1) | 1.00 [0.21, 1.00] | 1.00 [1.00, 1.00] | 1.00 [0.44, 1.00] | 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] | 1.00 [0.34, 1.00] (2), 1.00 [0.34, 1.00], 0/1 | $0.0035 [$0.0035, $0.0036] | $14.19 [$14.14, $14.23] | 0.3 h | no | yes |
-| `scripted-selfhosted` | 0.00 [0.00, 0.79] (1) | 0.00 [0.00, 0.79] (1) | n/a | 0.50 [0.50, 0.50] | n/a | 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] | 1.00 [0.34, 1.00] (2), 0.50 [0.09, 0.91], 0/0 | $0.0027 [$0.0026, $0.0027] | $10.71 [$10.45, $10.90] | 5.4 h | no | no: recall below 0.8 |
+| `scripted-selfhosted` | 0.00 [0.00, 0.79] (1) | 0.00 [0.00, 0.79] (1) | n/a | 0.50 [0.50, 0.50] | n/a | 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] / 0.00 [0.00, 0.39] | 1.00 [0.34, 1.00] (2), 0.50 [0.09, 0.91], 0/0 | $0.0027 [$0.0026, $0.0027] | $10.71 [$10.45, $10.90] | 5.4 h | no | no: recall below 0.7 |
 
 Frontier, cheapest to dearest (quality = balanced accuracy; `*` is on the frontier):
 
@@ -112,7 +112,7 @@ Quality differences outside the intervals: scripted-strong and scripted-selfhost
 
 | Engine | Projected cost |
 |---|---|
-| `claude-code-haiku-replay` | $15.02 [$13.22, $16.69] |
+| `claude-code-haiku-replay` | $15.19 [$13.37, $16.89] |
 | `scripted-strong` | $83.36 [$81.26, $85.46] |
 | `scripted-noisy` | $27.58 [$26.91, $28.29] |
 | `scripted-selfhosted` | $42.17 [$41.40, $42.91] |
@@ -134,7 +134,7 @@ Balanced accuracy with our preprocessing minus the same engine given the PDF who
 
 ## Injection
 
-Detection, vector `visible-addressed` (the classifier on a span the pattern list found): planted instructions found, and benign quotations flagged.
+Classifier on its labelled papers (the planted override and the benign quotations, one wording, which the pattern list always finds; the Detection section below varies the wording, the place and the vector):
 
 | Engine | Found | Benign controls flagged |
 |---|---|---|
@@ -143,9 +143,22 @@ Detection, vector `visible-addressed` (the classifier on a span the pattern list
 | `scripted-noisy` | 1.00 [0.21, 1.00] (1) | 0.00 [0.00, 0.79] (1) |
 | `scripted-selfhosted` | 1.00 [0.21, 1.00] (1) | 1.00 [0.21, 1.00] (1) |
 
-The hidden-text and channel vectors are found by the deterministic checks, which do not depend on the engine; their per-vector scores are in `mutation-score.md` (`:agent:screeningScore`).
+The deterministic checks' per-vector scores over every hidden-text and channel operator are in `mutation-score.md` (`:agent:screeningScore`).
 
 Resistance: no injected/clean pairs were served on this corpus.
+
+`summary` has no labels; its qualification rule is anchor validity (the share of statements the harness could anchor) and the resistance rows above, with no human rating.
+
+| Engine | Statements | Anchor validity |
+|---|---|---|
+| `claude-code-haiku-replay` | 12 | 1.00 [0.76, 1.00] |
+| `scripted-strong` | 24 | 1.00 [0.86, 1.00] |
+| `scripted-noisy` | 28 | 1.00 [0.88, 1.00] |
+| `scripted-selfhosted` | 18 | 1.00 [0.82, 1.00] |
+
+## Detection
+
+No detection papers were served on this corpus.
 
 ## Cross-engine agreement
 
