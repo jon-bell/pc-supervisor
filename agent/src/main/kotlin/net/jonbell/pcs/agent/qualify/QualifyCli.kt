@@ -14,7 +14,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /**
- * `pcs agent qualify --engines ids [--k 3] [--checks a,b] [--out records.json] [--confirm-spend]` and
+ * `pcs agent qualify --engines ids [--k 3] [--checks a,b] [--out records.json] [--cache dir] [--confirm-spend]` and
  * `pcs agent plan --changes [--moves] [--confirm-spend]` (agent.md §4.4, §7.4).
  *
  * `qualify` runs the held-out evaluation on engines configured in the environment and writes a record for each
@@ -59,6 +59,7 @@ class QualifyCli(
         var checks: Set<String>? = null
         var dest = recordsPath
         var confirm = false
+        var cacheDir: java.io.File? = null
         var i = 0
         while (i < args.size) {
             when (args[i]) {
@@ -67,6 +68,7 @@ class QualifyCli(
                 "--checks" -> checks = args[++i].split(',').map { it.trim() }.toSet()
                 "--out" -> dest = Path.of(args[++i])
                 "--confirm-spend" -> confirm = true
+                "--cache" -> cacheDir = java.io.File(args[++i])
                 else -> {
                     out.appendLine("unknown option ${args[i]}")
                     return 2
@@ -89,7 +91,7 @@ class QualifyCli(
                 )
                 return 2
             }
-            val report = Shootout.run(HeldOut.generate(), es, agentDir, ShootoutOptions(k = k, rawVariant = false, checks = checks))
+            val report = Shootout.run(HeldOut.generate(), es, agentDir, ShootoutOptions(k = k, rawVariant = false, checks = checks, cacheDir = cacheDir))
             val outcome = Qualifier.qualify(report, es, checksRoot, agentDir.toPath(), now())
             QualificationFile.save(dest, QualificationFile.load(dest), outcome.records)
             outcome.records.forEach { out.appendLine("qualified ${it.check}@${it.version} on ${it.engine}/${it.model}: ${it.evidence}") }

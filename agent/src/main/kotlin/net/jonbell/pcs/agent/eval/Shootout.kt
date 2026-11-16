@@ -61,6 +61,8 @@ class ShootoutOptions(
     val rawVariant: Boolean = true,
     val checks: Set<String>? = null,
     val parallelism: Int = 4,
+    /** Live runs: keep each engine's OK and refused results under `<cacheDir>/<engine id>`, so a run cut short (a quota window, a crash) resumes without re-calling. Results are synthetic or public only (the file store refuses confidential). */
+    val cacheDir: File? = null,
 )
 
 @Serializable
@@ -225,7 +227,8 @@ object Shootout {
                         }
                     for (run in 1..opt.k) {
                         val engine = e.make(run, pdfText)
-                        val dispatcher = Dispatcher(listOf(Registered(e.config, engine)))
+                        val store = opt.cacheDir?.let { net.jonbell.pcs.agent.engines.FileResultStore(File(it, e.id).toPath()) }
+                        val dispatcher = Dispatcher(listOf(Registered(e.config, engine)), store)
                         val tag = (if (run == 1) "" else "r$run")
                         val results =
                             its.map { item ->

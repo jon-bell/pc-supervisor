@@ -76,7 +76,7 @@ object OfflineEngines {
 }
 
 /**
- * `pcs agent shootout --corpus held-out|recorded [--offline | --engines id,id] [--checks a,b] [--k 3] [--out dir] [--no-raw] [--confirm-spend]`
+ * `pcs agent shootout --corpus held-out|recorded [--offline | --engines id,id] [--checks a,b] [--k 3] [--out dir] [--no-raw] [--cache dir] [--confirm-spend]`
  * (agent.md 7.3) and `pcs agent corpus validate|pin|standins` for the `public` manifest.
  *
  * `--offline` runs the replay of the recorded results and three scripted stand-ins: no network, no key.
@@ -100,6 +100,7 @@ class ShootoutCli(
         var outDir = File(agentDir, "build/reports/shootout")
         var raw = true
         var confirm = false
+        var cacheDir: File? = null
         var i = 0
         while (i < args.size) {
             when (args[i]) {
@@ -111,6 +112,7 @@ class ShootoutCli(
                 "--out" -> outDir = File(args[++i])
                 "--no-raw" -> raw = false
                 "--confirm-spend" -> confirm = true
+                "--cache" -> cacheDir = File(args[++i])
                 else -> {
                     out.appendLine("unknown option ${args[i]}")
                     return 2
@@ -174,7 +176,13 @@ class ShootoutCli(
             out.appendLine("# Re-run with --confirm-spend to make them. Nothing was called.")
             return 2
         }
-        val report = Shootout.run(corpus, engines, agentDir, ShootoutOptions(k = k, scalePapers = scale, rawVariant = raw, checks = checks))
+        val report =
+            Shootout.run(
+                corpus,
+                engines,
+                agentDir,
+                ShootoutOptions(k = k, scalePapers = scale, rawVariant = raw, checks = checks, cacheDir = cacheDir),
+            )
         Shootout.write(report, outDir)
         out.append(Shootout.markdown(report))
         out.appendLine("\n# wrote ${File(outDir, "shootout-${report.corpus}.md")} and .json")
