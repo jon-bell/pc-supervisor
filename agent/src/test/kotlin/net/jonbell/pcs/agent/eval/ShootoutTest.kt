@@ -391,4 +391,27 @@ class ShootoutTest {
         val out4 = StringBuilder()
         assertEquals(2, ShootoutCli(env, out4, agentDir).shootout(listOf("--corpus", "public", "--offline")))
     }
+
+    @Test
+    fun `a live run with a cache resumes from stored results without calling again`(
+        @TempDir dir: Path,
+    ) {
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        val base = standIn(perfect)
+        val counting =
+            ShootoutEngine(base.config, { run, text ->
+                val inner = base.make(run, text)
+                object : net.jonbell.pcs.agent.engines.Engine by inner {
+                    override suspend fun call(req: CallRequest) = inner.call(req).also { calls.incrementAndGet() }
+                }
+            }, standIn = false, note = "test")
+        val opt = ShootoutOptions(k = 2, rawVariant = false, cacheDir = dir.toFile())
+        val first = Shootout.run(small, listOf(counting), agentDir, opt)
+        val made = calls.get()
+        assertTrue(made > 0)
+        assertTrue(File(dir.toFile(), "perfect").listFiles()!!.isNotEmpty())
+        val second = Shootout.run(small, listOf(counting), agentDir, opt)
+        assertEquals(made, calls.get(), "every call of the second run is served from the cache")
+        assertEquals(first.rows.map { listOf(it.check, it.recall, it.falseFlagRate) }, second.rows.map { listOf(it.check, it.recall, it.falseFlagRate) })
+    }
 }
